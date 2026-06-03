@@ -26,6 +26,7 @@ public object LuaStdlib {
         openBase(state, output)
         openMath(state)
         openString(state)
+        openTable(state)
         return state
     }
 
@@ -75,6 +76,14 @@ public object LuaStdlib {
         setFunctionField(state, "sub", ::stringSub)
         setFunctionField(state, "upper", ::stringUpper)
         state.setGlobal("string")
+        return state
+    }
+
+    @JvmStatic
+    public fun openTable(state: LuaState): LuaState {
+        state.newTable()
+        setFunctionField(state, "concat", ::tableConcat)
+        state.setGlobal("table")
         return state
     }
 
@@ -309,6 +318,61 @@ public object LuaStdlib {
 
     private fun stringUpper(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(requiredString(context, 1, "string.upper").uppercase())
+    }
+
+    private fun tableConcat(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'table.concat' (table expected)")
+        }
+
+        val separator = if (context.isNone(2) || context.isNil(2)) {
+            ""
+        } else {
+            requiredString(context, 2, "table.concat")
+        }
+        val start = if (context.isNone(3) || context.isNil(3)) {
+            1L
+        } else {
+            requiredInteger(context, 3, "table.concat")
+        }
+        val end = if (context.isNone(4) || context.isNil(4)) {
+            context.tableLength(1) ?: 0L
+        } else {
+            requiredInteger(context, 4, "table.concat")
+        }
+
+        if (start > end) {
+            return LuaReturn.of("")
+        }
+
+        val builder = StringBuilder()
+        var index = start
+        while (index <= end) {
+            if (index > start) {
+                builder.append(separator)
+            }
+            builder.append(tableConcatValue(context, index))
+            index++
+        }
+        return LuaReturn.of(builder.toString())
+    }
+
+    private fun tableConcatValue(context: LuaCallContext, index: Long): String {
+        val value = try {
+            context.getTableValue(1, index)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+        return when (value) {
+            is Byte -> value.toLong().toString()
+            is Short -> value.toLong().toString()
+            is Int -> value.toLong().toString()
+            is Long -> value.toString()
+            is Float -> value.toDouble().toString()
+            is Double -> value.toString()
+            is CharSequence -> value.toString()
+            else -> throw LuaRuntimeException("invalid value at index $index in table for 'concat'")
+        }
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {

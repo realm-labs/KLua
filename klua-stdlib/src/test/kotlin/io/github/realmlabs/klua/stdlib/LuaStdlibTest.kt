@@ -183,6 +183,17 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openLibs installs table library`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return table.concat({"a", "b", "c"})""", "open-libs-table.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("abc", state.toString(1))
+    }
+
+    @Test
     fun `openMath installs math numeric functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -376,5 +387,42 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'string.char' (value out of range)", state.toString(-1))
+    }
+
+    @Test
+    fun `openTable installs table concat`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return table.concat({"a", "b", "c"}),
+                    table.concat({"a", "b", "c"}, "-"),
+                    table.concat({"a", "b", "c"}, "-", 2, 3),
+                    table.concat({"a", "b", "c"}, "-", 4, 3)
+                """.trimIndent(),
+                "table-concat.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("abc", state.toString(1))
+        assertEquals("a-b-c", state.toString(2))
+        assertEquals("b-c", state.toString(3))
+        assertEquals("", state.toString(4))
+    }
+
+    @Test
+    fun `table concat reports table argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return table.concat("not-table")""", "table-concat-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'table.concat' (table expected)", state.toString(-1))
     }
 }
