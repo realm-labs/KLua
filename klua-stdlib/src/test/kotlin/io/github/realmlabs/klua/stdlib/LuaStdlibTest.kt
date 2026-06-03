@@ -222,6 +222,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random supports ranges and deterministic seeds`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                math.randomseed(123)
+                local first = math.random()
+                local ranged = math.random(10)
+                local offset = math.random(5, 7)
+                math.randomseed(123)
+                return first == math.random(),
+                    ranged == math.random(10),
+                    offset == math.random(5, 7),
+                    first >= 0 and first < 1,
+                    ranged >= 1 and ranged <= 10,
+                    offset >= 5 and offset <= 7
+                """.trimIndent(),
+                "math-random.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        for (index in 1..6) {
+            assertTrue(state.toBoolean(index))
+        }
+    }
+
+    @Test
     fun `math functions report numeric argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -231,6 +262,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'math.abs' (number expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `math random reports empty interval errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.random(10, 1)""", "math-random-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'math.random' (interval is empty)", state.toString(-1))
     }
 
     @Test

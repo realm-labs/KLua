@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import java.util.Random
 import java.util.function.Consumer
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
@@ -13,6 +14,8 @@ import kotlin.math.sin
 import kotlin.math.tan
 
 public object LuaStdlib {
+    private var random = Random()
+
     @JvmStatic
     public fun openLibs(state: LuaState): LuaState {
         return openLibs(state, standardOutput())
@@ -52,6 +55,8 @@ public object LuaStdlib {
         setFunctionField(state, "floor", ::mathFloor)
         setFunctionField(state, "max", ::mathMax)
         setFunctionField(state, "min", ::mathMin)
+        setFunctionField(state, "random", ::mathRandom)
+        setFunctionField(state, "randomseed", ::mathRandomSeed)
         setFunctionField(state, "sin", ::mathSin)
         setFunctionField(state, "tan", ::mathTan)
         state.setGlobal("math")
@@ -184,6 +189,28 @@ public object LuaStdlib {
         return LuaReturn.of(min)
     }
 
+    private fun mathRandom(context: LuaCallContext): LuaReturn {
+        return when (context.argumentCount) {
+            0 -> LuaReturn.of(random.nextDouble())
+            1 -> {
+                val upper = requiredInteger(context, 1, "math.random")
+                LuaReturn.of(randomInteger(1L, upper))
+            }
+            2 -> {
+                val lower = requiredInteger(context, 1, "math.random")
+                val upper = requiredInteger(context, 2, "math.random")
+                LuaReturn.of(randomInteger(lower, upper))
+            }
+            else -> throw LuaRuntimeException("wrong number of arguments to 'math.random'")
+        }
+    }
+
+    private fun mathRandomSeed(context: LuaCallContext): LuaReturn {
+        val seed = requiredInteger(context, 1, "math.randomseed")
+        random = Random(seed)
+        return LuaReturn.none()
+    }
+
     private fun mathSin(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(sin(requiredNumber(context, 1, "math.sin")))
     }
@@ -201,6 +228,17 @@ public object LuaStdlib {
         if (context.argumentCount == 0) {
             throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
         }
+    }
+
+    private fun randomInteger(lower: Long, upper: Long): Long {
+        if (lower > upper) {
+            throw LuaRuntimeException("bad argument #1 to 'math.random' (interval is empty)")
+        }
+        val width = upper - lower + 1
+        if (width <= 0L || width > Int.MAX_VALUE) {
+            throw LuaRuntimeException("bad argument #1 to 'math.random' (interval is too large)")
+        }
+        return lower + random.nextInt(width.toInt())
     }
 
     private fun stringByte(context: LuaCallContext): LuaReturn {
