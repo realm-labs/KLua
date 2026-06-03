@@ -298,7 +298,12 @@ internal class Compiler private constructor(
         }
 
         if (expression.operator != UnaryOperator.NEGATE) {
-            throw unsupported(expression, "only numeric negation and not are supported by this compiler slice")
+            if (expression.operator == UnaryOperator.BITWISE_NOT) {
+                compileExpression(expression.expression, register)
+                writer.emit(Instruction.abc(Opcode.BNOT, register, register), expression.range.start.line)
+                return
+            }
+            throw unsupported(expression, "only numeric negation, not, and bitwise not are supported by this compiler slice")
         }
         when (val inner = expression.expression) {
             is IntegerExpression -> emitInteger(register, -inner.value, expression.range.start.line)
@@ -324,6 +329,12 @@ internal class Compiler private constructor(
             return
         }
 
+        val bitwiseOpcode = bitwiseOpcode(expression.operator)
+        if (bitwiseOpcode != null) {
+            compileBinaryOperation(expression, register, bitwiseOpcode)
+            return
+        }
+
         val arithmeticOpcode = arithmeticOpcode(expression.operator)
         if (arithmeticOpcode != null) {
             compileBinaryOperation(expression, register, arithmeticOpcode)
@@ -335,7 +346,7 @@ internal class Compiler private constructor(
             return
         }
 
-        throw unsupported(expression, "only arithmetic, comparison, concatenation, and logical binary expressions are supported by this compiler slice")
+        throw unsupported(expression, "only arithmetic, bitwise, comparison, concatenation, and logical binary expressions are supported by this compiler slice")
     }
 
     private fun compileLogicalExpression(expression: BinaryExpression, register: Int) {
@@ -400,6 +411,15 @@ internal class Compiler private constructor(
             BinaryOperator.FLOOR_DIVIDE -> Opcode.IDIV
             BinaryOperator.MODULO -> Opcode.MOD
             BinaryOperator.POWER -> Opcode.POW
+            else -> null
+        }
+    }
+
+    private fun bitwiseOpcode(operator: BinaryOperator): Opcode? {
+        return when (operator) {
+            BinaryOperator.BITWISE_AND -> Opcode.BAND
+            BinaryOperator.BITWISE_OR -> Opcode.BOR
+            BinaryOperator.BITWISE_XOR -> Opcode.BXOR
             else -> null
         }
     }

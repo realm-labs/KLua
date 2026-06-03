@@ -187,6 +187,30 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles bitwise expressions`() {
+        val prototype = Compiler.compile("return ~1, 6 & 3, 4 | 1, 5 ~ 3")
+
+        assertEquals(5, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  BNOT R0 R0
+            0002  [1]  LOAD_INT R1 6
+            0003  [1]  LOAD_INT R2 3
+            0004  [1]  BAND R1 R1 R2
+            0005  [1]  LOAD_INT R2 4
+            0006  [1]  LOAD_INT R3 1
+            0007  [1]  BOR R2 R2 R3
+            0008  [1]  LOAD_INT R3 5
+            0009  [1]  LOAD_INT R4 3
+            0010  [1]  BXOR R3 R3 R4
+            0011  [1]  RETURN R0 4
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local declaration and local return`() {
         val prototype = Compiler.compile(
             """

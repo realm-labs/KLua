@@ -248,6 +248,24 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes bitwise expressions`() {
+        val result = LuaVm().execute(
+            Compiler.compile("return ~1, 6 & 3, 4 | 1, 5 ~ 3, 6.0 & 3"),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(-2),
+                LuaInteger(2),
+                LuaInteger(5),
+                LuaInteger(6),
+                LuaInteger(2),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `executes true if branch`() {
         val result = LuaVm().execute(
             Compiler.compile(
@@ -621,6 +639,19 @@ class LuaVmTest {
         }
 
         assertEquals("attempt to concatenate nil", error.message)
+    }
+
+    @Test
+    fun `rejects bitwise operation on non integer values`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("return 1.5 & 1"))
+        }
+        val rangeError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("return 9.223372036854776e18 & 1"))
+        }
+
+        assertEquals("attempt to perform bitwise operation on number", error.message)
+        assertEquals("attempt to perform bitwise operation on number", rangeError.message)
     }
 
     @Test

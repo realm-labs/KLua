@@ -42,6 +42,10 @@ internal class LuaVm {
                 Opcode.MOD -> arithmetic(stack, frame, instruction, Arithmetic.MOD)
                 Opcode.POW -> arithmetic(stack, frame, instruction, Arithmetic.POW)
                 Opcode.CONCAT -> concat(stack, frame, instruction)
+                Opcode.BAND -> bitwise(stack, frame, instruction, Bitwise.AND)
+                Opcode.BOR -> bitwise(stack, frame, instruction, Bitwise.OR)
+                Opcode.BXOR -> bitwise(stack, frame, instruction, Bitwise.XOR)
+                Opcode.BNOT -> bitwiseNot(stack, frame, instruction)
                 Opcode.UNM -> unaryMinus(stack, frame, instruction)
                 Opcode.NOT -> logicalNot(stack, frame, instruction)
                 Opcode.EQ -> compare(stack, frame, instruction, Comparison.EQ)
@@ -117,6 +121,23 @@ internal class LuaVm {
         val right = stringCoercion(rightValue)
             ?: throw LuaVmException("attempt to concatenate ${typeName(rightValue)}")
         stack.set(register(frame, Instruction.a(instruction)), LuaString(left + right))
+    }
+
+    private fun bitwise(stack: LuaStack, frame: CallFrame, instruction: Int, operation: Bitwise) {
+        val leftValue = stack.get(register(frame, Instruction.b(instruction)))
+        val rightValue = stack.get(register(frame, Instruction.c(instruction)))
+        val left = integerValue(leftValue)
+            ?: throw LuaVmException("attempt to perform bitwise operation on ${typeName(leftValue)}")
+        val right = integerValue(rightValue)
+            ?: throw LuaVmException("attempt to perform bitwise operation on ${typeName(rightValue)}")
+        stack.set(register(frame, Instruction.a(instruction)), LuaInteger(operation.apply(left, right)))
+    }
+
+    private fun bitwiseNot(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val value = stack.get(register(frame, Instruction.b(instruction)))
+        val integer = integerValue(value)
+            ?: throw LuaVmException("attempt to perform bitwise operation on ${typeName(value)}")
+        stack.set(register(frame, Instruction.a(instruction)), LuaInteger(integer.inv()))
     }
 
     private fun forLoopContinues(stack: LuaStack, frame: CallFrame, instruction: Int): Boolean {
@@ -224,6 +245,20 @@ internal class LuaVm {
             throw LuaVmException("attempt to compare ${typeName(left)} with ${typeName(right)}")
         }
     }
+
+    private enum class Bitwise {
+        AND,
+        OR,
+        XOR;
+
+        fun apply(left: Long, right: Long): Long {
+            return when (this) {
+                AND -> left and right
+                OR -> left or right
+                XOR -> left xor right
+            }
+        }
+    }
 }
 
 private fun isTruthy(value: LuaValue): Boolean {
@@ -234,6 +269,27 @@ private fun numberValue(value: LuaValue): Double? {
     return when (value) {
         is LuaInteger -> value.value.toDouble()
         is LuaFloat -> value.value
+        else -> null
+    }
+}
+
+private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
+
+private fun integerValue(value: LuaValue): Long? {
+    return when (value) {
+        is LuaInteger -> value.value
+        is LuaFloat -> {
+            if (
+                java.lang.Double.isFinite(value.value) &&
+                value.value % 1.0 == 0.0 &&
+                value.value >= Long.MIN_VALUE.toDouble() &&
+                value.value < LONG_MAX_EXCLUSIVE
+            ) {
+                value.value.toLong()
+            } else {
+                null
+            }
+        }
         else -> null
     }
 }
