@@ -19,6 +19,23 @@ internal object LuaUtf8Library {
         state.pushString(CHAR_PATTERN)
         state.setField(-2, "charpattern")
         state.setGlobal("utf8")
+        installLuaSource(
+            state,
+            """
+            utf8.codes = function(text)
+                local index = 0
+                local length = utf8.len(text)
+                return function()
+                    index = index + 1
+                    if index > length then
+                        return nil
+                    end
+                    return index, utf8.codepoint(text, index)
+                end
+            end
+            """.trimIndent(),
+            "stdlib-utf8-codes.lua",
+        )
         return state
     }
 
@@ -43,6 +60,9 @@ internal object LuaUtf8Library {
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
         val codePoints = requiredString(context, 1, "utf8.len").codePoints().toArray()
+        if (codePoints.isEmpty()) {
+            return LuaReturn.of(0L)
+        }
         val start = normalizedPosition(context, 2, 1L, codePoints.size, "utf8.len")
         val end = normalizedPosition(context, 3, -1L, codePoints.size, "utf8.len")
         if (start > end) {

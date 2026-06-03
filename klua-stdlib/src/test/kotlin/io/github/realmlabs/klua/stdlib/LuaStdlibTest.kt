@@ -873,6 +873,44 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codes returns codepoint iterator`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator = utf8.codes("A" .. utf8.char(128512))
+                local firstIndex, firstCode = iterator()
+                local secondIndex, secondCode = iterator()
+                local done = iterator()
+                return firstIndex, firstCode, secondIndex, secondCode, done
+                """.trimIndent(),
+                "utf8-codes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(65L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(128512L, state.toInteger(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `utf8 len returns zero for empty strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.len("")""", "utf8-len-empty.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0L, state.toInteger(1))
+    }
+
+    @Test
     fun `utf8 char rejects invalid code points`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)

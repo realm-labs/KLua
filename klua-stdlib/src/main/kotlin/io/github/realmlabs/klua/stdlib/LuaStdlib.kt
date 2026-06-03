@@ -4,7 +4,6 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
-import io.github.realmlabs.klua.api.LuaStatus
 import java.util.Locale
 import java.util.Random
 import java.util.function.Consumer
@@ -884,17 +883,6 @@ public object LuaStdlib {
     private fun setNumberField(state: LuaState, name: String, value: Double) {
         state.pushNumber(value)
         state.setField(-2, name)
-    }
-
-    private fun installLuaSource(state: LuaState, source: String, chunkName: String) {
-        val loadStatus = state.load(source, chunkName)
-        if (loadStatus != LuaStatus.OK) {
-            throw LuaRuntimeException(state.toString(-1) ?: "failed to load $chunkName")
-        }
-        val callStatus = state.pcall(0, 0)
-        if (callStatus != LuaStatus.OK) {
-            throw LuaRuntimeException(state.toString(-1) ?: "failed to run $chunkName")
-        }
     }
 
     private fun String.substringByLuaRange(start: Long, end: Long): String {
