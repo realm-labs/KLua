@@ -22,6 +22,28 @@ internal data class LuaString(
     val value: String,
 ) : LuaValue
 
+internal class LuaUserData(
+    val value: Any,
+    private val typeResolver: ((Any) -> LuaUserDataType?)? = null,
+) : LuaValue {
+    val type: LuaUserDataType?
+        get() = typeResolver?.invoke(value)
+}
+
+internal class LuaUserDataType(
+    private val methods: Map<String, LuaNativeFunction>,
+    private val properties: Map<String, LuaUserDataProperty>,
+) {
+    fun method(name: String): LuaNativeFunction? = methods[name]
+
+    fun property(name: String): LuaUserDataProperty? = properties[name]
+}
+
+internal data class LuaUserDataProperty(
+    val getter: LuaNativeFunction?,
+    val setter: LuaNativeFunction?,
+)
+
 internal data class LuaClosure(
     val prototype: Prototype,
     val upvalues: List<LuaUpvalue> = emptyList(),

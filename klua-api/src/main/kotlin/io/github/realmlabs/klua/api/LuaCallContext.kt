@@ -18,4 +18,8 @@ interface LuaCallContext {
     fun toNumber(index: Int): Double?
 
     fun toString(index: Int): String?
+
+    fun toUserData(index: Int): Any?
+
+    fun <T : Any> toUserData(index: Int, type: Class<T>): T?
 }

@@ -6,7 +6,11 @@ import io.github.realmlabs.klua.core.KLuaCoreExecution
 import io.github.realmlabs.klua.core.KLuaCoreGlobals
 import io.github.realmlabs.klua.core.KLuaCoreLoad
 import io.github.realmlabs.klua.core.KLuaCoreRuntime
+import io.github.realmlabs.klua.core.KLuaCoreUserDataGetter
+import io.github.realmlabs.klua.core.KLuaCoreUserDataMethod
+import io.github.realmlabs.klua.core.KLuaCoreUserDataSetter
 import io.github.realmlabs.klua.core.KLuaCoreValue
+import java.util.function.Consumer
 
 class LuaState private constructor(
     val config: LuaConfig,
@@ -63,6 +67,37 @@ class LuaState private constructor(
 
     fun register(name: String, function: LuaFunction) {
         setNativeGlobal(name, LuaStackValue.NativeFunctionValue(function))
+    }
+
+    fun <T : Any> registerType(type: Class<T>, configure: Consumer<LuaUserDataType<T>>) {
+        val userDataType = LuaUserDataType<T>(
+            registerMethod = { name, method ->
+                coreGlobals.setUserDataMethod(
+                    type = type,
+                    name = name,
+                    method = KLuaCoreUserDataMethod { receiver, arguments ->
+                        callHostUserDataMethod(method, receiver, arguments.map { it.toStackValue() })
+                    },
+                )
+            },
+            registerProperty = { name, getter, setter ->
+                coreGlobals.setUserDataProperty(
+                    type = type,
+                    name = name,
+                    getter = getter?.let { propertyGetter ->
+                        KLuaCoreUserDataGetter { receiver ->
+                            callHostUserDataGetter(propertyGetter, receiver)
+                        }
+                    },
+                    setter = setter?.let { propertySetter ->
+                        KLuaCoreUserDataSetter { receiver, value ->
+                            callHostUserDataSetter(propertySetter, receiver, value.toStackValue())
+                        }
+                    },
+                )
+            },
+        )
+        configure.accept(userDataType)
     }
 
     private fun pcallChunk(
@@ -242,6 +277,10 @@ class LuaState private constructor(
         stack += LuaStackValue.StringValue(value)
     }
 
+    fun pushUserData(value: Any) {
+        stack += LuaStackValue.UserDataValue(value)
+    }
+
     fun isNil(index: Int): Boolean = valueAt(index) == LuaStackValue.Nil
 
     fun isNone(index: Int): Boolean = valueAt(index) == null
@@ -269,6 +308,8 @@ class LuaState private constructor(
     }
 
     fun isTable(index: Int): Boolean = valueAt(index) is LuaStackValue.TableValue
+
+    fun isUserData(index: Int): Boolean = valueAt(index) is LuaStackValue.UserDataValue
 
     fun typeName(index: Int): String {
         return stackTypeName(valueAt(index))
@@ -311,6 +352,15 @@ class LuaState private constructor(
         }
     }
 
+    fun toUserData(index: Int): Any? {
+        return (valueAt(index) as? LuaStackValue.UserDataValue)?.value
+    }
+
+    fun <T : Any> toUserData(index: Int, type: Class<T>): T? {
+        val value = toUserData(index) ?: return null
+        return if (type.isInstance(value)) type.cast(value) else null
+    }
+
     internal fun toAny(index: Int): Any? {
         return when (val value = valueAt(index)) {
             null,
@@ -321,6 +371,7 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> value.value
             is LuaStackValue.StringValue -> value.value
             is LuaStackValue.NativeFunctionValue -> value.function
+            is LuaStackValue.UserDataValue -> value.value
             else -> throw LuaRuntimeException("stack value $index is ${stackTypeName(value)}")
         }
     }
@@ -367,6 +418,50 @@ class LuaState private constructor(
         }
     }
 
+    private fun <T : Any> callHostUserDataMethod(
+        method: LuaUserDataMethod<T>,
+        receiver: T,
+        arguments: List<LuaStackValue>,
+    ): KLuaCoreCallResult {
+        return try {
+            val result = method.call(receiver, DefaultLuaCallContext(arguments))
+            KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
+        } catch (exception: LuaException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        } catch (exception: RuntimeException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        }
+    }
+
+    private fun <T : Any> callHostUserDataGetter(
+        getter: LuaUserDataGetter<T>,
+        receiver: T,
+    ): KLuaCoreCallResult {
+        return try {
+            val result = getter.get(receiver)
+            KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
+        } catch (exception: LuaException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        } catch (exception: RuntimeException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        }
+    }
+
+    private fun <T : Any> callHostUserDataSetter(
+        setter: LuaUserDataSetter<T>,
+        receiver: T,
+        value: LuaStackValue,
+    ): KLuaCoreCallResult {
+        return try {
+            setter.set(receiver, value.toAnyValue())
+            KLuaCoreCallResult.Success(emptyList())
+        } catch (exception: LuaException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        } catch (exception: RuntimeException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        }
+    }
+
     private fun KLuaCoreValue?.toStackValue(): LuaStackValue {
         return when (this) {
             null,
@@ -376,6 +471,7 @@ class LuaState private constructor(
             is KLuaCoreValue.IntegerValue -> LuaStackValue.IntegerValue(value)
             is KLuaCoreValue.NumberValue -> LuaStackValue.NumberValue(value)
             is KLuaCoreValue.StringValue -> LuaStackValue.StringValue(value)
+            is KLuaCoreValue.UserDataValue -> LuaStackValue.UserDataValue(value)
             is KLuaCoreValue.UnsupportedValue -> LuaStackValue.UnsupportedValue(typeName)
         }
     }
@@ -391,7 +487,7 @@ class LuaState private constructor(
             is Float -> LuaStackValue.NumberValue(toDouble())
             is Double -> LuaStackValue.NumberValue(this)
             is CharSequence -> LuaStackValue.StringValue(toString())
-            else -> throw IllegalArgumentException("cannot return ${this::class.java.name} as Lua value")
+            else -> LuaStackValue.UserDataValue(this)
         }
     }
 
@@ -406,7 +502,20 @@ class LuaState private constructor(
             is Float -> KLuaCoreValue.NumberValue(toDouble())
             is Double -> KLuaCoreValue.NumberValue(this)
             is CharSequence -> KLuaCoreValue.StringValue(toString())
-            else -> throw IllegalArgumentException("cannot return ${this::class.java.name} as Lua value")
+            else -> KLuaCoreValue.UserDataValue(this)
+        }
+    }
+
+    private fun LuaStackValue.toAnyValue(): Any? {
+        return when (this) {
+            LuaStackValue.Nil -> null
+            is LuaStackValue.BooleanValue -> value
+            is LuaStackValue.IntegerValue -> value
+            is LuaStackValue.NumberValue -> value
+            is LuaStackValue.StringValue -> value
+            is LuaStackValue.NativeFunctionValue -> function
+            is LuaStackValue.UserDataValue -> value
+            else -> throw IllegalArgumentException("cannot pass ${stackTypeName(this)} as host value")
         }
     }
 
@@ -420,6 +529,7 @@ class LuaState private constructor(
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.TableValue -> KLuaCoreValue.UnsupportedValue("table")
+            is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
         }
     }
@@ -473,6 +583,7 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue,
             -> "number"
             is LuaStackValue.StringValue -> "string"
+            is LuaStackValue.UserDataValue -> "userdata"
             is LuaStackValue.UnsupportedValue -> value.typeName
         }
     }
@@ -498,6 +609,7 @@ class LuaState private constructor(
                 is LuaStackValue.NumberValue -> value.value
                 is LuaStackValue.StringValue -> value.value
                 is LuaStackValue.NativeFunctionValue -> value.function
+                is LuaStackValue.UserDataValue -> value.value
                 else -> throw IllegalArgumentException("argument $index is ${stackTypeName(value)}")
             }
         }
@@ -539,6 +651,15 @@ class LuaState private constructor(
             }
         }
 
+        override fun toUserData(index: Int): Any? {
+            return (valueAt(index) as? LuaStackValue.UserDataValue)?.value
+        }
+
+        override fun <T : Any> toUserData(index: Int, type: Class<T>): T? {
+            val value = toUserData(index) ?: return null
+            return if (type.isInstance(value)) type.cast(value) else null
+        }
+
         private fun valueAt(index: Int): LuaStackValue? {
             val resolved = when {
                 index > 0 -> index - 1
@@ -578,6 +699,10 @@ class LuaState private constructor(
 
         data class NativeFunctionValue(
             val function: LuaFunction,
+        ) : LuaStackValue
+
+        data class UserDataValue(
+            val value: Any,
         ) : LuaStackValue
 
         data class UnsupportedValue(

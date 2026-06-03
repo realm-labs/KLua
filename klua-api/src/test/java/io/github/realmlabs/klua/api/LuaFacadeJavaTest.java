@@ -34,6 +34,32 @@ class LuaFacadeJavaTest {
     }
 
     @Test
+    void registeredUserDataTypesExposeMethodsToLua() {
+        Lua lua = Lua.create();
+        Player player = new Player(7);
+
+        lua.globals().set("player", player);
+        lua.registerType(Player.class, type -> {
+            type.method("getLevel", (receiver, context) -> LuaReturn.of(receiver.getLevel()));
+            type.method("addExp", (receiver, context) -> {
+                receiver.addExp(context.toInteger(1));
+                return LuaReturn.none();
+            });
+            type.property(
+                    "level",
+                    receiver -> LuaReturn.of(receiver.getLevel()),
+                    (receiver, value) -> receiver.setLevel((Long) value)
+            );
+        });
+
+        assertEquals(10L, lua.load("""
+                player:addExp(100)
+                player.level = player.level + 2
+                return player:getLevel()
+                """).evalLong());
+    }
+
+    @Test
     void evalThrowsStructuredErrors() {
         Lua lua = Lua.create();
 
@@ -48,5 +74,25 @@ class LuaFacadeJavaTest {
         assertEquals("ok", result.getString(2));
         assertEquals(true, result.getBoolean(3));
         assertThrows(LuaRuntimeException.class, () -> result.getLong(2));
+    }
+
+    private static final class Player {
+        private long level;
+
+        private Player(long level) {
+            this.level = level;
+        }
+
+        private long getLevel() {
+            return level;
+        }
+
+        private void addExp(long amount) {
+            level += amount / 100;
+        }
+
+        private void setLevel(long level) {
+            this.level = level;
+        }
     }
 }

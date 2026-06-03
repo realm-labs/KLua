@@ -231,6 +231,28 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `compiles method calls with self argument`() {
+        val prototype = Compiler.compile(
+            """
+            local player = {}
+            return player:addExp(100)
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [2]  MOVE R2 R0
+            0002  [2]  GET_FIELD R1 R2 K0 ; "addExp"
+            0003  [2]  LOAD_INT R3 100
+            0004  [2]  CALL R1 2 *
+            0005  [2]  RETURN R1 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local vararg expansion`() {
         val prototype = Compiler.compile(
             """

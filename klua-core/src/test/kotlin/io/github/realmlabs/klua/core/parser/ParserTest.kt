@@ -19,6 +19,7 @@ import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
+import io.github.realmlabs.klua.core.ast.MethodCallExpression
 import io.github.realmlabs.klua.core.ast.NamedTableEntry
 import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
@@ -303,20 +304,44 @@ class ParserTest {
     fun `parses function call statements`() {
         val chunk = Parser.parse("tick(1)")
         val statement = assertIs<CallStatement>(chunk.statements.single())
+        val call = assertIs<CallExpression>(statement.call)
 
-        assertEquals("tick", assertIs<VariableExpression>(statement.call.callee).name)
-        assertEquals(1, statement.call.arguments.size)
+        assertEquals("tick", assertIs<VariableExpression>(call.callee).name)
+        assertEquals(1, call.arguments.size)
     }
 
     @Test
     fun `parses indexed function call statements`() {
         val chunk = Parser.parse("t.tick(1)")
         val statement = assertIs<CallStatement>(chunk.statements.single())
+        val call = assertIs<CallExpression>(statement.call)
 
-        val callee = assertIs<IndexExpression>(statement.call.callee)
+        val callee = assertIs<IndexExpression>(call.callee)
         assertEquals("t", assertIs<VariableExpression>(callee.receiver).name)
         assertEquals("tick", assertIs<StringExpression>(callee.key).value)
-        assertEquals(1, statement.call.arguments.size)
+        assertEquals(1, call.arguments.size)
+    }
+
+    @Test
+    fun `parses method call expressions`() {
+        val chunk = Parser.parse("return player:getLevel(1)")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+
+        val call = assertIs<MethodCallExpression>(statement.values.single())
+        assertEquals("player", assertIs<VariableExpression>(call.receiver).name)
+        assertEquals("getLevel", call.methodName)
+        assertEquals(1, call.arguments.size)
+    }
+
+    @Test
+    fun `parses method call statements`() {
+        val chunk = Parser.parse("player:addExp(100)")
+        val statement = assertIs<CallStatement>(chunk.statements.single())
+
+        val call = assertIs<MethodCallExpression>(statement.call)
+        assertEquals("player", assertIs<VariableExpression>(call.receiver).name)
+        assertEquals("addExp", call.methodName)
+        assertEquals(100L, assertIs<IntegerExpression>(call.arguments.single()).value)
     }
 
     @Test

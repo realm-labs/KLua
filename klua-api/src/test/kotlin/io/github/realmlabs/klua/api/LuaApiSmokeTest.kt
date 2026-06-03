@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.api
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertSame
 
 class LuaApiSmokeTest {
     @Test
@@ -28,6 +29,17 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade globals can carry host userdata through lua`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+
+        lua.globals().set("host", host)
+        val result = lua.load("return host").eval()
+
+        assertSame(host, result.get(1))
+    }
+
+    @Test
     fun `facade throws structured runtime errors`() {
         val lua = Lua.create()
 
@@ -37,4 +49,8 @@ class LuaApiSmokeTest {
 
         assertEquals("attempt to perform arithmetic on string", error.message)
     }
+
+    private data class HostObject(
+        val name: String,
+    )
 }

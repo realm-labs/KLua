@@ -8,6 +8,7 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal object Disassembler {
@@ -113,6 +114,7 @@ internal object Disassembler {
             -> "function"
             is LuaString -> "\"${value.value}\""
             is LuaTable -> "table"
+            is LuaUserData -> "userdata"
         }
     }
 }

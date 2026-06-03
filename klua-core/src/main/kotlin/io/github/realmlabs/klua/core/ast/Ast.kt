@@ -51,7 +51,7 @@ internal data class IndexAssignmentTarget(
 }
 
 internal data class CallStatement(
-    val call: CallExpression,
+    val call: Expression,
     override val range: SourceRange,
 ) : Statement
 
@@ -145,6 +145,13 @@ internal data class FunctionExpression(
 
 internal data class CallExpression(
     val callee: Expression,
+    val arguments: List<Expression>,
+    override val range: SourceRange,
+) : Expression
+
+internal data class MethodCallExpression(
+    val receiver: Expression,
+    val methodName: String,
     val arguments: List<Expression>,
     override val range: SourceRange,
 ) : Expression

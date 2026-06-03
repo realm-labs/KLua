@@ -21,6 +21,7 @@ import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
+import io.github.realmlabs.klua.core.ast.MethodCallExpression
 import io.github.realmlabs.klua.core.ast.NamedTableEntry
 import io.github.realmlabs.klua.core.ast.NilExpression
 import io.github.realmlabs.klua.core.ast.NumericForStatement
@@ -104,7 +105,11 @@ internal class Compiler private constructor(
     }
 
     private fun compileCallStatement(statement: CallStatement) {
-        compileCallExpression(statement.call, nextLocalRegister, 0)
+        when (val call = statement.call) {
+            is CallExpression -> compileCallExpression(call, nextLocalRegister, 0)
+            is MethodCallExpression -> compileMethodCallExpression(call, nextLocalRegister, 0)
+            else -> throw unsupported(statement, "not a call statement")
+        }
     }
 
     private fun compileScopedBlock(statements: List<Statement>) {
@@ -171,6 +176,13 @@ internal class Compiler private constructor(
             }
             return
         }
+        if (onlyValue is MethodCallExpression) {
+            compileMethodCallExpression(onlyValue, slots.first(), slots.size)
+            for ((index, name) in statement.names.withIndex()) {
+                locals[name] = slots[index]
+            }
+            return
+        }
 
         for ((index, slot) in slots.withIndex()) {
             val value = statement.values.getOrNull(index)
@@ -213,6 +225,11 @@ internal class Compiler private constructor(
 
         if (onlyValue is CallExpression) {
             compileCallExpression(onlyValue, tempBase, targetCount)
+            assignTargets(statement, tempBase)
+            return
+        }
+        if (onlyValue is MethodCallExpression) {
+            compileMethodCallExpression(onlyValue, tempBase, targetCount)
             assignTargets(statement, tempBase)
             return
         }
@@ -410,6 +427,7 @@ internal class Compiler private constructor(
             }
             is IndexExpression -> compileIndexExpression(expression, register)
             is CallExpression -> compileCallExpression(expression, register)
+            is MethodCallExpression -> compileMethodCallExpression(expression, register)
             is VariableExpression -> compileVariable(expression, register)
             is VarargExpression -> compileVarargExpression(expression, register, 1)
             is FunctionExpression -> compileFunctionExpression(expression, register)
@@ -470,6 +488,7 @@ internal class Compiler private constructor(
     private fun compileOpenResultExpression(expression: Expression, register: Int) {
         when (expression) {
             is CallExpression -> compileCallExpression(expression, register, OPEN_RESULT_COUNT)
+            is MethodCallExpression -> compileMethodCallExpression(expression, register, OPEN_RESULT_COUNT)
             is VarargExpression -> compileVarargExpression(expression, register, OPEN_RESULT_COUNT)
             else -> throw unsupported(expression, "not an open result expression")
         }
@@ -512,6 +531,35 @@ internal class Compiler private constructor(
         }
         val minimumResultSlots = if (resultCount == OPEN_RESULT_COUNT) 1 else resultCount
         maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 1, minimumResultSlots))
+        writer.emit(Instruction.abc(Opcode.CALL, register, argumentCount, resultCount), expression.range.start.line)
+    }
+
+    private fun compileMethodCallExpression(expression: MethodCallExpression, register: Int, resultCount: Int = 1) {
+        if (expression.arguments.size >= OPEN_RESULT_COUNT - 1) {
+            throw unsupported(expression, "too many method arguments")
+        }
+        if (resultCount !in 0..255) {
+            throw unsupported(expression, "too many function results")
+        }
+
+        compileExpression(expression.receiver, register + 1)
+        val method = stringConstantIndex(expression.methodName)
+        writer.emit(Instruction.abc(Opcode.GET_FIELD, register, register + 1, method), expression.range.start.line)
+        val argumentCount = if (expression.arguments.lastOrNull().isOpenResultExpression()) {
+            val lastIndex = expression.arguments.lastIndex
+            for (index in 0 until lastIndex) {
+                compileExpression(expression.arguments[index], register + index + 2)
+            }
+            compileOpenResultExpression(expression.arguments[lastIndex], register + lastIndex + 2)
+            OPEN_RESULT_COUNT
+        } else {
+            for ((index, argument) in expression.arguments.withIndex()) {
+                compileExpression(argument, register + index + 2)
+            }
+            expression.arguments.size + 1
+        }
+        val minimumResultSlots = if (resultCount == OPEN_RESULT_COUNT) 1 else resultCount
+        maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 2, minimumResultSlots))
         writer.emit(Instruction.abc(Opcode.CALL, register, argumentCount, resultCount), expression.range.start.line)
     }
 
@@ -754,7 +802,8 @@ internal class Compiler private constructor(
             operator == BinaryOperator.GREATER_EQUAL
     }
 
-    private fun Expression?.isOpenResultExpression(): Boolean = this is CallExpression || this is VarargExpression
+    private fun Expression?.isOpenResultExpression(): Boolean =
+        this is CallExpression || this is MethodCallExpression || this is VarargExpression
 
     private fun emitInteger(register: Int, value: Long, line: Int) {
         if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {

@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.api
 
+import java.util.function.Consumer
+
 class Lua private constructor(
     val config: LuaConfig,
     private val state: LuaState,
@@ -16,4 +18,8 @@ class Lua private constructor(
     fun load(source: String, chunkName: String = "chunk"): LuaChunk = LuaChunk(state, source, chunkName)
 
     fun globals(): LuaGlobals = globals
+
+    fun <T : Any> registerType(type: Class<T>, configure: Consumer<LuaUserDataType<T>>) {
+        state.registerType(type, configure)
+    }
 }

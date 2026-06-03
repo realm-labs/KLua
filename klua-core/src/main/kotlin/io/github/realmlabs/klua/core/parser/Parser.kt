@@ -22,6 +22,7 @@ import io.github.realmlabs.klua.core.ast.KeyedTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
+import io.github.realmlabs.klua.core.ast.MethodCallExpression
 import io.github.realmlabs.klua.core.ast.NilExpression
 import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.NamedTableEntry
@@ -120,7 +121,7 @@ internal class Parser private constructor(
     private fun assignmentOrCallStatement(): Statement {
         val start = peek()
         val first = postfix()
-        if (first is CallExpression && !check(TokenKind.COMMA) && !check(TokenKind.ASSIGN)) {
+        if (first.isCallLike() && !check(TokenKind.COMMA) && !check(TokenKind.ASSIGN)) {
             return CallStatement(first, first.range)
         }
 
@@ -146,7 +147,7 @@ internal class Parser private constructor(
 
     private fun callStatement(): CallStatement {
         val expression = expression()
-        val call = expression as? CallExpression
+        val call = expression.takeIf { it.isCallLike() }
             ?: throw errorAt(previous(), "expected function call statement")
         return CallStatement(call, call.range)
     }
@@ -317,6 +318,22 @@ internal class Parser private constructor(
                         range = SourceRange(expression.range.start, name.range.end),
                     )
                 }
+                match(TokenKind.COLON) -> {
+                    val name = consume(TokenKind.IDENTIFIER, "expected method name after ':'")
+                    consume(TokenKind.LEFT_PAREN, "expected '(' after method name")
+                    val arguments = if (check(TokenKind.RIGHT_PAREN)) {
+                        emptyList()
+                    } else {
+                        expressionList()
+                    }
+                    val end = consume(TokenKind.RIGHT_PAREN, "expected ')' after method arguments")
+                    expression = MethodCallExpression(
+                        receiver = expression,
+                        methodName = name.literal as String,
+                        arguments = arguments,
+                        range = SourceRange(expression.range.start, end.range.end),
+                    )
+                }
                 else -> return expression
             }
         }
@@ -417,6 +434,7 @@ internal class Parser private constructor(
             is FunctionExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is IndexExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is IntegerExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
+            is MethodCallExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is NilExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is StringExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is TableExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
@@ -498,6 +516,8 @@ internal class Parser private constructor(
     private fun previous(): Token = tokens[current - 1]
 
     private fun errorAt(token: Token, message: String): ParserException = ParserException(token.range.start, message)
+
+    private fun Expression.isCallLike(): Boolean = this is CallExpression || this is MethodCallExpression
 
     private data class BinaryInfo(
         val operator: BinaryOperator,

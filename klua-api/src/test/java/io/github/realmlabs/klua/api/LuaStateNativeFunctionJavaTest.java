@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LuaStateNativeFunctionJavaTest {
@@ -123,6 +124,29 @@ class LuaStateNativeFunctionJavaTest {
     }
 
     @Test
+    void nativeFunctionsReceiveAndReturnUserDataFromLuaSource() {
+        LuaState state = LuaState.create();
+        HostObject host = new HostObject("player");
+
+        state.pushUserData(host);
+        state.setGlobal("host");
+        state.register("identity", context -> {
+            assertEquals("userdata", context.typeName(1));
+            assertSame(host, context.get(1));
+            assertSame(host, context.toUserData(1));
+            assertSame(host, context.toUserData(1, HostObject.class));
+            return LuaReturn.of(context.get(1));
+        });
+
+        assertEquals(LuaStatus.OK, state.load("return identity(host)", "native-userdata.lua"));
+        assertEquals(LuaStatus.OK, state.pcall(0, 1));
+
+        assertEquals(1, state.getTop());
+        assertTrue(state.isUserData(-1));
+        assertSame(host, state.toUserData(-1));
+    }
+
+    @Test
     void nativeFunctionResultsRespectFixedResultCounts() {
         LuaState state = LuaState.create();
 
@@ -149,5 +173,13 @@ class LuaStateNativeFunctionJavaTest {
         assertEquals(1, state.getTop());
         assertTrue(state.getLastError() instanceof LuaRuntimeException);
         assertEquals("host failure", state.toString(-1));
+    }
+
+    private static final class HostObject {
+        private final String name;
+
+        private HostObject(String name) {
+            this.name = name;
+        }
     }
 }

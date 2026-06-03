@@ -34,7 +34,7 @@ class LuaGlobals internal constructor(
             is Double -> state.pushNumber(value)
             is CharSequence -> state.pushString(value.toString())
             is LuaFunction -> state.pushFunction(value)
-            else -> throw LuaRuntimeException("cannot set ${value::class.java.name} as Lua global")
+            else -> state.pushUserData(value)
         }
     }
 }

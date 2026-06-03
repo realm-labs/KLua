@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -95,16 +96,22 @@ class LuaStateStackJavaTest {
         state.pushBoolean(true);
         state.pushInteger(7);
         state.pushString("8");
+        HostObject host = new HostObject("host");
+        state.pushUserData(host);
 
         assertEquals("nil", state.typeName(1));
         assertEquals("boolean", state.typeName(2));
         assertEquals("number", state.typeName(3));
         assertEquals("string", state.typeName(4));
-        assertEquals("none", state.typeName(5));
-        assertTrue(state.isNone(5));
+        assertEquals("userdata", state.typeName(5));
+        assertEquals("none", state.typeName(6));
+        assertTrue(state.isNone(6));
         assertTrue(state.isBoolean(2));
         assertTrue(state.isNumber(4));
         assertTrue(state.isString(3));
+        assertTrue(state.isUserData(5));
+        assertSame(host, state.toUserData(5));
+        assertSame(host, state.toUserData(5, HostObject.class));
     }
 
     @Test
@@ -119,5 +126,13 @@ class LuaStateStackJavaTest {
         assertThrows(IllegalArgumentException.class, () -> state.pop(-1));
         assertThrows(IllegalArgumentException.class, () -> state.pop(1));
         assertThrows(IllegalArgumentException.class, () -> state.setTop(-2));
+    }
+
+    private static final class HostObject {
+        private final String name;
+
+        private HostObject(String name) {
+            this.name = name;
+        }
     }
 }

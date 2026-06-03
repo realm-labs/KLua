@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.api;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class LuaStateGlobalJavaTest {
@@ -90,5 +91,28 @@ class LuaStateGlobalJavaTest {
         state.getGlobal("answer");
 
         assertEquals(42L, state.toInteger(-1));
+    }
+
+    @Test
+    void loadedChunksReadAndReturnUserDataGlobals() {
+        LuaState state = LuaState.create();
+        HostObject host = new HostObject("host");
+
+        state.pushUserData(host);
+        state.setGlobal("host");
+
+        assertEquals(LuaStatus.OK, state.load("return host", "read-userdata-global.lua"));
+        assertEquals(LuaStatus.OK, state.pcall(0, 1));
+
+        assertTrue(state.isUserData(-1));
+        assertSame(host, state.toUserData(-1, HostObject.class));
+    }
+
+    private static final class HostObject {
+        private final String name;
+
+        private HostObject(String name) {
+            this.name = name;
+        }
     }
 }

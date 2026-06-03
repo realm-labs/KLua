@@ -13,6 +13,9 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaUserData
+import io.github.realmlabs.klua.core.value.LuaUserDataProperty
+import io.github.realmlabs.klua.core.value.LuaUserDataType
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
@@ -51,7 +54,7 @@ public object KLuaCoreRuntime {
         globals: KLuaCoreGlobals,
     ): KLuaCoreExecution {
         val vmArguments = arguments.map { value ->
-            value.toLuaValueOrNull()
+            value.toLuaValueOrNull(globals)
                 ?: run {
                     return KLuaCoreExecution.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
                 }
@@ -71,6 +74,9 @@ public class KLuaCoreChunk internal constructor(
 public class KLuaCoreGlobals internal constructor(
     internal val table: LuaTable = LuaTable(),
 ) {
+    private val userDataTypes = linkedMapOf<Class<*>, MutableMap<String, LuaNativeFunction>>()
+    private val userDataProperties = linkedMapOf<Class<*>, MutableMap<String, LuaUserDataProperty>>()
+
     public companion object {
         @JvmStatic
         public fun create(): KLuaCoreGlobals = KLuaCoreGlobals()
@@ -79,7 +85,7 @@ public class KLuaCoreGlobals internal constructor(
     public fun get(name: String): KLuaCoreValue = toPublicValue(table.rawGet(LuaString(name)))
 
     public fun set(name: String, value: KLuaCoreValue): Boolean {
-        val luaValue = value.toLuaValueOrNull() ?: return false
+        val luaValue = value.toLuaValueOrNull(this) ?: return false
         table.rawSet(LuaString(name), luaValue)
         return true
     }
@@ -87,13 +93,83 @@ public class KLuaCoreGlobals internal constructor(
     public fun setFunction(name: String, function: KLuaCoreFunction) {
         table.rawSet(
             LuaString(name),
-            LuaNativeFunction { arguments -> callCoreFunction(function, arguments) },
+            LuaNativeFunction { arguments -> callCoreFunction(function, arguments, this) },
         )
+    }
+
+    public fun <T : Any> setUserDataMethod(
+        type: Class<T>,
+        name: String,
+        method: KLuaCoreUserDataMethod<T>,
+    ) {
+        val methods = userDataTypes.getOrPut(type) { linkedMapOf() }
+        methods[name] = LuaNativeFunction { arguments ->
+            val receiver = arguments.firstOrNull() as? LuaUserData
+                ?: throw LuaVmException("userdata method '$name' missing receiver")
+            if (!type.isInstance(receiver.value)) {
+                throw LuaVmException("userdata method '$name' expected ${type.name}")
+            }
+            callCoreUserDataMethod(type.cast(receiver.value), method, arguments.drop(1), this)
+        }
+    }
+
+    public fun <T : Any> setUserDataProperty(
+        type: Class<T>,
+        name: String,
+        getter: KLuaCoreUserDataGetter<T>?,
+        setter: KLuaCoreUserDataSetter<T>?,
+    ) {
+        val properties = userDataProperties.getOrPut(type) { linkedMapOf() }
+        properties[name] = LuaUserDataProperty(
+            getter = getter?.let { propertyGetter ->
+                LuaNativeFunction { arguments ->
+                    val receiver = arguments.firstOrNull() as? LuaUserData
+                        ?: throw LuaVmException("userdata property '$name' missing receiver")
+                    if (!type.isInstance(receiver.value)) {
+                        throw LuaVmException("userdata property '$name' expected ${type.name}")
+                    }
+                    callCoreUserDataGetter(type.cast(receiver.value), propertyGetter, this)
+                }
+            },
+            setter = setter?.let { propertySetter ->
+                LuaNativeFunction { arguments ->
+                    val receiver = arguments.firstOrNull() as? LuaUserData
+                        ?: throw LuaVmException("userdata property '$name' missing receiver")
+                    if (!type.isInstance(receiver.value)) {
+                        throw LuaVmException("userdata property '$name' expected ${type.name}")
+                    }
+                    val value = arguments.getOrNull(1)
+                        ?: throw LuaVmException("userdata property '$name' missing value")
+                    callCoreUserDataSetter(type.cast(receiver.value), propertySetter, value)
+                }
+            },
+        )
+    }
+
+    internal fun userDataType(value: Any): LuaUserDataType? {
+        val methods = userDataTypes.entries.firstOrNull { (type, _) -> type.isInstance(value) }?.value.orEmpty()
+        val properties = userDataProperties.entries.firstOrNull { (type, _) -> type.isInstance(value) }?.value.orEmpty()
+        if (methods.isEmpty() && properties.isEmpty()) {
+            return null
+        }
+        return LuaUserDataType(methods.toMap(), properties.toMap())
     }
 }
 
 public fun interface KLuaCoreFunction {
     public fun call(arguments: List<KLuaCoreValue>): KLuaCoreCallResult
+}
+
+public fun interface KLuaCoreUserDataMethod<T : Any> {
+    public fun call(receiver: T, arguments: List<KLuaCoreValue>): KLuaCoreCallResult
+}
+
+public fun interface KLuaCoreUserDataGetter<T : Any> {
+    public fun get(receiver: T): KLuaCoreCallResult
+}
+
+public fun interface KLuaCoreUserDataSetter<T : Any> {
+    public fun set(receiver: T, value: KLuaCoreValue): KLuaCoreCallResult
 }
 
 public sealed interface KLuaCoreCallResult {
@@ -149,6 +225,10 @@ public sealed interface KLuaCoreValue {
         public val value: String,
     ) : KLuaCoreValue
 
+    public data class UserDataValue(
+        public val value: Any,
+    ) : KLuaCoreValue
+
     public data class UnsupportedValue(
         public val typeName: String,
     ) : KLuaCoreValue
@@ -162,17 +242,19 @@ private fun KLuaCoreValue.publicTypeName(): String {
         is KLuaCoreValue.NumberValue,
         -> "number"
         is KLuaCoreValue.StringValue -> "string"
+        is KLuaCoreValue.UserDataValue -> "userdata"
         is KLuaCoreValue.UnsupportedValue -> typeName
     }
 }
 
-private fun KLuaCoreValue.toLuaValueOrNull(): LuaValue? {
+private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? {
     return when (this) {
         KLuaCoreValue.Nil -> LuaNil
         is KLuaCoreValue.BooleanValue -> LuaBoolean(value)
         is KLuaCoreValue.IntegerValue -> LuaInteger(value)
         is KLuaCoreValue.NumberValue -> LuaFloat(value)
         is KLuaCoreValue.StringValue -> LuaString(value)
+        is KLuaCoreValue.UserDataValue -> LuaUserData(value) { hostValue -> globals.userDataType(hostValue) }
         is KLuaCoreValue.UnsupportedValue -> null
     }
 }
@@ -184,6 +266,7 @@ private fun toPublicValue(value: LuaValue): KLuaCoreValue {
         is LuaInteger -> KLuaCoreValue.IntegerValue(value.value)
         is LuaFloat -> KLuaCoreValue.NumberValue(value.value)
         is LuaString -> KLuaCoreValue.StringValue(value.value)
+        is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)
         is LuaNativeFunction -> KLuaCoreValue.UnsupportedValue("function")
         else -> KLuaCoreValue.UnsupportedValue(typeName = value.publicTypeName())
     }
@@ -200,16 +283,79 @@ private fun LuaValue.publicTypeName(): String {
         is LuaClosure,
         is LuaNativeFunction -> "function"
         is LuaTable -> "table"
+        is LuaUserData -> "userdata"
     }
 }
 
-private fun callCoreFunction(function: KLuaCoreFunction, arguments: List<LuaValue>): List<LuaValue> {
+private fun callCoreFunction(
+    function: KLuaCoreFunction,
+    arguments: List<LuaValue>,
+    globals: KLuaCoreGlobals,
+): List<LuaValue> {
     return try {
         when (val result = function.call(arguments.map(::toPublicValue))) {
             is KLuaCoreCallResult.Success -> result.values.map { value ->
-                value.toLuaValueOrNull()
+                value.toLuaValueOrNull(globals)
                     ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
             }
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+        }
+    } catch (error: LuaVmException) {
+        throw error
+    } catch (error: RuntimeException) {
+        throw LuaVmException(error.message ?: error::class.java.simpleName)
+    }
+}
+
+private fun <T : Any> callCoreUserDataMethod(
+    receiver: T,
+    method: KLuaCoreUserDataMethod<T>,
+    arguments: List<LuaValue>,
+    globals: KLuaCoreGlobals,
+): List<LuaValue> {
+    return try {
+        when (val result = method.call(receiver, arguments.map(::toPublicValue))) {
+            is KLuaCoreCallResult.Success -> result.values.map { value ->
+                value.toLuaValueOrNull(globals)
+                    ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
+            }
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+        }
+    } catch (error: LuaVmException) {
+        throw error
+    } catch (error: RuntimeException) {
+        throw LuaVmException(error.message ?: error::class.java.simpleName)
+    }
+}
+
+private fun <T : Any> callCoreUserDataGetter(
+    receiver: T,
+    getter: KLuaCoreUserDataGetter<T>,
+    globals: KLuaCoreGlobals,
+): List<LuaValue> {
+    return try {
+        when (val result = getter.get(receiver)) {
+            is KLuaCoreCallResult.Success -> result.values.map { value ->
+                value.toLuaValueOrNull(globals)
+                    ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
+            }
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+        }
+    } catch (error: LuaVmException) {
+        throw error
+    } catch (error: RuntimeException) {
+        throw LuaVmException(error.message ?: error::class.java.simpleName)
+    }
+}
+
+private fun <T : Any> callCoreUserDataSetter(
+    receiver: T,
+    setter: KLuaCoreUserDataSetter<T>,
+    value: LuaValue,
+): List<LuaValue> {
+    return try {
+        when (val result = setter.set(receiver, toPublicValue(value))) {
+            is KLuaCoreCallResult.Success -> emptyList()
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
     } catch (error: LuaVmException) {

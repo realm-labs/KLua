@@ -15,6 +15,7 @@ import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaMetatableException
 import io.github.realmlabs.klua.core.value.LuaTableKeyException
+import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
@@ -216,41 +217,29 @@ internal class LuaVm(
     }
 
     private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        val table = stack.get(register(frame, Instruction.b(instruction)))
-        if (table !is LuaTable) {
-            throw LuaVmException("attempt to index ${typeName(table)}")
-        }
+        val receiver = stack.get(register(frame, Instruction.b(instruction)))
         val key = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), tableGet(table, key))
+        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key))
     }
 
     private fun setTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        val table = stack.get(register(frame, Instruction.a(instruction)))
-        if (table !is LuaTable) {
-            throw LuaVmException("attempt to index ${typeName(table)}")
-        }
+        val receiver = stack.get(register(frame, Instruction.a(instruction)))
         val key = stack.get(register(frame, Instruction.b(instruction)))
         val value = stack.get(register(frame, Instruction.c(instruction)))
-        tableSet(table, key, value)
+        indexSet(receiver, key, value)
     }
 
     private fun getField(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        val table = stack.get(register(frame, Instruction.b(instruction)))
-        if (table !is LuaTable) {
-            throw LuaVmException("attempt to index ${typeName(table)}")
-        }
+        val receiver = stack.get(register(frame, Instruction.b(instruction)))
         val key = stringConstant(frame.prototype, Instruction.c(instruction))
-        stack.set(register(frame, Instruction.a(instruction)), tableGet(table, key))
+        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key))
     }
 
     private fun setField(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        val table = stack.get(register(frame, Instruction.a(instruction)))
-        if (table !is LuaTable) {
-            throw LuaVmException("attempt to index ${typeName(table)}")
-        }
+        val receiver = stack.get(register(frame, Instruction.a(instruction)))
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
         val value = stack.get(register(frame, Instruction.c(instruction)))
-        tableSet(table, key, value)
+        indexSet(receiver, key, value)
     }
 
     private fun getGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -274,6 +263,25 @@ internal class LuaVm(
         }
     }
 
+    private fun indexGet(receiver: LuaValue, key: LuaValue): LuaValue {
+        return when (receiver) {
+            is LuaTable -> tableGet(receiver, key)
+            is LuaUserData -> {
+                if (key is LuaString) {
+                    val property = receiver.type?.property(key.value)
+                    if (property?.getter != null) {
+                        property.getter.function(listOf(receiver)).firstOrNull() ?: LuaNil
+                    } else {
+                        receiver.type?.method(key.value) ?: LuaNil
+                    }
+                } else {
+                    LuaNil
+                }
+            }
+            else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
+        }
+    }
+
     private fun tableGet(table: LuaTable, key: LuaValue, visited: MutableSet<LuaTable>): LuaValue {
         val value = table.rawGet(key)
         if (value != LuaNil) {
@@ -287,6 +295,21 @@ internal class LuaVm(
             is LuaTable -> tableGet(index, key, visited)
             is LuaClosure -> execute(index.prototype, listOf(table, key), index.upvalues).firstOrNull() ?: LuaNil
             else -> LuaNil
+        }
+    }
+
+    private fun indexSet(receiver: LuaValue, key: LuaValue, value: LuaValue) {
+        when (receiver) {
+            is LuaTable -> tableSet(receiver, key, value)
+            is LuaUserData -> {
+                if (key !is LuaString) {
+                    throw LuaVmException("attempt to index userdata with ${typeName(key)}")
+                }
+                val setter = receiver.type?.property(key.value)?.setter
+                    ?: throw LuaVmException("attempt to set userdata field '${key.value}'")
+                setter.function(listOf(receiver, value))
+            }
+            else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
         }
     }
 
@@ -728,6 +751,7 @@ private fun typeName(value: LuaValue): String {
         LuaNil -> "nil"
         is LuaString -> "string"
         is LuaTable -> "table"
+        is LuaUserData -> "userdata"
     }
 }
 
