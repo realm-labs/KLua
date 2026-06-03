@@ -645,22 +645,6 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects global function declarations until declarations are supported`() {
-        val error = assertFailsWith<CompilerException> {
-            Compiler.compile(
-                """
-                function add(a, b)
-                    return a + b
-                end
-                """.trimIndent(),
-                "functions.lua",
-            )
-        }
-
-        assertEquals("functions.lua:1:1: function declarations are not supported by this compiler slice", error.message)
-    }
-
-    @Test
     fun `rejects vararg expressions outside vararg functions`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("return ...", "bad-vararg.lua")

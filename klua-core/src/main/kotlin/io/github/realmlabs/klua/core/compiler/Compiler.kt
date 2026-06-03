@@ -95,7 +95,7 @@ internal class Compiler private constructor(
                 is WhileStatement -> compileWhile(statement)
                 is RepeatStatement -> compileRepeat(statement)
                 is NumericForStatement -> compileNumericFor(statement)
-                is FunctionStatement -> throw unsupported(statement, "function declarations are not supported by this compiler slice")
+                is FunctionStatement -> compileFunctionStatement(statement)
                 is LocalFunctionStatement -> compileLocalFunction(statement)
                 is ReturnStatement -> compileReturn(statement)
                 is BreakStatement -> compileBreak(statement)
@@ -191,6 +191,13 @@ internal class Compiler private constructor(
         maxRegister = maxRegister.coerceAtLeast(slot + 1)
         locals[statement.name] = slot
         compileFunctionExpression(statement.function, slot)
+    }
+
+    private fun compileFunctionStatement(statement: FunctionStatement) {
+        val register = nextLocalRegister
+        compileFunctionExpression(statement.function, register)
+        val name = stringConstantIndex(statement.name)
+        writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, register), statement.range.start.line)
     }
 
     private fun compileAssignment(statement: AssignmentStatement) {

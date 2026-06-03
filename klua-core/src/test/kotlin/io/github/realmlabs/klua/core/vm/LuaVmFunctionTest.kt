@@ -38,6 +38,22 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `executes global function declarations`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                function add(a, b)
+                    return a + b
+                end
+                return add(20, 22)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `executes local call initializers with multiple results`() {
         val result = LuaVm().execute(
             Compiler.compile(
