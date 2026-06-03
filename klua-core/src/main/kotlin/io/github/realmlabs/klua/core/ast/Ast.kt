@@ -175,6 +175,12 @@ internal data class NamedTableEntry(
     override val range: SourceRange,
 ) : TableEntry
 
+internal data class KeyedTableEntry(
+    val key: Expression,
+    val value: Expression,
+    override val range: SourceRange,
+) : TableEntry
+
 internal data class UnaryExpression(
     val operator: UnaryOperator,
     val expression: Expression,

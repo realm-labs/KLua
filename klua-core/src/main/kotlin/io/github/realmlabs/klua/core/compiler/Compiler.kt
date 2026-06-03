@@ -16,6 +16,7 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.KeyedTableEntry
 import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
@@ -406,6 +407,10 @@ internal class Compiler private constructor(
                 is NamedTableEntry -> {
                     compileExpression(entry.value, valueRegister)
                     emitString(keyRegister, entry.name, entry.range.start.line)
+                }
+                is KeyedTableEntry -> {
+                    compileExpression(entry.key, keyRegister)
+                    compileExpression(entry.value, valueRegister)
                 }
             }
             writer.emit(Instruction.abc(Opcode.SET_TABLE, register, keyRegister, valueRegister), entry.range.start.line)

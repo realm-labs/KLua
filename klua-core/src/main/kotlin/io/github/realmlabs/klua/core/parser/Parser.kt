@@ -18,6 +18,7 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.KeyedTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
@@ -345,6 +346,18 @@ internal class Parser private constructor(
     }
 
     private fun tableEntry(): TableEntry {
+        if (match(TokenKind.LEFT_BRACKET)) {
+            val key = expression()
+            consume(TokenKind.RIGHT_BRACKET, "expected ']' after table field key")
+            consume(TokenKind.ASSIGN, "expected '=' after table field key")
+            val value = expression()
+            return KeyedTableEntry(
+                key = key,
+                value = value,
+                range = SourceRange(key.range.start, value.range.end),
+            )
+        }
+
         if (check(TokenKind.IDENTIFIER) && checkNext(TokenKind.ASSIGN)) {
             val name = advance()
             consume(TokenKind.ASSIGN, "expected '=' after table field name")
