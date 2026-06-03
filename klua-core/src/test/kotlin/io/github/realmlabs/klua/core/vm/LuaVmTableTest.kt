@@ -57,6 +57,34 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `executes named table constructor fields`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = { answer = 42 }
+                return table.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `keeps named table fields out of list indexes`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {10, answer = 42, 20}
+                return table[1], table[2], table.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(10), LuaInteger(20), LuaInteger(42)), result)
+    }
+
+    @Test
     fun `returns nil for missing table keys`() {
         val result = LuaVm().execute(
             Compiler.compile(

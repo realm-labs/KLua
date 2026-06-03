@@ -16,9 +16,11 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
+import io.github.realmlabs.klua.core.ast.NamedTableEntry
 import io.github.realmlabs.klua.core.ast.NilExpression
 import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
@@ -393,9 +395,19 @@ internal class Compiler private constructor(
         val keyRegister = register + 1
         val valueRegister = register + 2
         maxRegister = maxRegister.coerceAtLeast(valueRegister + 1)
-        for ((index, entry) in expression.entries.withIndex()) {
-            compileExpression(entry, valueRegister)
-            emitInteger(keyRegister, (index + 1).toLong(), entry.range.start.line)
+        var listIndex = 1L
+        for (entry in expression.entries) {
+            when (entry) {
+                is ListTableEntry -> {
+                    compileExpression(entry.value, valueRegister)
+                    emitInteger(keyRegister, listIndex, entry.range.start.line)
+                    listIndex++
+                }
+                is NamedTableEntry -> {
+                    compileExpression(entry.value, valueRegister)
+                    emitString(keyRegister, entry.name, entry.range.start.line)
+                }
+            }
             writer.emit(Instruction.abc(Opcode.SET_TABLE, register, keyRegister, valueRegister), entry.range.start.line)
         }
     }
@@ -653,6 +665,11 @@ internal class Compiler private constructor(
             val constant = constants.add(LuaInteger(value))
             writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
         }
+    }
+
+    private fun emitString(register: Int, value: String, line: Int) {
+        val constant = constants.add(LuaString(value))
+        writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
     }
 
     private fun emitReturn(register: Int, count: Int, line: Int) {

@@ -14,9 +14,11 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
+import io.github.realmlabs.klua.core.ast.NamedTableEntry
 import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
@@ -319,7 +321,21 @@ class ParserTest {
         val statement = assertIs<ReturnStatement>(chunk.statements.single())
         val table = assertIs<TableExpression>(statement.values.single())
 
-        assertEquals(listOf(10L, 20L, 30L), table.entries.map { assertIs<IntegerExpression>(it).value })
+        assertEquals(
+            listOf(10L, 20L, 30L),
+            table.entries.map { assertIs<IntegerExpression>(assertIs<ListTableEntry>(it).value).value },
+        )
+    }
+
+    @Test
+    fun `parses named table constructor fields`() {
+        val chunk = Parser.parse("return { answer = 42 }")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+        val table = assertIs<TableExpression>(statement.values.single())
+        val field = assertIs<NamedTableEntry>(table.entries.single())
+
+        assertEquals("answer", field.name)
+        assertEquals(42L, assertIs<IntegerExpression>(field.value).value)
     }
 
     @Test

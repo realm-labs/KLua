@@ -22,11 +22,14 @@ import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
+import io.github.realmlabs.klua.core.ast.ListTableEntry
+import io.github.realmlabs.klua.core.ast.NamedTableEntry
 import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
+import io.github.realmlabs.klua.core.ast.TableEntry
 import io.github.realmlabs.klua.core.ast.TableExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
@@ -330,15 +333,31 @@ internal class Parser private constructor(
     }
 
     private fun tableExpression(start: Token): TableExpression {
-        val entries = mutableListOf<Expression>()
+        val entries = mutableListOf<TableEntry>()
         while (!check(TokenKind.RIGHT_BRACE)) {
-            entries += expression()
+            entries += tableEntry()
             if (!match(TokenKind.COMMA) && !match(TokenKind.SEMICOLON)) {
                 break
             }
         }
         val end = consume(TokenKind.RIGHT_BRACE, "expected '}' after table constructor")
         return TableExpression(entries, SourceRange(start.range.start, end.range.end))
+    }
+
+    private fun tableEntry(): TableEntry {
+        if (check(TokenKind.IDENTIFIER) && checkNext(TokenKind.ASSIGN)) {
+            val name = advance()
+            consume(TokenKind.ASSIGN, "expected '=' after table field name")
+            val value = expression()
+            return NamedTableEntry(
+                name = name.literal as String,
+                value = value,
+                range = SourceRange(name.range.start, value.range.end),
+            )
+        }
+
+        val value = expression()
+        return ListTableEntry(value, value.range)
     }
 
     private fun functionBody(start: Token): FunctionExpression {

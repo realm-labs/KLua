@@ -156,9 +156,24 @@ internal data class IndexExpression(
 ) : Expression
 
 internal data class TableExpression(
-    val entries: List<Expression>,
+    val entries: List<TableEntry>,
     override val range: SourceRange,
 ) : Expression
+
+internal sealed interface TableEntry {
+    val range: SourceRange
+}
+
+internal data class ListTableEntry(
+    val value: Expression,
+    override val range: SourceRange,
+) : TableEntry
+
+internal data class NamedTableEntry(
+    val name: String,
+    val value: Expression,
+    override val range: SourceRange,
+) : TableEntry
 
 internal data class UnaryExpression(
     val operator: UnaryOperator,

@@ -42,6 +42,23 @@ class CompilerTableTest {
     }
 
     @Test
+    fun `compiles named table constructor fields`() {
+        val prototype = Compiler.compile("return { answer = 42 }")
+
+        assertEquals(3, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [1]  LOAD_INT R2 42
+            0002  [1]  LOAD_K R1 K0 ; "answer"
+            0003  [1]  SET_TABLE R0 R1 R2
+            0004  [1]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles indexed table assignments`() {
         val prototype = Compiler.compile(
             """
