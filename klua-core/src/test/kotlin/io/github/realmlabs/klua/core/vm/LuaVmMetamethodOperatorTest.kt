@@ -591,6 +591,50 @@ class LuaVmMetamethodOperatorTest {
         assertEquals("attempt to perform bitwise operation on table", error.message)
     }
 
+    @Test
+    fun `calls left closure bxor metamethod for table bitwise xor`() {
+        val left = LuaTable()
+        val right = LuaInteger(3)
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__bxor"), LuaClosure(returnConstantPrototype(LuaString("xored"))))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BXOR, left, right))
+
+        assertEquals(listOf(LuaString("xored")), result)
+    }
+
+    @Test
+    fun `calls right closure bxor metamethod when left has none`() {
+        val left = LuaInteger(6)
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__bxor"), LuaClosure(returnConstantPrototype(LuaString("xored"))))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BXOR, left, right))
+
+        assertEquals(listOf(LuaString("xored")), result)
+    }
+
+    @Test
+    fun `continues to use primitive bitwise xor for integers`() {
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BXOR, LuaInteger(6), LuaInteger(3)))
+
+        assertEquals(listOf(LuaInteger(5)), result)
+    }
+
+    @Test
+    fun `rejects table bitwise xor without closure bxor metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableArithmeticPrototype(Opcode.BXOR, LuaTable(), LuaInteger(3)))
+        }
+
+        assertEquals("attempt to perform bitwise operation on table", error.message)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
