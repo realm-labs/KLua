@@ -229,6 +229,7 @@ internal class LuaVm {
         val value = stack.get(register(frame, Instruction.b(instruction)))
         val result = when (value) {
             is LuaString -> LuaInteger(value.value.encodeToByteArray().size.toLong())
+            is LuaTable -> LuaInteger(value.rawLength())
             else -> throw LuaVmException("attempt to get length of ${typeName(value)}")
         }
         stack.set(register(frame, Instruction.a(instruction)), result)

@@ -38,4 +38,12 @@ internal class LuaTable : LuaValue {
             values[key] = value
         }
     }
+
+    fun rawLength(): Long {
+        var length = 0L
+        while (length < Long.MAX_VALUE && get(LuaInteger(length + 1L)) != LuaNil) {
+            length++
+        }
+        return length
+    }
 }

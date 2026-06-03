@@ -114,6 +114,35 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `gets table length for contiguous list entries`() {
+        val result = LuaVm().execute(Compiler.compile("return #{10, 20, 30}"))
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
+    fun `gets table length before first missing list key`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {10, 20, 30}
+                table[2] = nil
+                return #table
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `ignores named fields for table length`() {
+        val result = LuaVm().execute(Compiler.compile("return #{10, answer = 42, 20}"))
+
+        assertEquals(listOf(LuaInteger(2)), result)
+    }
+
+    @Test
     fun `returns nil for missing table keys`() {
         val result = LuaVm().execute(
             Compiler.compile(
