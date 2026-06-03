@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.core.parser
 import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.AssignmentStatement
+import io.github.realmlabs.klua.core.ast.AssignmentTarget
 import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.CallExpression
@@ -15,7 +16,9 @@ import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
+import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
@@ -112,16 +115,23 @@ internal class Parser private constructor(
 
     private fun assignmentStatement(): AssignmentStatement {
         val start = peek()
-        val names = mutableListOf<String>()
+        val targets = mutableListOf<AssignmentTarget>()
         do {
-            val name = consume(TokenKind.IDENTIFIER, "expected assignment target")
-            names += name.literal as String
+            targets += assignmentTarget()
         } while (match(TokenKind.COMMA))
 
         consume(TokenKind.ASSIGN, "expected '=' in assignment")
         val values = expressionList()
         val end = values.last().range.end
-        return AssignmentStatement(names, values, SourceRange(start.range.start, end))
+        return AssignmentStatement(targets, values, SourceRange(start.range.start, end))
+    }
+
+    private fun assignmentTarget(): AssignmentTarget {
+        return when (val target = postfix()) {
+            is VariableExpression -> LocalAssignmentTarget(target.name, target.range)
+            is IndexExpression -> IndexAssignmentTarget(target)
+            else -> throw ParserException(target.range.start, "expected assignment target")
+        }
     }
 
     private fun callStatement(): CallStatement {

@@ -30,10 +30,25 @@ internal data class FunctionStatement(
 ) : Statement
 
 internal data class AssignmentStatement(
-    val names: List<String>,
+    val targets: List<AssignmentTarget>,
     val values: List<Expression>,
     override val range: SourceRange,
 ) : Statement
+
+internal sealed interface AssignmentTarget {
+    val range: SourceRange
+}
+
+internal data class LocalAssignmentTarget(
+    val name: String,
+    override val range: SourceRange,
+) : AssignmentTarget
+
+internal data class IndexAssignmentTarget(
+    val index: IndexExpression,
+) : AssignmentTarget {
+    override val range: SourceRange = index.range
+}
 
 internal data class CallStatement(
     val call: CallExpression,

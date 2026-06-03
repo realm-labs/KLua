@@ -14,7 +14,9 @@ import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
+import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
@@ -180,29 +182,23 @@ internal class Compiler private constructor(
     }
 
     private fun compileAssignment(statement: AssignmentStatement) {
-        val targetSlots = statement.names.map { name ->
-            locals[name] ?: throw unsupported(statement, "unknown local '$name'")
-        }
+        val targetCount = statement.targets.size
         val tempBase = nextLocalRegister
         val onlyValue = statement.values.singleOrNull()
 
         if (onlyValue is VarargExpression) {
-            compileVarargExpression(onlyValue, tempBase, targetSlots.size)
-            for ((index, targetSlot) in targetSlots.withIndex()) {
-                writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, tempBase + index), statement.range.start.line)
-            }
+            compileVarargExpression(onlyValue, tempBase, targetCount)
+            assignTargets(statement, tempBase)
             return
         }
 
         if (onlyValue is CallExpression) {
-            compileCallExpression(onlyValue, tempBase, targetSlots.size)
-            for ((index, targetSlot) in targetSlots.withIndex()) {
-                writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, tempBase + index), statement.range.start.line)
-            }
+            compileCallExpression(onlyValue, tempBase, targetCount)
+            assignTargets(statement, tempBase)
             return
         }
 
-        for (index in statement.names.indices) {
+        for (index in statement.targets.indices) {
             val value = statement.values.getOrNull(index)
             if (value == null) {
                 writer.emit(Instruction.abc(Opcode.LOAD_NIL, tempBase + index), statement.range.start.line)
@@ -212,8 +208,28 @@ internal class Compiler private constructor(
             }
         }
 
-        for ((index, targetSlot) in targetSlots.withIndex()) {
-            writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, tempBase + index), statement.range.start.line)
+        assignTargets(statement, tempBase)
+    }
+
+    private fun assignTargets(statement: AssignmentStatement, valueBase: Int) {
+        val scratchBase = valueBase + statement.targets.size
+        for ((index, target) in statement.targets.withIndex()) {
+            when (target) {
+                is LocalAssignmentTarget -> {
+                    val targetSlot = locals[target.name]
+                        ?: throw unsupported(statement, "unknown local '${target.name}'")
+                    writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueBase + index), statement.range.start.line)
+                }
+                is IndexAssignmentTarget -> {
+                    compileExpression(target.index.receiver, scratchBase)
+                    compileExpression(target.index.key, scratchBase + 1)
+                    maxRegister = maxRegister.coerceAtLeast(scratchBase + 2)
+                    writer.emit(
+                        Instruction.abc(Opcode.SET_TABLE, scratchBase, scratchBase + 1, valueBase + index),
+                        target.range.start.line,
+                    )
+                }
+            }
         }
     }
 

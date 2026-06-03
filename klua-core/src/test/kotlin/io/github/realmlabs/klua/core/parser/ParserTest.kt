@@ -12,7 +12,9 @@ import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
+import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NumericForStatement
@@ -105,7 +107,7 @@ class ParserTest {
         assertEquals(1, statement.block.size)
 
         val assignment = assertIs<AssignmentStatement>(statement.block.single())
-        assertEquals(listOf("count"), assignment.names)
+        assertEquals("count", assertIs<LocalAssignmentTarget>(assignment.targets.single()).name)
     }
 
     @Test
@@ -138,7 +140,7 @@ class ParserTest {
         assertEquals(BinaryOperator.GREATER_EQUAL, condition.operator)
 
         val assignment = assertIs<AssignmentStatement>(statement.block.single())
-        assertEquals(listOf("count"), assignment.names)
+        assertEquals("count", assertIs<LocalAssignmentTarget>(assignment.targets.single()).name)
     }
 
     @Test
@@ -171,7 +173,7 @@ class ParserTest {
 
         assertEquals(3, chunk.statements.size)
         val assignment = assertIs<AssignmentStatement>(chunk.statements[1])
-        assertEquals(listOf("x"), assignment.names)
+        assertEquals("x", assertIs<LocalAssignmentTarget>(assignment.targets.single()).name)
         val value = assertIs<BinaryExpression>(assignment.values.single())
         assertEquals(BinaryOperator.ADD, value.operator)
     }
@@ -328,6 +330,17 @@ class ParserTest {
 
         assertEquals("t", assertIs<VariableExpression>(index.receiver).name)
         assertEquals(1L, assertIs<IntegerExpression>(index.key).value)
+    }
+
+    @Test
+    fun `parses indexed assignment targets`() {
+        val chunk = Parser.parse("t[1] = 42")
+        val statement = assertIs<AssignmentStatement>(chunk.statements.single())
+        val target = assertIs<IndexAssignmentTarget>(statement.targets.single()).index
+
+        assertEquals("t", assertIs<VariableExpression>(target.receiver).name)
+        assertEquals(1L, assertIs<IntegerExpression>(target.key).value)
+        assertEquals(42L, assertIs<IntegerExpression>(statement.values.single()).value)
     }
 
     @Test

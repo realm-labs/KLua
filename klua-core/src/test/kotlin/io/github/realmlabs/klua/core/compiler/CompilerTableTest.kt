@@ -40,4 +40,32 @@ class CompilerTableTest {
             Disassembler.disassemble(prototype),
         )
     }
+
+    @Test
+    fun `compiles indexed table assignments`() {
+        val prototype = Compiler.compile(
+            """
+            local table = {}
+            table[1] = 42
+            return table[1]
+            """.trimIndent(),
+        )
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [2]  LOAD_INT R1 42
+            0002  [2]  MOVE R2 R0
+            0003  [2]  LOAD_INT R3 1
+            0004  [2]  SET_TABLE R2 R3 R1
+            0005  [3]  MOVE R1 R0
+            0006  [3]  LOAD_INT R2 1
+            0007  [3]  GET_TABLE R1 R1 R2
+            0008  [3]  MOVE R0 R1
+            0009  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
 }

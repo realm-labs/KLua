@@ -71,6 +71,36 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `executes indexed table assignments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {}
+                table[1] = 42
+                return table[1]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `removes table keys assigned nil`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {10}
+                table[1] = nil
+                return table[1]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaNil), result)
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))
