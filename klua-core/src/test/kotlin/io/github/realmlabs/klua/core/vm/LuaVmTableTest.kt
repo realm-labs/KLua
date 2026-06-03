@@ -516,6 +516,43 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `calls left closure divide metamethod for table division`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__div"), LuaClosure(returnSecondArgumentPrototype()))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.DIV, left, right))
+
+        assertEquals(listOf(right), result)
+    }
+
+    @Test
+    fun `calls right closure divide metamethod when left has none`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__div"), LuaClosure(returnSecondArgumentPrototype()))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.DIV, left, right))
+
+        assertEquals(listOf(right), result)
+    }
+
+    @Test
+    fun `rejects table division without closure divide metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableArithmeticPrototype(Opcode.DIV, LuaTable(), LuaInteger(42)))
+        }
+
+        assertEquals("attempt to perform arithmetic on table", error.message)
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))
