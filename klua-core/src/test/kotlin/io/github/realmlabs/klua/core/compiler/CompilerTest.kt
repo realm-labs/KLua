@@ -611,28 +611,41 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects unknown local variables`() {
-        val error = assertFailsWith<CompilerException> {
-            Compiler.compile("return name", "unsupported.lua")
-        }
+    fun `compiles global variable reads`() {
+        val prototype = Compiler.compile("return answer", "globals.lua")
 
-        assertEquals("unsupported.lua", error.position.sourceName)
-        assertEquals(1, error.position.line)
-        assertEquals(8, error.position.column)
-        assertEquals("unsupported.lua:1:8: unknown local 'name'", error.message)
+        assertEquals(
+            """
+            0000  [1]  GET_GLOBAL R0 K0 ; "answer"
+            0001  [1]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
     }
 
     @Test
-    fun `rejects assignment to unknown local variables`() {
-        val error = assertFailsWith<CompilerException> {
-            Compiler.compile("x = 1", "bad-assign.lua")
-        }
+    fun `compiles global assignments`() {
+        val prototype = Compiler.compile(
+            """
+            answer = 41
+            return answer
+            """.trimIndent(),
+            "global-assign.lua",
+        )
 
-        assertEquals("bad-assign.lua:1:1: unknown local 'x'", error.message)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 41
+            0001  [1]  SET_GLOBAL K0 R0 ; "answer"
+            0002  [2]  GET_GLOBAL R0 K0 ; "answer"
+            0003  [2]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
     }
 
     @Test
-    fun `rejects global function declarations until globals are implemented`() {
+    fun `rejects global function declarations until declarations are supported`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile(
                 """

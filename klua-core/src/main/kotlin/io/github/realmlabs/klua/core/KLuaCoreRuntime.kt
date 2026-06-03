@@ -10,6 +10,7 @@ import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
@@ -39,33 +40,24 @@ public object KLuaCoreRuntime {
     }
 
     public fun execute(chunk: KLuaCoreChunk, arguments: List<KLuaCoreValue>): KLuaCoreExecution {
-        val vmArguments = arguments.map { value ->
-            when (value) {
-                KLuaCoreValue.Nil -> LuaNil
-                is KLuaCoreValue.BooleanValue -> LuaBoolean(value.value)
-                is KLuaCoreValue.IntegerValue -> LuaInteger(value.value)
-                is KLuaCoreValue.NumberValue -> LuaFloat(value.value)
-                is KLuaCoreValue.StringValue -> LuaString(value.value)
-                is KLuaCoreValue.UnsupportedValue -> {
-                    return KLuaCoreExecution.RuntimeError("cannot pass ${value.typeName} as Lua argument")
-                }
-            }
-        }
-        return try {
-            KLuaCoreExecution.Success(LuaVm().execute(chunk.prototype, vmArguments).map(::toPublicValue))
-        } catch (error: LuaVmException) {
-            KLuaCoreExecution.RuntimeError(error.message ?: "runtime error")
-        }
+        return execute(chunk, arguments, KLuaCoreGlobals())
     }
 
-    private fun toPublicValue(value: LuaValue): KLuaCoreValue {
-        return when (value) {
-            LuaNil -> KLuaCoreValue.Nil
-            is LuaBoolean -> KLuaCoreValue.BooleanValue(value.value)
-            is LuaInteger -> KLuaCoreValue.IntegerValue(value.value)
-            is LuaFloat -> KLuaCoreValue.NumberValue(value.value)
-            is LuaString -> KLuaCoreValue.StringValue(value.value)
-            else -> KLuaCoreValue.UnsupportedValue(typeName = value::class.simpleName ?: "value")
+    public fun execute(
+        chunk: KLuaCoreChunk,
+        arguments: List<KLuaCoreValue>,
+        globals: KLuaCoreGlobals,
+    ): KLuaCoreExecution {
+        val vmArguments = arguments.map { value ->
+            value.toLuaValueOrNull()
+                ?: run {
+                    return KLuaCoreExecution.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
+                }
+        }
+        return try {
+            KLuaCoreExecution.Success(LuaVm(globals.table).execute(chunk.prototype, vmArguments).map(::toPublicValue))
+        } catch (error: LuaVmException) {
+            KLuaCoreExecution.RuntimeError(error.message ?: "runtime error")
         }
     }
 }
@@ -73,6 +65,23 @@ public object KLuaCoreRuntime {
 public class KLuaCoreChunk internal constructor(
     internal val prototype: Prototype,
 )
+
+public class KLuaCoreGlobals internal constructor(
+    internal val table: LuaTable = LuaTable(),
+) {
+    public companion object {
+        @JvmStatic
+        public fun create(): KLuaCoreGlobals = KLuaCoreGlobals()
+    }
+
+    public fun get(name: String): KLuaCoreValue = toPublicValue(table.rawGet(LuaString(name)))
+
+    public fun set(name: String, value: KLuaCoreValue): Boolean {
+        val luaValue = value.toLuaValueOrNull() ?: return false
+        table.rawSet(LuaString(name), luaValue)
+        return true
+    }
+}
 
 public sealed interface KLuaCoreLoad {
     public data class Success(
@@ -120,4 +129,38 @@ public sealed interface KLuaCoreValue {
     public data class UnsupportedValue(
         public val typeName: String,
     ) : KLuaCoreValue
+}
+
+private fun KLuaCoreValue.publicTypeName(): String {
+    return when (this) {
+        KLuaCoreValue.Nil -> "nil"
+        is KLuaCoreValue.BooleanValue -> "boolean"
+        is KLuaCoreValue.IntegerValue,
+        is KLuaCoreValue.NumberValue,
+        -> "number"
+        is KLuaCoreValue.StringValue -> "string"
+        is KLuaCoreValue.UnsupportedValue -> typeName
+    }
+}
+
+private fun KLuaCoreValue.toLuaValueOrNull(): LuaValue? {
+    return when (this) {
+        KLuaCoreValue.Nil -> LuaNil
+        is KLuaCoreValue.BooleanValue -> LuaBoolean(value)
+        is KLuaCoreValue.IntegerValue -> LuaInteger(value)
+        is KLuaCoreValue.NumberValue -> LuaFloat(value)
+        is KLuaCoreValue.StringValue -> LuaString(value)
+        is KLuaCoreValue.UnsupportedValue -> null
+    }
+}
+
+private fun toPublicValue(value: LuaValue): KLuaCoreValue {
+    return when (value) {
+        LuaNil -> KLuaCoreValue.Nil
+        is LuaBoolean -> KLuaCoreValue.BooleanValue(value.value)
+        is LuaInteger -> KLuaCoreValue.IntegerValue(value.value)
+        is LuaFloat -> KLuaCoreValue.NumberValue(value.value)
+        is LuaString -> KLuaCoreValue.StringValue(value.value)
+        else -> KLuaCoreValue.UnsupportedValue(typeName = value::class.simpleName ?: "value")
+    }
 }

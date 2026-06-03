@@ -17,7 +17,9 @@ import io.github.realmlabs.klua.core.value.LuaTableKeyException
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
-internal class LuaVm {
+internal class LuaVm(
+    private val globals: LuaTable = LuaTable(),
+) {
     fun execute(prototype: Prototype): List<LuaValue> {
         return execute(prototype, emptyList(), emptyList())
     }
@@ -62,6 +64,8 @@ internal class LuaVm {
                 Opcode.SET_TABLE -> setTable(stack, frame, instruction)
                 Opcode.GET_FIELD -> getField(stack, frame, instruction)
                 Opcode.SET_FIELD -> setField(stack, frame, instruction)
+                Opcode.GET_GLOBAL -> getGlobal(stack, frame, instruction)
+                Opcode.SET_GLOBAL -> setGlobal(stack, frame, instruction)
                 Opcode.CLOSURE -> createClosure(stack, frame, instruction)
                 Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
                 Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
@@ -245,6 +249,17 @@ internal class LuaVm {
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
         val value = stack.get(register(frame, Instruction.c(instruction)))
         tableSet(table, key, value)
+    }
+
+    private fun getGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val key = stringConstant(frame.prototype, Instruction.b(instruction))
+        stack.set(register(frame, Instruction.a(instruction)), tableGet(globals, key))
+    }
+
+    private fun setGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val key = stringConstant(frame.prototype, Instruction.a(instruction))
+        val value = stack.get(register(frame, Instruction.b(instruction)))
+        tableSet(globals, key, value)
     }
 
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {

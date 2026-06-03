@@ -10,6 +10,7 @@ import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.LuaTable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -171,6 +172,33 @@ class LuaVmTest {
         )
 
         assertEquals(listOf(LuaInteger(3), LuaNil), result)
+    }
+
+    @Test
+    fun `reads global values from vm globals`() {
+        val globals = LuaTable()
+        globals.rawSet(LuaString("answer"), LuaInteger(42))
+
+        val result = LuaVm(globals).execute(Compiler.compile("return answer"))
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `writes global values to vm globals`() {
+        val globals = LuaTable()
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                answer = 41
+                return answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(41)), result)
+        assertEquals(LuaInteger(41), globals.rawGet(LuaString("answer")))
     }
 
     @Test

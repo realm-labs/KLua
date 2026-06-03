@@ -12,6 +12,8 @@ internal enum class Opcode {
     SET_TABLE,
     GET_FIELD,
     SET_FIELD,
+    GET_GLOBAL,
+    SET_GLOBAL,
     CLOSURE,
     GET_UPVALUE,
     SET_UPVALUE,

@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.api
 
 import io.github.realmlabs.klua.core.KLuaCoreChunk
 import io.github.realmlabs.klua.core.KLuaCoreExecution
+import io.github.realmlabs.klua.core.KLuaCoreGlobals
 import io.github.realmlabs.klua.core.KLuaCoreLoad
 import io.github.realmlabs.klua.core.KLuaCoreRuntime
 import io.github.realmlabs.klua.core.KLuaCoreValue
@@ -11,6 +12,7 @@ class LuaState private constructor(
 ) {
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
+    private val coreGlobals = KLuaCoreGlobals.create()
     private var lastError: LuaException? = null
 
     companion object {
@@ -58,6 +60,7 @@ class LuaState private constructor(
     }
 
     fun register(name: String, function: LuaFunction) {
+        coreGlobals.set(name, KLuaCoreValue.Nil)
         globals.fields[name] = LuaStackValue.NativeFunctionValue(function)
     }
 
@@ -67,7 +70,7 @@ class LuaState private constructor(
         resultCount: Int,
     ): LuaStatus {
         val arguments = stack.subList(functionIndex + 1, stack.size).map { it.toCoreValue() }
-        return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments)) {
+        return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments, coreGlobals)) {
             is KLuaCoreExecution.Success -> {
                 lastError = null
                 removeCallFrame(functionIndex)
@@ -185,15 +188,17 @@ class LuaState private constructor(
     }
 
     fun getGlobal(name: String) {
-        stack += globals.fields[name] ?: LuaStackValue.Nil
+        stack += globals.fields[name] ?: coreGlobals.get(name).toStackValue()
     }
 
     fun setGlobal(name: String) {
         val value = requireValue(-1)
         stack.removeAt(stack.lastIndex)
-        if (value == LuaStackValue.Nil) {
+        val coreValue = value.toCoreValue()
+        if (coreGlobals.set(name, coreValue)) {
             globals.fields.remove(name)
         } else {
+            coreGlobals.set(name, KLuaCoreValue.Nil)
             globals.fields[name] = value
         }
     }

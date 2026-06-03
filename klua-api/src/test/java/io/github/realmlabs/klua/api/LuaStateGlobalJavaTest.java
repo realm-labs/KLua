@@ -66,4 +66,29 @@ class LuaStateGlobalJavaTest {
 
         assertTrue(second.isNil(-1));
     }
+
+    @Test
+    void loadedChunksReadPrimitiveGlobals() {
+        LuaState state = LuaState.create();
+
+        state.pushInteger(41);
+        state.setGlobal("answer");
+
+        assertEquals(LuaStatus.OK, state.load("return answer + 1", "read-global.lua"));
+        assertEquals(LuaStatus.OK, state.pcall(0, 1));
+
+        assertEquals(42L, state.toInteger(-1));
+    }
+
+    @Test
+    void loadedChunksWritePrimitiveGlobals() {
+        LuaState state = LuaState.create();
+
+        assertEquals(LuaStatus.OK, state.load("answer = 42\nreturn answer", "write-global.lua"));
+        assertEquals(LuaStatus.OK, state.pcall(0, 1));
+        state.pop(1);
+        state.getGlobal("answer");
+
+        assertEquals(42L, state.toInteger(-1));
+    }
 }

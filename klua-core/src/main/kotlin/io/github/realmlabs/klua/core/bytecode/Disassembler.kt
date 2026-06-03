@@ -37,6 +37,8 @@ internal object Disassembler {
             Opcode.SET_TABLE -> binary("SET_TABLE", instruction)
             Opcode.GET_FIELD -> fieldGet(instruction, prototype)
             Opcode.SET_FIELD -> fieldSet(instruction, prototype)
+            Opcode.GET_GLOBAL -> globalGet(instruction, prototype)
+            Opcode.SET_GLOBAL -> globalSet(instruction, prototype)
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.GET_UPVALUE -> "GET_UPVALUE R${Instruction.a(instruction)} U${Instruction.b(instruction)}"
             Opcode.SET_UPVALUE -> "SET_UPVALUE U${Instruction.a(instruction)} R${Instruction.b(instruction)}"
@@ -85,6 +87,16 @@ internal object Disassembler {
     private fun fieldSet(instruction: Int, prototype: Prototype): String {
         val constant = prototype.constants[Instruction.b(instruction)]
         return "SET_FIELD R${Instruction.a(instruction)} K${Instruction.b(instruction)} R${Instruction.c(instruction)} ; ${formatConstant(constant)}"
+    }
+
+    private fun globalGet(instruction: Int, prototype: Prototype): String {
+        val constant = prototype.constants[Instruction.b(instruction)]
+        return "GET_GLOBAL R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
+    }
+
+    private fun globalSet(instruction: Int, prototype: Prototype): String {
+        val constant = prototype.constants[Instruction.a(instruction)]
+        return "SET_GLOBAL K${Instruction.a(instruction)} R${Instruction.b(instruction)} ; ${formatConstant(constant)}"
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value

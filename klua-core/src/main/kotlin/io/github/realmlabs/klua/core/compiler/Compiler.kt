@@ -233,11 +233,15 @@ internal class Compiler private constructor(
                         writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueBase + index), statement.range.start.line)
                     } else {
                         val upvalue = resolveUpvalue(target.name)
-                            ?: throw unsupported(statement, "unknown local '${target.name}'")
-                        if (upvalue > 255) {
-                            throw unsupported(statement, "too many upvalues")
+                        if (upvalue != null) {
+                            if (upvalue > 255) {
+                                throw unsupported(statement, "too many upvalues")
+                            }
+                            writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueBase + index), statement.range.start.line)
+                        } else {
+                            val name = stringConstantIndex(target.name)
+                            writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueBase + index), statement.range.start.line)
                         }
-                        writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueBase + index), statement.range.start.line)
                     }
                 }
                 is IndexAssignmentTarget -> {
@@ -562,11 +566,16 @@ internal class Compiler private constructor(
         }
 
         val upvalue = resolveUpvalue(expression.name)
-            ?: throw unsupported(expression, "unknown local '${expression.name}'")
-        if (upvalue > 255) {
-            throw unsupported(expression, "too many upvalues")
+        if (upvalue != null) {
+            if (upvalue > 255) {
+                throw unsupported(expression, "too many upvalues")
+            }
+            writer.emit(Instruction.abc(Opcode.GET_UPVALUE, register, upvalue), expression.range.start.line)
+            return
         }
-        writer.emit(Instruction.abc(Opcode.GET_UPVALUE, register, upvalue), expression.range.start.line)
+
+        val name = stringConstantIndex(expression.name)
+        writer.emit(Instruction.abc(Opcode.GET_GLOBAL, register, name), expression.range.start.line)
     }
 
     private fun resolveUpvalue(name: String): Int? {
