@@ -10,6 +10,7 @@ import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm {
@@ -48,6 +49,7 @@ internal class LuaVm {
                 }
                 Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(prototype, Instruction.b(instruction)))
                 Opcode.VARARG -> loadVarargs(stack, frame, instruction)
+                Opcode.NEW_TABLE -> stack.set(register(frame, Instruction.a(instruction)), LuaTable())
                 Opcode.CLOSURE -> {
                     stack.set(register(frame, Instruction.a(instruction)), LuaClosure(nested(prototype, Instruction.b(instruction))))
                 }
@@ -441,5 +443,6 @@ private fun typeName(value: LuaValue): String {
         is LuaFloat, is LuaInteger -> "number"
         LuaNil -> "nil"
         is LuaString -> "string"
+        is LuaTable -> "table"
     }
 }

@@ -25,3 +25,5 @@ internal data class LuaString(
 internal data class LuaClosure(
     val prototype: Prototype,
 ) : LuaValue
+
+internal class LuaTable : LuaValue

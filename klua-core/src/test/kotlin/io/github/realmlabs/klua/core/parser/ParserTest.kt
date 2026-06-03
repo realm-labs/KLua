@@ -18,6 +18,7 @@ import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.StringExpression
+import io.github.realmlabs.klua.core.ast.TableExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
 import io.github.realmlabs.klua.core.ast.VarargExpression
@@ -299,6 +300,14 @@ class ParserTest {
 
         assertEquals("tick", assertIs<VariableExpression>(statement.call.callee).name)
         assertEquals(1, statement.call.arguments.size)
+    }
+
+    @Test
+    fun `parses empty table constructors`() {
+        val chunk = Parser.parse("return {}")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+
+        assertIs<TableExpression>(statement.values.single())
     }
 
     @Test

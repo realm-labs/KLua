@@ -134,6 +134,10 @@ internal data class CallExpression(
     override val range: SourceRange,
 ) : Expression
 
+internal data class TableExpression(
+    override val range: SourceRange,
+) : Expression
+
 internal data class UnaryExpression(
     val operator: UnaryOperator,
     val expression: Expression,

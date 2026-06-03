@@ -23,6 +23,7 @@ import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
+import io.github.realmlabs.klua.core.ast.TableExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
 import io.github.realmlabs.klua.core.ast.VarargExpression
@@ -293,8 +294,14 @@ internal class Parser private constructor(
             match(TokenKind.DOT_DOT_DOT) -> VarargExpression(previous().range)
             match(TokenKind.FUNCTION) -> functionBody(previous())
             match(TokenKind.LEFT_PAREN) -> parenthesizedExpression(previous())
+            match(TokenKind.LEFT_BRACE) -> tableExpression(previous())
             else -> throw errorAt(peek(), "expected expression")
         }
+    }
+
+    private fun tableExpression(start: Token): TableExpression {
+        val end = consume(TokenKind.RIGHT_BRACE, "expected '}' after table constructor")
+        return TableExpression(SourceRange(start.range.start, end.range.end))
     }
 
     private fun functionBody(start: Token): FunctionExpression {
@@ -336,6 +343,7 @@ internal class Parser private constructor(
             is IntegerExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is NilExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is StringExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
+            is TableExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is UnaryExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is VarargExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is VariableExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))

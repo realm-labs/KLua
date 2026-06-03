@@ -7,6 +7,7 @@ internal enum class Opcode {
     LOAD_FLOAT,
     LOAD_K,
     VARARG,
+    NEW_TABLE,
     CLOSURE,
     MOVE,
     ADD,

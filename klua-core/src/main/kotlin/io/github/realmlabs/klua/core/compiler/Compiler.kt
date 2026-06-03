@@ -22,6 +22,7 @@ import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
+import io.github.realmlabs.klua.core.ast.TableExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
 import io.github.realmlabs.klua.core.ast.VarargExpression
@@ -352,6 +353,7 @@ internal class Compiler private constructor(
             is VariableExpression -> compileVariable(expression, register)
             is VarargExpression -> compileVarargExpression(expression, register, 1)
             is FunctionExpression -> compileFunctionExpression(expression, register)
+            is TableExpression -> writer.emit(Instruction.abc(Opcode.NEW_TABLE, register), line)
             is UnaryExpression -> compileUnaryExpression(expression, register)
             is BinaryExpression -> compileBinaryExpression(expression, register)
         }

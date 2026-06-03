@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal object Disassembler {
@@ -31,6 +32,7 @@ internal object Disassembler {
                 "LOAD_K R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
             }
             Opcode.VARARG -> "VARARG R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
+            Opcode.NEW_TABLE -> "NEW_TABLE R${Instruction.a(instruction)}"
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)
@@ -78,6 +80,7 @@ internal object Disassembler {
             is LuaFloat -> value.value.toString()
             is LuaClosure -> "function"
             is LuaString -> "\"${value.value}\""
+            is LuaTable -> "table"
         }
     }
 }
