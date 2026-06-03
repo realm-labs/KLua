@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
+import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
@@ -416,6 +417,60 @@ class LuaVmMetatableTest {
         assertEquals("attempt to perform arithmetic on table", error.message)
     }
 
+    @Test
+    fun `calls left closure eq metamethod for table equality`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__eq"), LuaClosure(returnConstantPrototype(LuaBoolean(true))))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableComparePrototype(Opcode.EQ, left, right))
+
+        assertEquals(listOf(LuaBoolean(true)), result)
+    }
+
+    @Test
+    fun `calls right closure eq metamethod when left has none`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__eq"), LuaClosure(returnConstantPrototype(LuaBoolean(true))))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableComparePrototype(Opcode.EQ, left, right))
+
+        assertEquals(listOf(LuaBoolean(true)), result)
+    }
+
+    @Test
+    fun `uses raw table identity before eq metamethod`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__eq"), LuaClosure(returnConstantPrototype(LuaBoolean(false))))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableComparePrototype(Opcode.EQ, table, table))
+
+        assertEquals(listOf(LuaBoolean(true)), result)
+    }
+
+    @Test
+    fun `does not call eq metamethod for table and non table equality`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__eq"), LuaClosure(returnConstantPrototype(LuaBoolean(true))))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableComparePrototype(Opcode.EQ, table, LuaInteger(42)))
+
+        assertEquals(listOf(LuaBoolean(false)), result)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
@@ -527,6 +582,22 @@ class LuaVmMetatableTest {
     }
 
     private fun tableArithmeticPrototype(opcode: Opcode, left: LuaValue, right: LuaValue): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.LOAD_K, 1, 1),
+                Instruction.abc(opcode, 0, 0, 1),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = arrayOf(left, right),
+            lineInfo = intArrayOf(1, 1, 1, 1),
+            maxStackSize = 2,
+        )
+    }
+
+    private fun tableComparePrototype(opcode: Opcode, left: LuaValue, right: LuaValue): Prototype {
         return Prototype(
             sourceName = "metatable-test",
             version = LuaSourceVersion.LUA_54,

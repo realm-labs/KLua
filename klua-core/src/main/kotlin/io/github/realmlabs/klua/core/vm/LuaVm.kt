@@ -403,7 +403,25 @@ internal class LuaVm {
     private fun compare(stack: LuaStack, frame: CallFrame, instruction: Int, comparison: Comparison) {
         val left = stack.get(register(frame, Instruction.b(instruction)))
         val right = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(comparison.apply(left, right)))
+        stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(compare(left, right, comparison)))
+    }
+
+    private fun compare(left: LuaValue, right: LuaValue, comparison: Comparison): Boolean {
+        if (comparison == Comparison.EQ) {
+            if (comparison.apply(left, right)) {
+                return true
+            }
+            if (left !is LuaTable || right !is LuaTable) {
+                return false
+            }
+            val metamethod = tableMetamethod(left, EQ_KEY) ?: tableMetamethod(right, EQ_KEY)
+            if (metamethod != null) {
+                val result = execute(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+                return isTruthy(result)
+            }
+            return false
+        }
+        return comparison.apply(left, right)
     }
 
     private fun concat(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -638,6 +656,7 @@ private val INDEX_KEY = LuaString("__index")
 private val NEW_INDEX_KEY = LuaString("__newindex")
 private val CALL_KEY = LuaString("__call")
 private val LEN_KEY = LuaString("__len")
+private val EQ_KEY = LuaString("__eq")
 private val ADD_KEY = LuaString("__add")
 private val SUB_KEY = LuaString("__sub")
 private val MUL_KEY = LuaString("__mul")
