@@ -307,6 +307,34 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `sibling closures share captured local assignments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function pair()
+                    local x = 0
+                    local function increment()
+                        x = x + 1
+                        return x
+                    end
+                    local function get()
+                        return x
+                    end
+                    return increment, get
+                end
+                local increment, get = pair()
+                return get(), increment(), get(), increment(), get()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(LuaInteger(0), LuaInteger(1), LuaInteger(1), LuaInteger(2), LuaInteger(2)),
+            result,
+        )
+    }
+
+    @Test
     fun `passes no arguments from empty open call arguments`() {
         val result = LuaVm().execute(
             Compiler.compile(

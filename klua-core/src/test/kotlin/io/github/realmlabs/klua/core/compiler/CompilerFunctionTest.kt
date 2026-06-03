@@ -419,6 +419,80 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `compiles sibling closures sharing an upvalue`() {
+        val prototype = Compiler.compile(
+            """
+            local function pair()
+                local x = 0
+                local function increment()
+                    x = x + 1
+                    return x
+                end
+                local function get()
+                    return x
+                end
+                return increment, get
+            end
+            return pair
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [12]  MOVE R1 R0
+            0002  [12]  MOVE R0 R1
+            0003  [12]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+
+        val pair = prototype.nested.single()
+        assertEquals(
+            """
+            0000  [2]  LOAD_INT R0 0
+            0001  [3]  CLOSURE R1 P0
+            0002  [7]  CLOSURE R2 P1
+            0003  [10]  MOVE R3 R1
+            0004  [10]  MOVE R4 R2
+            0005  [10]  CLOSE_UPVALUES R0
+            0006  [10]  MOVE R0 R3
+            0007  [10]  MOVE R1 R4
+            0008  [10]  RETURN R0 2
+            """.trimIndent(),
+            Disassembler.disassemble(pair),
+        )
+
+        val increment = pair.nested[0]
+        assertEquals("x", increment.upvalues.single().name)
+        assertEquals(UpvalueSource.LOCAL, increment.upvalues.single().source)
+        assertEquals(0, increment.upvalues.single().sourceIndex)
+        assertEquals(
+            """
+            0000  [4]  GET_UPVALUE R0 U0
+            0001  [4]  LOAD_INT R1 1
+            0002  [4]  ADD R0 R0 R1
+            0003  [4]  SET_UPVALUE U0 R0
+            0004  [5]  GET_UPVALUE R0 U0
+            0005  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(increment),
+        )
+
+        val get = pair.nested[1]
+        assertEquals("x", get.upvalues.single().name)
+        assertEquals(UpvalueSource.LOCAL, get.upvalues.single().source)
+        assertEquals(0, get.upvalues.single().sourceIndex)
+        assertEquals(
+            """
+            0000  [8]  GET_UPVALUE R0 U0
+            0001  [8]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(get),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 
