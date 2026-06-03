@@ -90,6 +90,7 @@ public object LuaStdlib {
         state.newTable()
         setFunctionField(state, "concat", ::tableConcat)
         setFunctionField(state, "insert", ::tableInsert)
+        setFunctionField(state, "pack", ::tablePack)
         setFunctionField(state, "remove", ::tableRemove)
         setFunctionField(state, "sort", ::tableSort)
         setFunctionField(state, "unpack", ::tableUnpack)
@@ -501,6 +502,14 @@ public object LuaStdlib {
         }
         context.setTableValue(1, position, context.get(valueIndex))
         return LuaReturn.none()
+    }
+
+    private fun tablePack(context: LuaCallContext): LuaReturn {
+        val table = linkedMapOf<Any, Any?>("n" to context.argumentCount.toLong())
+        for (index in 1..context.argumentCount) {
+            table[index.toLong()] = context.get(index)
+        }
+        return LuaReturn.of(table)
     }
 
     private fun tableRemove(context: LuaCallContext): LuaReturn {

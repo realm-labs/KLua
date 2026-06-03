@@ -640,6 +640,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table pack returns table with argument count`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local packed = table.pack("a", nil, "c")
+                local count = select("#", table.unpack(packed, 1, packed.n))
+                return packed[1], packed[2], packed[3], packed.n, count
+                """.trimIndent(),
+                "table-pack.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a", state.toString(1))
+        assertTrue(state.isNil(2))
+        assertEquals("c", state.toString(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals(3L, state.toInteger(5))
+    }
+
+    @Test
     fun `table remove mutates list values and returns removed values`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
