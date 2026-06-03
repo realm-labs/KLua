@@ -504,6 +504,35 @@ class LuaVmMetamethodOperatorTest {
     }
 
     @Test
+    fun `calls closure bnot metamethod for table bitwise not`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__bnot"), LuaClosure(returnConstantPrototype(LuaString("inverted"))))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableUnaryPrototype(Opcode.BNOT, table))
+
+        assertEquals(listOf(LuaString("inverted")), result)
+    }
+
+    @Test
+    fun `continues to use primitive bitwise not for integers`() {
+        val result = LuaVm().execute(tableUnaryPrototype(Opcode.BNOT, LuaInteger(42)))
+
+        assertEquals(listOf(LuaInteger(42L.inv())), result)
+    }
+
+    @Test
+    fun `rejects table bitwise not without closure bnot metamethod`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableUnaryPrototype(Opcode.BNOT, LuaTable()))
+        }
+
+        assertEquals("attempt to perform bitwise operation on table", error.message)
+    }
+
+    @Test
     fun `calls left closure band metamethod for table bitwise and`() {
         val left = LuaTable()
         val right = LuaInteger(3)
