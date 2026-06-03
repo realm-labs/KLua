@@ -373,7 +373,14 @@ internal class LuaVm {
         val result = when (value) {
             is LuaInteger -> LuaInteger(-value.value)
             is LuaFloat -> LuaFloat(-value.value)
-            else -> throw LuaVmException("attempt to perform arithmetic on ${typeName(value)}")
+            else -> {
+                val metamethod = tableMetamethod(value, UNM_KEY)
+                if (metamethod != null) {
+                    execute(metamethod.prototype, listOf(value), metamethod.upvalues).firstOrNull() ?: LuaNil
+                } else {
+                    throw LuaVmException("attempt to perform arithmetic on ${typeName(value)}")
+                }
+            }
         }
         stack.set(register(frame, Instruction.a(instruction)), result)
     }
@@ -682,6 +689,7 @@ private val EQ_KEY = LuaString("__eq")
 private val LT_KEY = LuaString("__lt")
 private val LE_KEY = LuaString("__le")
 private val CONCAT_KEY = LuaString("__concat")
+private val UNM_KEY = LuaString("__unm")
 private val ADD_KEY = LuaString("__add")
 private val SUB_KEY = LuaString("__sub")
 private val MUL_KEY = LuaString("__mul")

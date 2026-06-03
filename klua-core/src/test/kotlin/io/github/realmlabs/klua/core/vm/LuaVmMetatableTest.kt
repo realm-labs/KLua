@@ -617,6 +617,35 @@ class LuaVmMetatableTest {
         assertEquals("attempt to concatenate table", error.message)
     }
 
+    @Test
+    fun `calls closure unary minus metamethod for table values`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__unm"), LuaClosure(returnConstantPrototype(LuaString("negated"))))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableUnaryPrototype(Opcode.UNM, table))
+
+        assertEquals(listOf(LuaString("negated")), result)
+    }
+
+    @Test
+    fun `continues to use primitive unary minus for numbers`() {
+        val result = LuaVm().execute(tableUnaryPrototype(Opcode.UNM, LuaInteger(42)))
+
+        assertEquals(listOf(LuaInteger(-42)), result)
+    }
+
+    @Test
+    fun `rejects table unary minus without closure unary minus metamethod`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableUnaryPrototype(Opcode.UNM, LuaTable()))
+        }
+
+        assertEquals("attempt to perform arithmetic on table", error.message)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
@@ -772,6 +801,21 @@ class LuaVmMetatableTest {
             constants = arrayOf(left, right),
             lineInfo = intArrayOf(1, 1, 1, 1),
             maxStackSize = 2,
+        )
+    }
+
+    private fun tableUnaryPrototype(opcode: Opcode, value: LuaValue): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(opcode, 0, 0),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = arrayOf(value),
+            lineInfo = intArrayOf(1, 1, 1),
+            maxStackSize = 1,
         )
     }
 
