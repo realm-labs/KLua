@@ -89,6 +89,8 @@ public object LuaStdlib {
     public fun openTable(state: LuaState): LuaState {
         state.newTable()
         setFunctionField(state, "concat", ::tableConcat)
+        setFunctionField(state, "insert", ::tableInsert)
+        setFunctionField(state, "remove", ::tableRemove)
         setFunctionField(state, "unpack", ::tableUnpack)
         state.setGlobal("table")
         return state
@@ -467,6 +469,64 @@ public object LuaStdlib {
             is CharSequence -> value.toString()
             else -> throw LuaRuntimeException("invalid value at index $index in table for 'concat'")
         }
+    }
+
+    private fun tableInsert(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'table.insert' (table expected)")
+        }
+        val length = context.tableLength(1) ?: 0L
+        val position: Long
+        val valueIndex: Int
+        when (context.argumentCount) {
+            2 -> {
+                position = length + 1L
+                valueIndex = 2
+            }
+            3 -> {
+                position = requiredInteger(context, 2, "table.insert")
+                valueIndex = 3
+            }
+            else -> throw LuaRuntimeException("wrong number of arguments to 'table.insert'")
+        }
+        if (position !in 1L..(length + 1L)) {
+            throw LuaRuntimeException("bad argument #2 to 'table.insert' (position out of bounds)")
+        }
+
+        var index = length
+        while (index >= position) {
+            context.setTableValue(1, index + 1L, context.getTableValue(1, index))
+            index--
+        }
+        context.setTableValue(1, position, context.get(valueIndex))
+        return LuaReturn.none()
+    }
+
+    private fun tableRemove(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'table.remove' (table expected)")
+        }
+        val length = context.tableLength(1) ?: 0L
+        if (length == 0L && (context.isNone(2) || context.isNil(2))) {
+            return LuaReturn.of(null)
+        }
+        val position = if (context.isNone(2) || context.isNil(2)) {
+            length
+        } else {
+            requiredInteger(context, 2, "table.remove")
+        }
+        if (position < 1L || position > length) {
+            return LuaReturn.of(null)
+        }
+
+        val removed = context.getTableValue(1, position)
+        var index = position
+        while (index < length) {
+            context.setTableValue(1, index, context.getTableValue(1, index + 1L))
+            index++
+        }
+        context.setTableValue(1, length, null)
+        return LuaReturn.of(removed)
     }
 
     private fun tableUnpack(context: LuaCallContext): LuaReturn {

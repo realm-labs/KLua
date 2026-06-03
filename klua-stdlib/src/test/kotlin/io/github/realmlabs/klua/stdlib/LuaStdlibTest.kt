@@ -602,6 +602,85 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert mutates list values`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {"a", "c"}
+                table.insert(values, "d")
+                table.insert(values, 2, "b")
+                return values[1], values[2], values[3], values[4], #values
+                """.trimIndent(),
+                "table-insert.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("b", state.toString(2))
+        assertEquals("c", state.toString(3))
+        assertEquals("d", state.toString(4))
+        assertEquals(4L, state.toInteger(5))
+    }
+
+    @Test
+    fun `table insert reports argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return table.insert("not-table", "x")""", "table-insert-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'table.insert' (table expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `table remove mutates list values and returns removed values`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {"a", "b", "c", "d"}
+                local middle = table.remove(values, 2)
+                local last = table.remove(values)
+                local missing = table.remove(values, 10)
+                return middle, last, missing, values[1], values[2], values[3], #values
+                """.trimIndent(),
+                "table-remove.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("b", state.toString(1))
+        assertEquals("d", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("a", state.toString(4))
+        assertEquals("c", state.toString(5))
+        assertTrue(state.isNil(6))
+        assertEquals(2L, state.toInteger(7))
+    }
+
+    @Test
+    fun `table remove reports table argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return table.remove("not-table")""", "table-remove-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'table.remove' (table expected)", state.toString(-1))
+    }
+
+    @Test
     fun `table unpack returns list values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
