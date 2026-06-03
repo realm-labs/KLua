@@ -333,6 +333,16 @@ class ParserTest {
     }
 
     @Test
+    fun `parses dot index expressions`() {
+        val chunk = Parser.parse("return t.answer")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+        val index = assertIs<IndexExpression>(statement.values.single())
+
+        assertEquals("t", assertIs<VariableExpression>(index.receiver).name)
+        assertEquals("answer", assertIs<StringExpression>(index.key).value)
+    }
+
+    @Test
     fun `parses indexed assignment targets`() {
         val chunk = Parser.parse("t[1] = 42")
         val statement = assertIs<AssignmentStatement>(chunk.statements.single())
@@ -340,6 +350,17 @@ class ParserTest {
 
         assertEquals("t", assertIs<VariableExpression>(target.receiver).name)
         assertEquals(1L, assertIs<IntegerExpression>(target.key).value)
+        assertEquals(42L, assertIs<IntegerExpression>(statement.values.single()).value)
+    }
+
+    @Test
+    fun `parses dot assignment targets`() {
+        val chunk = Parser.parse("t.answer = 42")
+        val statement = assertIs<AssignmentStatement>(chunk.statements.single())
+        val target = assertIs<IndexAssignmentTarget>(statement.targets.single()).index
+
+        assertEquals("t", assertIs<VariableExpression>(target.receiver).name)
+        assertEquals("answer", assertIs<StringExpression>(target.key).value)
         assertEquals(42L, assertIs<IntegerExpression>(statement.values.single()).value)
     }
 

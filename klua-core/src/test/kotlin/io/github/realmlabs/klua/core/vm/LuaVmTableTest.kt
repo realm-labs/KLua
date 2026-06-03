@@ -86,6 +86,21 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `executes dot field assignments and reads`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {}
+                table.answer = 42
+                return table.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `removes table keys assigned nil`() {
         val result = LuaVm().execute(
             Compiler.compile(

@@ -299,6 +299,14 @@ internal class Parser private constructor(
                         range = SourceRange(expression.range.start, end.range.end),
                     )
                 }
+                match(TokenKind.DOT) -> {
+                    val name = consume(TokenKind.IDENTIFIER, "expected field name after '.'")
+                    expression = IndexExpression(
+                        receiver = expression,
+                        key = StringExpression(name.literal as String, name.range),
+                        range = SourceRange(expression.range.start, name.range.end),
+                    )
+                }
                 else -> return expression
             }
         }
