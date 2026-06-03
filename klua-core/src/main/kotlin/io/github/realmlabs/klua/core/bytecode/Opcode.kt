@@ -1,0 +1,11 @@
+package io.github.realmlabs.klua.core.bytecode
+
+internal enum class Opcode {
+    LOAD_NIL,
+    LOAD_BOOL,
+    LOAD_INT,
+    LOAD_FLOAT,
+    LOAD_K,
+    MOVE,
+    RETURN,
+}

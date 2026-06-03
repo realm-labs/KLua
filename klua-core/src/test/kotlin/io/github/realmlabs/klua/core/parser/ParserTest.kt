@@ -19,6 +19,14 @@ import kotlin.test.assertIs
 
 class ParserTest {
     @Test
+    fun `parses empty chunk`() {
+        val chunk = Parser.parse("", "empty.lua")
+
+        assertEquals("empty.lua", chunk.range.start.sourceName)
+        assertEquals(0, chunk.statements.size)
+    }
+
+    @Test
     fun `parses local declaration and return statement`() {
         val chunk = Parser.parse(
             """

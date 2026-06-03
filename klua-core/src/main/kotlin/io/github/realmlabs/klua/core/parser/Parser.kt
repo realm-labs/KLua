@@ -226,6 +226,9 @@ internal class Parser private constructor(
 
     private fun consume(kind: TokenKind, message: String): Token {
         if (check(kind)) {
+            if (kind == TokenKind.EOF) {
+                return peek()
+            }
             return advance()
         }
         throw errorAt(peek(), message)
