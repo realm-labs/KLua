@@ -311,6 +311,20 @@ class LuaState private constructor(
         }
     }
 
+    internal fun toAny(index: Int): Any? {
+        return when (val value = valueAt(index)) {
+            null,
+            LuaStackValue.Nil,
+            -> null
+            is LuaStackValue.BooleanValue -> value.value
+            is LuaStackValue.IntegerValue -> value.value
+            is LuaStackValue.NumberValue -> value.value
+            is LuaStackValue.StringValue -> value.value
+            is LuaStackValue.NativeFunctionValue -> value.function
+            else -> throw LuaRuntimeException("stack value $index is ${stackTypeName(value)}")
+        }
+    }
+
     private fun removeCallFrame(functionIndex: Int) {
         while (stack.size > functionIndex) {
             stack.removeAt(stack.lastIndex)

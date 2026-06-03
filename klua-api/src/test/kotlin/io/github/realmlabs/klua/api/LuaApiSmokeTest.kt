@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.api
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class LuaApiSmokeTest {
     @Test
@@ -16,5 +17,24 @@ class LuaApiSmokeTest {
 
         assertEquals("return 42", chunk.source)
         assertEquals("smoke.lua", chunk.chunkName)
+    }
+
+    @Test
+    fun `facade evaluates chunks and restores state`() {
+        val lua = Lua.create()
+
+        assertEquals(42L, lua.load("return 40 + 2").evalLong())
+        assertEquals("ok", lua.load("""return "ok"""").evalString())
+    }
+
+    @Test
+    fun `facade throws structured runtime errors`() {
+        val lua = Lua.create()
+
+        val error = assertFailsWith<LuaRuntimeException> {
+            lua.load("""return "x" + 1""", "bad.lua").eval()
+        }
+
+        assertEquals("attempt to perform arithmetic on string", error.message)
     }
 }
