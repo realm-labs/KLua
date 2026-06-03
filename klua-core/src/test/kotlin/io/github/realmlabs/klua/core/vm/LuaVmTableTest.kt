@@ -590,6 +590,43 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `calls left closure modulo metamethod for table modulo`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__mod"), LuaClosure(returnSecondArgumentPrototype()))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.MOD, left, right))
+
+        assertEquals(listOf(right), result)
+    }
+
+    @Test
+    fun `calls right closure modulo metamethod when left has none`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__mod"), LuaClosure(returnSecondArgumentPrototype()))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.MOD, left, right))
+
+        assertEquals(listOf(right), result)
+    }
+
+    @Test
+    fun `rejects table modulo without closure modulo metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableArithmeticPrototype(Opcode.MOD, LuaTable(), LuaInteger(42)))
+        }
+
+        assertEquals("attempt to perform arithmetic on table", error.message)
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))

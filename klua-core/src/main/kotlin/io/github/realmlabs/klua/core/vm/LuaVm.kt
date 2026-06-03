@@ -355,6 +355,7 @@ internal class LuaVm {
             Arithmetic.MUL -> MUL_KEY
             Arithmetic.DIV -> DIV_KEY
             Arithmetic.IDIV -> IDIV_KEY
+            Arithmetic.MOD -> MOD_KEY
             else -> return null
         }
         return tableMetamethod(left, key) ?: tableMetamethod(right, key)
@@ -642,3 +643,4 @@ private val SUB_KEY = LuaString("__sub")
 private val MUL_KEY = LuaString("__mul")
 private val DIV_KEY = LuaString("__div")
 private val IDIV_KEY = LuaString("__idiv")
+private val MOD_KEY = LuaString("__mod")
