@@ -122,6 +122,26 @@ class LuaState private constructor(
         stack.removeAt(requireResolvedIndex(index))
     }
 
+    fun newTable() {
+        stack += LuaStackValue.TableValue()
+    }
+
+    fun getField(index: Int, key: String) {
+        val table = requireTable(index)
+        stack += table.fields[key] ?: LuaStackValue.Nil
+    }
+
+    fun setField(index: Int, key: String) {
+        val table = requireTable(index)
+        val value = requireValue(-1)
+        stack.removeAt(stack.lastIndex)
+        if (value == LuaStackValue.Nil) {
+            table.fields.remove(key)
+        } else {
+            table.fields[key] = value
+        }
+    }
+
     fun pushNil() {
         stack += LuaStackValue.Nil
     }
@@ -168,12 +188,15 @@ class LuaState private constructor(
         }
     }
 
+    fun isTable(index: Int): Boolean = valueAt(index) is LuaStackValue.TableValue
+
     fun typeName(index: Int): String {
         return when (val value = valueAt(index)) {
             null -> "none"
             LuaStackValue.Nil -> "nil"
             is LuaStackValue.BooleanValue -> "boolean"
             is LuaStackValue.ChunkValue -> "function"
+            is LuaStackValue.TableValue -> "table"
             is LuaStackValue.IntegerValue,
             is LuaStackValue.NumberValue,
             -> "number"
@@ -253,6 +276,7 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
+            is LuaStackValue.TableValue -> KLuaCoreValue.UnsupportedValue("table")
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
         }
     }
@@ -280,6 +304,11 @@ class LuaState private constructor(
         return resolved
     }
 
+    private fun requireTable(index: Int): LuaStackValue.TableValue {
+        return requireValue(index) as? LuaStackValue.TableValue
+            ?: throw IllegalArgumentException("stack index $index is not a table")
+    }
+
     private fun integerFromNumber(value: Double): Long? {
         if (!value.isFinite()) {
             return null
@@ -305,6 +334,10 @@ class LuaState private constructor(
 
         data class StringValue(
             val value: String,
+        ) : LuaStackValue
+
+        data class TableValue(
+            val fields: MutableMap<String, LuaStackValue> = linkedMapOf(),
         ) : LuaStackValue
 
         data class ChunkValue(
