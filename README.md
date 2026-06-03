@@ -130,3 +130,7 @@ See [docs/KLua_Implementation_Milestones.md](docs/KLua_Implementation_Milestones
 ## Contributing
 
 Before making implementation changes, read [docs/KLua_Codex_Goal.md](docs/KLua_Codex_Goal.md). It defines the module boundaries, delivery rules, compatibility policy, implementation order, testing requirements, and definition of done for this repository.
+
+## License
+
+KLua is available under the [MIT License](LICENSE).
