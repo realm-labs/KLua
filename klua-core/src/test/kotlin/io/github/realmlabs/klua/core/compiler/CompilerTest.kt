@@ -145,6 +145,30 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles logical expressions with short circuit jumps`() {
+        val prototype = Compiler.compile("""return false and "right", true or "right", nil or "fallback"""")
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_BOOL R0 false
+            0001  [1]  TEST R0 1
+            0002  [1]  LOAD_K R0 K0 ; "right"
+            0003  [1]  LOAD_BOOL R1 true
+            0004  [1]  NOT R2 R1
+            0005  [1]  TEST R2 1
+            0006  [1]  LOAD_K R1 K0 ; "right"
+            0007  [1]  LOAD_NIL R2
+            0008  [1]  NOT R3 R2
+            0009  [1]  TEST R3 1
+            0010  [1]  LOAD_K R2 K1 ; "fallback"
+            0011  [1]  RETURN R0 3
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local declaration and local return`() {
         val prototype = Compiler.compile(
             """

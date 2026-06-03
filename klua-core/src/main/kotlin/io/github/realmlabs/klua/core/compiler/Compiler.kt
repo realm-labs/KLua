@@ -279,6 +279,11 @@ internal class Compiler private constructor(
     }
 
     private fun compileBinaryExpression(expression: BinaryExpression, register: Int) {
+        if (expression.operator == BinaryOperator.AND || expression.operator == BinaryOperator.OR) {
+            compileLogicalExpression(expression, register)
+            return
+        }
+
         val arithmeticOpcode = arithmeticOpcode(expression.operator)
         if (arithmeticOpcode != null) {
             compileBinaryOperation(expression, register, arithmeticOpcode)
@@ -290,7 +295,30 @@ internal class Compiler private constructor(
             return
         }
 
-        throw unsupported(expression, "only arithmetic and comparison binary expressions are supported by this compiler slice")
+        throw unsupported(expression, "only arithmetic, comparison, and logical binary expressions are supported by this compiler slice")
+    }
+
+    private fun compileLogicalExpression(expression: BinaryExpression, register: Int) {
+        compileExpression(expression.left, register)
+
+        when (expression.operator) {
+            BinaryOperator.AND -> {
+                val testIndex = writer.size
+                writer.emit(Instruction.abc(Opcode.TEST, register), expression.range.start.line)
+                compileExpression(expression.right, register)
+                patchTest(testIndex, writer.size)
+            }
+            BinaryOperator.OR -> {
+                val truthTestRegister = register + 1
+                maxRegister = maxRegister.coerceAtLeast(truthTestRegister + 1)
+                writer.emit(Instruction.abc(Opcode.NOT, truthTestRegister, register), expression.range.start.line)
+                val testIndex = writer.size
+                writer.emit(Instruction.abc(Opcode.TEST, truthTestRegister), expression.range.start.line)
+                compileExpression(expression.right, register)
+                patchTest(testIndex, writer.size)
+            }
+            else -> throw unsupported(expression, "not a logical operator")
+        }
     }
 
     private fun compileBinaryOperation(expression: BinaryExpression, register: Int, opcode: Opcode) {

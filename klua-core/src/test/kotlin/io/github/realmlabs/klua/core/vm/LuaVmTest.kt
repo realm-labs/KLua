@@ -212,6 +212,33 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes logical expressions with lua operand results`() {
+        val result = LuaVm().execute(
+            Compiler.compile("""return false and "right", true and "right", nil or "fallback", false or 7, "left" or "right""""),
+        )
+
+        assertEquals(
+            listOf(
+                LuaBoolean(false),
+                LuaString("right"),
+                LuaString("fallback"),
+                LuaInteger(7),
+                LuaString("left"),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `short circuits logical expressions`() {
+        val result = LuaVm().execute(
+            Compiler.compile("""return false and ("x" + 1), true or ("x" + 1)"""),
+        )
+
+        assertEquals(listOf(LuaBoolean(false), LuaBoolean(true)), result)
+    }
+
+    @Test
     fun `executes true if branch`() {
         val result = LuaVm().execute(
             Compiler.compile(
