@@ -421,6 +421,13 @@ internal class LuaVm {
             }
             return false
         }
+        if (comparison == Comparison.LT) {
+            val metamethod = tableMetamethod(left, LT_KEY) ?: tableMetamethod(right, LT_KEY)
+            if (metamethod != null) {
+                val result = execute(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+                return isTruthy(result)
+            }
+        }
         return comparison.apply(left, right)
     }
 
@@ -657,6 +664,7 @@ private val NEW_INDEX_KEY = LuaString("__newindex")
 private val CALL_KEY = LuaString("__call")
 private val LEN_KEY = LuaString("__len")
 private val EQ_KEY = LuaString("__eq")
+private val LT_KEY = LuaString("__lt")
 private val ADD_KEY = LuaString("__add")
 private val SUB_KEY = LuaString("__sub")
 private val MUL_KEY = LuaString("__mul")
