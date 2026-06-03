@@ -19,6 +19,7 @@ import io.github.realmlabs.klua.core.value.LuaUserDataType
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
+import java.util.IdentityHashMap
 
 public object KLuaCoreRuntime {
     public fun compile(source: String, chunkName: String): KLuaCoreLoad {
@@ -281,18 +282,31 @@ private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? 
     }
 }
 
-private fun toPublicValue(value: LuaValue): KLuaCoreValue {
+private fun toPublicValue(value: LuaValue): KLuaCoreValue = toPublicValue(value, IdentityHashMap())
+
+private fun toPublicValue(
+    value: LuaValue,
+    tableCache: MutableMap<LuaTable, KLuaCoreValue.TableValue>,
+): KLuaCoreValue {
     return when (value) {
         LuaNil -> KLuaCoreValue.Nil
         is LuaBoolean -> KLuaCoreValue.BooleanValue(value.value)
         is LuaInteger -> KLuaCoreValue.IntegerValue(value.value)
         is LuaFloat -> KLuaCoreValue.NumberValue(value.value)
         is LuaString -> KLuaCoreValue.StringValue(value.value)
-        is LuaTable -> KLuaCoreValue.TableValue(
-            value.rawEntries()
-                .map { (key, fieldValue) -> toPublicValue(key) to toPublicValue(fieldValue) }
-                .toMap(mutableMapOf()),
-        )
+        is LuaTable -> {
+            val cached = tableCache[value]
+            if (cached != null) {
+                return cached
+            }
+            val tableValue = KLuaCoreValue.TableValue(mutableMapOf())
+            tableCache[value] = tableValue
+            tableValue.fields.putAll(
+                value.rawEntries()
+                    .map { (key, fieldValue) -> toPublicValue(key, tableCache) to toPublicValue(fieldValue, tableCache) },
+            )
+            tableValue
+        }
         is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)
         is LuaNativeFunction -> KLuaCoreValue.UnsupportedValue("function")
         else -> KLuaCoreValue.UnsupportedValue(typeName = value.publicTypeName())
@@ -319,7 +333,8 @@ private fun callCoreFunction(
     arguments: List<LuaValue>,
     globals: KLuaCoreGlobals,
 ): List<LuaValue> {
-    val publicArguments = arguments.map(::toPublicValue)
+    val tableCache = IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
+    val publicArguments = arguments.map { value -> toPublicValue(value, tableCache) }
     return try {
         when (val result = function.call(publicArguments)) {
             is KLuaCoreCallResult.Success -> {

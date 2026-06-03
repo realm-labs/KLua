@@ -151,6 +151,28 @@ class LuaStateNativeFunctionJavaTest {
     }
 
     @Test
+    void nativeFunctionReceivesSharedTableArgumentIdentityFromLuaSource() {
+        LuaState state = LuaState.create();
+
+        state.register("sameTable", context -> LuaReturn.of(context.getTable(1) == context.getTable(2)));
+
+        assertEquals(
+                LuaStatus.OK,
+                state.load(
+                        """
+                        local value = {}
+                        return sameTable(value, value), sameTable({}, {})
+                        """,
+                        "native-table-alias.lua"
+                )
+        );
+        assertEquals(LuaStatus.OK, state.pcall(0, 2));
+
+        assertTrue(state.toBoolean(1));
+        assertFalse(state.toBoolean(2));
+    }
+
+    @Test
     void pushedNativeFunctionGlobalsCanBeCalledFromLuaSource() {
         LuaState state = LuaState.create();
 

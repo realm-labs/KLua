@@ -10,6 +10,7 @@ import io.github.realmlabs.klua.core.KLuaCoreUserDataGetter
 import io.github.realmlabs.klua.core.KLuaCoreUserDataMethod
 import io.github.realmlabs.klua.core.KLuaCoreUserDataSetter
 import io.github.realmlabs.klua.core.KLuaCoreValue
+import java.util.IdentityHashMap
 import java.util.function.Consumer
 
 class LuaState private constructor(
@@ -410,7 +411,8 @@ class LuaState private constructor(
         function: LuaFunction,
         arguments: List<KLuaCoreValue>,
     ): KLuaCoreCallResult {
-        val stackArguments = arguments.map { it.toStackValue() }
+        val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
+        val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
         return try {
             val result = function.call(DefaultLuaCallContext(stackArguments))
             syncStackArgumentsToCore(arguments, stackArguments)
@@ -469,6 +471,12 @@ class LuaState private constructor(
     }
 
     private fun KLuaCoreValue?.toStackValue(): LuaStackValue {
+        return toStackValue(IdentityHashMap())
+    }
+
+    private fun KLuaCoreValue?.toStackValue(
+        tableCache: MutableMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>,
+    ): LuaStackValue {
         return when (this) {
             null,
             KLuaCoreValue.Nil,
@@ -484,10 +492,20 @@ class LuaState private constructor(
                     is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
                 }
             }
-            is KLuaCoreValue.TableValue -> LuaStackValue.TableValue(
-                fields.map { (fieldKey, fieldValue) -> fieldKey.toStackValue() to fieldValue.toStackValue() }
-                    .toMap(mutableMapOf()),
-            )
+            is KLuaCoreValue.TableValue -> {
+                val cached = tableCache[this]
+                if (cached != null) {
+                    return cached
+                }
+                val tableValue = LuaStackValue.TableValue()
+                tableCache[this] = tableValue
+                tableValue.fields.putAll(
+                    fields.map { (fieldKey, fieldValue) ->
+                        fieldKey.toStackValue(tableCache) to fieldValue.toStackValue(tableCache)
+                    },
+                )
+                tableValue
+            }
             is KLuaCoreValue.UserDataValue -> LuaStackValue.UserDataValue(value)
             is KLuaCoreValue.UnsupportedValue -> LuaStackValue.UnsupportedValue(typeName)
         }
