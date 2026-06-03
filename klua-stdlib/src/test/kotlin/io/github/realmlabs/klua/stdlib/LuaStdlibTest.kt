@@ -451,6 +451,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub replaces literal matches`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local all, allCount = string.gsub("banana", "an", "ON")
+                local one, oneCount = string.gsub("banana", "an", "ON", 1)
+                local none, noneCount = string.gsub("banana", "zz", "ON")
+                local unchanged, unchangedCount = string.gsub("banana", "an", "ON", 0)
+                return all, allCount, one, oneCount, none, noneCount, unchanged, unchangedCount
+                """.trimIndent(),
+                "string-gsub.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("bONONa", state.toString(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("bONana", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals("banana", state.toString(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals("banana", state.toString(7))
+        assertEquals(0L, state.toInteger(8))
+    }
+
+    @Test
+    fun `string gsub reports unsupported patterns`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", ".", "x")""", "string-gsub-pattern.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("string patterns are not supported", state.toString(-1))
+    }
+
+    @Test
     fun `string match returns literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

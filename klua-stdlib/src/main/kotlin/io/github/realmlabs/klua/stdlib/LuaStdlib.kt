@@ -73,6 +73,7 @@ public object LuaStdlib {
         setFunctionField(state, "byte", ::stringByte)
         setFunctionField(state, "char", ::stringChar)
         setFunctionField(state, "find", ::stringFind)
+        setFunctionField(state, "gsub", ::stringGsub)
         setFunctionField(state, "len", ::stringLen)
         setFunctionField(state, "lower", ::stringLower)
         setFunctionField(state, "match", ::stringMatch)
@@ -299,6 +300,42 @@ public object LuaStdlib {
 
     private fun stringLen(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(requiredString(context, 1, "string.len").length.toLong())
+    }
+
+    private fun stringGsub(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "string.gsub")
+        val pattern = requiredString(context, 2, "string.gsub")
+        val replacement = requiredString(context, 3, "string.gsub")
+        val limit = if (context.isNone(4) || context.isNil(4)) {
+            Long.MAX_VALUE
+        } else {
+            requiredInteger(context, 4, "string.gsub")
+        }
+        if (pattern.hasLuaPatternMagic()) {
+            throw LuaRuntimeException("string patterns are not supported")
+        }
+        if (pattern.isEmpty()) {
+            throw LuaRuntimeException("empty patterns are not supported")
+        }
+        if (limit <= 0L) {
+            return LuaReturn.of(text, 0L)
+        }
+
+        val result = StringBuilder()
+        var cursor = 0
+        var replacements = 0L
+        while (replacements < limit) {
+            val foundIndex = text.indexOf(pattern, cursor)
+            if (foundIndex < 0) {
+                break
+            }
+            result.append(text, cursor, foundIndex)
+            result.append(replacement)
+            cursor = foundIndex + pattern.length
+            replacements++
+        }
+        result.append(text, cursor, text.length)
+        return LuaReturn.of(result.toString(), replacements)
     }
 
     private fun stringFind(context: LuaCallContext): LuaReturn {
