@@ -31,6 +31,7 @@ public object LuaStdlib {
         openMath(state)
         openString(state)
         openTable(state)
+        openUtf8(state)
         return state
     }
 
@@ -166,6 +167,11 @@ public object LuaStdlib {
             "stdlib-table-move.lua",
         )
         return state
+    }
+
+    @JvmStatic
+    public fun openUtf8(state: LuaState): LuaState {
+        return LuaUtf8Library.open(state)
     }
 
     private fun assert(context: LuaCallContext): LuaReturn {

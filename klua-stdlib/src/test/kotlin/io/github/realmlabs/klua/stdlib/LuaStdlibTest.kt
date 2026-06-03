@@ -478,6 +478,17 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openLibs installs utf8 library`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.len("KLua")""", "open-libs-utf8.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(4L, state.toInteger(1))
+    }
+
+    @Test
     fun `openMath installs math numeric functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -822,6 +833,55 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("string patterns are not supported", state.toString(-1))
+    }
+
+    @Test
+    fun `openUtf8 installs char codepoint and len`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local smile = utf8.char(128512)
+                local text = "A" .. smile .. "Z"
+                return smile, utf8.len(text), utf8.codepoint(text, 1), utf8.codepoint(text, 2), utf8.codepoint(text, -1)
+                """.trimIndent(),
+                "utf8.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("\uD83D\uDE00", state.toString(1))
+        assertEquals(3L, state.toInteger(2))
+        assertEquals(65L, state.toInteger(3))
+        assertEquals(128512L, state.toInteger(4))
+        assertEquals(90L, state.toInteger(5))
+    }
+
+    @Test
+    fun `utf8 codepoint returns ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.codepoint("abc", 2, 3)""", "utf8-codepoint-range.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(98L, state.toInteger(1))
+        assertEquals(99L, state.toInteger(2))
+    }
+
+    @Test
+    fun `utf8 char rejects invalid code points`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.char(55296)""", "utf8-char-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'utf8.char' (value out of range)", state.toString(-1))
     }
 
     @Test
