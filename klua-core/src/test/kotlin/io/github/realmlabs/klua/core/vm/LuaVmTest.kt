@@ -358,6 +358,24 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes assignment calls with multiple results`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function pair()
+                    return 1, 2
+                end
+                local a, b = 0, 0
+                a, b = pair()
+                return a + b
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
     fun `rejects calls to non function values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("local value = 1 return value()"))

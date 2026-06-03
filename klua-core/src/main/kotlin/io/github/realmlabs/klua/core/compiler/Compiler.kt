@@ -166,6 +166,15 @@ internal class Compiler private constructor(
             locals[name] ?: throw unsupported(statement, "unknown local '$name'")
         }
         val tempBase = nextLocalRegister
+        val onlyValue = statement.values.singleOrNull()
+
+        if (onlyValue is CallExpression) {
+            compileCallExpression(onlyValue, tempBase, targetSlots.size)
+            for ((index, targetSlot) in targetSlots.withIndex()) {
+                writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, tempBase + index), statement.range.start.line)
+            }
+            return
+        }
 
         for (index in statement.names.indices) {
             val value = statement.values.getOrNull(index)
