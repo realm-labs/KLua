@@ -5,6 +5,9 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.util.function.Consumer
+import kotlin.math.absoluteValue
+import kotlin.math.ceil
+import kotlin.math.floor
 
 public object LuaStdlib {
     @JvmStatic
@@ -14,7 +17,9 @@ public object LuaStdlib {
 
     @JvmStatic
     public fun openLibs(state: LuaState, output: Consumer<String>): LuaState {
-        return openBase(state, output)
+        openBase(state, output)
+        openMath(state)
+        return state
     }
 
     @JvmStatic
@@ -31,6 +36,18 @@ public object LuaStdlib {
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
         state.register("type", ::type)
+        return state
+    }
+
+    @JvmStatic
+    public fun openMath(state: LuaState): LuaState {
+        state.newTable()
+        setFunctionField(state, "abs", ::mathAbs)
+        setFunctionField(state, "ceil", ::mathCeil)
+        setFunctionField(state, "floor", ::mathFloor)
+        setFunctionField(state, "max", ::mathMax)
+        setFunctionField(state, "min", ::mathMin)
+        state.setGlobal("math")
         return state
     }
 
@@ -101,6 +118,57 @@ public object LuaStdlib {
         return LuaReturn.of(context.typeName(1))
     }
 
+    private fun mathAbs(context: LuaCallContext): LuaReturn {
+        val integer = context.toInteger(1)
+        if (integer != null) {
+            return LuaReturn.of(integer.absoluteValue)
+        }
+        return LuaReturn.of(requiredNumber(context, 1, "math.abs").absoluteValue)
+    }
+
+    private fun mathCeil(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(ceil(requiredNumber(context, 1, "math.ceil")).toLong())
+    }
+
+    private fun mathFloor(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(floor(requiredNumber(context, 1, "math.floor")).toLong())
+    }
+
+    private fun mathMax(context: LuaCallContext): LuaReturn {
+        requireMathArguments(context, "math.max")
+        var max = requiredNumber(context, 1, "math.max")
+        for (index in 2..context.argumentCount) {
+            val value = requiredNumber(context, index, "math.max")
+            if (value > max) {
+                max = value
+            }
+        }
+        return LuaReturn.of(max)
+    }
+
+    private fun mathMin(context: LuaCallContext): LuaReturn {
+        requireMathArguments(context, "math.min")
+        var min = requiredNumber(context, 1, "math.min")
+        for (index in 2..context.argumentCount) {
+            val value = requiredNumber(context, index, "math.min")
+            if (value < min) {
+                min = value
+            }
+        }
+        return LuaReturn.of(min)
+    }
+
+    private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {
+        return context.toNumber(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+    }
+
+    private fun requireMathArguments(context: LuaCallContext, functionName: String) {
+        if (context.argumentCount == 0) {
+            throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
+        }
+    }
+
     private fun toLuaString(context: LuaCallContext, index: Int): String {
         return when (context.typeName(index)) {
             "nil" -> "nil"
@@ -120,5 +188,10 @@ public object LuaStdlib {
 
     private fun standardOutput(): Consumer<String> {
         return Consumer { line -> println(line) }
+    }
+
+    private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
+        state.pushFunction(function::invoke)
+        state.setField(-2, name)
     }
 }

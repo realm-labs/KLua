@@ -181,4 +181,39 @@ class LuaStdlibTest {
         assertEquals("function", state.typeName(-1))
         assertNull(state.getLastError())
     }
+
+    @Test
+    fun `openMath installs math numeric functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return math.abs(-5), math.floor(3.9), math.ceil(3.1), math.min(4, -2, 8), math.max(4, -2, 8)
+                """.trimIndent(),
+                "math.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(5L, state.toInteger(1))
+        assertEquals(3L, state.toInteger(2))
+        assertEquals(4L, state.toInteger(3))
+        assertEquals(-2L, state.toInteger(4))
+        assertEquals(8L, state.toInteger(5))
+    }
+
+    @Test
+    fun `math functions report numeric argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.abs("x")""", "math-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'math.abs' (number expected)", state.toString(-1))
+    }
 }
