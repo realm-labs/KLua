@@ -39,6 +39,8 @@ internal enum class TokenKind {
     CARET,
     HASH,
     AMPERSAND,
+    LEFT_SHIFT,
+    RIGHT_SHIFT,
     PIPE,
     TILDE,
     DOUBLE_TILDE,

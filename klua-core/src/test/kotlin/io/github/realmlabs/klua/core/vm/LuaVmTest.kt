@@ -266,6 +266,26 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes shift expressions`() {
+        val result = LuaVm().execute(
+            Compiler.compile("return 1 << 3, 8 >> 1, 8 << -1, 8 >> -1, -1 >> 1, 1 << 64, 1 >> 64"),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(8),
+                LuaInteger(4),
+                LuaInteger(4),
+                LuaInteger(16),
+                LuaInteger(Long.MAX_VALUE),
+                LuaInteger(0),
+                LuaInteger(0),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `executes true if branch`() {
         val result = LuaVm().execute(
             Compiler.compile(
@@ -649,9 +669,13 @@ class LuaVmTest {
         val rangeError = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 9.223372036854776e18 & 1"))
         }
+        val shiftError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("return 1 << 1.5"))
+        }
 
         assertEquals("attempt to perform bitwise operation on number", error.message)
         assertEquals("attempt to perform bitwise operation on number", rangeError.message)
+        assertEquals("attempt to perform bitwise operation on number", shiftError.message)
     }
 
     @Test

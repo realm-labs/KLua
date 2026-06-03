@@ -211,6 +211,25 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles shift expressions`() {
+        val prototype = Compiler.compile("return 1 << 3, 8 >> 1")
+
+        assertEquals(3, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_INT R1 3
+            0002  [1]  SHL R0 R0 R1
+            0003  [1]  LOAD_INT R1 8
+            0004  [1]  LOAD_INT R2 1
+            0005  [1]  SHR R1 R1 R2
+            0006  [1]  RETURN R0 2
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local declaration and local return`() {
         val prototype = Compiler.compile(
             """

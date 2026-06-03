@@ -45,6 +45,8 @@ internal class LuaVm {
                 Opcode.BAND -> bitwise(stack, frame, instruction, Bitwise.AND)
                 Opcode.BOR -> bitwise(stack, frame, instruction, Bitwise.OR)
                 Opcode.BXOR -> bitwise(stack, frame, instruction, Bitwise.XOR)
+                Opcode.SHL -> bitwise(stack, frame, instruction, Bitwise.SHIFT_LEFT)
+                Opcode.SHR -> bitwise(stack, frame, instruction, Bitwise.SHIFT_RIGHT)
                 Opcode.BNOT -> bitwiseNot(stack, frame, instruction)
                 Opcode.UNM -> unaryMinus(stack, frame, instruction)
                 Opcode.NOT -> logicalNot(stack, frame, instruction)
@@ -249,13 +251,39 @@ internal class LuaVm {
     private enum class Bitwise {
         AND,
         OR,
-        XOR;
+        XOR,
+        SHIFT_LEFT,
+        SHIFT_RIGHT;
 
         fun apply(left: Long, right: Long): Long {
             return when (this) {
                 AND -> left and right
                 OR -> left or right
                 XOR -> left xor right
+                SHIFT_LEFT -> shiftLeft(left, right)
+                SHIFT_RIGHT -> shiftRight(left, right)
+            }
+        }
+
+        private fun shiftLeft(value: Long, distance: Long): Long {
+            if (distance <= -LONG_BITS || distance >= LONG_BITS) {
+                return 0L
+            }
+            return if (distance < 0) {
+                value ushr (-distance).toInt()
+            } else {
+                value shl distance.toInt()
+            }
+        }
+
+        private fun shiftRight(value: Long, distance: Long): Long {
+            if (distance <= -LONG_BITS || distance >= LONG_BITS) {
+                return 0L
+            }
+            return if (distance < 0) {
+                value shl (-distance).toInt()
+            } else {
+                value ushr distance.toInt()
             }
         }
     }
@@ -273,6 +301,7 @@ private fun numberValue(value: LuaValue): Double? {
     }
 }
 
+private const val LONG_BITS = 64L
 private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
 
 private fun integerValue(value: LuaValue): Long? {

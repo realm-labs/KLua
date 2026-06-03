@@ -18,6 +18,8 @@ internal enum class Opcode {
     BAND,
     BOR,
     BXOR,
+    SHL,
+    SHR,
     BNOT,
     UNM,
     NOT,

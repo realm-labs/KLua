@@ -101,7 +101,7 @@ class LexerTest {
 
     @Test
     fun `tokenizes lua operators and punctuation`() {
-        val tokens = Lexer("+ - * / // % ^ # & | ~ ~= == < <= > >= . .. ... , ; : :: ( ) { } [ ]").tokenize()
+        val tokens = Lexer("+ - * / // % ^ # & << >> | ~ ~= == < <= > >= . .. ... , ; : :: ( ) { } [ ]").tokenize()
 
         assertEquals(
             listOf(
@@ -114,6 +114,8 @@ class LexerTest {
                 TokenKind.CARET,
                 TokenKind.HASH,
                 TokenKind.AMPERSAND,
+                TokenKind.LEFT_SHIFT,
+                TokenKind.RIGHT_SHIFT,
                 TokenKind.PIPE,
                 TokenKind.TILDE,
                 TokenKind.NOT_EQUAL,

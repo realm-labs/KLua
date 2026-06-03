@@ -420,6 +420,8 @@ internal class Compiler private constructor(
             BinaryOperator.BITWISE_AND -> Opcode.BAND
             BinaryOperator.BITWISE_OR -> Opcode.BOR
             BinaryOperator.BITWISE_XOR -> Opcode.BXOR
+            BinaryOperator.LEFT_SHIFT -> Opcode.SHL
+            BinaryOperator.RIGHT_SHIFT -> Opcode.SHR
             else -> null
         }
     }

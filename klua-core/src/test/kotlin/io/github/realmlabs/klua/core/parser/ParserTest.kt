@@ -200,6 +200,21 @@ class ParserTest {
     }
 
     @Test
+    fun `parses shift precedence between bitwise and concatenation`() {
+        val chunk = Parser.parse("""return 1 & 2 << 3 .. "x"""")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+
+        val bitwiseAnd = assertIs<BinaryExpression>(statement.values.single())
+        assertEquals(BinaryOperator.BITWISE_AND, bitwiseAnd.operator)
+
+        val shift = assertIs<BinaryExpression>(bitwiseAnd.right)
+        assertEquals(BinaryOperator.LEFT_SHIFT, shift.operator)
+
+        val concat = assertIs<BinaryExpression>(shift.right)
+        assertEquals(BinaryOperator.CONCAT, concat.operator)
+    }
+
+    @Test
     fun `parses literal expression values`() {
         val chunk = Parser.parse("""return nil, true, false, 42, 2.5, "ok"""")
         val values = assertIs<ReturnStatement>(chunk.statements.single()).values

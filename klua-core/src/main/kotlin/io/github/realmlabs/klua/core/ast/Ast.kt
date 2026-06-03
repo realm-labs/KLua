@@ -132,6 +132,8 @@ internal enum class BinaryOperator {
     BITWISE_OR,
     BITWISE_XOR,
     BITWISE_AND,
+    LEFT_SHIFT,
+    RIGHT_SHIFT,
     CONCAT,
     ADD,
     SUBTRACT,

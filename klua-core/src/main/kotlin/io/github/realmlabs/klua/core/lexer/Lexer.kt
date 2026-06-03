@@ -144,8 +144,16 @@ internal class Lexer(
                 else -> TokenKind.TILDE
             }
             '=' -> if (match('=')) TokenKind.EQUAL_EQUAL else TokenKind.ASSIGN
-            '<' -> if (match('=')) TokenKind.LESS_EQUAL else TokenKind.LESS
-            '>' -> if (match('=')) TokenKind.GREATER_EQUAL else TokenKind.GREATER
+            '<' -> when {
+                match('<') -> TokenKind.LEFT_SHIFT
+                match('=') -> TokenKind.LESS_EQUAL
+                else -> TokenKind.LESS
+            }
+            '>' -> when {
+                match('>') -> TokenKind.RIGHT_SHIFT
+                match('=') -> TokenKind.GREATER_EQUAL
+                else -> TokenKind.GREATER
+            }
             '.' -> when {
                 match('.') && match('.') -> TokenKind.DOT_DOT_DOT
                 previousWasDoubleDot() -> TokenKind.DOT_DOT

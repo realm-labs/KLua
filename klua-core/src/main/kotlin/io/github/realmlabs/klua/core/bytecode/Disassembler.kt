@@ -41,6 +41,8 @@ internal object Disassembler {
             Opcode.BAND -> binary("BAND", instruction)
             Opcode.BOR -> binary("BOR", instruction)
             Opcode.BXOR -> binary("BXOR", instruction)
+            Opcode.SHL -> binary("SHL", instruction)
+            Opcode.SHR -> binary("SHR", instruction)
             Opcode.BNOT -> "BNOT R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.UNM -> "UNM R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.NOT -> "NOT R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
