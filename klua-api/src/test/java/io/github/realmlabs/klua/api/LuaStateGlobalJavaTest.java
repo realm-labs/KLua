@@ -82,6 +82,24 @@ class LuaStateGlobalJavaTest {
     }
 
     @Test
+    void loadedChunksReadTableGlobalsWithNativeFunctionFields() {
+        LuaState state = LuaState.create();
+
+        state.newTable();
+        state.pushInteger(41);
+        state.setField(-2, "base");
+        state.pushFunction(context -> LuaReturn.of(context.toInteger(1) + 1));
+        state.setField(-2, "increment");
+        state.setGlobal("module");
+
+        assertEquals(LuaStatus.OK, state.load("return module.base, module.increment(41)", "read-table-global.lua"));
+        assertEquals(LuaStatus.OK, state.pcall(0, 2));
+
+        assertEquals(41L, state.toInteger(1));
+        assertEquals(42L, state.toInteger(2));
+    }
+
+    @Test
     void loadedChunksWritePrimitiveGlobals() {
         LuaState state = LuaState.create();
 

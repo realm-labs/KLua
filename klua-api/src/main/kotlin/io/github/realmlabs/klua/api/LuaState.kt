@@ -471,6 +471,16 @@ class LuaState private constructor(
             is KLuaCoreValue.IntegerValue -> LuaStackValue.IntegerValue(value)
             is KLuaCoreValue.NumberValue -> LuaStackValue.NumberValue(value)
             is KLuaCoreValue.StringValue -> LuaStackValue.StringValue(value)
+            is KLuaCoreValue.FunctionValue -> LuaStackValue.NativeFunctionValue { context ->
+                val arguments = (1..context.argumentCount).map { index -> context.get(index).toCoreReturnValue() }
+                when (val result = function.call(arguments)) {
+                    is KLuaCoreCallResult.Success -> LuaReturn.ofValues(result.values.map { it.toStackValue().toAnyValue() })
+                    is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
+                }
+            }
+            is KLuaCoreValue.TableValue -> LuaStackValue.TableValue(
+                fields.mapValues { (_, fieldValue) -> fieldValue.toStackValue() }.toMutableMap(),
+            )
             is KLuaCoreValue.UserDataValue -> LuaStackValue.UserDataValue(value)
             is KLuaCoreValue.UnsupportedValue -> LuaStackValue.UnsupportedValue(typeName)
         }
@@ -528,8 +538,29 @@ class LuaState private constructor(
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.UnsupportedValue("function")
-            is LuaStackValue.TableValue -> KLuaCoreValue.UnsupportedValue("table")
+            is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
+                fields.mapValues { (_, fieldValue) -> fieldValue.toCoreTableFieldValue() },
+            )
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
+            is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
+        }
+    }
+
+    private fun LuaStackValue.toCoreTableFieldValue(): KLuaCoreValue {
+        return when (this) {
+            LuaStackValue.Nil -> KLuaCoreValue.Nil
+            is LuaStackValue.BooleanValue -> KLuaCoreValue.BooleanValue(value)
+            is LuaStackValue.IntegerValue -> KLuaCoreValue.IntegerValue(value)
+            is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
+            is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
+            is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.FunctionValue { arguments ->
+                callHostFunction(function, arguments.map { it.toStackValue() })
+            }
+            is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
+                fields.mapValues { (_, fieldValue) -> fieldValue.toCoreTableFieldValue() },
+            )
+            is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
+            is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
         }
     }

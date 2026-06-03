@@ -39,6 +39,8 @@ internal class LuaTable : LuaValue {
         }
     }
 
+    fun rawEntries(): Map<LuaValue, LuaValue> = values.toMap()
+
     fun rawLength(): Long {
         var length = 0L
         while (length < Long.MAX_VALUE && rawGet(LuaInteger(length + 1L)) != LuaNil) {

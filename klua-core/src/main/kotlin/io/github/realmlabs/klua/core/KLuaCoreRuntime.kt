@@ -225,6 +225,14 @@ public sealed interface KLuaCoreValue {
         public val value: String,
     ) : KLuaCoreValue
 
+    public data class FunctionValue(
+        public val function: KLuaCoreFunction,
+    ) : KLuaCoreValue
+
+    public data class TableValue(
+        public val fields: Map<String, KLuaCoreValue>,
+    ) : KLuaCoreValue
+
     public data class UserDataValue(
         public val value: Any,
     ) : KLuaCoreValue
@@ -242,6 +250,8 @@ private fun KLuaCoreValue.publicTypeName(): String {
         is KLuaCoreValue.NumberValue,
         -> "number"
         is KLuaCoreValue.StringValue -> "string"
+        is KLuaCoreValue.FunctionValue -> "function"
+        is KLuaCoreValue.TableValue -> "table"
         is KLuaCoreValue.UserDataValue -> "userdata"
         is KLuaCoreValue.UnsupportedValue -> typeName
     }
@@ -254,6 +264,17 @@ private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? 
         is KLuaCoreValue.IntegerValue -> LuaInteger(value)
         is KLuaCoreValue.NumberValue -> LuaFloat(value)
         is KLuaCoreValue.StringValue -> LuaString(value)
+        is KLuaCoreValue.FunctionValue -> LuaNativeFunction { arguments ->
+            callCoreFunction(function, arguments, globals)
+        }
+        is KLuaCoreValue.TableValue -> {
+            val table = LuaTable()
+            for ((field, fieldValue) in fields) {
+                val luaValue = fieldValue.toLuaValueOrNull(globals) ?: return null
+                table.rawSet(LuaString(field), luaValue)
+            }
+            table
+        }
         is KLuaCoreValue.UserDataValue -> LuaUserData(value) { hostValue -> globals.userDataType(hostValue) }
         is KLuaCoreValue.UnsupportedValue -> null
     }
@@ -266,6 +287,17 @@ private fun toPublicValue(value: LuaValue): KLuaCoreValue {
         is LuaInteger -> KLuaCoreValue.IntegerValue(value.value)
         is LuaFloat -> KLuaCoreValue.NumberValue(value.value)
         is LuaString -> KLuaCoreValue.StringValue(value.value)
+        is LuaTable -> KLuaCoreValue.TableValue(
+            value.rawEntries()
+                .mapNotNull { (key, fieldValue) ->
+                    if (key is LuaString) {
+                        key.value to toPublicValue(fieldValue)
+                    } else {
+                        null
+                    }
+                }
+                .toMap(),
+        )
         is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)
         is LuaNativeFunction -> KLuaCoreValue.UnsupportedValue("function")
         else -> KLuaCoreValue.UnsupportedValue(typeName = value.publicTypeName())
