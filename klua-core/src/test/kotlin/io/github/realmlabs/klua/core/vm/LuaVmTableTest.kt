@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -284,6 +285,56 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `calls closure newindex metamethod for missing table keys`() {
+        val table = LuaTable()
+        val sink = LuaTable()
+        val metatable = LuaTable()
+        metatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), listOf(LuaUpvalue(sink))))
+        table.metatable = metatable
+
+        LuaVm().execute(tableFieldWritePrototype(table, "answer", LuaInteger(42)))
+
+        assertEquals(LuaNil, table.rawGet(LuaString("answer")))
+        assertEquals(LuaInteger(42), sink.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `calls closure newindex metamethod through table newindex chain`() {
+        val table = LuaTable()
+        val target = LuaTable()
+        val sink = LuaTable()
+        val metatable = LuaTable()
+        val targetMetatable = LuaTable()
+
+        targetMetatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), listOf(LuaUpvalue(sink))))
+        target.metatable = targetMetatable
+        metatable.rawSet(LuaString("__newindex"), target)
+        table.metatable = metatable
+
+        LuaVm().execute(tableFieldWritePrototype(table, "answer", LuaInteger(42)))
+
+        assertEquals(LuaNil, table.rawGet(LuaString("answer")))
+        assertEquals(LuaNil, target.rawGet(LuaString("answer")))
+        assertEquals(LuaInteger(42), sink.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `existing table keys bypass closure newindex metamethods`() {
+        val table = LuaTable()
+        val sink = LuaTable()
+        val metatable = LuaTable()
+
+        table.rawSet(LuaString("answer"), LuaInteger(1))
+        metatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), listOf(LuaUpvalue(sink))))
+        table.metatable = metatable
+
+        LuaVm().execute(tableFieldWritePrototype(table, "answer", LuaInteger(42)))
+
+        assertEquals(LuaInteger(42), table.rawGet(LuaString("answer")))
+        assertEquals(LuaNil, sink.rawGet(LuaString("answer")))
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))
@@ -348,6 +399,22 @@ class LuaVmTableTest {
         )
     }
 
+    private fun storeThirdArgumentPrototype(): Prototype {
+        return Prototype(
+            sourceName = "metamethod",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.GET_UPVALUE, 3, 0),
+                Instruction.abc(Opcode.SET_TABLE, 3, 1, 2),
+                Instruction.abc(Opcode.RETURN, 0, 0),
+            ),
+            constants = emptyArray(),
+            lineInfo = intArrayOf(1, 1, 1),
+            maxStackSize = 4,
+            numParams = 3,
+        )
+    }
+
     private fun tableFieldReadPrototype(table: LuaTable, field: String): Prototype {
         return Prototype(
             sourceName = "metatable-test",
@@ -359,6 +426,22 @@ class LuaVmTableTest {
             ),
             constants = arrayOf<LuaValue>(table, LuaString(field)),
             lineInfo = intArrayOf(1, 1, 1),
+            maxStackSize = 2,
+        )
+    }
+
+    private fun tableFieldWritePrototype(table: LuaTable, field: String, value: LuaValue): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.LOAD_K, 1, 2),
+                Instruction.abc(Opcode.SET_FIELD, 0, 1, 1),
+                Instruction.abc(Opcode.RETURN, 0, 0),
+            ),
+            constants = arrayOf(table, LuaString(field), value),
+            lineInfo = intArrayOf(1, 1, 1, 1),
             maxStackSize = 2,
         )
     }

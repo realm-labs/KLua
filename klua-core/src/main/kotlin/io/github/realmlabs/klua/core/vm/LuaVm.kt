@@ -268,11 +268,27 @@ internal class LuaVm {
 
     private fun tableSet(table: LuaTable, key: LuaValue, value: LuaValue) {
         try {
-            table.set(key, value)
+            tableSet(table, key, value, mutableSetOf())
         } catch (error: LuaTableKeyException) {
             throw LuaVmException(error.message ?: "invalid table key")
         } catch (error: LuaMetatableException) {
             throw LuaVmException(error.message ?: "invalid metatable operation")
+        }
+    }
+
+    private fun tableSet(table: LuaTable, key: LuaValue, value: LuaValue, visited: MutableSet<LuaTable>) {
+        if (table.rawGet(key) != LuaNil) {
+            table.rawSet(key, value)
+            return
+        }
+        if (!visited.add(table)) {
+            throw LuaMetatableException("cycle in __newindex chain")
+        }
+
+        when (val newIndex = table.metatableRawGet(NEW_INDEX_KEY)) {
+            is LuaTable -> tableSet(newIndex, key, value, visited)
+            is LuaClosure -> execute(newIndex.prototype, listOf(table, key, value), newIndex.upvalues)
+            else -> table.rawSet(key, value)
         }
     }
 
@@ -573,3 +589,4 @@ private fun typeName(value: LuaValue): String {
 }
 
 private val INDEX_KEY = LuaString("__index")
+private val NEW_INDEX_KEY = LuaString("__newindex")
