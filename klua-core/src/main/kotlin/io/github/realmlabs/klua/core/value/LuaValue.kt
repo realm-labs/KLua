@@ -26,12 +26,20 @@ internal data class LuaClosure(
     val prototype: Prototype,
 ) : LuaValue
 
+internal class LuaTableKeyException(
+    message: String,
+) : RuntimeException(message)
+
 internal class LuaTable : LuaValue {
     private val values = mutableMapOf<LuaValue, LuaValue>()
 
-    fun get(key: LuaValue): LuaValue = values[key] ?: LuaNil
+    fun get(key: LuaValue): LuaValue {
+        requireValidKey(key)
+        return values[key] ?: LuaNil
+    }
 
     fun set(key: LuaValue, value: LuaValue) {
+        requireValidKey(key)
         if (value == LuaNil) {
             values.remove(key)
         } else {
@@ -45,5 +53,12 @@ internal class LuaTable : LuaValue {
             length++
         }
         return length
+    }
+
+    private fun requireValidKey(key: LuaValue) {
+        when {
+            key == LuaNil -> throw LuaTableKeyException("table index is nil")
+            key is LuaFloat && key.value.isNaN() -> throw LuaTableKeyException("table index is NaN")
+        }
     }
 }

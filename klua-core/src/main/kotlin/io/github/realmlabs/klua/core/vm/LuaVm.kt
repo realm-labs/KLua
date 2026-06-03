@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaTableKeyException
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm {
@@ -160,7 +161,7 @@ internal class LuaVm {
             throw LuaVmException("attempt to index ${typeName(table)}")
         }
         val key = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), table.get(key))
+        stack.set(register(frame, Instruction.a(instruction)), tableGet(table, key))
     }
 
     private fun setTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -170,7 +171,23 @@ internal class LuaVm {
         }
         val key = stack.get(register(frame, Instruction.b(instruction)))
         val value = stack.get(register(frame, Instruction.c(instruction)))
-        table.set(key, value)
+        tableSet(table, key, value)
+    }
+
+    private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {
+        return try {
+            table.get(key)
+        } catch (error: LuaTableKeyException) {
+            throw LuaVmException(error.message ?: "invalid table key")
+        }
+    }
+
+    private fun tableSet(table: LuaTable, key: LuaValue, value: LuaValue) {
+        try {
+            table.set(key, value)
+        } catch (error: LuaTableKeyException) {
+            throw LuaVmException(error.message ?: "invalid table key")
+        }
     }
 
     private fun setOpenResults(stack: LuaStack, frame: CallFrame, base: Int, results: List<LuaValue>) {

@@ -209,4 +209,45 @@ class LuaVmTableTest {
 
         assertEquals("attempt to index number", error.message)
     }
+
+    @Test
+    fun `rejects nil table read keys`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("return {}[nil]"))
+        }
+
+        assertEquals("table index is nil", error.message)
+    }
+
+    @Test
+    fun `rejects nil table write keys`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local table = {}
+                    table[nil] = 1
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("table index is nil", error.message)
+    }
+
+    @Test
+    fun `rejects nan table keys`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local table = {}
+                    table[0 / 0] = 1
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("table index is NaN", error.message)
+    }
 }
