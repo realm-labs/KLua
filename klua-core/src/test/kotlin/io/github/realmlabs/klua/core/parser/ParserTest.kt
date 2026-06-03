@@ -6,8 +6,11 @@ import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.FloatExpression
+import io.github.realmlabs.klua.core.ast.FunctionExpression
+import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
@@ -225,6 +228,52 @@ class ParserTest {
         val length = assertIs<UnaryExpression>(concat.left)
         assertEquals(UnaryOperator.LENGTH, length.operator)
         assertEquals("abc", assertIs<StringExpression>(length.expression).value)
+    }
+
+    @Test
+    fun `parses local function declarations`() {
+        val chunk = Parser.parse(
+            """
+            local function add(a, b)
+                return a + b
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<LocalFunctionStatement>(chunk.statements.single())
+        assertEquals("add", statement.name)
+        assertEquals(listOf("a", "b"), statement.function.parameters)
+        assertEquals(false, statement.function.isVararg)
+
+        val returned = assertIs<ReturnStatement>(statement.function.body.single())
+        val expression = assertIs<BinaryExpression>(returned.values.single())
+        assertEquals(BinaryOperator.ADD, expression.operator)
+    }
+
+    @Test
+    fun `parses function statements`() {
+        val chunk = Parser.parse(
+            """
+            function identity(value)
+                return value
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<FunctionStatement>(chunk.statements.single())
+        assertEquals("identity", statement.name)
+        assertEquals(listOf("value"), statement.function.parameters)
+    }
+
+    @Test
+    fun `parses anonymous vararg function expressions`() {
+        val chunk = Parser.parse("local f = function(first, ...) return first end")
+        val local = assertIs<LocalStatement>(chunk.statements.single())
+
+        val function = assertIs<FunctionExpression>(local.values.single())
+        assertEquals(listOf("first"), function.parameters)
+        assertEquals(true, function.isVararg)
+        assertIs<ReturnStatement>(function.body.single())
     }
 
     @Test

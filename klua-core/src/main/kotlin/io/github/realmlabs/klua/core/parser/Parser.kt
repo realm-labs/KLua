@@ -9,8 +9,11 @@ import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.ElseIfBranch
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
+import io.github.realmlabs.klua.core.ast.FunctionExpression
+import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
 import io.github.realmlabs.klua.core.ast.NumericForStatement
@@ -59,12 +62,17 @@ internal class Parser private constructor(
             match(TokenKind.WHILE) -> whileStatement(previous())
             match(TokenKind.REPEAT) -> repeatStatement(previous())
             match(TokenKind.FOR) -> forStatement(previous())
+            match(TokenKind.FUNCTION) -> functionStatement(previous())
             check(TokenKind.IDENTIFIER) -> assignmentStatement()
             else -> throw errorAt(peek(), "expected statement")
         }
     }
 
-    private fun localStatement(start: Token): LocalStatement {
+    private fun localStatement(start: Token): Statement {
+        if (match(TokenKind.FUNCTION)) {
+            return localFunctionStatement(start, previous())
+        }
+
         val names = mutableListOf<String>()
         do {
             val name = consume(TokenKind.IDENTIFIER, "expected local variable name")
@@ -74,6 +82,26 @@ internal class Parser private constructor(
         val values = if (match(TokenKind.ASSIGN)) expressionList() else emptyList()
         val end = values.lastOrNull()?.range?.end ?: previous().range.end
         return LocalStatement(names, values, SourceRange(start.range.start, end))
+    }
+
+    private fun localFunctionStatement(localStart: Token, functionStart: Token): LocalFunctionStatement {
+        val name = consume(TokenKind.IDENTIFIER, "expected local function name")
+        val function = functionBody(functionStart)
+        return LocalFunctionStatement(
+            name = name.literal as String,
+            function = function,
+            range = SourceRange(localStart.range.start, function.range.end),
+        )
+    }
+
+    private fun functionStatement(start: Token): FunctionStatement {
+        val name = consume(TokenKind.IDENTIFIER, "expected function name")
+        val function = functionBody(start)
+        return FunctionStatement(
+            name = name.literal as String,
+            function = function,
+            range = SourceRange(start.range.start, function.range.end),
+        )
     }
 
     private fun assignmentStatement(): AssignmentStatement {
@@ -230,9 +258,37 @@ internal class Parser private constructor(
             match(TokenKind.FLOAT) -> FloatExpression(previous().literal as Double, previous().range)
             match(TokenKind.STRING) -> StringExpression(previous().literal as String, previous().range)
             match(TokenKind.IDENTIFIER) -> VariableExpression(previous().literal as String, previous().range)
+            match(TokenKind.FUNCTION) -> functionBody(previous())
             match(TokenKind.LEFT_PAREN) -> parenthesizedExpression(previous())
             else -> throw errorAt(peek(), "expected expression")
         }
+    }
+
+    private fun functionBody(start: Token): FunctionExpression {
+        consume(TokenKind.LEFT_PAREN, "expected '(' after function")
+        val parameters = mutableListOf<String>()
+        var isVararg = false
+
+        if (!check(TokenKind.RIGHT_PAREN)) {
+            do {
+                if (match(TokenKind.DOT_DOT_DOT)) {
+                    isVararg = true
+                    break
+                }
+                val parameter = consume(TokenKind.IDENTIFIER, "expected function parameter name")
+                parameters += parameter.literal as String
+            } while (match(TokenKind.COMMA))
+        }
+
+        consume(TokenKind.RIGHT_PAREN, "expected ')' after function parameters")
+        val body = parseBlock(setOf(TokenKind.END))
+        val end = consume(TokenKind.END, "expected 'end' after function body")
+        return FunctionExpression(
+            parameters = parameters,
+            isVararg = isVararg,
+            body = body,
+            range = SourceRange(start.range.start, end.range.end),
+        )
     }
 
     private fun parenthesizedExpression(start: Token): Expression {
@@ -242,6 +298,7 @@ internal class Parser private constructor(
             is BinaryExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is BooleanExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is FloatExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
+            is FunctionExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is IntegerExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is NilExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is StringExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))

@@ -632,6 +632,22 @@ class CompilerTest {
     }
 
     @Test
+    fun `rejects function declarations until function bytecode is implemented`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local function add(a, b)
+                    return a + b
+                end
+                """.trimIndent(),
+                "functions.lua",
+            )
+        }
+
+        assertEquals("functions.lua:1:1: local function declarations are not supported by this compiler slice", error.message)
+    }
+
+    @Test
     fun `rejects break outside loops`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("break", "bad-break.lua")

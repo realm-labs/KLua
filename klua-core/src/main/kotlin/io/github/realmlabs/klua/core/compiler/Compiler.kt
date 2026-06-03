@@ -8,8 +8,11 @@ import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
+import io.github.realmlabs.klua.core.ast.FunctionExpression
+import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
 import io.github.realmlabs.klua.core.ast.NumericForStatement
@@ -68,6 +71,8 @@ internal class Compiler private constructor(
                 is WhileStatement -> compileWhile(statement)
                 is RepeatStatement -> compileRepeat(statement)
                 is NumericForStatement -> compileNumericFor(statement)
+                is FunctionStatement -> throw unsupported(statement, "function declarations are not supported by this compiler slice")
+                is LocalFunctionStatement -> throw unsupported(statement, "local function declarations are not supported by this compiler slice")
                 is ReturnStatement -> compileReturn(statement)
                 is BreakStatement -> compileBreak(statement)
             }
@@ -277,6 +282,7 @@ internal class Compiler private constructor(
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
             is VariableExpression -> compileVariable(expression, register)
+            is FunctionExpression -> throw unsupported(expression, "function expressions are not supported by this compiler slice")
             is UnaryExpression -> compileUnaryExpression(expression, register)
             is BinaryExpression -> compileBinaryExpression(expression, register)
         }

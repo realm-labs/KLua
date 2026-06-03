@@ -17,6 +17,18 @@ internal data class LocalStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class LocalFunctionStatement(
+    val name: String,
+    val function: FunctionExpression,
+    override val range: SourceRange,
+) : Statement
+
+internal data class FunctionStatement(
+    val name: String,
+    val function: FunctionExpression,
+    override val range: SourceRange,
+) : Statement
+
 internal data class AssignmentStatement(
     val names: List<String>,
     val values: List<Expression>,
@@ -97,6 +109,13 @@ internal data class StringExpression(
 
 internal data class VariableExpression(
     val name: String,
+    override val range: SourceRange,
+) : Expression
+
+internal data class FunctionExpression(
+    val parameters: List<String>,
+    val isVararg: Boolean,
+    val body: List<Statement>,
     override val range: SourceRange,
 ) : Expression
 
