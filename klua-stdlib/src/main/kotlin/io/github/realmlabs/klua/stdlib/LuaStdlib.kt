@@ -14,6 +14,8 @@ public object LuaStdlib {
     @JvmStatic
     public fun openBase(state: LuaState): LuaState {
         state.register("assert", ::assert)
+        state.register("error", ::error)
+        state.register("select", ::select)
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
         state.register("type", ::type)
@@ -25,6 +27,28 @@ public object LuaStdlib {
             throw LuaRuntimeException(context.toString(2) ?: "assertion failed!")
         }
         return LuaReturn.ofValues((1..context.argumentCount).map { index -> context.get(index) })
+    }
+
+    private fun error(context: LuaCallContext): LuaReturn {
+        throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
+    }
+
+    private fun select(context: LuaCallContext): LuaReturn {
+        if (context.toString(1) == "#") {
+            return LuaReturn.of((context.argumentCount - 1).toLong())
+        }
+
+        val index = context.toInteger(1)
+            ?: throw LuaRuntimeException("bad argument #1 to 'select' (number expected)")
+        val start = when {
+            index > 0L -> index + 1L
+            index < 0L -> context.argumentCount + index + 1L
+            else -> throw LuaRuntimeException("bad argument #1 to 'select' (index out of range)")
+        }
+        if (start < 2L || start > context.argumentCount.toLong()) {
+            throw LuaRuntimeException("bad argument #1 to 'select' (index out of range)")
+        }
+        return LuaReturn.ofValues((start.toInt()..context.argumentCount).map { argument -> context.get(argument) })
     }
 
     private fun tonumber(context: LuaCallContext): LuaReturn {

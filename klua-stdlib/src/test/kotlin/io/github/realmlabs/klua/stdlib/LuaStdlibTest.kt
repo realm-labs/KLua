@@ -80,6 +80,55 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `error raises runtime error with message`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return error("boom")""", "error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("boom", state.toString(-1))
+    }
+
+    @Test
+    fun `select returns vararg count and suffixes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local count = select("#", "a", "b", "c")
+                local second, third = select(2, "a", "b", "c")
+                local last = select(-1, "a", "b", "c")
+                return count, second, third, last
+                """.trimIndent(),
+                "select.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("b", state.toString(2))
+        assertEquals("c", state.toString(3))
+        assertEquals("c", state.toString(4))
+    }
+
+    @Test
+    fun `select rejects out of range indexes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return select(0, "a")""", "select-bad.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'select' (index out of range)", state.toString(-1))
+    }
+
+    @Test
     fun `openLibs installs base library`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
