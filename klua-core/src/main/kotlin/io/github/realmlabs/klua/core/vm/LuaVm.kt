@@ -50,6 +50,8 @@ internal class LuaVm {
                 Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(prototype, Instruction.b(instruction)))
                 Opcode.VARARG -> loadVarargs(stack, frame, instruction)
                 Opcode.NEW_TABLE -> stack.set(register(frame, Instruction.a(instruction)), LuaTable())
+                Opcode.GET_TABLE -> getTable(stack, frame, instruction)
+                Opcode.SET_TABLE -> setTable(stack, frame, instruction)
                 Opcode.CLOSURE -> {
                     stack.set(register(frame, Instruction.a(instruction)), LuaClosure(nested(prototype, Instruction.b(instruction))))
                 }
@@ -150,6 +152,25 @@ internal class LuaVm {
         for (index in 0 until expectedResults) {
             stack.set(base + index, frame.varargs.getOrElse(index) { LuaNil })
         }
+    }
+
+    private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val table = stack.get(register(frame, Instruction.b(instruction)))
+        if (table !is LuaTable) {
+            throw LuaVmException("attempt to index ${typeName(table)}")
+        }
+        val key = stack.get(register(frame, Instruction.c(instruction)))
+        stack.set(register(frame, Instruction.a(instruction)), table.get(key))
+    }
+
+    private fun setTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val table = stack.get(register(frame, Instruction.a(instruction)))
+        if (table !is LuaTable) {
+            throw LuaVmException("attempt to index ${typeName(table)}")
+        }
+        val key = stack.get(register(frame, Instruction.b(instruction)))
+        val value = stack.get(register(frame, Instruction.c(instruction)))
+        table.set(key, value)
     }
 
     private fun setOpenResults(stack: LuaStack, frame: CallFrame, base: Int, results: List<LuaValue>) {

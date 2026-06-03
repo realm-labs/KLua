@@ -26,4 +26,16 @@ internal data class LuaClosure(
     val prototype: Prototype,
 ) : LuaValue
 
-internal class LuaTable : LuaValue
+internal class LuaTable : LuaValue {
+    private val values = mutableMapOf<LuaValue, LuaValue>()
+
+    fun get(key: LuaValue): LuaValue = values[key] ?: LuaNil
+
+    fun set(key: LuaValue, value: LuaValue) {
+        if (value == LuaNil) {
+            values.remove(key)
+        } else {
+            values[key] = value
+        }
+    }
+}

@@ -14,6 +14,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
+import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
@@ -264,22 +265,33 @@ internal class Parser private constructor(
     private fun postfix(): Expression {
         var expression = primary()
 
-        while (match(TokenKind.LEFT_PAREN)) {
-            val start = previous()
-            val arguments = if (check(TokenKind.RIGHT_PAREN)) {
-                emptyList()
-            } else {
-                expressionList()
+        while (true) {
+            when {
+                match(TokenKind.LEFT_PAREN) -> {
+                    val arguments = if (check(TokenKind.RIGHT_PAREN)) {
+                        emptyList()
+                    } else {
+                        expressionList()
+                    }
+                    val end = consume(TokenKind.RIGHT_PAREN, "expected ')' after function arguments")
+                    expression = CallExpression(
+                        callee = expression,
+                        arguments = arguments,
+                        range = SourceRange(expression.range.start, end.range.end),
+                    )
+                }
+                match(TokenKind.LEFT_BRACKET) -> {
+                    val key = expression()
+                    val end = consume(TokenKind.RIGHT_BRACKET, "expected ']' after table key")
+                    expression = IndexExpression(
+                        receiver = expression,
+                        key = key,
+                        range = SourceRange(expression.range.start, end.range.end),
+                    )
+                }
+                else -> return expression
             }
-            val end = consume(TokenKind.RIGHT_PAREN, "expected ')' after function arguments")
-            expression = CallExpression(
-                callee = expression,
-                arguments = arguments,
-                range = SourceRange(expression.range.start, end.range.end),
-            )
         }
-
-        return expression
     }
 
     private fun primary(): Expression {
@@ -300,8 +312,15 @@ internal class Parser private constructor(
     }
 
     private fun tableExpression(start: Token): TableExpression {
+        val entries = mutableListOf<Expression>()
+        while (!check(TokenKind.RIGHT_BRACE)) {
+            entries += expression()
+            if (!match(TokenKind.COMMA) && !match(TokenKind.SEMICOLON)) {
+                break
+            }
+        }
         val end = consume(TokenKind.RIGHT_BRACE, "expected '}' after table constructor")
-        return TableExpression(SourceRange(start.range.start, end.range.end))
+        return TableExpression(entries, SourceRange(start.range.start, end.range.end))
     }
 
     private fun functionBody(start: Token): FunctionExpression {
@@ -340,6 +359,7 @@ internal class Parser private constructor(
             is CallExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is FloatExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is FunctionExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
+            is IndexExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is IntegerExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is NilExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is StringExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))

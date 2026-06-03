@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
+import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
@@ -308,6 +309,25 @@ class ParserTest {
         val statement = assertIs<ReturnStatement>(chunk.statements.single())
 
         assertIs<TableExpression>(statement.values.single())
+    }
+
+    @Test
+    fun `parses list table constructors`() {
+        val chunk = Parser.parse("return {10, 20; 30,}")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+        val table = assertIs<TableExpression>(statement.values.single())
+
+        assertEquals(listOf(10L, 20L, 30L), table.entries.map { assertIs<IntegerExpression>(it).value })
+    }
+
+    @Test
+    fun `parses bracket index expressions`() {
+        val chunk = Parser.parse("return t[1]")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+        val index = assertIs<IndexExpression>(statement.values.single())
+
+        assertEquals("t", assertIs<VariableExpression>(index.receiver).name)
+        assertEquals(1L, assertIs<IntegerExpression>(index.key).value)
     }
 
     @Test

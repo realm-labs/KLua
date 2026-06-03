@@ -13,6 +13,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
+import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
@@ -349,13 +350,37 @@ internal class Compiler private constructor(
                 val constant = constants.add(LuaString(expression.value))
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
+            is IndexExpression -> compileIndexExpression(expression, register)
             is CallExpression -> compileCallExpression(expression, register)
             is VariableExpression -> compileVariable(expression, register)
             is VarargExpression -> compileVarargExpression(expression, register, 1)
             is FunctionExpression -> compileFunctionExpression(expression, register)
-            is TableExpression -> writer.emit(Instruction.abc(Opcode.NEW_TABLE, register), line)
+            is TableExpression -> compileTableExpression(expression, register)
             is UnaryExpression -> compileUnaryExpression(expression, register)
             is BinaryExpression -> compileBinaryExpression(expression, register)
+        }
+    }
+
+    private fun compileIndexExpression(expression: IndexExpression, register: Int) {
+        val keyRegister = register + 1
+        compileExpression(expression.receiver, register)
+        compileExpression(expression.key, keyRegister)
+        writer.emit(Instruction.abc(Opcode.GET_TABLE, register, register, keyRegister), expression.range.start.line)
+    }
+
+    private fun compileTableExpression(expression: TableExpression, register: Int) {
+        writer.emit(Instruction.abc(Opcode.NEW_TABLE, register), expression.range.start.line)
+        if (expression.entries.isEmpty()) {
+            return
+        }
+
+        val keyRegister = register + 1
+        val valueRegister = register + 2
+        maxRegister = maxRegister.coerceAtLeast(valueRegister + 1)
+        for ((index, entry) in expression.entries.withIndex()) {
+            compileExpression(entry, valueRegister)
+            emitInteger(keyRegister, (index + 1).toLong(), entry.range.start.line)
+            writer.emit(Instruction.abc(Opcode.SET_TABLE, register, keyRegister, valueRegister), entry.range.start.line)
         }
     }
 

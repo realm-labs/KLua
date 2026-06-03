@@ -134,7 +134,14 @@ internal data class CallExpression(
     override val range: SourceRange,
 ) : Expression
 
+internal data class IndexExpression(
+    val receiver: Expression,
+    val key: Expression,
+    override val range: SourceRange,
+) : Expression
+
 internal data class TableExpression(
+    val entries: List<Expression>,
     override val range: SourceRange,
 ) : Expression
 

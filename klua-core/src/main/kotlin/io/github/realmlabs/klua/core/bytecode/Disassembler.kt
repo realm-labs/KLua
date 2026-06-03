@@ -33,6 +33,8 @@ internal object Disassembler {
             }
             Opcode.VARARG -> "VARARG R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
             Opcode.NEW_TABLE -> "NEW_TABLE R${Instruction.a(instruction)}"
+            Opcode.GET_TABLE -> binary("GET_TABLE", instruction)
+            Opcode.SET_TABLE -> binary("SET_TABLE", instruction)
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)

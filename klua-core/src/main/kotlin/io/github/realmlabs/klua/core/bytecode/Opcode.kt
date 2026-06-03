@@ -8,6 +8,8 @@ internal enum class Opcode {
     LOAD_K,
     VARARG,
     NEW_TABLE,
+    GET_TABLE,
+    SET_TABLE,
     CLOSURE,
     MOVE,
     ADD,
