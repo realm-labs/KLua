@@ -52,6 +52,17 @@ internal class LuaVm {
                     }
                 }
                 Opcode.JMP -> frame.pc += signedByte(Instruction.a(instruction))
+                Opcode.FOR_TEST -> {
+                    if (!forLoopContinues(stack, frame, instruction)) {
+                        frame.pc += signedByte(Instruction.b(instruction))
+                    }
+                }
+                Opcode.FOR_LOOP -> {
+                    incrementForIndex(stack, frame, instruction)
+                    if (forLoopContinues(stack, frame, instruction)) {
+                        frame.pc += signedByte(Instruction.b(instruction))
+                    }
+                }
                 Opcode.RETURN -> return stack.slice(register(frame, Instruction.a(instruction)), Instruction.b(instruction))
             }
         }
@@ -95,6 +106,33 @@ internal class LuaVm {
         val left = stack.get(register(frame, Instruction.b(instruction)))
         val right = stack.get(register(frame, Instruction.c(instruction)))
         stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(comparison.apply(left, right)))
+    }
+
+    private fun forLoopContinues(stack: LuaStack, frame: CallFrame, instruction: Int): Boolean {
+        val base = register(frame, Instruction.a(instruction))
+        val index = numberValue(stack.get(base))
+            ?: throw LuaVmException("numeric for index must be a number")
+        val limit = numberValue(stack.get(base + 1))
+            ?: throw LuaVmException("numeric for limit must be a number")
+        val step = numberValue(stack.get(base + 2))
+            ?: throw LuaVmException("numeric for step must be a number")
+        return if (step >= 0.0) index <= limit else index >= limit
+    }
+
+    private fun incrementForIndex(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val base = register(frame, Instruction.a(instruction))
+        val index = stack.get(base)
+        val step = stack.get(base + 2)
+        if (index is LuaInteger && step is LuaInteger) {
+            stack.set(base, LuaInteger(index.value + step.value))
+            return
+        }
+
+        val indexNumber = numberValue(index)
+            ?: throw LuaVmException("numeric for index must be a number")
+        val stepNumber = numberValue(step)
+            ?: throw LuaVmException("numeric for step must be a number")
+        stack.set(base, LuaFloat(indexNumber + stepNumber))
     }
 
     private enum class Arithmetic {

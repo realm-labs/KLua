@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalStatement
+import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.StringExpression
@@ -130,6 +131,24 @@ class ParserTest {
 
         val assignment = assertIs<AssignmentStatement>(statement.block.single())
         assertEquals(listOf("count"), assignment.names)
+    }
+
+    @Test
+    fun `parses numeric for block`() {
+        val chunk = Parser.parse(
+            """
+            for i = 1, 3, 1 do
+                total = total + i
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<NumericForStatement>(chunk.statements.single())
+        assertEquals("i", statement.name)
+        assertEquals(1L, assertIs<IntegerExpression>(statement.start).value)
+        assertEquals(3L, assertIs<IntegerExpression>(statement.limit).value)
+        assertEquals(1L, assertIs<IntegerExpression>(statement.step).value)
+        assertEquals(1, statement.block.size)
     }
 
     @Test

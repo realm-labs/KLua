@@ -489,6 +489,38 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles numeric for loop`() {
+        val prototype = Compiler.compile(
+            """
+            local sum = 0
+            for i = 1, 3 do
+                sum = sum + i
+            end
+            return sum
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 0
+            0001  [2]  LOAD_INT R1 1
+            0002  [2]  LOAD_INT R2 3
+            0003  [2]  LOAD_INT R3 1
+            0004  [2]  FOR_TEST R1 5
+            0005  [3]  MOVE R4 R0
+            0006  [3]  MOVE R5 R1
+            0007  [3]  ADD R4 R4 R5
+            0008  [3]  MOVE R0 R4
+            0009  [2]  FOR_LOOP R1 -5
+            0010  [5]  MOVE R1 R0
+            0011  [5]  MOVE R0 R1
+            0012  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `emits empty chunk as zero value return`() {
         val prototype = Compiler.compile("")
 

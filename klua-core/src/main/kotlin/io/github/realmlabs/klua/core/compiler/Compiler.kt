@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
+import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
@@ -66,6 +67,7 @@ internal class Compiler private constructor(
                 is IfStatement -> compileIf(statement)
                 is WhileStatement -> compileWhile(statement)
                 is RepeatStatement -> compileRepeat(statement)
+                is NumericForStatement -> compileNumericFor(statement)
                 is ReturnStatement -> compileReturn(statement)
                 is BreakStatement -> compileBreak(statement)
             }
@@ -76,6 +78,39 @@ internal class Compiler private constructor(
         val savedLocals = LinkedHashMap(locals)
         val savedNextLocalRegister = nextLocalRegister
         compileStatements(statements)
+        locals.clear()
+        locals.putAll(savedLocals)
+        nextLocalRegister = savedNextLocalRegister
+    }
+
+    private fun compileNumericFor(statement: NumericForStatement) {
+        val breaks = pushLoopBreaks()
+        val savedLocals = LinkedHashMap(locals)
+        val savedNextLocalRegister = nextLocalRegister
+        val baseRegister = nextLocalRegister
+        nextLocalRegister += 3
+        maxRegister = maxRegister.coerceAtLeast(nextLocalRegister)
+
+        compileExpression(statement.start, baseRegister)
+        compileExpression(statement.limit, baseRegister + 1)
+        if (statement.step == null) {
+            emitInteger(baseRegister + 2, 1, statement.range.start.line)
+        } else {
+            compileExpression(statement.step, baseRegister + 2)
+        }
+
+        locals[statement.name] = baseRegister
+        val testIndex = writer.size
+        writer.emit(Instruction.abc(Opcode.FOR_TEST, baseRegister), statement.range.start.line)
+        val loopStart = writer.size
+
+        compileStatements(statement.block)
+
+        val loopIndex = writer.size
+        writer.emit(Instruction.abc(Opcode.FOR_LOOP, baseRegister, writer.jumpOffset(loopIndex, loopStart)), statement.range.start.line)
+        patchForTest(testIndex, writer.size)
+        patchLoopBreaks(breaks, writer.size)
+
         locals.clear()
         locals.putAll(savedLocals)
         nextLocalRegister = savedNextLocalRegister
@@ -393,6 +428,11 @@ internal class Compiler private constructor(
 
     private fun patchJump(index: Int, targetIndex: Int) {
         writer.patch(index, Instruction.abc(Opcode.JMP, writer.jumpOffset(index, targetIndex)))
+    }
+
+    private fun patchForTest(index: Int, targetIndex: Int) {
+        val register = Instruction.a(writer.code()[index])
+        writer.patch(index, Instruction.abc(Opcode.FOR_TEST, register, writer.jumpOffset(index, targetIndex)))
     }
 
     private fun pushLoopBreaks(): MutableList<Int> {

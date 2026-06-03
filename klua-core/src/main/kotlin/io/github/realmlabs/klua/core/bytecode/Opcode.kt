@@ -21,5 +21,7 @@ internal enum class Opcode {
     LE,
     TEST,
     JMP,
+    FOR_TEST,
+    FOR_LOOP,
     RETURN,
 }

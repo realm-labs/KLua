@@ -52,6 +52,15 @@ internal data class RepeatStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class NumericForStatement(
+    val name: String,
+    val start: Expression,
+    val limit: Expression,
+    val step: Expression?,
+    val block: List<Statement>,
+    override val range: SourceRange,
+) : Statement
+
 internal data class ElseIfBranch(
     val condition: Expression,
     val block: List<Statement>,

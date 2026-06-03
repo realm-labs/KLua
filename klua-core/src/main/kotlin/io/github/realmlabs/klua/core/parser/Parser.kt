@@ -13,6 +13,7 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
+import io.github.realmlabs.klua.core.ast.NumericForStatement
 import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
@@ -57,6 +58,7 @@ internal class Parser private constructor(
             match(TokenKind.IF) -> ifStatement(previous())
             match(TokenKind.WHILE) -> whileStatement(previous())
             match(TokenKind.REPEAT) -> repeatStatement(previous())
+            match(TokenKind.FOR) -> forStatement(previous())
             check(TokenKind.IDENTIFIER) -> assignmentStatement()
             else -> throw errorAt(peek(), "expected statement")
         }
@@ -148,6 +150,26 @@ internal class Parser private constructor(
         consume(TokenKind.UNTIL, "expected 'until' after repeat block")
         val condition = expression()
         return RepeatStatement(block, condition, SourceRange(start.range.start, condition.range.end))
+    }
+
+    private fun forStatement(start: Token): NumericForStatement {
+        val name = consume(TokenKind.IDENTIFIER, "expected loop variable name")
+        consume(TokenKind.ASSIGN, "expected '=' after loop variable")
+        val initial = expression()
+        consume(TokenKind.COMMA, "expected ',' after for initial value")
+        val limit = expression()
+        val step = if (match(TokenKind.COMMA)) expression() else null
+        consume(TokenKind.DO, "expected 'do' after for control values")
+        val block = parseBlock(setOf(TokenKind.END))
+        val end = consume(TokenKind.END, "expected 'end' after for statement")
+        return NumericForStatement(
+            name = name.literal as String,
+            start = initial,
+            limit = limit,
+            step = step,
+            block = block,
+            range = SourceRange(start.range.start, end.range.end),
+        )
     }
 
     private fun expressionList(): List<Expression> {

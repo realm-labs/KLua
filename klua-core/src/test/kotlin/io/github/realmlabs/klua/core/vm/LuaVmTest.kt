@@ -517,6 +517,77 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes numeric for loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local sum = 0
+                for i = 1, 3 do
+                    sum = sum + i
+                end
+                return sum
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(6)), result)
+    }
+
+    @Test
+    fun `executes numeric for loop with negative step`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local sum = 0
+                for i = 3, 1, -1 do
+                    sum = sum + i
+                end
+                return sum
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(6)), result)
+    }
+
+    @Test
+    fun `executes break in numeric for loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local sum = 0
+                for i = 1, 5 do
+                    if i == 3 then
+                        break
+                    end
+                    sum = sum + i
+                end
+                return sum
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
+    fun `keeps numeric for loop variable scoped`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local i = 9
+                for i = 1, 2 do
+                    local copy = i
+                end
+                return i
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(9)), result)
+    }
+
+    @Test
     fun `rejects comparison between incompatible values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" < 1"""))
