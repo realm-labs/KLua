@@ -393,6 +393,40 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes local vararg expansion`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function add(_, ...)
+                    local a, b = ...
+                    return a + b
+                end
+                return add(0, 20, 22)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `fills missing varargs with nil`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function second(...)
+                    local a, b = ...
+                    return b
+                end
+                return second(42)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaNil), result)
+    }
+
+    @Test
     fun `propagates errors from function call statements`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(

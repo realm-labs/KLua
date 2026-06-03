@@ -21,7 +21,12 @@ internal class LuaVm {
         for (index in 0 until prototype.numParams) {
             stack.set(index, arguments.getOrElse(index) { LuaNil })
         }
-        val frame = CallFrame(prototype)
+        val varargs = if (prototype.isVararg) {
+            arguments.drop(prototype.numParams)
+        } else {
+            emptyList()
+        }
+        val frame = CallFrame(prototype, varargs)
 
         while (frame.pc < prototype.code.size) {
             val instruction = prototype.code[frame.pc++]
@@ -41,6 +46,7 @@ internal class LuaVm {
                     stack.set(register(frame, Instruction.a(instruction)), constant)
                 }
                 Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(prototype, Instruction.b(instruction)))
+                Opcode.VARARG -> loadVarargs(stack, frame, instruction)
                 Opcode.CLOSURE -> {
                     stack.set(register(frame, Instruction.a(instruction)), LuaClosure(nested(prototype, Instruction.b(instruction))))
                 }
@@ -117,6 +123,13 @@ internal class LuaVm {
         val results = execute(callee.prototype, arguments)
         for (index in 0 until Instruction.c(instruction)) {
             stack.set(base + index, results.getOrElse(index) { LuaNil })
+        }
+    }
+
+    private fun loadVarargs(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val base = register(frame, Instruction.a(instruction))
+        for (index in 0 until Instruction.b(instruction)) {
+            stack.set(base + index, frame.varargs.getOrElse(index) { LuaNil })
         }
     }
 

@@ -25,6 +25,7 @@ import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
+import io.github.realmlabs.klua.core.ast.VarargExpression
 import io.github.realmlabs.klua.core.ast.VariableExpression
 import io.github.realmlabs.klua.core.ast.WhileStatement
 import io.github.realmlabs.klua.core.lexer.Lexer
@@ -289,6 +290,7 @@ internal class Parser private constructor(
             match(TokenKind.FLOAT) -> FloatExpression(previous().literal as Double, previous().range)
             match(TokenKind.STRING) -> StringExpression(previous().literal as String, previous().range)
             match(TokenKind.IDENTIFIER) -> VariableExpression(previous().literal as String, previous().range)
+            match(TokenKind.DOT_DOT_DOT) -> VarargExpression(previous().range)
             match(TokenKind.FUNCTION) -> functionBody(previous())
             match(TokenKind.LEFT_PAREN) -> parenthesizedExpression(previous())
             else -> throw errorAt(peek(), "expected expression")
@@ -335,6 +337,7 @@ internal class Parser private constructor(
             is NilExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is StringExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is UnaryExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
+            is VarargExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is VariableExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
         }
     }

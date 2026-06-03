@@ -24,6 +24,7 @@ import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
+import io.github.realmlabs.klua.core.ast.VarargExpression
 import io.github.realmlabs.klua.core.ast.VariableExpression
 import io.github.realmlabs.klua.core.ast.WhileStatement
 import io.github.realmlabs.klua.core.bytecode.BytecodeWriter
@@ -39,6 +40,7 @@ import io.github.realmlabs.klua.core.value.LuaString
 internal class Compiler private constructor(
     private val sourceName: String,
     private val version: LuaSourceVersion,
+    private val isVarargFunction: Boolean = false,
 ) {
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
@@ -138,6 +140,13 @@ internal class Compiler private constructor(
         }
 
         val onlyValue = statement.values.singleOrNull()
+        if (onlyValue is VarargExpression) {
+            compileVarargExpression(onlyValue, slots.first(), slots.size)
+            for ((index, name) in statement.names.withIndex()) {
+                locals[name] = slots[index]
+            }
+            return
+        }
         if (onlyValue is CallExpression) {
             compileCallExpression(onlyValue, slots.first(), slots.size)
             for ((index, name) in statement.names.withIndex()) {
@@ -173,6 +182,14 @@ internal class Compiler private constructor(
         }
         val tempBase = nextLocalRegister
         val onlyValue = statement.values.singleOrNull()
+
+        if (onlyValue is VarargExpression) {
+            compileVarargExpression(onlyValue, tempBase, targetSlots.size)
+            for ((index, targetSlot) in targetSlots.withIndex()) {
+                writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, tempBase + index), statement.range.start.line)
+            }
+            return
+        }
 
         if (onlyValue is CallExpression) {
             compileCallExpression(onlyValue, tempBase, targetSlots.size)
@@ -317,10 +334,23 @@ internal class Compiler private constructor(
             }
             is CallExpression -> compileCallExpression(expression, register)
             is VariableExpression -> compileVariable(expression, register)
+            is VarargExpression -> compileVarargExpression(expression, register, 1)
             is FunctionExpression -> compileFunctionExpression(expression, register)
             is UnaryExpression -> compileUnaryExpression(expression, register)
             is BinaryExpression -> compileBinaryExpression(expression, register)
         }
+    }
+
+    private fun compileVarargExpression(expression: VarargExpression, register: Int, resultCount: Int) {
+        if (!isVarargFunction) {
+            throw unsupported(expression, "cannot use '...' outside a vararg function")
+        }
+        if (resultCount !in 0..255) {
+            throw unsupported(expression, "too many vararg results")
+        }
+
+        maxRegister = maxRegister.coerceAtLeast(register + resultCount)
+        writer.emit(Instruction.abc(Opcode.VARARG, register, resultCount), expression.range.start.line)
     }
 
     private fun compileCallExpression(expression: CallExpression, register: Int, resultCount: Int = 1) {
@@ -350,7 +380,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileNestedFunction(expression: FunctionExpression): Prototype {
-        val compiler = Compiler(sourceName, version)
+        val compiler = Compiler(sourceName, version, expression.isVararg)
         for (parameter in expression.parameters) {
             val slot = compiler.nextLocalRegister++
             compiler.maxRegister = compiler.maxRegister.coerceAtLeast(slot + 1)

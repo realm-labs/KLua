@@ -30,6 +30,7 @@ internal object Disassembler {
                 val constant = prototype.constants[Instruction.b(instruction)]
                 "LOAD_K R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
             }
+            Opcode.VARARG -> "VARARG R${Instruction.a(instruction)} ${Instruction.b(instruction)}"
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)

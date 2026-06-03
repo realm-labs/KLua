@@ -20,6 +20,7 @@ import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
+import io.github.realmlabs.klua.core.ast.VarargExpression
 import io.github.realmlabs.klua.core.ast.VariableExpression
 import io.github.realmlabs.klua.core.ast.WhileStatement
 import kotlin.test.Test
@@ -269,13 +270,14 @@ class ParserTest {
 
     @Test
     fun `parses anonymous vararg function expressions`() {
-        val chunk = Parser.parse("local f = function(first, ...) return first end")
+        val chunk = Parser.parse("local f = function(first, ...) return ... end")
         val local = assertIs<LocalStatement>(chunk.statements.single())
 
         val function = assertIs<FunctionExpression>(local.values.single())
         assertEquals(listOf("first"), function.parameters)
         assertEquals(true, function.isVararg)
-        assertIs<ReturnStatement>(function.body.single())
+        val returned = assertIs<ReturnStatement>(function.body.single())
+        assertIs<VarargExpression>(returned.values.single())
     }
 
     @Test

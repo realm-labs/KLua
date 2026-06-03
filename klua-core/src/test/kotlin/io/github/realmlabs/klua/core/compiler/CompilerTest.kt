@@ -417,6 +417,34 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles local vararg expansion`() {
+        val prototype = Compiler.compile(
+            """
+            local function add(_, ...)
+                local a, b = ...
+                return a + b
+            end
+            return add(0, 20, 22)
+            """.trimIndent(),
+        )
+
+        val function = prototype.nested.single()
+        assertEquals(1, function.numParams)
+        assertEquals(true, function.isVararg)
+        assertEquals(
+            """
+            0000  [2]  VARARG R1 2
+            0001  [3]  MOVE R3 R1
+            0002  [3]  MOVE R4 R2
+            0003  [3]  ADD R3 R3 R4
+            0004  [3]  MOVE R0 R3
+            0005  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(function),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 
@@ -826,6 +854,15 @@ class CompilerTest {
         }
 
         assertEquals("functions.lua:1:1: function declarations are not supported by this compiler slice", error.message)
+    }
+
+    @Test
+    fun `rejects vararg expressions outside vararg functions`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("return ...", "bad-vararg.lua")
+        }
+
+        assertEquals("bad-vararg.lua:1:8: cannot use '...' outside a vararg function", error.message)
     }
 
     @Test

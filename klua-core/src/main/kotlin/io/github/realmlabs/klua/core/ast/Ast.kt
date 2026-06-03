@@ -117,6 +117,10 @@ internal data class VariableExpression(
     override val range: SourceRange,
 ) : Expression
 
+internal data class VarargExpression(
+    override val range: SourceRange,
+) : Expression
+
 internal data class FunctionExpression(
     val parameters: List<String>,
     val isVararg: Boolean,
