@@ -589,13 +589,27 @@ public object LuaStdlib {
     private fun stringRep(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "string.rep")
         val count = requiredInteger(context, 2, "string.rep")
+        val separator = if (context.isNone(3) || context.isNil(3)) {
+            ""
+        } else {
+            requiredString(context, 3, "string.rep")
+        }
         if (count <= 0L) {
             return LuaReturn.of("")
         }
         if (count > Int.MAX_VALUE) {
             throw LuaRuntimeException("bad argument #2 to 'string.rep' (repeat count too large)")
         }
-        return LuaReturn.of(text.repeat(count.toInt()))
+        return LuaReturn.of(
+            buildString {
+                repeat(count.toInt()) { index ->
+                    if (index > 0) {
+                        append(separator)
+                    }
+                    append(text)
+                }
+            },
+        )
     }
 
     private fun stringReverse(context: LuaCallContext): LuaReturn {

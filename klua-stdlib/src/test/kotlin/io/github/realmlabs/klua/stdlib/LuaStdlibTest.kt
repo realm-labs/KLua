@@ -635,6 +635,21 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string rep supports separators and empty repetitions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return string.rep("ha", 3, "-"), string.rep("ha", 0, "-")""", "string-rep.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("ha-ha-ha", state.toString(1))
+        assertEquals("", state.toString(2))
+    }
+
+    @Test
     fun `string byte and char convert byte values`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
