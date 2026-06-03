@@ -146,7 +146,7 @@ Current implemented areas:
 - AST model, compiler, internal bytecode, prototype model, constant pool, and disassembler.
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, and basic userdata bindings.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
-- Partial `klua-stdlib` support with base, math, string, and table library installers covered by focused Lua-source tests.
+- Partial `klua-stdlib` support with base, math, string, table, and initial utf8 library installers covered by focused Lua-source tests.
 - Focused parser, compiler, VM, API, Kotlin helper, compatibility, and foundation tests.
 
 Remaining major gaps:
