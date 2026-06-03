@@ -212,6 +212,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `rawset mutates table fields and returns table`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {}
+                local returned = rawset(values, "name", "klua")
+                rawset(values, 1, "first")
+                rawset(values, "name", nil)
+                return returned == values, values[1], values.name, #values
+                """.trimIndent(),
+                "rawset.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("first", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals(1L, state.toInteger(4))
+    }
+
+    @Test
+    fun `rawset reports table argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawset("not-table", "key", "value")""", "rawset-table-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'rawset' (table expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `rawset rejects nil keys`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawset({}, nil, "value")""", "rawset-key-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("table index is nil", state.toString(-1))
+    }
+
+    @Test
     fun `openLibs installs base library`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

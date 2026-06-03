@@ -42,6 +42,7 @@ public object LuaStdlib {
         state.register("error", ::error)
         state.register("print") { context -> print(context, output) }
         state.register("rawget", ::rawget)
+        state.register("rawset", ::rawset)
         state.register("select", ::select)
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
@@ -147,6 +148,17 @@ public object LuaStdlib {
             throw LuaRuntimeException("table index is nil")
         }
         return LuaReturn.of(context.getTableValue(1, context.get(2)))
+    }
+
+    private fun rawset(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'rawset' (table expected)")
+        }
+        if (context.isNone(2) || context.isNil(2)) {
+            throw LuaRuntimeException("table index is nil")
+        }
+        context.setTableValue(1, context.get(2), context.get(3))
+        return LuaReturn.of(context.getTable(1))
     }
 
     private fun select(context: LuaCallContext): LuaReturn {
