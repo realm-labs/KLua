@@ -41,6 +41,7 @@ public object LuaStdlib {
         state.register("assert", ::assert)
         state.register("error", ::error)
         state.register("print") { context -> print(context, output) }
+        state.register("rawequal", ::rawequal)
         state.register("rawget", ::rawget)
         state.register("rawset", ::rawset)
         state.register("select", ::select)
@@ -138,6 +139,27 @@ public object LuaStdlib {
     private fun print(context: LuaCallContext, output: Consumer<String>): LuaReturn {
         output.accept((1..context.argumentCount).joinToString("\t") { index -> toLuaString(context, index) })
         return LuaReturn.none()
+    }
+
+    private fun rawequal(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(rawEqual(context, 1, 2))
+    }
+
+    private fun rawEqual(context: LuaCallContext, leftIndex: Int, rightIndex: Int): Boolean {
+        val leftType = context.typeName(leftIndex)
+        val rightType = context.typeName(rightIndex)
+        if (leftType != rightType) {
+            return false
+        }
+        return when (leftType) {
+            "nil" -> true
+            "boolean" -> context.toBoolean(leftIndex) == context.toBoolean(rightIndex)
+            "number" -> context.toNumber(leftIndex) == context.toNumber(rightIndex)
+            "string" -> context.toString(leftIndex) == context.toString(rightIndex)
+            "table" -> context.getTable(leftIndex) === context.getTable(rightIndex)
+            "userdata" -> context.toUserData(leftIndex) === context.toUserData(rightIndex)
+            else -> false
+        }
     }
 
     private fun rawget(context: LuaCallContext): LuaReturn {

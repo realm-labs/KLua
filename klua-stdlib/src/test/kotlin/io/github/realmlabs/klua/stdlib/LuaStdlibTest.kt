@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.api.LuaStatus
 import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -169,6 +170,38 @@ class LuaStdlibTest {
 
         assertEquals(listOf("level\t42\tfalse\tnil"), output)
         assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `rawequal compares primitive values and table identity`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tableValue = {}
+                return rawequal(nil, nil),
+                    rawequal(1, 1.0),
+                    rawequal("x", "x"),
+                    rawequal(false, false),
+                    rawequal(1, "1"),
+                    rawequal(tableValue, tableValue),
+                    rawequal({}, {})
+                """.trimIndent(),
+                "rawequal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertFalse(state.toBoolean(7))
     }
 
     @Test
