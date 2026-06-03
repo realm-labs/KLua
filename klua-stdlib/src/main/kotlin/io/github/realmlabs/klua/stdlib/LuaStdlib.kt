@@ -754,7 +754,7 @@ public object LuaStdlib {
                 }
                 code.toInt().toChar().toString()
             }
-            'q' -> quoteString(requiredString(context, index, "string.format"))
+            'q' -> quoteValue(context, index)
             else -> throw LuaRuntimeException("invalid option '%$conversion' to 'string.format'")
         }
     }
@@ -784,6 +784,16 @@ public object LuaStdlib {
             }
         }
         return result.append('"').toString()
+    }
+
+    private fun quoteValue(context: LuaCallContext, index: Int): String {
+        return when (context.typeName(index)) {
+            "nil" -> "nil"
+            "boolean" -> context.toBoolean(index).toString()
+            "number" -> context.toString(index) ?: context.typeName(index)
+            "string" -> quoteString(context.toString(index) ?: "")
+            else -> throw LuaRuntimeException("bad argument #$index to 'string.format' (value has no literal form)")
+        }
     }
 
     private fun toLuaString(context: LuaCallContext, index: Int): String {

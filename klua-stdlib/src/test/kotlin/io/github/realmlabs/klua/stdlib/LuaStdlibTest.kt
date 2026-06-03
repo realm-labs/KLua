@@ -826,6 +826,20 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format quotes primitive literals`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return string.format("%q %q %q %q", nil, true, false, 42)""", "string-format-quote.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("nil true false 42", state.toString(1))
+    }
+
+    @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
