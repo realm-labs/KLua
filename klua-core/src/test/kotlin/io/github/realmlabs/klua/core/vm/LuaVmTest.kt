@@ -25,6 +25,13 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes non-empty chunk without explicit return`() {
+        val result = LuaVm().execute(Compiler.compile("local x = 1"))
+
+        assertEquals(emptyList(), result)
+    }
+
+    @Test
     fun `executes literal return chunk`() {
         val result = LuaVm().execute(Compiler.compile("""return nil, true, false, 42, -5, 1024, "ok", 2.5"""))
 

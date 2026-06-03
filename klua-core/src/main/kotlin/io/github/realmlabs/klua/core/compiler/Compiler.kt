@@ -68,9 +68,12 @@ internal class Compiler private constructor(
 
     fun compile(chunk: Chunk): Prototype {
         if (chunk.statements.isEmpty()) {
-            emitReturn(0, 0, chunk.range.start.line)
+            emitImplicitReturn(chunk.range.start.line)
         } else {
             compileStatements(chunk.statements)
+            if (chunk.statements.last() !is ReturnStatement) {
+                emitImplicitReturn(chunk.range.end.line)
+            }
         }
 
         return Prototype(
@@ -590,11 +593,11 @@ internal class Compiler private constructor(
             compiler.locals[parameter] = slot
         }
         if (expression.body.isEmpty()) {
-            compiler.emitReturn(0, 0, expression.range.start.line)
+            compiler.emitImplicitReturn(expression.range.start.line)
         } else {
             compiler.compileStatements(expression.body)
             if (expression.body.last() !is ReturnStatement) {
-                compiler.emitReturn(0, 0, expression.range.end.line)
+                compiler.emitImplicitReturn(expression.range.end.line)
             }
         }
         return Prototype(
@@ -823,6 +826,13 @@ internal class Compiler private constructor(
 
     private fun emitReturn(register: Int, count: Int, line: Int) {
         writer.emit(Instruction.abc(Opcode.RETURN, register, count), line)
+    }
+
+    private fun emitImplicitReturn(line: Int) {
+        if (hasCapturedLocals) {
+            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), line)
+        }
+        emitReturn(0, 0, line)
     }
 
     private fun patchTest(index: Int, targetIndex: Int) {

@@ -52,6 +52,19 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles implicit return after non-empty chunk`() {
+        val prototype = Compiler.compile("local x = 1", "implicit-return.lua")
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  RETURN R0 0
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `stores large integers in constant pool`() {
         val prototype = Compiler.compile("return 1024")
 
