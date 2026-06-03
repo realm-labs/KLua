@@ -35,6 +35,7 @@ Implementation starts clean. There is no requirement to preserve old project API
 - Keep command-line tools in `klua-tools`.
 - Keep benchmarks in `klua-jmh`.
 - Keep language, integration, and conformance tests in `klua-tests`.
+- All production and test packages must start with `io.github.realmlabs.klua`.
 - Do not expose VM, compiler, bytecode, stack, frame, parser, or AST internals from public API modules.
 - Do not add compatibility aliases for old project APIs.
 - Do not add JVM bytecode generation before the interpreter, bytecode format, APIs, and benchmarks are stable.

@@ -1902,11 +1902,11 @@ A compatibility profile is only real when it has its own tests.
 Recommended artifacts:
 
 ```text
-org.klua:klua-core
-org.klua:klua-api
-org.klua:klua-stdlib
-org.klua:klua-kotlin
-org.klua:klua-all
+io.github.realmlabs.klua:klua-core
+io.github.realmlabs.klua:klua-api
+io.github.realmlabs.klua:klua-stdlib
+io.github.realmlabs.klua:klua-kotlin
+io.github.realmlabs.klua:klua-all
 ```
 
 `klua-all` can include everything for convenience.
