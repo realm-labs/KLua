@@ -152,7 +152,7 @@ Current implemented areas:
 Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
-- Broader standard library implementation, including remaining base, table comparator/edge cases, string pattern/format, math edge cases, and utf8 coverage.
+- Broader standard library implementation, including protected calls (`pcall`, `xpcall`), table comparator/edge cases, string pattern/format, math edge cases, and utf8 coverage.
 - Coroutine runtime.
 - Error handling, tracebacks, and debug metadata.
 - Debug hooks and source-level debugger.
