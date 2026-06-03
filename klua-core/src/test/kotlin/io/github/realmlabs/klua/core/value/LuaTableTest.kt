@@ -150,4 +150,97 @@ class LuaTableTest {
             table.get(LuaString("answer"))
         }
     }
+
+    @Test
+    fun `table newindex metamethod stores missing fields in delegate table`() {
+        val table = LuaTable()
+        val target = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__newindex"), target)
+        table.metatable = metatable
+
+        table.set(LuaString("answer"), LuaInteger(42))
+
+        assertEquals(LuaNil, table.rawGet(LuaString("answer")))
+        assertEquals(LuaInteger(42), target.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `own fields take precedence over table newindex metamethod`() {
+        val table = LuaTable()
+        val target = LuaTable()
+        val metatable = LuaTable()
+
+        table.rawSet(LuaString("answer"), LuaInteger(1))
+        target.rawSet(LuaString("answer"), LuaInteger(2))
+        metatable.rawSet(LuaString("__newindex"), target)
+        table.metatable = metatable
+
+        table.set(LuaString("answer"), LuaInteger(42))
+
+        assertEquals(LuaInteger(42), table.rawGet(LuaString("answer")))
+        assertEquals(LuaInteger(2), target.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `raw set bypasses table newindex metamethod`() {
+        val table = LuaTable()
+        val target = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__newindex"), target)
+        table.metatable = metatable
+
+        table.rawSet(LuaString("answer"), LuaInteger(42))
+
+        assertEquals(LuaInteger(42), table.rawGet(LuaString("answer")))
+        assertEquals(LuaNil, target.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `table newindex metamethod follows chained tables`() {
+        val table = LuaTable()
+        val firstTarget = LuaTable()
+        val secondTarget = LuaTable()
+        val metatable = LuaTable()
+        val targetMetatable = LuaTable()
+
+        targetMetatable.rawSet(LuaString("__newindex"), secondTarget)
+        firstTarget.metatable = targetMetatable
+        metatable.rawSet(LuaString("__newindex"), firstTarget)
+        table.metatable = metatable
+
+        table.set(LuaString("answer"), LuaInteger(42))
+
+        assertEquals(LuaNil, table.rawGet(LuaString("answer")))
+        assertEquals(LuaNil, firstTarget.rawGet(LuaString("answer")))
+        assertEquals(LuaInteger(42), secondTarget.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `non table newindex metamethod is ignored until function calls are supported`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__newindex"), LuaInteger(42))
+        table.metatable = metatable
+
+        table.set(LuaString("answer"), LuaInteger(99))
+
+        assertEquals(LuaInteger(99), table.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `table newindex metamethod detects cycles`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__newindex"), table)
+        table.metatable = metatable
+
+        assertFailsWith<LuaMetatableException> {
+            table.set(LuaString("answer"), LuaInteger(42))
+        }
+    }
 }
