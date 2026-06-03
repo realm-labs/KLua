@@ -46,15 +46,26 @@ class LuaState private constructor(
         val functionIndex = stack.size - argumentCount - 1
         require(functionIndex in stack.indices) { "stack does not contain a callable value" }
 
-        val chunk = stack[functionIndex] as? LuaStackValue.ChunkValue
-        if (chunk == null) {
-            val message = "attempt to call ${typeName(functionIndex + 1)}"
-            lastError = LuaRuntimeException(message)
-            removeCallFrame(functionIndex)
-            stack += LuaStackValue.StringValue(message)
-            return LuaStatus.RUNTIME_ERROR
+        return when (val callable = stack[functionIndex]) {
+            is LuaStackValue.ChunkValue -> pcallChunk(functionIndex, callable, resultCount)
+            is LuaStackValue.NativeFunctionValue -> pcallNativeFunction(functionIndex, callable, resultCount)
+            else -> runtimeCallError(functionIndex, "attempt to call ${stackTypeName(callable)}")
         }
+    }
 
+    fun pushFunction(function: LuaFunction) {
+        stack += LuaStackValue.NativeFunctionValue(function)
+    }
+
+    fun register(name: String, function: LuaFunction) {
+        globals.fields[name] = LuaStackValue.NativeFunctionValue(function)
+    }
+
+    private fun pcallChunk(
+        functionIndex: Int,
+        chunk: LuaStackValue.ChunkValue,
+        resultCount: Int,
+    ): LuaStatus {
         val arguments = stack.subList(functionIndex + 1, stack.size).map { it.toCoreValue() }
         return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments)) {
             is KLuaCoreExecution.Success -> {
@@ -76,6 +87,36 @@ class LuaState private constructor(
                 LuaStatus.RUNTIME_ERROR
             }
         }
+    }
+
+    private fun pcallNativeFunction(
+        functionIndex: Int,
+        function: LuaStackValue.NativeFunctionValue,
+        resultCount: Int,
+    ): LuaStatus {
+        val arguments = stack.subList(functionIndex + 1, stack.size).toList()
+        return try {
+            val result = function.function.call(DefaultLuaCallContext(arguments))
+            lastError = null
+            removeCallFrame(functionIndex)
+            pushHostResults(result.values, resultCount)
+            LuaStatus.OK
+        } catch (exception: LuaException) {
+            runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception)
+        } catch (exception: RuntimeException) {
+            runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception)
+        }
+    }
+
+    private fun runtimeCallError(
+        functionIndex: Int,
+        message: String,
+        cause: Throwable? = null,
+    ): LuaStatus {
+        lastError = LuaRuntimeException(message, cause)
+        removeCallFrame(functionIndex)
+        stack += LuaStackValue.StringValue(message)
+        return LuaStatus.RUNTIME_ERROR
     }
 
     fun absIndex(index: Int): Int {
@@ -206,18 +247,7 @@ class LuaState private constructor(
     fun isTable(index: Int): Boolean = valueAt(index) is LuaStackValue.TableValue
 
     fun typeName(index: Int): String {
-        return when (val value = valueAt(index)) {
-            null -> "none"
-            LuaStackValue.Nil -> "nil"
-            is LuaStackValue.BooleanValue -> "boolean"
-            is LuaStackValue.ChunkValue -> "function"
-            is LuaStackValue.TableValue -> "table"
-            is LuaStackValue.IntegerValue,
-            is LuaStackValue.NumberValue,
-            -> "number"
-            is LuaStackValue.StringValue -> "string"
-            is LuaStackValue.UnsupportedValue -> value.typeName
-        }
+        return stackTypeName(valueAt(index))
     }
 
     fun toBoolean(index: Int): Boolean {
@@ -270,6 +300,13 @@ class LuaState private constructor(
         }
     }
 
+    private fun pushHostResults(values: List<Any?>, resultCount: Int) {
+        val count = if (resultCount == -1) values.size else resultCount
+        for (index in 0 until count) {
+            stack += values.getOrNull(index).toStackValue()
+        }
+    }
+
     private fun KLuaCoreValue?.toStackValue(): LuaStackValue {
         return when (this) {
             null,
@@ -283,6 +320,21 @@ class LuaState private constructor(
         }
     }
 
+    private fun Any?.toStackValue(): LuaStackValue {
+        return when (this) {
+            null -> LuaStackValue.Nil
+            is Boolean -> LuaStackValue.BooleanValue(this)
+            is Byte -> LuaStackValue.IntegerValue(toLong())
+            is Short -> LuaStackValue.IntegerValue(toLong())
+            is Int -> LuaStackValue.IntegerValue(toLong())
+            is Long -> LuaStackValue.IntegerValue(this)
+            is Float -> LuaStackValue.NumberValue(toDouble())
+            is Double -> LuaStackValue.NumberValue(this)
+            is CharSequence -> LuaStackValue.StringValue(toString())
+            else -> throw IllegalArgumentException("cannot return ${this::class.java.name} as Lua value")
+        }
+    }
+
     private fun LuaStackValue.toCoreValue(): KLuaCoreValue {
         return when (this) {
             LuaStackValue.Nil -> KLuaCoreValue.Nil
@@ -291,6 +343,7 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
+            is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.TableValue -> KLuaCoreValue.UnsupportedValue("table")
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
         }
@@ -332,6 +385,95 @@ class LuaState private constructor(
         return if (integer.toDouble() == value) integer else null
     }
 
+    private fun stackTypeName(value: LuaStackValue?): String {
+        return when (value) {
+            null -> "none"
+            LuaStackValue.Nil -> "nil"
+            is LuaStackValue.BooleanValue -> "boolean"
+            is LuaStackValue.ChunkValue,
+            is LuaStackValue.NativeFunctionValue,
+            -> "function"
+            is LuaStackValue.TableValue -> "table"
+            is LuaStackValue.IntegerValue,
+            is LuaStackValue.NumberValue,
+            -> "number"
+            is LuaStackValue.StringValue -> "string"
+            is LuaStackValue.UnsupportedValue -> value.typeName
+        }
+    }
+
+    private inner class DefaultLuaCallContext(
+        private val arguments: List<LuaStackValue>,
+    ) : LuaCallContext {
+        override val argumentCount: Int = arguments.size
+
+        override fun isNil(index: Int): Boolean = valueAt(index) == LuaStackValue.Nil
+
+        override fun isNone(index: Int): Boolean = valueAt(index) == null
+
+        override fun typeName(index: Int): String = stackTypeName(valueAt(index))
+
+        override fun get(index: Int): Any? {
+            return when (val value = valueAt(index)) {
+                null,
+                LuaStackValue.Nil,
+                -> null
+                is LuaStackValue.BooleanValue -> value.value
+                is LuaStackValue.IntegerValue -> value.value
+                is LuaStackValue.NumberValue -> value.value
+                is LuaStackValue.StringValue -> value.value
+                is LuaStackValue.NativeFunctionValue -> value.function
+                else -> throw IllegalArgumentException("argument $index is ${stackTypeName(value)}")
+            }
+        }
+
+        override fun toBoolean(index: Int): Boolean {
+            return when (val value = valueAt(index)) {
+                null,
+                LuaStackValue.Nil,
+                LuaStackValue.BooleanValue(false),
+                -> false
+                else -> true
+            }
+        }
+
+        override fun toInteger(index: Int): Long? {
+            return when (val value = valueAt(index)) {
+                is LuaStackValue.IntegerValue -> value.value
+                is LuaStackValue.NumberValue -> integerFromNumber(value.value)
+                is LuaStackValue.StringValue -> value.value.toLongOrNull()
+                else -> null
+            }
+        }
+
+        override fun toNumber(index: Int): Double? {
+            return when (val value = valueAt(index)) {
+                is LuaStackValue.IntegerValue -> value.value.toDouble()
+                is LuaStackValue.NumberValue -> value.value
+                is LuaStackValue.StringValue -> value.value.toDoubleOrNull()
+                else -> null
+            }
+        }
+
+        override fun toString(index: Int): String? {
+            return when (val value = valueAt(index)) {
+                is LuaStackValue.IntegerValue -> value.value.toString()
+                is LuaStackValue.NumberValue -> value.value.toString()
+                is LuaStackValue.StringValue -> value.value
+                else -> null
+            }
+        }
+
+        private fun valueAt(index: Int): LuaStackValue? {
+            val resolved = when {
+                index > 0 -> index - 1
+                index < 0 -> arguments.size + index
+                else -> return null
+            }
+            return arguments.getOrNull(resolved)
+        }
+    }
+
     private sealed interface LuaStackValue {
         data object Nil : LuaStackValue
 
@@ -357,6 +499,10 @@ class LuaState private constructor(
 
         data class ChunkValue(
             val chunk: KLuaCoreChunk,
+        ) : LuaStackValue
+
+        data class NativeFunctionValue(
+            val function: LuaFunction,
         ) : LuaStackValue
 
         data class UnsupportedValue(
