@@ -70,6 +70,7 @@ public object LuaStdlib {
         state.newTable()
         setFunctionField(state, "byte", ::stringByte)
         setFunctionField(state, "char", ::stringChar)
+        setFunctionField(state, "find", ::stringFind)
         setFunctionField(state, "len", ::stringLen)
         setFunctionField(state, "lower", ::stringLower)
         setFunctionField(state, "rep", ::stringRep)
@@ -297,6 +298,27 @@ public object LuaStdlib {
         return LuaReturn.of(requiredString(context, 1, "string.len").length.toLong())
     }
 
+    private fun stringFind(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "string.find")
+        val pattern = requiredString(context, 2, "string.find")
+        val start = if (context.isNone(3) || context.isNil(3)) {
+            1L
+        } else {
+            requiredInteger(context, 3, "string.find")
+        }
+        val plain = context.toBoolean(4)
+        if (!plain && pattern.hasLuaPatternMagic()) {
+            throw LuaRuntimeException("string patterns are not supported")
+        }
+
+        val startIndex = text.normalizeSearchStart(start) - 1
+        val foundIndex = text.indexOf(pattern, startIndex)
+        if (foundIndex < 0) {
+            return LuaReturn.of(null)
+        }
+        return LuaReturn.of(foundIndex + 1L, foundIndex + pattern.length.toLong())
+    }
+
     private fun stringLower(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(requiredString(context, 1, "string.lower").lowercase())
     }
@@ -485,5 +507,17 @@ public object LuaStdlib {
             index >= 0L -> index.toInt()
             else -> (length + index + 1L).coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
         }
+    }
+
+    private fun String.normalizeSearchStart(index: Long): Int {
+        val normalized = when {
+            index >= 0L -> index
+            else -> length + index + 1L
+        }
+        return normalized.coerceIn(1L, length + 1L).toInt()
+    }
+
+    private fun String.hasLuaPatternMagic(): Boolean {
+        return any { char -> char in "^$()%.[]*+-?" }
     }
 }

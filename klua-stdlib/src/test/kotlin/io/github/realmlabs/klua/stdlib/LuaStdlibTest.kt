@@ -395,6 +395,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string find locates literal substrings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local firstStart, firstEnd = string.find("hello", "ell")
+                local secondStart, secondEnd = string.find("banana", "an", 3)
+                local lastStart, lastEnd = string.find("banana", "an", -4)
+                local dotStart, dotEnd = string.find("a.b", ".", 1, true)
+                return firstStart, firstEnd, secondStart, secondEnd, lastStart, lastEnd,
+                    dotStart, dotEnd, string.find("hello", "xyz")
+                """.trimIndent(),
+                "string-find.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(4L, state.toInteger(2))
+        assertEquals(4L, state.toInteger(3))
+        assertEquals(5L, state.toInteger(4))
+        assertEquals(4L, state.toInteger(5))
+        assertEquals(5L, state.toInteger(6))
+        assertEquals(2L, state.toInteger(7))
+        assertEquals(2L, state.toInteger(8))
+        assertTrue(state.isNil(9))
+    }
+
+    @Test
+    fun `string find reports unsupported patterns`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.find("abc", ".")""", "string-find-pattern.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("string patterns are not supported", state.toString(-1))
+    }
+
+    @Test
     fun `string byte returns no values for empty ranges`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
