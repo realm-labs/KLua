@@ -9,6 +9,8 @@ import io.github.realmlabs.klua.core.ast.NilExpression
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
+import io.github.realmlabs.klua.core.ast.UnaryExpression
+import io.github.realmlabs.klua.core.ast.UnaryOperator
 import io.github.realmlabs.klua.core.bytecode.BytecodeWriter
 import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.Opcode
@@ -80,7 +82,23 @@ internal class Compiler private constructor(
                 val constant = constants.add(LuaString(expression.value))
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
+            is UnaryExpression -> compileUnaryLiteral(expression, register)
             else -> throw unsupported(expression, "only literal return expressions are supported by this compiler slice")
+        }
+    }
+
+    private fun compileUnaryLiteral(expression: UnaryExpression, register: Int) {
+        if (expression.operator != UnaryOperator.NEGATE) {
+            throw unsupported(expression, "only negative numeric literal expressions are supported by this compiler slice")
+        }
+
+        when (val inner = expression.expression) {
+            is IntegerExpression -> emitInteger(register, -inner.value, expression.range.start.line)
+            is FloatExpression -> {
+                val constant = constants.add(LuaFloat(-inner.value))
+                writer.emit(Instruction.abc(Opcode.LOAD_FLOAT, register, constant), expression.range.start.line)
+            }
+            else -> throw unsupported(expression, "only negative numeric literal expressions are supported by this compiler slice")
         }
     }
 

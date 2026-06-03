@@ -67,6 +67,22 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles negative numeric literals`() {
+        val prototype = Compiler.compile("return -5, -1.5")
+
+        assertEquals(1, prototype.constants.size)
+        assertEquals(-1.5, assertIs<LuaFloat>(prototype.constants.single()).value)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 -5
+            0001  [1]  LOAD_FLOAT R1 -1.5
+            0002  [1]  RETURN R0 2
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `deduplicates equal constants`() {
         val prototype = Compiler.compile("""return "same", "same", 1000, 1000""")
 
