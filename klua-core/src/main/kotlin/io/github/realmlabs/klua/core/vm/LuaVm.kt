@@ -131,12 +131,8 @@ internal class LuaVm {
     private fun call(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val base = register(frame, Instruction.a(instruction))
         val callee = stack.get(base)
-        if (callee !is LuaClosure) {
-            throw LuaVmException("attempt to call ${typeName(callee)}")
-        }
-
         val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
-        val results = execute(callee.prototype, arguments, callee.upvalues)
+        val results = callValue(callee, arguments)
         val expectedResults = Instruction.c(instruction)
         if (expectedResults == OPEN_RESULT_COUNT) {
             setOpenResults(stack, frame, base, results)
@@ -145,6 +141,21 @@ internal class LuaVm {
 
         for (index in 0 until expectedResults) {
             stack.set(base + index, results.getOrElse(index) { LuaNil })
+        }
+    }
+
+    private fun callValue(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
+        return when (callee) {
+            is LuaClosure -> execute(callee.prototype, arguments, callee.upvalues)
+            is LuaTable -> {
+                val call = callee.metatableRawGet(CALL_KEY)
+                if (call is LuaClosure) {
+                    execute(call.prototype, listOf(callee) + arguments, call.upvalues)
+                } else {
+                    throw LuaVmException("attempt to call table")
+                }
+            }
+            else -> throw LuaVmException("attempt to call ${typeName(callee)}")
         }
     }
 
@@ -590,3 +601,4 @@ private fun typeName(value: LuaValue): String {
 
 private val INDEX_KEY = LuaString("__index")
 private val NEW_INDEX_KEY = LuaString("__newindex")
+private val CALL_KEY = LuaString("__call")

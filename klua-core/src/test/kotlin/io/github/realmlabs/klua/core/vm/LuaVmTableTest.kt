@@ -335,6 +335,41 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `calls closure call metamethod for table values`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__call"), LuaClosure(returnSecondArgumentPrototype()))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableCallPrototype(table, LuaString("answer"), 1))
+
+        assertEquals(listOf(LuaString("answer")), result)
+    }
+
+    @Test
+    fun `table call metamethod can return multiple results`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__call"), LuaClosure(returnSelfAndFirstArgumentPrototype()))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableCallPrototype(table, LuaString("answer"), 2))
+
+        assertEquals(listOf(table, LuaString("answer")), result)
+    }
+
+    @Test
+    fun `rejects table calls without closure call metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableCallPrototype(LuaTable(), LuaString("answer"), 1))
+        }
+
+        assertEquals("attempt to call table", error.message)
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))
@@ -399,6 +434,20 @@ class LuaVmTableTest {
         )
     }
 
+    private fun returnSelfAndFirstArgumentPrototype(): Prototype {
+        return Prototype(
+            sourceName = "metamethod",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.RETURN, 0, 2),
+            ),
+            constants = emptyArray(),
+            lineInfo = intArrayOf(1),
+            maxStackSize = 2,
+            numParams = 2,
+        )
+    }
+
     private fun storeThirdArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
@@ -426,6 +475,22 @@ class LuaVmTableTest {
             ),
             constants = arrayOf<LuaValue>(table, LuaString(field)),
             lineInfo = intArrayOf(1, 1, 1),
+            maxStackSize = 2,
+        )
+    }
+
+    private fun tableCallPrototype(table: LuaTable, argument: LuaValue, resultCount: Int): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.LOAD_K, 1, 1),
+                Instruction.abc(Opcode.CALL, 0, 1, resultCount),
+                Instruction.abc(Opcode.RETURN, 0, resultCount),
+            ),
+            constants = arrayOf(table, argument),
+            lineInfo = intArrayOf(1, 1, 1, 1),
             maxStackSize = 2,
         )
     }
