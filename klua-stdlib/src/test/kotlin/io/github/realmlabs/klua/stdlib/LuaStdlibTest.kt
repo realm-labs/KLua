@@ -172,6 +172,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `rawget reads table fields without invoking access syntax`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return rawget({name = "klua"}, "name"), rawget({"a", "b"}, 2), rawget({}, "missing")""", "rawget.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("klua", state.toString(1))
+        assertEquals("b", state.toString(2))
+        assertTrue(state.isNil(3))
+    }
+
+    @Test
+    fun `rawget reports table argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawget("not-table", "key")""", "rawget-table-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'rawget' (table expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `rawget rejects nil keys`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawget({}, nil)""", "rawget-key-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("table index is nil", state.toString(-1))
+    }
+
+    @Test
     fun `openLibs installs base library`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
