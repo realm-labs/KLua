@@ -476,6 +476,35 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles final call arguments as open results`() {
+        val prototype = Compiler.compile(
+            """
+            local function pair()
+                return 2, 3
+            end
+            local function add(a, b, c)
+                return a + b + c
+            end
+            return add(1, pair())
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [4]  CLOSURE R1 P1
+            0002  [7]  MOVE R2 R1
+            0003  [7]  LOAD_INT R3 1
+            0004  [7]  MOVE R4 R0
+            0005  [7]  CALL R4 0 *
+            0006  [7]  CALL R2 * *
+            0007  [7]  RETURN R2 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 

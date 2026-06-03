@@ -475,6 +475,63 @@ class LuaVmTest {
     }
 
     @Test
+    fun `expands final call arguments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function pair()
+                    return 2, 3
+                end
+                local function add(a, b, c)
+                    return a + b + c
+                end
+                return add(1, pair())
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(6)), result)
+    }
+
+    @Test
+    fun `forwards varargs as final call arguments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function add(a, b, c)
+                    return a + b + c
+                end
+                local function forward(fn, ...)
+                    return fn(...)
+                end
+                return forward(add, 10, 20, 12)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `passes no arguments from empty open call arguments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function none()
+                    return
+                end
+                local function first(value)
+                    return value
+                end
+                return first(none())
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaNil), result)
+    }
+
+    @Test
     fun `propagates errors from function call statements`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(

@@ -57,7 +57,7 @@ internal object Disassembler {
             Opcode.JMP -> "JMP ${signedByte(Instruction.a(instruction))}"
             Opcode.FOR_TEST -> "FOR_TEST R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
             Opcode.FOR_LOOP -> "FOR_LOOP R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
-            Opcode.CALL -> "CALL R${Instruction.a(instruction)} ${Instruction.b(instruction)} ${formatCount(Instruction.c(instruction))}"
+            Opcode.CALL -> "CALL R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))} ${formatCount(Instruction.c(instruction))}"
             Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
         }
     }

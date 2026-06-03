@@ -379,7 +379,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileCallExpression(expression: CallExpression, register: Int, resultCount: Int = 1) {
-        if (expression.arguments.size > 255) {
+        if (expression.arguments.size >= OPEN_RESULT_COUNT) {
             throw unsupported(expression, "too many function arguments")
         }
         if (resultCount !in 0..255) {
@@ -387,12 +387,22 @@ internal class Compiler private constructor(
         }
 
         compileExpression(expression.callee, register)
-        for ((index, argument) in expression.arguments.withIndex()) {
-            compileExpression(argument, register + index + 1)
+        val argumentCount = if (expression.arguments.lastOrNull().isOpenResultExpression()) {
+            val lastIndex = expression.arguments.lastIndex
+            for (index in 0 until lastIndex) {
+                compileExpression(expression.arguments[index], register + index + 1)
+            }
+            compileOpenResultExpression(expression.arguments[lastIndex], register + lastIndex + 1)
+            OPEN_RESULT_COUNT
+        } else {
+            for ((index, argument) in expression.arguments.withIndex()) {
+                compileExpression(argument, register + index + 1)
+            }
+            expression.arguments.size
         }
         val minimumResultSlots = if (resultCount == OPEN_RESULT_COUNT) 1 else resultCount
         maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 1, minimumResultSlots))
-        writer.emit(Instruction.abc(Opcode.CALL, register, expression.arguments.size, resultCount), expression.range.start.line)
+        writer.emit(Instruction.abc(Opcode.CALL, register, argumentCount, resultCount), expression.range.start.line)
     }
 
     private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {

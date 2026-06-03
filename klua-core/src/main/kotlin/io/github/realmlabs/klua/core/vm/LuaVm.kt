@@ -124,7 +124,7 @@ internal class LuaVm {
             throw LuaVmException("attempt to call ${typeName(callee)}")
         }
 
-        val arguments = stack.slice(base + 1, Instruction.b(instruction))
+        val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
         val results = execute(callee.prototype, arguments)
         val expectedResults = Instruction.c(instruction)
         if (expectedResults == OPEN_RESULT_COUNT) {
@@ -166,6 +166,17 @@ internal class LuaVm {
             throw LuaVmException("open return result base is before return base")
         }
         return frame.openResultBase - base + frame.openResultCount
+    }
+
+    private fun argumentCount(frame: CallFrame, base: Int, count: Int): Int {
+        if (count != OPEN_RESULT_COUNT) {
+            return count
+        }
+        val argumentBase = base + 1
+        if (frame.openResultBase < argumentBase) {
+            throw LuaVmException("open argument result base is before argument base")
+        }
+        return frame.openResultBase - argumentBase + frame.openResultCount
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value
