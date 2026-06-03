@@ -2,6 +2,9 @@ package io.github.realmlabs.klua.api;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -54,6 +57,47 @@ class LuaStateNativeFunctionJavaTest {
 
         assertEquals(1, state.getTop());
         assertEquals(42L, state.toInteger(-1));
+    }
+
+    @Test
+    void nativeFunctionMapResultsBecomeTablesOnStack() {
+        LuaState state = LuaState.create();
+        Map<Object, Object> table = new LinkedHashMap<>();
+        table.put(1L, "first");
+        table.put("name", "named");
+
+        state.pushFunction(context -> LuaReturn.of(table));
+
+        assertEquals(LuaStatus.OK, state.pcall(0, 1));
+        assertEquals(1, state.getTop());
+        assertTrue(state.isTable(1));
+
+        state.getField(1, "name");
+        assertEquals("named", state.toString(-1));
+    }
+
+    @Test
+    void nativeFunctionMapResultsBecomeTablesFromLuaSource() {
+        LuaState state = LuaState.create();
+
+        state.register("makeTable", context -> {
+            Map<Object, Object> table = new LinkedHashMap<>();
+            table.put(1L, "first");
+            table.put(2L, "second");
+            table.put("name", "named");
+            return LuaReturn.of(table);
+        });
+
+        assertEquals(
+                LuaStatus.OK,
+                state.load("local value = makeTable()\nreturn value[1], value[2], value.name, #value", "native-table-result.lua")
+        );
+        assertEquals(LuaStatus.OK, state.pcall(0, 4));
+
+        assertEquals("first", state.toString(1));
+        assertEquals("second", state.toString(2));
+        assertEquals("named", state.toString(3));
+        assertEquals(2L, state.toInteger(4));
     }
 
     @Test

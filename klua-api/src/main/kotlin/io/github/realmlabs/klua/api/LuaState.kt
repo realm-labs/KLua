@@ -502,6 +502,7 @@ class LuaState private constructor(
             is Float -> LuaStackValue.NumberValue(toDouble())
             is Double -> LuaStackValue.NumberValue(this)
             is CharSequence -> LuaStackValue.StringValue(toString())
+            is Map<*, *> -> toStackTableValue()
             else -> LuaStackValue.UserDataValue(this)
         }
     }
@@ -517,8 +518,31 @@ class LuaState private constructor(
             is Float -> KLuaCoreValue.NumberValue(toDouble())
             is Double -> KLuaCoreValue.NumberValue(this)
             is CharSequence -> KLuaCoreValue.StringValue(toString())
+            is Map<*, *> -> toCoreTableValue()
             else -> KLuaCoreValue.UserDataValue(this)
         }
+    }
+
+    private fun Map<*, *>.toStackTableValue(): LuaStackValue.TableValue {
+        val fields = linkedMapOf<LuaStackValue, LuaStackValue>()
+        for ((key, value) in this) {
+            if (key == null) {
+                throw LuaRuntimeException("table index is nil")
+            }
+            fields[key.toStackValue()] = value.toStackValue()
+        }
+        return LuaStackValue.TableValue(fields)
+    }
+
+    private fun Map<*, *>.toCoreTableValue(): KLuaCoreValue.TableValue {
+        val fields = linkedMapOf<KLuaCoreValue, KLuaCoreValue>()
+        for ((key, value) in this) {
+            if (key == null) {
+                throw LuaRuntimeException("table index is nil")
+            }
+            fields[key.toCoreReturnValue()] = value.toCoreReturnValue()
+        }
+        return KLuaCoreValue.TableValue(fields)
     }
 
     private fun LuaStackValue.toAnyValue(): Any? {
