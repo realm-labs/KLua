@@ -304,6 +304,32 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles simple function calls`() {
+        val prototype = Compiler.compile(
+            """
+            local function add(a, b)
+                return a + b
+            end
+            return add(20, 22)
+            """.trimIndent(),
+        )
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [4]  MOVE R1 R0
+            0002  [4]  LOAD_INT R2 20
+            0003  [4]  LOAD_INT R3 22
+            0004  [4]  CALL R1 2 1
+            0005  [4]  MOVE R0 R1
+            0006  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 

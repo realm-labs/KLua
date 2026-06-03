@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
+import io.github.realmlabs.klua.core.ast.CallExpression
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.ElseIfBranch
 import io.github.realmlabs.klua.core.ast.Expression
@@ -246,7 +247,28 @@ internal class Parser private constructor(
             return UnaryExpression(operator, expression, SourceRange(token.range.start, expression.range.end))
         }
 
-        return primary()
+        return postfix()
+    }
+
+    private fun postfix(): Expression {
+        var expression = primary()
+
+        while (match(TokenKind.LEFT_PAREN)) {
+            val start = previous()
+            val arguments = if (check(TokenKind.RIGHT_PAREN)) {
+                emptyList()
+            } else {
+                expressionList()
+            }
+            val end = consume(TokenKind.RIGHT_PAREN, "expected ')' after function arguments")
+            expression = CallExpression(
+                callee = expression,
+                arguments = arguments,
+                range = SourceRange(expression.range.start, end.range.end),
+            )
+        }
+
+        return expression
     }
 
     private fun primary(): Expression {
@@ -297,6 +319,7 @@ internal class Parser private constructor(
         return when (expression) {
             is BinaryExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is BooleanExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
+            is CallExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is FloatExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is FunctionExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))
             is IntegerExpression -> expression.copy(range = SourceRange(start.range.start, end.range.end))

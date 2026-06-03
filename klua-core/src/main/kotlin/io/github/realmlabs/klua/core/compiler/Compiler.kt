@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.BreakStatement
+import io.github.realmlabs.klua.core.ast.CallExpression
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
@@ -290,11 +291,25 @@ internal class Compiler private constructor(
                 val constant = constants.add(LuaString(expression.value))
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
+            is CallExpression -> compileCallExpression(expression, register)
             is VariableExpression -> compileVariable(expression, register)
             is FunctionExpression -> compileFunctionExpression(expression, register)
             is UnaryExpression -> compileUnaryExpression(expression, register)
             is BinaryExpression -> compileBinaryExpression(expression, register)
         }
+    }
+
+    private fun compileCallExpression(expression: CallExpression, register: Int) {
+        if (expression.arguments.size > 255) {
+            throw unsupported(expression, "too many function arguments")
+        }
+
+        compileExpression(expression.callee, register)
+        for ((index, argument) in expression.arguments.withIndex()) {
+            compileExpression(argument, register + index + 1)
+        }
+        maxRegister = maxRegister.coerceAtLeast(register + expression.arguments.size + 1)
+        writer.emit(Instruction.abc(Opcode.CALL, register, expression.arguments.size, 1), expression.range.start.line)
     }
 
     private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {

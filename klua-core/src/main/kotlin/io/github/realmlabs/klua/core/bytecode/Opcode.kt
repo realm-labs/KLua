@@ -32,5 +32,6 @@ internal enum class Opcode {
     JMP,
     FOR_TEST,
     FOR_LOOP,
+    CALL,
     RETURN,
 }

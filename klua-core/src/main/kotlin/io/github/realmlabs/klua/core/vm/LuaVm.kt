@@ -13,7 +13,14 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm {
     fun execute(prototype: Prototype): List<LuaValue> {
-        val stack = LuaStack(prototype.maxStackSize)
+        return execute(prototype, emptyList())
+    }
+
+    private fun execute(prototype: Prototype, arguments: List<LuaValue>): List<LuaValue> {
+        val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
+        for (index in 0 until prototype.numParams) {
+            stack.set(index, arguments.getOrElse(index) { LuaNil })
+        }
         val frame = CallFrame(prototype)
 
         while (frame.pc < prototype.code.size) {
@@ -75,6 +82,7 @@ internal class LuaVm {
                         frame.pc += signedByte(Instruction.b(instruction))
                     }
                 }
+                Opcode.CALL -> call(stack, frame, instruction)
                 Opcode.RETURN -> return stack.slice(register(frame, Instruction.a(instruction)), Instruction.b(instruction))
             }
         }
@@ -96,6 +104,20 @@ internal class LuaVm {
             throw LuaVmException("nested prototype index out of range: P$index")
         }
         return prototype.nested[index]
+    }
+
+    private fun call(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val base = register(frame, Instruction.a(instruction))
+        val callee = stack.get(base)
+        if (callee !is LuaClosure) {
+            throw LuaVmException("attempt to call ${typeName(callee)}")
+        }
+
+        val arguments = stack.slice(base + 1, Instruction.b(instruction))
+        val results = execute(callee.prototype, arguments)
+        for (index in 0 until Instruction.c(instruction)) {
+            stack.set(base + index, results.getOrElse(index) { LuaNil })
+        }
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value

@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
+import io.github.realmlabs.klua.core.ast.CallExpression
 import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
@@ -274,6 +275,18 @@ class ParserTest {
         assertEquals(listOf("first"), function.parameters)
         assertEquals(true, function.isVararg)
         assertIs<ReturnStatement>(function.body.single())
+    }
+
+    @Test
+    fun `parses function call expressions`() {
+        val chunk = Parser.parse("return add(1, 2)")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+
+        val call = assertIs<CallExpression>(statement.values.single())
+        assertEquals("add", assertIs<VariableExpression>(call.callee).name)
+        assertEquals(2, call.arguments.size)
+        assertEquals(1L, assertIs<IntegerExpression>(call.arguments[0]).value)
+        assertEquals(2L, assertIs<IntegerExpression>(call.arguments[1]).value)
     }
 
     @Test

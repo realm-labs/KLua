@@ -308,6 +308,31 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes simple function calls`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function add(a, b)
+                    return a + b
+                end
+                return add(20, 22)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `rejects calls to non function values`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("local value = 1 return value()"))
+        }
+
+        assertEquals("attempt to call number", error.message)
+    }
+
+    @Test
     fun `executes true if branch`() {
         val result = LuaVm().execute(
             Compiler.compile(

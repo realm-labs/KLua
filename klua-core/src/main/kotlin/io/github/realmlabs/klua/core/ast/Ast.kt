@@ -119,6 +119,12 @@ internal data class FunctionExpression(
     override val range: SourceRange,
 ) : Expression
 
+internal data class CallExpression(
+    val callee: Expression,
+    val arguments: List<Expression>,
+    override val range: SourceRange,
+) : Expression
+
 internal data class UnaryExpression(
     val operator: UnaryOperator,
     val expression: Expression,
