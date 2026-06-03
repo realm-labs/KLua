@@ -337,7 +337,30 @@ internal class LuaVm {
     private fun arithmetic(stack: LuaStack, frame: CallFrame, instruction: Int, operation: Arithmetic) {
         val left = stack.get(register(frame, Instruction.b(instruction)))
         val right = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), operation.apply(left, right))
+        stack.set(register(frame, Instruction.a(instruction)), arithmetic(left, right, operation))
+    }
+
+    private fun arithmetic(left: LuaValue, right: LuaValue, operation: Arithmetic): LuaValue {
+        val metamethod = arithmeticMetamethod(left, right, operation)
+        if (metamethod != null) {
+            return execute(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+        }
+        return operation.apply(left, right)
+    }
+
+    private fun arithmeticMetamethod(left: LuaValue, right: LuaValue, operation: Arithmetic): LuaClosure? {
+        val key = when (operation) {
+            Arithmetic.ADD -> ADD_KEY
+            else -> return null
+        }
+        return tableMetamethod(left, key) ?: tableMetamethod(right, key)
+    }
+
+    private fun tableMetamethod(value: LuaValue, key: LuaString): LuaClosure? {
+        if (value !is LuaTable) {
+            return null
+        }
+        return value.metatableRawGet(key) as? LuaClosure
     }
 
     private fun unaryMinus(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -610,3 +633,4 @@ private val INDEX_KEY = LuaString("__index")
 private val NEW_INDEX_KEY = LuaString("__newindex")
 private val CALL_KEY = LuaString("__call")
 private val LEN_KEY = LuaString("__len")
+private val ADD_KEY = LuaString("__add")

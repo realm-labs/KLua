@@ -405,6 +405,43 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `calls left closure add metamethod for table addition`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__add"), LuaClosure(returnSecondArgumentPrototype()))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableAddPrototype(left, right))
+
+        assertEquals(listOf(right), result)
+    }
+
+    @Test
+    fun `calls right closure add metamethod when left has none`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__add"), LuaClosure(returnSecondArgumentPrototype()))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableAddPrototype(left, right))
+
+        assertEquals(listOf(right), result)
+    }
+
+    @Test
+    fun `rejects table addition without closure add metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableAddPrototype(LuaTable(), LuaInteger(42)))
+        }
+
+        assertEquals("attempt to perform arithmetic on table", error.message)
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))
@@ -557,6 +594,22 @@ class LuaVmTableTest {
             constants = arrayOf(table),
             lineInfo = intArrayOf(1, 1, 1),
             maxStackSize = 1,
+        )
+    }
+
+    private fun tableAddPrototype(left: LuaValue, right: LuaValue): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.LOAD_K, 1, 1),
+                Instruction.abc(Opcode.ADD, 0, 0, 1),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = arrayOf(left, right),
+            lineInfo = intArrayOf(1, 1, 1, 1),
+            maxStackSize = 2,
         )
     }
 
