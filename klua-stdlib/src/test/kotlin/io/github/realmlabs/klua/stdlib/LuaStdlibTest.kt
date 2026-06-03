@@ -370,6 +370,92 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `setmetatable installs table metatable and getmetatable returns it`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local object = {}
+                local fallback = {name = "from-metatable"}
+                local metatable = {__index = fallback}
+                local returned = setmetatable(object, metatable)
+                local actualMetatable = getmetatable(object)
+                return returned == object, actualMetatable == metatable, object.name, getmetatable({}) == nil
+                """.trimIndent(),
+                "setmetatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("from-metatable", state.toString(3))
+        assertTrue(state.toBoolean(4))
+    }
+
+    @Test
+    fun `setmetatable clears table metatable with nil`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local object = {}
+                setmetatable(object, {__index = {name = "from-metatable"}})
+                setmetatable(object, nil)
+                return getmetatable(object), object.name
+                """.trimIndent(),
+                "setmetatable-clear.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+    }
+
+    @Test
+    fun `getmetatable returns nil for values without metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return getmetatable("text"), getmetatable(nil)""", "getmetatable-nil.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+    }
+
+    @Test
+    fun `setmetatable reports table argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return setmetatable("not-table", {})""", "setmetatable-table-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'setmetatable' (table expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `setmetatable reports metatable argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return setmetatable({}, "not-table")""", "setmetatable-meta-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(-1))
+    }
+
+    @Test
     fun `openLibs installs base library`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

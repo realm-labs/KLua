@@ -43,12 +43,14 @@ public object LuaStdlib {
     public fun openBase(state: LuaState, output: Consumer<String>): LuaState {
         state.register("assert", ::assert)
         state.register("error", ::error)
+        state.register("getmetatable", ::getmetatable)
         state.register("next", ::next)
         state.register("print") { context -> print(context, output) }
         state.register("rawequal", ::rawequal)
         state.register("rawget", ::rawget)
         state.register("rawset", ::rawset)
         state.register("select", ::select)
+        state.register("setmetatable", ::setmetatable)
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
         state.register("type", ::type)
@@ -177,6 +179,13 @@ public object LuaStdlib {
         throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
     }
 
+    private fun getmetatable(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            return LuaReturn.of(null)
+        }
+        return LuaReturn.of(context.getMetatable(1))
+    }
+
     private fun next(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'next' (table expected)")
@@ -252,6 +261,17 @@ public object LuaStdlib {
             throw LuaRuntimeException("bad argument #1 to 'select' (index out of range)")
         }
         return LuaReturn.ofValues((start.toInt()..context.argumentCount).map { argument -> context.get(argument) })
+    }
+
+    private fun setmetatable(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'setmetatable' (table expected)")
+        }
+        if (!context.isNone(2) && !context.isNil(2) && !context.isTable(2)) {
+            throw LuaRuntimeException("bad argument #2 to 'setmetatable' (nil or table expected)")
+        }
+        context.setMetatable(1, context.getTable(2))
+        return LuaReturn.of(context.getTable(1))
     }
 
     private fun tonumber(context: LuaCallContext): LuaReturn {

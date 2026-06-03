@@ -232,7 +232,9 @@ public sealed interface KLuaCoreValue {
 
     public data class TableValue(
         public val fields: MutableMap<KLuaCoreValue, KLuaCoreValue>,
-    ) : KLuaCoreValue
+    ) : KLuaCoreValue {
+        public var metatable: TableValue? = null
+    }
 
     public data class UserDataValue(
         public val value: Any,
@@ -259,6 +261,13 @@ private fun KLuaCoreValue.publicTypeName(): String {
 }
 
 private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? {
+    return toLuaValueOrNull(globals, IdentityHashMap())
+}
+
+private fun KLuaCoreValue.toLuaValueOrNull(
+    globals: KLuaCoreGlobals,
+    tableCache: MutableMap<KLuaCoreValue.TableValue, LuaTable>,
+): LuaValue? {
     return when (this) {
         KLuaCoreValue.Nil -> LuaNil
         is KLuaCoreValue.BooleanValue -> LuaBoolean(value)
@@ -269,12 +278,18 @@ private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? 
             callCoreFunction(function, arguments, globals)
         }
         is KLuaCoreValue.TableValue -> {
+            val cached = tableCache[this]
+            if (cached != null) {
+                return cached
+            }
             val table = LuaTable()
+            tableCache[this] = table
             for ((fieldKey, fieldValue) in fields) {
-                val luaKey = fieldKey.toLuaValueOrNull(globals) ?: return null
-                val luaValue = fieldValue.toLuaValueOrNull(globals) ?: return null
+                val luaKey = fieldKey.toLuaValueOrNull(globals, tableCache) ?: return null
+                val luaValue = fieldValue.toLuaValueOrNull(globals, tableCache) ?: return null
                 table.rawSet(luaKey, luaValue)
             }
+            table.metatable = metatable?.toLuaValueOrNull(globals, tableCache) as? LuaTable
             table
         }
         is KLuaCoreValue.UserDataValue -> LuaUserData(value) { hostValue -> globals.userDataType(hostValue) }
@@ -305,6 +320,7 @@ private fun toPublicValue(
                 value.rawEntries()
                     .map { (key, fieldValue) -> toPublicValue(key, tableCache) to toPublicValue(fieldValue, tableCache) },
             )
+            tableValue.metatable = value.metatable?.let { metatable -> toPublicValue(metatable, tableCache) as KLuaCoreValue.TableValue }
             tableValue
         }
         is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)
@@ -357,14 +373,8 @@ private fun KLuaCoreValue.toLuaReturnValue(
     publicArguments: List<KLuaCoreValue>,
     globals: KLuaCoreGlobals,
 ): LuaValue {
-    if (this is KLuaCoreValue.TableValue) {
-        val argumentIndex = publicArguments.indexOfFirst { it === this }
-        val originalTable = luaArguments.getOrNull(argumentIndex) as? LuaTable
-        if (originalTable != null) {
-            return originalTable
-        }
-    }
-    return toLuaValueOrNull(globals)
+    val tableCache = seedLuaTableCache(luaArguments, publicArguments)
+    return toLuaValueOrNull(globals, tableCache)
         ?: throw LuaVmException("cannot return ${publicTypeName()} as Lua value")
 }
 
@@ -373,17 +383,57 @@ private fun syncPublicTablesToLua(
     publicArguments: List<KLuaCoreValue>,
     globals: KLuaCoreGlobals,
 ) {
+    val tableCache = seedLuaTableCache(luaArguments, publicArguments)
     for (index in luaArguments.indices) {
         val luaTable = luaArguments[index] as? LuaTable ?: continue
         val publicTable = publicArguments.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
-        val entries = publicTable.fields.map { (key, value) ->
-            val luaKey = key.toLuaValueOrNull(globals)
-                ?: throw LuaVmException("cannot use ${key.publicTypeName()} as Lua table key")
-            val luaValue = value.toLuaValueOrNull(globals)
-                ?: throw LuaVmException("cannot use ${value.publicTypeName()} as Lua table value")
-            luaKey to luaValue
-        }
-        luaTable.rawReplace(entries)
+        syncPublicTableToLua(luaTable, publicTable, globals, tableCache)
+    }
+}
+
+private fun syncPublicTableToLua(
+    luaTable: LuaTable,
+    publicTable: KLuaCoreValue.TableValue,
+    globals: KLuaCoreGlobals,
+    tableCache: MutableMap<KLuaCoreValue.TableValue, LuaTable>,
+) {
+    tableCache[publicTable] = luaTable
+    val entries = publicTable.fields.map { (key, value) ->
+        val luaKey = key.toLuaValueOrNull(globals, tableCache)
+            ?: throw LuaVmException("cannot use ${key.publicTypeName()} as Lua table key")
+        val luaValue = value.toLuaValueOrNull(globals, tableCache)
+            ?: throw LuaVmException("cannot use ${value.publicTypeName()} as Lua table value")
+        luaKey to luaValue
+    }
+    luaTable.rawReplace(entries)
+    luaTable.metatable = publicTable.metatable?.toLuaValueOrNull(globals, tableCache) as? LuaTable
+}
+
+private fun seedLuaTableCache(
+    luaValues: List<LuaValue>,
+    publicValues: List<KLuaCoreValue>,
+): MutableMap<KLuaCoreValue.TableValue, LuaTable> {
+    val tableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>()
+    for (index in luaValues.indices) {
+        seedLuaTableCache(luaValues[index], publicValues.getOrNull(index), tableCache)
+    }
+    return tableCache
+}
+
+private fun seedLuaTableCache(
+    luaValue: LuaValue,
+    publicValue: KLuaCoreValue?,
+    tableCache: MutableMap<KLuaCoreValue.TableValue, LuaTable>,
+) {
+    val luaTable = luaValue as? LuaTable ?: return
+    val publicTable = publicValue as? KLuaCoreValue.TableValue ?: return
+    if (tableCache.put(publicTable, luaTable) != null) {
+        return
+    }
+    val publicMetatable = publicTable.metatable
+    val luaMetatable = luaTable.metatable
+    if (publicMetatable != null && luaMetatable != null) {
+        seedLuaTableCache(luaMetatable, publicMetatable, tableCache)
     }
 }
 

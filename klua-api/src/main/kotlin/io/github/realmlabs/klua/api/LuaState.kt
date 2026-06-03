@@ -106,7 +106,8 @@ class LuaState private constructor(
         chunk: LuaStackValue.ChunkValue,
         resultCount: Int,
     ): LuaStatus {
-        val arguments = stack.subList(functionIndex + 1, stack.size).map { it.toCoreValue() }
+        val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+        val arguments = stack.subList(functionIndex + 1, stack.size).map { it.toCoreValue(tableCache) }
         return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments, coreGlobals)) {
             is KLuaCoreExecution.Success -> {
                 lastError = null
@@ -504,6 +505,7 @@ class LuaState private constructor(
                         fieldKey.toStackValue(tableCache) to fieldValue.toStackValue(tableCache)
                     },
                 )
+                tableValue.metatable = metatable?.toStackValue(tableCache) as? LuaStackValue.TableValue
                 tableValue
             }
             is KLuaCoreValue.UserDataValue -> LuaStackValue.UserDataValue(value)
@@ -550,10 +552,8 @@ class LuaState private constructor(
     ): KLuaCoreValue {
         val stackTable = this as? LuaStackValue.TableValue
         if (stackTable != null) {
-            val argumentIndex = stackArguments.indexOfFirst { it === stackTable }
-            if (argumentIndex >= 0) {
-                return coreArguments[argumentIndex]
-            }
+            val tableCache = seedCoreTableCache(stackArguments, coreArguments)
+            return stackTable.toCoreTableValue(tableCache)
         }
         return toCoreReturnValue()
     }
@@ -594,6 +594,12 @@ class LuaState private constructor(
     }
 
     private fun LuaStackValue.toCoreValue(): KLuaCoreValue {
+        return toCoreValue(IdentityHashMap())
+    }
+
+    private fun LuaStackValue.toCoreValue(
+        tableCache: MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>,
+    ): KLuaCoreValue {
         return when (this) {
             LuaStackValue.Nil -> KLuaCoreValue.Nil
             is LuaStackValue.BooleanValue -> KLuaCoreValue.BooleanValue(value)
@@ -602,17 +608,33 @@ class LuaState private constructor(
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.UnsupportedValue("function")
-            is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
-                fields.map { (fieldKey, fieldValue) ->
-                    fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
-                }.toMap(mutableMapOf()),
-            )
+            is LuaStackValue.TableValue -> toCoreTableValue(tableCache)
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
         }
     }
 
-    private fun LuaStackValue.toCoreTableFieldValue(): KLuaCoreValue {
+    private fun LuaStackValue.TableValue.toCoreTableValue(
+        tableCache: MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>,
+    ): KLuaCoreValue.TableValue {
+        val cached = tableCache[this]
+        if (cached != null) {
+            return cached
+        }
+        val tableValue = KLuaCoreValue.TableValue(mutableMapOf())
+        tableCache[this] = tableValue
+        tableValue.fields.putAll(
+            fields.map { (fieldKey, fieldValue) ->
+                fieldKey.toCoreTableFieldValue(tableCache) to fieldValue.toCoreTableFieldValue(tableCache)
+            },
+        )
+        tableValue.metatable = metatable?.toCoreTableValue(tableCache)
+        return tableValue
+    }
+
+    private fun LuaStackValue.toCoreTableFieldValue(
+        tableCache: MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>,
+    ): KLuaCoreValue {
         return when (this) {
             LuaStackValue.Nil -> KLuaCoreValue.Nil
             is LuaStackValue.BooleanValue -> KLuaCoreValue.BooleanValue(value)
@@ -622,11 +644,7 @@ class LuaState private constructor(
             is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.FunctionValue { arguments ->
                 callHostFunction(function, arguments)
             }
-            is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
-                fields.map { (fieldKey, fieldValue) ->
-                    fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
-                }.toMap(mutableMapOf()),
-            )
+            is LuaStackValue.TableValue -> toCoreTableValue(tableCache)
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
@@ -637,16 +655,55 @@ class LuaState private constructor(
         coreArguments: List<KLuaCoreValue>,
         stackArguments: List<LuaStackValue>,
     ) {
+        val tableCache = seedCoreTableCache(stackArguments, coreArguments)
         for (index in coreArguments.indices) {
             val coreTable = coreArguments[index] as? KLuaCoreValue.TableValue ?: continue
             val stackTable = stackArguments.getOrNull(index) as? LuaStackValue.TableValue ?: continue
-            coreTable.fields.clear()
-            coreTable.fields.putAll(
-                stackTable.fields.map { (fieldKey, fieldValue) ->
-                    fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
-                },
-            )
+            syncStackTableToCore(stackTable, coreTable, tableCache)
         }
+    }
+
+    private fun seedCoreTableCache(
+        stackValues: List<LuaStackValue>,
+        coreValues: List<KLuaCoreValue>,
+    ): MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue> {
+        val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+        for (index in stackValues.indices) {
+            val stackTable = stackValues[index] as? LuaStackValue.TableValue ?: continue
+            val coreTable = coreValues.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
+            seedCoreTableCache(stackTable, coreTable, tableCache)
+        }
+        return tableCache
+    }
+
+    private fun seedCoreTableCache(
+        stackTable: LuaStackValue.TableValue,
+        coreTable: KLuaCoreValue.TableValue,
+        tableCache: MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>,
+    ) {
+        if (tableCache.put(stackTable, coreTable) != null) {
+            return
+        }
+        val stackMetatable = stackTable.metatable
+        val coreMetatable = coreTable.metatable
+        if (stackMetatable != null && coreMetatable != null) {
+            seedCoreTableCache(stackMetatable, coreMetatable, tableCache)
+        }
+    }
+
+    private fun syncStackTableToCore(
+        stackTable: LuaStackValue.TableValue,
+        coreTable: KLuaCoreValue.TableValue,
+        tableCache: MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>,
+    ) {
+        tableCache[stackTable] = coreTable
+        coreTable.fields.clear()
+        coreTable.fields.putAll(
+            stackTable.fields.map { (fieldKey, fieldValue) ->
+                fieldKey.toCoreTableFieldValue(tableCache) to fieldValue.toCoreTableFieldValue(tableCache)
+            },
+        )
+        coreTable.metatable = stackTable.metatable?.toCoreTableValue(tableCache)
     }
 
     private fun valueAt(index: Int): LuaStackValue? {
@@ -749,6 +806,22 @@ class LuaState private constructor(
                 table.fields.remove(stackKey)
             } else {
                 table.fields[stackKey] = stackValue
+            }
+        }
+
+        override fun getMetatable(index: Int): Any? {
+            val table = valueAt(index) as? LuaStackValue.TableValue
+                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            return table.metatable
+        }
+
+        override fun setMetatable(index: Int, metatable: Any?) {
+            val table = valueAt(index) as? LuaStackValue.TableValue
+                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            table.metatable = when (val stackMetatable = metatable.toStackValue()) {
+                LuaStackValue.Nil -> null
+                is LuaStackValue.TableValue -> stackMetatable
+                else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
             }
         }
 
@@ -856,7 +929,9 @@ class LuaState private constructor(
 
         data class TableValue(
             val fields: MutableMap<LuaStackValue, LuaStackValue> = linkedMapOf(),
-        ) : LuaStackValue
+        ) : LuaStackValue {
+            var metatable: TableValue? = null
+        }
 
         data class ChunkValue(
             val chunk: KLuaCoreChunk,
