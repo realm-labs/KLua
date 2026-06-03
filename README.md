@@ -6,7 +6,7 @@ KLua is a work-in-progress pure Kotlin Lua runtime for JVM 17+. It aims to provi
 
 KLua is pre-1.0 and not production-ready. Public APIs may change while the runtime moves toward a complete Lua implementation.
 
-The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, a default Lua 5.4 configuration, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, an initial base standard library installer, tests, and a JMH benchmark module. Broader standard libraries, debug tooling, DAP support, bytecode loading, sandboxing, broader compatibility profiles, and performance work are still roadmap items.
+The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, a default Lua 5.4 configuration, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string standard library support, tests, and a JMH benchmark module. Broader standard libraries, debug tooling, DAP support, bytecode loading, sandboxing, broader compatibility profiles, and performance work are still roadmap items.
 
 ## Goals
 
@@ -23,7 +23,7 @@ The repository currently includes a multi-module Gradle project, lexer/parser/co
 - `klua-core`: internal lexer, parser, AST, compiler, bytecode, value model, and VM runtime.
 - `klua-api`: stable Java-friendly public API surface, including `LuaState`, `Lua`, `LuaChunk`, and host function types.
 - `klua-kotlin`: Kotlin extension helpers for the public API.
-- `klua-stdlib`: initial standard library integration, currently focused on base library functions.
+- `klua-stdlib`: partial standard library integration, currently focused on base, math, and string functions.
 - `klua-compat`: Lua version profile and compatibility behavior.
 - `klua-debug`: planned runtime debugging internals.
 - `klua-dap`: planned Debug Adapter Protocol integration.
