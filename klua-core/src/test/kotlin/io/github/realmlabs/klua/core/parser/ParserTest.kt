@@ -13,6 +13,7 @@ import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
 import io.github.realmlabs.klua.core.ast.VariableExpression
+import io.github.realmlabs.klua.core.ast.WhileStatement
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -75,6 +76,25 @@ class ParserTest {
 
         val thenReturn = assertIs<ReturnStatement>(statement.thenBlock.single())
         assertEquals("high", assertIs<StringExpression>(thenReturn.values.single()).value)
+    }
+
+    @Test
+    fun `parses while block`() {
+        val chunk = Parser.parse(
+            """
+            while count < 3 do
+                count = count + 1
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<WhileStatement>(chunk.statements.single())
+        val condition = assertIs<BinaryExpression>(statement.condition)
+        assertEquals(BinaryOperator.LESS, condition.operator)
+        assertEquals(1, statement.block.size)
+
+        val assignment = assertIs<AssignmentStatement>(statement.block.single())
+        assertEquals(listOf("count"), assignment.names)
     }
 
     @Test

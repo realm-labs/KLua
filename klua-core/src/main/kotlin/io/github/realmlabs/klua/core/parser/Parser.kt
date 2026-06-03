@@ -18,6 +18,7 @@ import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
 import io.github.realmlabs.klua.core.ast.VariableExpression
+import io.github.realmlabs.klua.core.ast.WhileStatement
 import io.github.realmlabs.klua.core.lexer.Lexer
 import io.github.realmlabs.klua.core.lexer.Token
 import io.github.realmlabs.klua.core.lexer.TokenKind
@@ -51,6 +52,7 @@ internal class Parser private constructor(
             match(TokenKind.LOCAL) -> localStatement(previous())
             match(TokenKind.RETURN) -> returnStatement(previous())
             match(TokenKind.IF) -> ifStatement(previous())
+            match(TokenKind.WHILE) -> whileStatement(previous())
             check(TokenKind.IDENTIFIER) -> assignmentStatement()
             else -> throw errorAt(peek(), "expected statement")
         }
@@ -120,6 +122,14 @@ internal class Parser private constructor(
 
         val end = consume(TokenKind.END, "expected 'end' after if statement")
         return IfStatement(condition, thenBlock, elseifBranches, elseBlock, SourceRange(start.range.start, end.range.end))
+    }
+
+    private fun whileStatement(start: Token): WhileStatement {
+        val condition = expression()
+        consume(TokenKind.DO, "expected 'do' after while condition")
+        val block = parseBlock(setOf(TokenKind.END))
+        val end = consume(TokenKind.END, "expected 'end' after while statement")
+        return WhileStatement(condition, block, SourceRange(start.range.start, end.range.end))
     }
 
     private fun expressionList(): List<Expression> {

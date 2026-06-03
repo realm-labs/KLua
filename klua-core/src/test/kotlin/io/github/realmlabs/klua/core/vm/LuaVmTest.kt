@@ -327,6 +327,58 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes while loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                while x < 3 do
+                    x = x + 1
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
+    fun `skips false while loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 4
+                while x < 3 do
+                    x = x + 1
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(4)), result)
+    }
+
+    @Test
+    fun `keeps while body local declarations scoped`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                while x < 2 do
+                    local next = x + 1
+                    x = next
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2)), result)
+    }
+
+    @Test
     fun `rejects comparison between incompatible values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" < 1"""))

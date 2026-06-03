@@ -17,6 +17,7 @@ import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
 import io.github.realmlabs.klua.core.ast.VariableExpression
+import io.github.realmlabs.klua.core.ast.WhileStatement
 import io.github.realmlabs.klua.core.bytecode.BytecodeWriter
 import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.Opcode
@@ -60,6 +61,7 @@ internal class Compiler private constructor(
                 is LocalStatement -> compileLocal(statement)
                 is AssignmentStatement -> compileAssignment(statement)
                 is IfStatement -> compileIf(statement)
+                is WhileStatement -> compileWhile(statement)
                 is ReturnStatement -> compileReturn(statement)
             }
         }
@@ -149,6 +151,22 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.JMP, 0), line)
         endJumps += endJump
 
+        patchTest(testIndex, writer.size)
+    }
+
+    private fun compileWhile(statement: WhileStatement) {
+        val loopStart = writer.size
+        val conditionRegister = nextLocalRegister
+        compileExpression(statement.condition, conditionRegister)
+
+        val testIndex = writer.size
+        writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.range.start.line)
+
+        compileScopedBlock(statement.block)
+
+        val backJump = writer.size
+        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        patchJump(backJump, loopStart)
         patchTest(testIndex, writer.size)
     }
 

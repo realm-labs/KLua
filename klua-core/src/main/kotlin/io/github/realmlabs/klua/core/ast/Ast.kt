@@ -36,6 +36,12 @@ internal data class IfStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class WhileStatement(
+    val condition: Expression,
+    val block: List<Statement>,
+    override val range: SourceRange,
+) : Statement
+
 internal data class ElseIfBranch(
     val condition: Expression,
     val block: List<Statement>,
