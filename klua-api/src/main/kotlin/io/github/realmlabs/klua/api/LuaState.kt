@@ -752,6 +752,24 @@ class LuaState private constructor(
             }
         }
 
+        override fun nextTableEntry(index: Int, key: Any?): List<Any?>? {
+            val table = valueAt(index) as? LuaStackValue.TableValue
+                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            val entries = table.fields.entries.toList()
+            val nextIndex = if (key == null) {
+                0
+            } else {
+                val stackKey = key.toStackValue()
+                val currentIndex = entries.indexOfFirst { entry -> entry.key == stackKey }
+                if (currentIndex < 0) {
+                    throw IllegalArgumentException("invalid key to 'next'")
+                }
+                currentIndex + 1
+            }
+            val entry = entries.getOrNull(nextIndex) ?: return null
+            return listOf(entry.key.toAnyValue(), entry.value.toAnyValue())
+        }
+
         override fun tableLength(index: Int): Long? {
             val table = valueAt(index) as? LuaStackValue.TableValue ?: return null
             var length = 0L

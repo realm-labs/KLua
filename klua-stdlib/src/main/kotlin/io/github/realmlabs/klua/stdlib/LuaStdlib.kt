@@ -43,6 +43,7 @@ public object LuaStdlib {
     public fun openBase(state: LuaState, output: Consumer<String>): LuaState {
         state.register("assert", ::assert)
         state.register("error", ::error)
+        state.register("next", ::next)
         state.register("print") { context -> print(context, output) }
         state.register("rawequal", ::rawequal)
         state.register("rawget", ::rawget)
@@ -51,6 +52,25 @@ public object LuaStdlib {
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
         state.register("type", ::type)
+        installLuaSource(
+            state,
+            """
+            pairs = function(tableValue)
+                return next, tableValue, nil
+            end
+            ipairs = function(tableValue)
+                return function(state, index)
+                    local nextIndex = index + 1
+                    local value = rawget(state, nextIndex)
+                    if value == nil then
+                        return nil
+                    end
+                    return nextIndex, value
+                end, tableValue, 0
+            end
+            """.trimIndent(),
+            "stdlib-base-iterators.lua",
+        )
         return state
     }
 
@@ -155,6 +175,18 @@ public object LuaStdlib {
 
     private fun error(context: LuaCallContext): LuaReturn {
         throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
+    }
+
+    private fun next(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'next' (table expected)")
+        }
+        val key = if (context.isNone(2) || context.isNil(2)) {
+            null
+        } else {
+            context.get(2)
+        }
+        return LuaReturn.ofValues(context.nextTableEntry(1, key) ?: listOf(null))
     }
 
     private fun print(context: LuaCallContext, output: Consumer<String>): LuaReturn {

@@ -19,6 +19,8 @@ interface LuaCallContext {
 
     fun setTableValue(index: Int, key: Any?, value: Any?)
 
+    fun nextTableEntry(index: Int, key: Any?): List<Any?>?
+
     fun tableLength(index: Int): Long?
 
     fun toBoolean(index: Int): Boolean

@@ -173,6 +173,81 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `next iterates raw table entries`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {"a", "b"}
+                local firstKey, firstValue = next(values)
+                local secondKey, secondValue = next(values, firstKey)
+                local done = next(values, secondKey)
+                return firstKey, firstValue, secondKey, secondValue, done
+                """.trimIndent(),
+                "next.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("a", state.toString(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals("b", state.toString(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `pairs and ipairs return iterator triplets`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {"a", "b"}
+                local pairIterator, pairState, pairKey = pairs(values)
+                local pairFirstKey, pairFirstValue = pairIterator(pairState, pairKey)
+                local pairSecondKey, pairSecondValue = pairIterator(pairState, pairFirstKey)
+                local ipairsIterator, ipairsState, ipairsIndex = ipairs(values)
+                local ipairsFirstKey, ipairsFirstValue = ipairsIterator(ipairsState, ipairsIndex)
+                local ipairsSecondKey, ipairsSecondValue = ipairsIterator(ipairsState, ipairsFirstKey)
+                local ipairsDone = ipairsIterator(ipairsState, ipairsSecondKey)
+                return pairFirstKey, pairFirstValue, pairSecondKey, pairSecondValue,
+                    ipairsFirstKey, ipairsFirstValue, ipairsSecondKey, ipairsSecondValue, ipairsDone
+                """.trimIndent(),
+                "pairs-ipairs.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("a", state.toString(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals("b", state.toString(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals("a", state.toString(6))
+        assertEquals(2L, state.toInteger(7))
+        assertEquals("b", state.toString(8))
+        assertTrue(state.isNil(9))
+    }
+
+    @Test
+    fun `next reports table argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return next("not-table")""", "next-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'next' (table expected)", state.toString(-1))
+    }
+
+    @Test
     fun `rawequal compares primitive values and table identity`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
