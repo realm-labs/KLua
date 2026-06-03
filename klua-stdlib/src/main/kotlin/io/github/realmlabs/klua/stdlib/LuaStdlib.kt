@@ -61,6 +61,8 @@ public object LuaStdlib {
     @JvmStatic
     public fun openString(state: LuaState): LuaState {
         state.newTable()
+        setFunctionField(state, "byte", ::stringByte)
+        setFunctionField(state, "char", ::stringChar)
         setFunctionField(state, "len", ::stringLen)
         setFunctionField(state, "lower", ::stringLower)
         setFunctionField(state, "rep", ::stringRep)
@@ -201,6 +203,37 @@ public object LuaStdlib {
         }
     }
 
+    private fun stringByte(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "string.byte")
+        val start = if (context.isNone(2) || context.isNil(2)) {
+            1L
+        } else {
+            requiredInteger(context, 2, "string.byte")
+        }
+        val end = if (context.isNone(3) || context.isNil(3)) {
+            start
+        } else {
+            requiredInteger(context, 3, "string.byte")
+        }
+        val range = text.luaIndexRange(start, end)
+        if (range.isEmpty()) {
+            return LuaReturn.none()
+        }
+        return LuaReturn.ofValues(range.map { index -> text[index - 1].code.toLong() })
+    }
+
+    private fun stringChar(context: LuaCallContext): LuaReturn {
+        val chars = StringBuilder()
+        for (index in 1..context.argumentCount) {
+            val code = requiredInteger(context, index, "string.char")
+            if (code !in 0L..255L) {
+                throw LuaRuntimeException("bad argument #$index to 'string.char' (value out of range)")
+            }
+            chars.append(code.toInt().toChar())
+        }
+        return LuaReturn.of(chars.toString())
+    }
+
     private fun stringLen(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(requiredString(context, 1, "string.len").length.toLong())
     }
@@ -277,17 +310,25 @@ public object LuaStdlib {
     }
 
     private fun String.substringByLuaRange(start: Long, end: Long): String {
+        val range = luaIndexRange(start, end)
+        if (range.isEmpty()) {
+            return ""
+        }
+        return substring(range.first - 1, range.last)
+    }
+
+    private fun String.luaIndexRange(start: Long, end: Long): IntRange {
         val normalizedStart = normalizeStringIndex(start)
         val normalizedEnd = normalizeStringIndex(end)
         if (normalizedStart > normalizedEnd) {
-            return ""
+            return IntRange.EMPTY
         }
         val first = normalizedStart.coerceIn(1, length + 1)
         val last = normalizedEnd.coerceIn(0, length)
         if (first > last) {
-            return ""
+            return IntRange.EMPTY
         }
-        return substring(first - 1, last)
+        return first..last
     }
 
     private fun String.normalizeStringIndex(index: Long): Int {

@@ -274,6 +274,44 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string byte and char convert byte values`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, second, third = string.byte("ABC", 1, 3)
+                local last = string.byte("ABC", -1)
+                local empty = string.char()
+                return first, second, third, last, string.char(65, 66, 67), empty
+                """.trimIndent(),
+                "string-byte-char.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(65L, state.toInteger(1))
+        assertEquals(66L, state.toInteger(2))
+        assertEquals(67L, state.toInteger(3))
+        assertEquals(67L, state.toInteger(4))
+        assertEquals("ABC", state.toString(5))
+        assertEquals("", state.toString(6))
+    }
+
+    @Test
+    fun `string byte returns no values for empty ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.byte("ABC", 4, 2)""", "string-byte-empty.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0, state.getTop())
+    }
+
+    @Test
     fun `string functions report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -283,5 +321,17 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #2 to 'string.rep' (integer expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `string char reports byte range errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.char(256)""", "string-char-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'string.char' (value out of range)", state.toString(-1))
     }
 }
