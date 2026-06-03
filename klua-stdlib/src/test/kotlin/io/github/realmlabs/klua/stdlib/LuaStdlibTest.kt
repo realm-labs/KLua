@@ -1257,18 +1257,31 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `table sort reports unsupported comparator errors`() {
+    fun `table sort uses comparator functions`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return table.sort({1, 2}, function(a, b) return a > b end)""", "table-sort-comparator.lua"),
+            state.load(
+                """
+                local numbers = {1, 3, 2}
+                local names = {"ccc", "a", "bb"}
+                table.sort(numbers, function(a, b) return a > b end)
+                table.sort(names, function(a, b) return #a < #b end)
+                return numbers[1], numbers[2], numbers[3], names[1], names[2], names[3]
+                """.trimIndent(),
+                "table-sort-comparator.lua",
+            ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("table.sort comparators are not supported", state.toString(-1))
+        assertEquals(3L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals("a", state.toString(4))
+        assertEquals("bb", state.toString(5))
+        assertEquals("ccc", state.toString(6))
     }
 
     @Test
