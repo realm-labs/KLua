@@ -414,7 +414,9 @@ class LuaState private constructor(
         return try {
             val result = function.call(DefaultLuaCallContext(stackArguments))
             syncStackArgumentsToCore(arguments, stackArguments)
-            KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
+            KLuaCoreCallResult.Success(
+                result.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
+            )
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -503,6 +505,7 @@ class LuaState private constructor(
             is Double -> LuaStackValue.NumberValue(this)
             is CharSequence -> LuaStackValue.StringValue(toString())
             is Map<*, *> -> toStackTableValue()
+            is LuaStackValue -> this
             else -> LuaStackValue.UserDataValue(this)
         }
     }
@@ -521,6 +524,20 @@ class LuaState private constructor(
             is Map<*, *> -> toCoreTableValue()
             else -> KLuaCoreValue.UserDataValue(this)
         }
+    }
+
+    private fun Any?.toCoreReturnValue(
+        stackArguments: List<LuaStackValue>,
+        coreArguments: List<KLuaCoreValue>,
+    ): KLuaCoreValue {
+        val stackTable = this as? LuaStackValue.TableValue
+        if (stackTable != null) {
+            val argumentIndex = stackArguments.indexOfFirst { it === stackTable }
+            if (argumentIndex >= 0) {
+                return coreArguments[argumentIndex]
+            }
+        }
+        return toCoreReturnValue()
     }
 
     private fun Map<*, *>.toStackTableValue(): LuaStackValue.TableValue {
@@ -694,6 +711,10 @@ class LuaState private constructor(
                 is LuaStackValue.UserDataValue -> value.value
                 else -> throw IllegalArgumentException("argument $index is ${stackTypeName(value)}")
             }
+        }
+
+        override fun getTable(index: Int): Any? {
+            return valueAt(index) as? LuaStackValue.TableValue
         }
 
         override fun getTableValue(index: Int, key: Any?): Any? {

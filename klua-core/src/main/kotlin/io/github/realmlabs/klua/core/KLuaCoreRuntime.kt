@@ -325,8 +325,7 @@ private fun callCoreFunction(
             is KLuaCoreCallResult.Success -> {
                 syncPublicTablesToLua(arguments, publicArguments, globals)
                 result.values.map { value ->
-                    value.toLuaValueOrNull(globals)
-                        ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
+                    value.toLuaReturnValue(arguments, publicArguments, globals)
                 }
             }
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
@@ -336,6 +335,22 @@ private fun callCoreFunction(
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
     }
+}
+
+private fun KLuaCoreValue.toLuaReturnValue(
+    luaArguments: List<LuaValue>,
+    publicArguments: List<KLuaCoreValue>,
+    globals: KLuaCoreGlobals,
+): LuaValue {
+    if (this is KLuaCoreValue.TableValue) {
+        val argumentIndex = publicArguments.indexOfFirst { it === this }
+        val originalTable = luaArguments.getOrNull(argumentIndex) as? LuaTable
+        if (originalTable != null) {
+            return originalTable
+        }
+    }
+    return toLuaValueOrNull(globals)
+        ?: throw LuaVmException("cannot return ${publicTypeName()} as Lua value")
 }
 
 private fun syncPublicTablesToLua(

@@ -13,6 +13,8 @@ interface LuaCallContext {
 
     fun get(index: Int): Any?
 
+    fun getTable(index: Int): Any?
+
     fun getTableValue(index: Int, key: Any?): Any?
 
     fun setTableValue(index: Int, key: Any?, value: Any?)

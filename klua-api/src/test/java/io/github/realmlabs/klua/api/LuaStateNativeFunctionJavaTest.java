@@ -101,6 +101,56 @@ class LuaStateNativeFunctionJavaTest {
     }
 
     @Test
+    void nativeFunctionCanReturnTableArgumentOnStack() {
+        LuaState state = LuaState.create();
+        Map<Object, Object> table = new LinkedHashMap<>();
+        table.put(1L, "first");
+
+        state.pushFunction(context -> {
+            context.setTableValue(1, "marker", "updated");
+            return LuaReturn.of(context.getTable(1));
+        });
+        state.pushFunction(context -> LuaReturn.of(table));
+        assertEquals(LuaStatus.OK, state.pcall(0, 1));
+
+        assertEquals(LuaStatus.OK, state.pcall(1, 1));
+        assertEquals(1, state.getTop());
+        assertTrue(state.isTable(1));
+
+        state.getField(1, "marker");
+        assertEquals("updated", state.toString(-1));
+    }
+
+    @Test
+    void nativeFunctionCanReturnTableArgumentFromLuaSource() {
+        LuaState state = LuaState.create();
+
+        state.register("identityTable", context -> {
+            context.setTableValue(1, "marker", "updated");
+            return LuaReturn.of(context.getTable(1));
+        });
+
+        assertEquals(
+                LuaStatus.OK,
+                state.load(
+                        """
+                        local value = {"first"}
+                        local returned = identityTable(value)
+                        returned[2] = "second"
+                        return returned == value, value.marker, value[2], #value
+                        """,
+                        "native-table-identity.lua"
+                )
+        );
+        assertEquals(LuaStatus.OK, state.pcall(0, 4));
+
+        assertTrue(state.toBoolean(1));
+        assertEquals("updated", state.toString(2));
+        assertEquals("second", state.toString(3));
+        assertEquals(2L, state.toInteger(4));
+    }
+
+    @Test
     void pushedNativeFunctionGlobalsCanBeCalledFromLuaSource() {
         LuaState state = LuaState.create();
 
