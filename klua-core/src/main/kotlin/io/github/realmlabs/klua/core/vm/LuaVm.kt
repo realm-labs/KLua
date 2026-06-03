@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.value.LuaBoolean
+import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
@@ -33,6 +34,9 @@ internal class LuaVm {
                     stack.set(register(frame, Instruction.a(instruction)), constant)
                 }
                 Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(prototype, Instruction.b(instruction)))
+                Opcode.CLOSURE -> {
+                    stack.set(register(frame, Instruction.a(instruction)), LuaClosure(nested(prototype, Instruction.b(instruction))))
+                }
                 Opcode.MOVE -> stack.copy(register(frame, Instruction.b(instruction)), register(frame, Instruction.a(instruction)))
                 Opcode.ADD -> arithmetic(stack, frame, instruction, Arithmetic.ADD)
                 Opcode.SUB -> arithmetic(stack, frame, instruction, Arithmetic.SUB)
@@ -85,6 +89,13 @@ internal class LuaVm {
             throw LuaVmException("constant index out of range: K$index")
         }
         return prototype.constants[index]
+    }
+
+    private fun nested(prototype: Prototype, index: Int): Prototype {
+        if (index !in prototype.nested.indices) {
+            throw LuaVmException("nested prototype index out of range: P$index")
+        }
+        return prototype.nested[index]
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value
@@ -345,6 +356,7 @@ private fun stringCoercion(value: LuaValue): String? {
 private fun typeName(value: LuaValue): String {
     return when (value) {
         is LuaBoolean -> "boolean"
+        is LuaClosure -> "function"
         is LuaFloat, is LuaInteger -> "number"
         LuaNil -> "nil"
         is LuaString -> "string"

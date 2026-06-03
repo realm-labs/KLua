@@ -249,6 +249,74 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles function expression into nested prototype`() {
+        val prototype = Compiler.compile("return function(a, b) return a + b end")
+
+        assertEquals(1, prototype.maxStackSize)
+        assertEquals(1, prototype.nested.size)
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [1]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+
+        val function = prototype.nested.single()
+        assertEquals(2, function.numParams)
+        assertEquals(false, function.isVararg)
+        assertEquals(4, function.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  MOVE R2 R0
+            0001  [1]  MOVE R3 R1
+            0002  [1]  ADD R2 R2 R3
+            0003  [1]  MOVE R0 R2
+            0004  [1]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(function),
+        )
+    }
+
+    @Test
+    fun `compiles local function declarations as closure locals`() {
+        val prototype = Compiler.compile(
+            """
+            local function identity(value)
+                return value
+            end
+            return identity
+            """.trimIndent(),
+        )
+
+        assertEquals(2, prototype.maxStackSize)
+        assertEquals(1, prototype.nested.size)
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [4]  MOVE R1 R0
+            0002  [4]  MOVE R0 R1
+            0003  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+        assertEquals(1, prototype.nested.single().numParams)
+    }
+
+    @Test
+    fun `adds implicit empty return to function bodies`() {
+        val prototype = Compiler.compile("return function() local x = 1 end")
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  RETURN R0 0
+            """.trimIndent(),
+            Disassembler.disassemble(prototype.nested.single()),
+        )
+    }
+
+    @Test
     fun `compiles local declaration and local return`() {
         val prototype = Compiler.compile(
             """
@@ -632,11 +700,11 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects function declarations until function bytecode is implemented`() {
+    fun `rejects global function declarations until globals are implemented`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile(
                 """
-                local function add(a, b)
+                function add(a, b)
                     return a + b
                 end
                 """.trimIndent(),
@@ -644,7 +712,7 @@ class CompilerTest {
             )
         }
 
-        assertEquals("functions.lua:1:1: local function declarations are not supported by this compiler slice", error.message)
+        assertEquals("functions.lua:1:1: function declarations are not supported by this compiler slice", error.message)
     }
 
     @Test

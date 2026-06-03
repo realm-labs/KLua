@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.core.bytecode
 
 import io.github.realmlabs.klua.core.value.LuaBoolean
+import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
@@ -29,6 +30,7 @@ internal object Disassembler {
                 val constant = prototype.constants[Instruction.b(instruction)]
                 "LOAD_K R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
             }
+            Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)
             Opcode.SUB -> binary("SUB", instruction)
@@ -70,6 +72,7 @@ internal object Disassembler {
             is LuaBoolean -> value.value.toString()
             is LuaInteger -> value.value.toString()
             is LuaFloat -> value.value.toString()
+            is LuaClosure -> "function"
             is LuaString -> "\"${value.value}\""
         }
     }

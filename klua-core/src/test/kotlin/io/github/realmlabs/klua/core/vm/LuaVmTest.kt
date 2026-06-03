@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.compiler.Compiler
 import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaBoolean
+import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
@@ -13,6 +14,7 @@ import io.github.realmlabs.klua.core.value.LuaString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 
 class LuaVmTest {
     @Test
@@ -292,6 +294,17 @@ class LuaVmTest {
         )
 
         assertEquals(listOf(LuaInteger(3), LuaInteger(2), LuaInteger(0)), result)
+    }
+
+    @Test
+    fun `loads function expression as closure value`() {
+        val result = LuaVm().execute(
+            Compiler.compile("return function(a, b) return a + b end"),
+        )
+
+        val closure = assertIs<LuaClosure>(result.single())
+        assertEquals(2, closure.prototype.numParams)
+        assertEquals(false, closure.prototype.isVararg)
     }
 
     @Test

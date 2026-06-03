@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.core.value
 
+import io.github.realmlabs.klua.core.bytecode.Prototype
+
 internal sealed interface LuaValue
 
 internal data object LuaNil : LuaValue
@@ -18,4 +20,8 @@ internal data class LuaFloat(
 
 internal data class LuaString(
     val value: String,
+) : LuaValue
+
+internal data class LuaClosure(
+    val prototype: Prototype,
 ) : LuaValue

@@ -40,6 +40,7 @@ internal class Compiler private constructor(
 ) {
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
+    private val nested = mutableListOf<Prototype>()
     private val locals = linkedMapOf<String, Int>()
     private val loopBreaks = mutableListOf<MutableList<Int>>()
     private var nextLocalRegister = 0
@@ -57,6 +58,7 @@ internal class Compiler private constructor(
             version = version,
             code = writer.code(),
             constants = constants.toArray(),
+            nested = nested.toTypedArray(),
             lineInfo = writer.lineInfo(),
             maxStackSize = maxRegister.coerceAtLeast(1),
         )
@@ -72,7 +74,7 @@ internal class Compiler private constructor(
                 is RepeatStatement -> compileRepeat(statement)
                 is NumericForStatement -> compileNumericFor(statement)
                 is FunctionStatement -> throw unsupported(statement, "function declarations are not supported by this compiler slice")
-                is LocalFunctionStatement -> throw unsupported(statement, "local function declarations are not supported by this compiler slice")
+                is LocalFunctionStatement -> compileLocalFunction(statement)
                 is ReturnStatement -> compileReturn(statement)
                 is BreakStatement -> compileBreak(statement)
             }
@@ -140,6 +142,13 @@ internal class Compiler private constructor(
         for ((index, name) in statement.names.withIndex()) {
             locals[name] = slots[index]
         }
+    }
+
+    private fun compileLocalFunction(statement: LocalFunctionStatement) {
+        val slot = nextLocalRegister++
+        maxRegister = maxRegister.coerceAtLeast(slot + 1)
+        locals[statement.name] = slot
+        compileFunctionExpression(statement.function, slot)
     }
 
     private fun compileAssignment(statement: AssignmentStatement) {
@@ -282,10 +291,48 @@ internal class Compiler private constructor(
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
             is VariableExpression -> compileVariable(expression, register)
-            is FunctionExpression -> throw unsupported(expression, "function expressions are not supported by this compiler slice")
+            is FunctionExpression -> compileFunctionExpression(expression, register)
             is UnaryExpression -> compileUnaryExpression(expression, register)
             is BinaryExpression -> compileBinaryExpression(expression, register)
         }
+    }
+
+    private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {
+        val prototype = compileNestedFunction(expression)
+        val nestedIndex = nested.size
+        if (nestedIndex > 255) {
+            throw unsupported(expression, "too many nested function prototypes")
+        }
+        nested += prototype
+        writer.emit(Instruction.abc(Opcode.CLOSURE, register, nestedIndex), expression.range.start.line)
+    }
+
+    private fun compileNestedFunction(expression: FunctionExpression): Prototype {
+        val compiler = Compiler(sourceName, version)
+        for (parameter in expression.parameters) {
+            val slot = compiler.nextLocalRegister++
+            compiler.maxRegister = compiler.maxRegister.coerceAtLeast(slot + 1)
+            compiler.locals[parameter] = slot
+        }
+        if (expression.body.isEmpty()) {
+            compiler.emitReturn(0, 0, expression.range.start.line)
+        } else {
+            compiler.compileStatements(expression.body)
+            if (expression.body.last() !is ReturnStatement) {
+                compiler.emitReturn(0, 0, expression.range.end.line)
+            }
+        }
+        return Prototype(
+            sourceName = sourceName,
+            version = version,
+            code = compiler.writer.code(),
+            constants = compiler.constants.toArray(),
+            nested = compiler.nested.toTypedArray(),
+            lineInfo = compiler.writer.lineInfo(),
+            maxStackSize = compiler.maxRegister.coerceAtLeast(1),
+            numParams = expression.parameters.size,
+            isVararg = expression.isVararg,
+        )
     }
 
     private fun compileVariable(expression: VariableExpression, register: Int) {

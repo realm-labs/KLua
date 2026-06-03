@@ -6,6 +6,7 @@ internal enum class Opcode {
     LOAD_INT,
     LOAD_FLOAT,
     LOAD_K,
+    CLOSURE,
     MOVE,
     ADD,
     SUB,
