@@ -16,6 +16,7 @@ internal object LuaUtf8Library {
         setFunctionField(state, "char", ::utf8Char)
         setFunctionField(state, "codepoint", ::utf8Codepoint)
         setFunctionField(state, "len", ::utf8Len)
+        setFunctionField(state, "offset", ::utf8Offset)
         state.pushString(CHAR_PATTERN)
         state.setField(-2, "charpattern")
         state.setGlobal("utf8")
@@ -71,6 +72,29 @@ internal object LuaUtf8Library {
         return LuaReturn.of((end - start + 1).toLong())
     }
 
+    private fun utf8Offset(context: LuaCallContext): LuaReturn {
+        val codePoints = requiredString(context, 1, "utf8.offset").codePoints().toArray()
+        val offset = requiredInteger(context, 2, "utf8.offset")
+        val defaultPosition = if (offset < 0L) {
+            codePoints.size + 1L
+        } else {
+            1L
+        }
+        val position = normalizedOffsetPosition(context, 3, defaultPosition, codePoints.size, "utf8.offset")
+        val target = when {
+            offset > 0L -> position + offset - 1L
+            offset < 0L -> position + offset
+            else -> position
+        }
+        if (offset == 0L && target == codePoints.size + 1L) {
+            return LuaReturn.of(target)
+        }
+        if (target < 1L || target > codePoints.size.toLong()) {
+            return LuaReturn.of(null)
+        }
+        return LuaReturn.of(target)
+    }
+
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
         state.pushFunction(function)
         state.setField(-2, name)
@@ -111,5 +135,24 @@ internal object LuaUtf8Library {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
         }
         return normalized.toInt()
+    }
+
+    private fun normalizedOffsetPosition(
+        context: LuaCallContext,
+        index: Int,
+        defaultValue: Long,
+        length: Int,
+        functionName: String,
+    ): Long {
+        val position = if (context.isNone(index) || context.isNil(index)) {
+            defaultValue
+        } else {
+            requiredInteger(context, index, functionName)
+        }
+        val normalized = if (position < 0L) length + position + 1L else position
+        if (normalized < 1L || normalized > length + 1L) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+        }
+        return normalized
     }
 }

@@ -911,6 +911,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 offset returns codepoint positions`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "A" .. utf8.char(128512) .. "Z"
+                return utf8.offset(text, 2),
+                    utf8.offset(text, -1),
+                    utf8.offset(text, 1, 2),
+                    utf8.offset(text, 0, 2),
+                    utf8.offset(text, 3, 2)
+                """.trimIndent(),
+                "utf8-offset.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(3L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `utf8 offset reports position errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.offset("abc", 1, 5)""", "utf8-offset-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #3 to 'utf8.offset' (position out of range)", state.toString(-1))
+    }
+
+    @Test
     fun `utf8 char rejects invalid code points`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
