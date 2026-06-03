@@ -7,7 +7,10 @@ import io.github.realmlabs.klua.api.LuaState
 import java.util.function.Consumer
 import kotlin.math.absoluteValue
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.floor
+import kotlin.math.sin
+import kotlin.math.tan
 
 public object LuaStdlib {
     @JvmStatic
@@ -45,9 +48,12 @@ public object LuaStdlib {
         state.newTable()
         setFunctionField(state, "abs", ::mathAbs)
         setFunctionField(state, "ceil", ::mathCeil)
+        setFunctionField(state, "cos", ::mathCos)
         setFunctionField(state, "floor", ::mathFloor)
         setFunctionField(state, "max", ::mathMax)
         setFunctionField(state, "min", ::mathMin)
+        setFunctionField(state, "sin", ::mathSin)
+        setFunctionField(state, "tan", ::mathTan)
         state.setGlobal("math")
         return state
     }
@@ -144,6 +150,10 @@ public object LuaStdlib {
         return LuaReturn.of(ceil(requiredNumber(context, 1, "math.ceil")).toLong())
     }
 
+    private fun mathCos(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(cos(requiredNumber(context, 1, "math.cos")))
+    }
+
     private fun mathFloor(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(floor(requiredNumber(context, 1, "math.floor")).toLong())
     }
@@ -170,6 +180,14 @@ public object LuaStdlib {
             }
         }
         return LuaReturn.of(min)
+    }
+
+    private fun mathSin(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(sin(requiredNumber(context, 1, "math.sin")))
+    }
+
+    private fun mathTan(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(tan(requiredNumber(context, 1, "math.tan")))
     }
 
     private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {

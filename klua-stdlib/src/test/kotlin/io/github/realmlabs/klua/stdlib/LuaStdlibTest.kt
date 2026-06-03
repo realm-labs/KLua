@@ -206,6 +206,22 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openMath installs trigonometric functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return math.sin(0), math.cos(0), math.tan(0)""", "math-trig.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0.0, state.toNumber(1) ?: error("missing sin result"), 1e-12)
+        assertEquals(1.0, state.toNumber(2) ?: error("missing cos result"), 1e-12)
+        assertEquals(0.0, state.toNumber(3) ?: error("missing tan result"), 1e-12)
+    }
+
+    @Test
     fun `math functions report numeric argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -215,6 +231,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'math.abs' (number expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `trigonometric functions report numeric argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.sin("x")""", "math-trig-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'math.sin' (number expected)", state.toString(-1))
     }
 
     @Test
