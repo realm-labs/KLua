@@ -91,6 +91,7 @@ public object LuaStdlib {
         setFunctionField(state, "concat", ::tableConcat)
         setFunctionField(state, "insert", ::tableInsert)
         setFunctionField(state, "remove", ::tableRemove)
+        setFunctionField(state, "sort", ::tableSort)
         setFunctionField(state, "unpack", ::tableUnpack)
         state.setGlobal("table")
         return state
@@ -529,6 +530,41 @@ public object LuaStdlib {
         return LuaReturn.of(removed)
     }
 
+    private fun tableSort(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'table.sort' (table expected)")
+        }
+        if (!context.isNone(2) && !context.isNil(2)) {
+            if (context.typeName(2) == "function") {
+                throw LuaRuntimeException("table.sort comparators are not supported")
+            }
+            throw LuaRuntimeException("bad argument #2 to 'table.sort' (function expected)")
+        }
+
+        val length = context.tableLength(1) ?: 0L
+        val values = (1L..length).map { index ->
+            context.getTableValue(1, index)
+                ?: throw LuaRuntimeException("invalid value at index $index in table for 'sort'")
+        }
+        val sorted = values.sortedWith { left, right -> compareTableSortValues(left, right) }
+        for ((offset, value) in sorted.withIndex()) {
+            context.setTableValue(1, offset + 1L, value)
+        }
+        return LuaReturn.none()
+    }
+
+    private fun compareTableSortValues(left: Any, right: Any): Int {
+        val leftNumber = left.asNumberOrNull()
+        val rightNumber = right.asNumberOrNull()
+        if (leftNumber != null && rightNumber != null) {
+            return leftNumber.compareTo(rightNumber)
+        }
+        if (left is CharSequence && right is CharSequence) {
+            return left.toString().compareTo(right.toString())
+        }
+        throw LuaRuntimeException("invalid order values for 'table.sort'")
+    }
+
     private fun tableUnpack(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'table.unpack' (table expected)")
@@ -644,5 +680,17 @@ public object LuaStdlib {
 
     private fun String.hasLuaPatternMagic(): Boolean {
         return any { char -> char in "^$()%.[]*+-?" }
+    }
+
+    private fun Any.asNumberOrNull(): Double? {
+        return when (this) {
+            is Byte -> toDouble()
+            is Short -> toDouble()
+            is Int -> toDouble()
+            is Long -> toDouble()
+            is Float -> toDouble()
+            is Double -> this
+            else -> null
+        }
     }
 }

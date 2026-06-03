@@ -681,6 +681,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort orders numeric and string lists`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numbers = {3, 1, 2}
+                local names = {"beta", "alpha", "gamma"}
+                table.sort(numbers)
+                table.sort(names)
+                return numbers[1], numbers[2], numbers[3], names[1], names[2], names[3]
+                """.trimIndent(),
+                "table-sort.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(3L, state.toInteger(3))
+        assertEquals("alpha", state.toString(4))
+        assertEquals("beta", state.toString(5))
+        assertEquals("gamma", state.toString(6))
+    }
+
+    @Test
+    fun `table sort reports unsupported comparator errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return table.sort({1, 2}, function(a, b) return a > b end)""", "table-sort-comparator.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("table.sort comparators are not supported", state.toString(-1))
+    }
+
+    @Test
     fun `table unpack returns list values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
