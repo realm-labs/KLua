@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaTableKeyException
+import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm {
@@ -19,7 +20,7 @@ internal class LuaVm {
         return execute(prototype, emptyList(), emptyList())
     }
 
-    private fun execute(prototype: Prototype, arguments: List<LuaValue>, upvalues: List<LuaValue>): List<LuaValue> {
+    private fun execute(prototype: Prototype, arguments: List<LuaValue>, upvalues: List<LuaUpvalue>): List<LuaValue> {
         val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
         for (index in 0 until prototype.numParams) {
             stack.set(index, arguments.getOrElse(index) { LuaNil })
@@ -159,7 +160,7 @@ internal class LuaVm {
     private fun createClosure(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val prototype = nested(frame.prototype, Instruction.b(instruction))
         val upvalues = prototype.upvalues.map { descriptor ->
-            stack.get(register(frame, descriptor.localRegister))
+            stack.capture(register(frame, descriptor.localRegister))
         }
         stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues))
     }
@@ -169,7 +170,7 @@ internal class LuaVm {
         if (index !in frame.upvalues.indices) {
             throw LuaVmException("upvalue index out of range: U$index")
         }
-        stack.set(register(frame, Instruction.a(instruction)), frame.upvalues[index])
+        stack.set(register(frame, Instruction.a(instruction)), frame.upvalues[index].value)
     }
 
     private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {

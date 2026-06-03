@@ -24,8 +24,12 @@ internal data class LuaString(
 
 internal data class LuaClosure(
     val prototype: Prototype,
-    val upvalues: List<LuaValue> = emptyList(),
+    val upvalues: List<LuaUpvalue> = emptyList(),
 ) : LuaValue
+
+internal class LuaUpvalue(
+    var value: LuaValue,
+)
 
 internal class LuaTableKeyException(
     message: String,
