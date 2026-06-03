@@ -16,10 +16,10 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm {
     fun execute(prototype: Prototype): List<LuaValue> {
-        return execute(prototype, emptyList())
+        return execute(prototype, emptyList(), emptyList())
     }
 
-    private fun execute(prototype: Prototype, arguments: List<LuaValue>): List<LuaValue> {
+    private fun execute(prototype: Prototype, arguments: List<LuaValue>, upvalues: List<LuaValue>): List<LuaValue> {
         val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
         for (index in 0 until prototype.numParams) {
             stack.set(index, arguments.getOrElse(index) { LuaNil })
@@ -29,7 +29,7 @@ internal class LuaVm {
         } else {
             emptyList()
         }
-        val frame = CallFrame(prototype, varargs)
+        val frame = CallFrame(prototype, varargs, upvalues)
 
         while (frame.pc < prototype.code.size) {
             val instruction = prototype.code[frame.pc++]
@@ -55,9 +55,8 @@ internal class LuaVm {
                 Opcode.SET_TABLE -> setTable(stack, frame, instruction)
                 Opcode.GET_FIELD -> getField(stack, frame, instruction)
                 Opcode.SET_FIELD -> setField(stack, frame, instruction)
-                Opcode.CLOSURE -> {
-                    stack.set(register(frame, Instruction.a(instruction)), LuaClosure(nested(prototype, Instruction.b(instruction))))
-                }
+                Opcode.CLOSURE -> createClosure(stack, frame, instruction)
+                Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
                 Opcode.MOVE -> stack.copy(register(frame, Instruction.b(instruction)), register(frame, Instruction.a(instruction)))
                 Opcode.ADD -> arithmetic(stack, frame, instruction, Arithmetic.ADD)
                 Opcode.SUB -> arithmetic(stack, frame, instruction, Arithmetic.SUB)
@@ -132,7 +131,7 @@ internal class LuaVm {
         }
 
         val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
-        val results = execute(callee.prototype, arguments)
+        val results = execute(callee.prototype, arguments, callee.upvalues)
         val expectedResults = Instruction.c(instruction)
         if (expectedResults == OPEN_RESULT_COUNT) {
             setOpenResults(stack, frame, base, results)
@@ -155,6 +154,22 @@ internal class LuaVm {
         for (index in 0 until expectedResults) {
             stack.set(base + index, frame.varargs.getOrElse(index) { LuaNil })
         }
+    }
+
+    private fun createClosure(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val prototype = nested(frame.prototype, Instruction.b(instruction))
+        val upvalues = prototype.upvalues.map { descriptor ->
+            stack.get(register(frame, descriptor.localRegister))
+        }
+        stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues))
+    }
+
+    private fun getUpvalue(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val index = Instruction.b(instruction)
+        if (index !in frame.upvalues.indices) {
+            throw LuaVmException("upvalue index out of range: U$index")
+        }
+        stack.set(register(frame, Instruction.a(instruction)), frame.upvalues[index])
     }
 
     private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {

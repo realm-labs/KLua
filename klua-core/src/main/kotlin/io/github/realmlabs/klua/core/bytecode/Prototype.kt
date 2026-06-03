@@ -9,6 +9,7 @@ internal data class Prototype(
     val code: IntArray,
     val constants: Array<LuaValue>,
     val nested: Array<Prototype> = emptyArray(),
+    val upvalues: Array<UpvalueDescriptor> = emptyArray(),
     val lineInfo: IntArray = IntArray(code.size),
     val maxStackSize: Int,
     val numParams: Int = 0,
@@ -23,6 +24,7 @@ internal data class Prototype(
             code.contentEquals(other.code) &&
             constants.contentEquals(other.constants) &&
             nested.contentEquals(other.nested) &&
+            upvalues.contentEquals(other.upvalues) &&
             lineInfo.contentEquals(other.lineInfo) &&
             maxStackSize == other.maxStackSize &&
             numParams == other.numParams &&
@@ -35,6 +37,7 @@ internal data class Prototype(
         result = 31 * result + code.contentHashCode()
         result = 31 * result + constants.contentHashCode()
         result = 31 * result + nested.contentHashCode()
+        result = 31 * result + upvalues.contentHashCode()
         result = 31 * result + lineInfo.contentHashCode()
         result = 31 * result + maxStackSize
         result = 31 * result + numParams
@@ -42,3 +45,8 @@ internal data class Prototype(
         return result
     }
 }
+
+internal data class UpvalueDescriptor(
+    val name: String,
+    val localRegister: Int,
+)

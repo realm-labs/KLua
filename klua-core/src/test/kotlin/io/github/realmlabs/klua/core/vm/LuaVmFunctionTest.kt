@@ -227,6 +227,23 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `executes captured parent local reads`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 42
+                local function get()
+                    return x
+                end
+                return get()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `passes no arguments from empty open call arguments`() {
         val result = LuaVm().execute(
             Compiler.compile(

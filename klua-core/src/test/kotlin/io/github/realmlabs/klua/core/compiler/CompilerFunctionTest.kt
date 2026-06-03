@@ -262,6 +262,42 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `compiles captured parent local reads`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 42
+            local function get()
+                return x
+            end
+            return get()
+            """.trimIndent(),
+        )
+
+        assertEquals(3, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 42
+            0001  [2]  CLOSURE R1 P0
+            0002  [5]  MOVE R2 R1
+            0003  [5]  CALL R2 0 *
+            0004  [5]  RETURN R2 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+
+        val function = prototype.nested.single()
+        assertEquals("x", function.upvalues.single().name)
+        assertEquals(0, function.upvalues.single().localRegister)
+        assertEquals(
+            """
+            0000  [3]  GET_UPVALUE R0 U0
+            0001  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(function),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 

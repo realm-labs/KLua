@@ -39,6 +39,7 @@ import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
+import io.github.realmlabs.klua.core.bytecode.UpvalueDescriptor
 import io.github.realmlabs.klua.core.parser.Parser
 import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaFloat
@@ -49,11 +50,14 @@ internal class Compiler private constructor(
     private val sourceName: String,
     private val version: LuaSourceVersion,
     private val isVarargFunction: Boolean = false,
+    private val parentLocalResolver: ((String) -> Int?)? = null,
 ) {
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
     private val nested = mutableListOf<Prototype>()
     private val locals = linkedMapOf<String, Int>()
+    private val upvalues = mutableListOf<UpvalueDescriptor>()
+    private val upvalueIndexes = linkedMapOf<String, Int>()
     private val loopBreaks = mutableListOf<MutableList<Int>>()
     private var nextLocalRegister = 0
     private var maxRegister = 0
@@ -71,6 +75,7 @@ internal class Compiler private constructor(
             code = writer.code(),
             constants = constants.toArray(),
             nested = nested.toTypedArray(),
+            upvalues = upvalues.toTypedArray(),
             lineInfo = writer.lineInfo(),
             maxStackSize = maxRegister.coerceAtLeast(1),
         )
@@ -495,7 +500,12 @@ internal class Compiler private constructor(
     }
 
     private fun compileNestedFunction(expression: FunctionExpression): Prototype {
-        val compiler = Compiler(sourceName, version, expression.isVararg)
+        val compiler = Compiler(
+            sourceName = sourceName,
+            version = version,
+            isVarargFunction = expression.isVararg,
+            parentLocalResolver = { name -> locals[name] },
+        )
         for (parameter in expression.parameters) {
             val slot = compiler.nextLocalRegister++
             compiler.maxRegister = compiler.maxRegister.coerceAtLeast(slot + 1)
@@ -515,6 +525,7 @@ internal class Compiler private constructor(
             code = compiler.writer.code(),
             constants = compiler.constants.toArray(),
             nested = compiler.nested.toTypedArray(),
+            upvalues = compiler.upvalues.toTypedArray(),
             lineInfo = compiler.writer.lineInfo(),
             maxStackSize = compiler.maxRegister.coerceAtLeast(1),
             numParams = expression.parameters.size,
@@ -524,10 +535,28 @@ internal class Compiler private constructor(
 
     private fun compileVariable(expression: VariableExpression, register: Int) {
         val source = locals[expression.name]
-            ?: throw unsupported(expression, "unknown local '${expression.name}'")
-        if (source != register) {
-            writer.emit(Instruction.abc(Opcode.MOVE, register, source), expression.range.start.line)
+        if (source != null) {
+            if (source != register) {
+                writer.emit(Instruction.abc(Opcode.MOVE, register, source), expression.range.start.line)
+            }
+            return
         }
+
+        val upvalue = resolveUpvalue(expression.name)
+            ?: throw unsupported(expression, "unknown local '${expression.name}'")
+        if (upvalue > 255) {
+            throw unsupported(expression, "too many upvalues")
+        }
+        writer.emit(Instruction.abc(Opcode.GET_UPVALUE, register, upvalue), expression.range.start.line)
+    }
+
+    private fun resolveUpvalue(name: String): Int? {
+        upvalueIndexes[name]?.let { return it }
+        val parentRegister = parentLocalResolver?.invoke(name) ?: return null
+        val index = upvalues.size
+        upvalues += UpvalueDescriptor(name, parentRegister)
+        upvalueIndexes[name] = index
+        return index
     }
 
     private fun compileUnaryExpression(expression: UnaryExpression, register: Int) {

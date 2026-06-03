@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 internal data class CallFrame(
     val prototype: Prototype,
     val varargs: List<LuaValue> = emptyList(),
+    val upvalues: List<LuaValue> = emptyList(),
     var pc: Int = 0,
     var openResultBase: Int = 0,
     var openResultCount: Int = 0,
