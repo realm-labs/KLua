@@ -70,6 +70,17 @@ public object LuaStdlib {
 
     private fun tonumber(context: LuaCallContext): LuaReturn {
         val value = context.get(1) ?: return LuaReturn.of(null)
+        if (!context.isNone(2) && !context.isNil(2)) {
+            val base = context.toInteger(2)
+                ?: throw LuaRuntimeException("bad argument #2 to 'tonumber' (number expected)")
+            if (base !in 2L..36L) {
+                throw LuaRuntimeException("bad argument #2 to 'tonumber' (base out of range)")
+            }
+            return when (value) {
+                is CharSequence -> LuaReturn.of(value.toString().trim().toLongOrNull(base.toInt()))
+                else -> LuaReturn.of(null)
+            }
+        }
         return when (value) {
             is Byte -> LuaReturn.of(value.toLong())
             is Short -> LuaReturn.of(value.toLong())

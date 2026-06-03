@@ -57,6 +57,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber converts strings with explicit base`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return tonumber("ff", 16), tonumber("-101", 2), tonumber("gg", 16)""", "tonumber-base.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(255L, state.toInteger(1))
+        assertEquals(-5L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+    }
+
+    @Test
+    fun `tonumber rejects out of range base`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return tonumber("10", 1)""", "tonumber-bad-base.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'tonumber' (base out of range)", state.toString(-1))
+    }
+
+    @Test
     fun `assert returns arguments when condition is truthy`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
