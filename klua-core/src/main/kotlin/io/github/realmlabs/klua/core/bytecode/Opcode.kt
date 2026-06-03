@@ -7,5 +7,13 @@ internal enum class Opcode {
     LOAD_FLOAT,
     LOAD_K,
     MOVE,
+    ADD,
+    SUB,
+    MUL,
+    DIV,
+    IDIV,
+    MOD,
+    POW,
+    UNM,
     RETURN,
 }

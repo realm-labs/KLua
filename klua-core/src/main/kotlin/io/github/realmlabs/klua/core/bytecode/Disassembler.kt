@@ -30,8 +30,20 @@ internal object Disassembler {
                 "LOAD_K R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
             }
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
+            Opcode.ADD -> binary("ADD", instruction)
+            Opcode.SUB -> binary("SUB", instruction)
+            Opcode.MUL -> binary("MUL", instruction)
+            Opcode.DIV -> binary("DIV", instruction)
+            Opcode.IDIV -> binary("IDIV", instruction)
+            Opcode.MOD -> binary("MOD", instruction)
+            Opcode.POW -> binary("POW", instruction)
+            Opcode.UNM -> "UNM R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${Instruction.b(instruction)}"
         }
+    }
+
+    private fun binary(name: String, instruction: Int): String {
+        return "$name R${Instruction.a(instruction)} R${Instruction.b(instruction)} R${Instruction.c(instruction)}"
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value

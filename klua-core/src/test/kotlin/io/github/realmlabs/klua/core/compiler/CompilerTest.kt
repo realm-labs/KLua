@@ -100,6 +100,26 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles arithmetic expression tree`() {
+        val prototype = Compiler.compile("return 1 + 2 * 3 ^ 2")
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_INT R1 2
+            0002  [1]  LOAD_INT R2 3
+            0003  [1]  LOAD_INT R3 2
+            0004  [1]  POW R2 R2 R3
+            0005  [1]  MUL R1 R1 R2
+            0006  [1]  ADD R0 R0 R1
+            0007  [1]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `emits empty chunk as zero value return`() {
         val prototype = Compiler.compile("")
 
@@ -112,7 +132,7 @@ class CompilerTest {
     @Test
     fun `rejects non literal return expressions in this slice`() {
         val error = assertFailsWith<CompilerException> {
-            Compiler.compile("return 1 + 2", "unsupported.lua")
+            Compiler.compile("return name", "unsupported.lua")
         }
 
         assertEquals("unsupported.lua", error.position.sourceName)

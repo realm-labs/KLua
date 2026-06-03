@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm {
@@ -33,6 +34,14 @@ internal class LuaVm {
                 }
                 Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(prototype, Instruction.b(instruction)))
                 Opcode.MOVE -> stack.copy(register(frame, Instruction.b(instruction)), register(frame, Instruction.a(instruction)))
+                Opcode.ADD -> arithmetic(stack, frame, instruction, Arithmetic.ADD)
+                Opcode.SUB -> arithmetic(stack, frame, instruction, Arithmetic.SUB)
+                Opcode.MUL -> arithmetic(stack, frame, instruction, Arithmetic.MUL)
+                Opcode.DIV -> arithmetic(stack, frame, instruction, Arithmetic.DIV)
+                Opcode.IDIV -> arithmetic(stack, frame, instruction, Arithmetic.IDIV)
+                Opcode.MOD -> arithmetic(stack, frame, instruction, Arithmetic.MOD)
+                Opcode.POW -> arithmetic(stack, frame, instruction, Arithmetic.POW)
+                Opcode.UNM -> unaryMinus(stack, frame, instruction)
                 Opcode.RETURN -> return stack.slice(register(frame, Instruction.a(instruction)), Instruction.b(instruction))
             }
         }
@@ -50,4 +59,81 @@ internal class LuaVm {
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value
+
+    private fun arithmetic(stack: LuaStack, frame: CallFrame, instruction: Int, operation: Arithmetic) {
+        val left = stack.get(register(frame, Instruction.b(instruction)))
+        val right = stack.get(register(frame, Instruction.c(instruction)))
+        stack.set(register(frame, Instruction.a(instruction)), operation.apply(left, right))
+    }
+
+    private fun unaryMinus(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val value = stack.get(register(frame, Instruction.b(instruction)))
+        val result = when (value) {
+            is LuaInteger -> LuaInteger(-value.value)
+            is LuaFloat -> LuaFloat(-value.value)
+            else -> throw LuaVmException("attempt to perform arithmetic on ${typeName(value)}")
+        }
+        stack.set(register(frame, Instruction.a(instruction)), result)
+    }
+
+    private enum class Arithmetic {
+        ADD,
+        SUB,
+        MUL,
+        DIV,
+        IDIV,
+        MOD,
+        POW;
+
+        fun apply(left: LuaValue, right: LuaValue): LuaValue {
+            if (left is LuaInteger && right is LuaInteger) {
+                return integerArithmetic(left.value, right.value)
+            }
+
+            val leftNumber = numberValue(left)
+            val rightNumber = numberValue(right)
+            if (leftNumber == null || rightNumber == null) {
+                throw LuaVmException("attempt to perform arithmetic on ${typeName(if (leftNumber == null) left else right)}")
+            }
+
+            return when (this) {
+                ADD -> LuaFloat(leftNumber + rightNumber)
+                SUB -> LuaFloat(leftNumber - rightNumber)
+                MUL -> LuaFloat(leftNumber * rightNumber)
+                DIV -> LuaFloat(leftNumber / rightNumber)
+                IDIV -> LuaFloat(kotlin.math.floor(leftNumber / rightNumber))
+                MOD -> LuaFloat(leftNumber % rightNumber)
+                POW -> LuaFloat(Math.pow(leftNumber, rightNumber))
+            }
+        }
+
+        private fun integerArithmetic(left: Long, right: Long): LuaValue {
+            return when (this) {
+                ADD -> LuaInteger(left + right)
+                SUB -> LuaInteger(left - right)
+                MUL -> LuaInteger(left * right)
+                DIV -> LuaFloat(left.toDouble() / right.toDouble())
+                IDIV -> LuaInteger(Math.floorDiv(left, right))
+                MOD -> LuaInteger(Math.floorMod(left, right))
+                POW -> LuaFloat(Math.pow(left.toDouble(), right.toDouble()))
+            }
+        }
+    }
+}
+
+private fun numberValue(value: LuaValue): Double? {
+    return when (value) {
+        is LuaInteger -> value.value.toDouble()
+        is LuaFloat -> value.value
+        else -> null
+    }
+}
+
+private fun typeName(value: LuaValue): String {
+    return when (value) {
+        is LuaBoolean -> "boolean"
+        is LuaFloat, is LuaInteger -> "number"
+        LuaNil -> "nil"
+        is LuaString -> "string"
+    }
 }

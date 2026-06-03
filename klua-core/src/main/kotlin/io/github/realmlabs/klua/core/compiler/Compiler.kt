@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.core.compiler
 
+import io.github.realmlabs.klua.core.ast.BinaryExpression
+import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.Expression
@@ -61,12 +63,12 @@ internal class Compiler private constructor(
 
     private fun compileReturn(statement: ReturnStatement) {
         for ((register, expression) in statement.values.withIndex()) {
-            compileLiteral(expression, register)
+            compileExpression(expression, register)
         }
         emitReturn(0, statement.values.size, statement.range.start.line)
     }
 
-    private fun compileLiteral(expression: Expression, register: Int) {
+    private fun compileExpression(expression: Expression, register: Int) {
         maxRegister = maxRegister.coerceAtLeast(register + 1)
         val line = expression.range.start.line
 
@@ -82,14 +84,15 @@ internal class Compiler private constructor(
                 val constant = constants.add(LuaString(expression.value))
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
-            is UnaryExpression -> compileUnaryLiteral(expression, register)
-            else -> throw unsupported(expression, "only literal return expressions are supported by this compiler slice")
+            is UnaryExpression -> compileUnaryExpression(expression, register)
+            is BinaryExpression -> compileBinaryExpression(expression, register)
+            else -> throw unsupported(expression, "unsupported expression in this compiler slice")
         }
     }
 
-    private fun compileUnaryLiteral(expression: UnaryExpression, register: Int) {
+    private fun compileUnaryExpression(expression: UnaryExpression, register: Int) {
         if (expression.operator != UnaryOperator.NEGATE) {
-            throw unsupported(expression, "only negative numeric literal expressions are supported by this compiler slice")
+            throw unsupported(expression, "only numeric negation is supported by this compiler slice")
         }
 
         when (val inner = expression.expression) {
@@ -98,7 +101,34 @@ internal class Compiler private constructor(
                 val constant = constants.add(LuaFloat(-inner.value))
                 writer.emit(Instruction.abc(Opcode.LOAD_FLOAT, register, constant), expression.range.start.line)
             }
-            else -> throw unsupported(expression, "only negative numeric literal expressions are supported by this compiler slice")
+            else -> {
+                compileExpression(inner, register)
+                writer.emit(Instruction.abc(Opcode.UNM, register, register), expression.range.start.line)
+            }
+        }
+    }
+
+    private fun compileBinaryExpression(expression: BinaryExpression, register: Int) {
+        val opcode = arithmeticOpcode(expression.operator)
+            ?: throw unsupported(expression, "only arithmetic binary expressions are supported by this compiler slice")
+        val rightRegister = register + 1
+
+        compileExpression(expression.left, register)
+        compileExpression(expression.right, rightRegister)
+        writer.emit(Instruction.abc(opcode, register, register, rightRegister), expression.range.start.line)
+        maxRegister = maxRegister.coerceAtLeast(rightRegister + 1)
+    }
+
+    private fun arithmeticOpcode(operator: BinaryOperator): Opcode? {
+        return when (operator) {
+            BinaryOperator.ADD -> Opcode.ADD
+            BinaryOperator.SUBTRACT -> Opcode.SUB
+            BinaryOperator.MULTIPLY -> Opcode.MUL
+            BinaryOperator.DIVIDE -> Opcode.DIV
+            BinaryOperator.FLOOR_DIVIDE -> Opcode.IDIV
+            BinaryOperator.MODULO -> Opcode.MOD
+            BinaryOperator.POWER -> Opcode.POW
+            else -> null
         }
     }
 

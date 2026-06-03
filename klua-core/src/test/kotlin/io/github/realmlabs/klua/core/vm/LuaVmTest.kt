@@ -60,6 +60,42 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes integer arithmetic expressions`() {
+        val result = LuaVm().execute(Compiler.compile("return 1 + 2 * 3 - 4 % 3, 7 // 2"))
+
+        assertEquals(
+            listOf(
+                LuaInteger(6),
+                LuaInteger(3),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `executes float arithmetic expressions`() {
+        val result = LuaVm().execute(Compiler.compile("return 7 / 2, 2 ^ 3, -(1 + 2.5)"))
+
+        assertEquals(
+            listOf(
+                LuaFloat(3.5),
+                LuaFloat(8.0),
+                LuaFloat(-3.5),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `rejects arithmetic on non numeric values`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("""return "x" + 1"""))
+        }
+
+        assertEquals("attempt to perform arithmetic on string", error.message)
+    }
+
+    @Test
     fun `rejects missing return`() {
         val prototype = Prototype(
             sourceName = "broken.lua",
