@@ -484,6 +484,7 @@ internal class LuaVm {
     private fun bitwiseMetamethod(left: LuaValue, right: LuaValue, operation: Bitwise): LuaClosure? {
         val key = when (operation) {
             Bitwise.AND -> BAND_KEY
+            Bitwise.OR -> BOR_KEY
             else -> return null
         }
         return tableMetamethod(left, key) ?: tableMetamethod(right, key)
@@ -707,6 +708,7 @@ private val LE_KEY = LuaString("__le")
 private val CONCAT_KEY = LuaString("__concat")
 private val UNM_KEY = LuaString("__unm")
 private val BAND_KEY = LuaString("__band")
+private val BOR_KEY = LuaString("__bor")
 private val ADD_KEY = LuaString("__add")
 private val SUB_KEY = LuaString("__sub")
 private val MUL_KEY = LuaString("__mul")

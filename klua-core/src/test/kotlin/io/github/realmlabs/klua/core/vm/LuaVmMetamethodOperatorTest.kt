@@ -547,6 +547,50 @@ class LuaVmMetamethodOperatorTest {
         assertEquals("attempt to perform bitwise operation on table", error.message)
     }
 
+    @Test
+    fun `calls left closure bor metamethod for table bitwise or`() {
+        val left = LuaTable()
+        val right = LuaInteger(1)
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__bor"), LuaClosure(returnConstantPrototype(LuaString("ored"))))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BOR, left, right))
+
+        assertEquals(listOf(LuaString("ored")), result)
+    }
+
+    @Test
+    fun `calls right closure bor metamethod when left has none`() {
+        val left = LuaInteger(4)
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__bor"), LuaClosure(returnConstantPrototype(LuaString("ored"))))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BOR, left, right))
+
+        assertEquals(listOf(LuaString("ored")), result)
+    }
+
+    @Test
+    fun `continues to use primitive bitwise or for integers`() {
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BOR, LuaInteger(4), LuaInteger(1)))
+
+        assertEquals(listOf(LuaInteger(5)), result)
+    }
+
+    @Test
+    fun `rejects table bitwise or without closure bor metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableArithmeticPrototype(Opcode.BOR, LuaTable(), LuaInteger(1)))
+        }
+
+        assertEquals("attempt to perform bitwise operation on table", error.message)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
