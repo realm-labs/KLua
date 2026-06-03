@@ -48,5 +48,11 @@ internal data class Prototype(
 
 internal data class UpvalueDescriptor(
     val name: String,
-    val localRegister: Int,
+    val source: UpvalueSource,
+    val sourceIndex: Int,
 )
+
+internal enum class UpvalueSource {
+    LOCAL,
+    UPVALUE,
+}

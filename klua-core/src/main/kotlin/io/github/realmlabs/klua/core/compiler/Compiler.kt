@@ -40,6 +40,7 @@ import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.bytecode.UpvalueDescriptor
+import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import io.github.realmlabs.klua.core.parser.Parser
 import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaFloat
@@ -51,6 +52,7 @@ internal class Compiler private constructor(
     private val version: LuaSourceVersion,
     private val isVarargFunction: Boolean = false,
     private val parentLocalResolver: ((String) -> Int?)? = null,
+    private val parentUpvalueResolver: ((String) -> Int?)? = null,
 ) {
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
@@ -503,7 +505,7 @@ internal class Compiler private constructor(
 
     private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {
         val prototype = compileNestedFunction(expression)
-        if (prototype.upvalues.isNotEmpty()) {
+        if (prototype.upvalues.any { it.source == UpvalueSource.LOCAL }) {
             hasCapturedLocals = true
         }
         val nestedIndex = nested.size
@@ -520,6 +522,7 @@ internal class Compiler private constructor(
             version = version,
             isVarargFunction = expression.isVararg,
             parentLocalResolver = { name -> locals[name] },
+            parentUpvalueResolver = { name -> resolveUpvalue(name) },
         )
         for (parameter in expression.parameters) {
             val slot = compiler.nextLocalRegister++
@@ -567,11 +570,21 @@ internal class Compiler private constructor(
 
     private fun resolveUpvalue(name: String): Int? {
         upvalueIndexes[name]?.let { return it }
-        val parentRegister = parentLocalResolver?.invoke(name) ?: return null
         val index = upvalues.size
-        upvalues += UpvalueDescriptor(name, parentRegister)
+        val descriptor = resolveParentLocal(name) ?: resolveParentUpvalue(name) ?: return null
+        upvalues += descriptor
         upvalueIndexes[name] = index
         return index
+    }
+
+    private fun resolveParentLocal(name: String): UpvalueDescriptor? {
+        val parentRegister = parentLocalResolver?.invoke(name) ?: return null
+        return UpvalueDescriptor(name, UpvalueSource.LOCAL, parentRegister)
+    }
+
+    private fun resolveParentUpvalue(name: String): UpvalueDescriptor? {
+        val parentUpvalue = parentUpvalueResolver?.invoke(name) ?: return null
+        return UpvalueDescriptor(name, UpvalueSource.UPVALUE, parentUpvalue)
     }
 
     private fun compileUnaryExpression(expression: UnaryExpression, register: Int) {

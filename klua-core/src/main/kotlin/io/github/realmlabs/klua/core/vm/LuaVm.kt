@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
+import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
@@ -162,7 +163,16 @@ internal class LuaVm {
     private fun createClosure(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val prototype = nested(frame.prototype, Instruction.b(instruction))
         val upvalues = prototype.upvalues.map { descriptor ->
-            stack.capture(register(frame, descriptor.localRegister))
+            when (descriptor.source) {
+                UpvalueSource.LOCAL -> stack.capture(register(frame, descriptor.sourceIndex))
+                UpvalueSource.UPVALUE -> {
+                    val index = descriptor.sourceIndex
+                    if (index !in frame.upvalues.indices) {
+                        throw LuaVmException("upvalue index out of range: U$index")
+                    }
+                    frame.upvalues[index]
+                }
+            }
         }
         stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues))
     }

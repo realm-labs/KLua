@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.core.compiler
 
 import io.github.realmlabs.klua.core.bytecode.Disassembler
+import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -287,7 +288,8 @@ class CompilerFunctionTest {
 
         val function = prototype.nested.single()
         assertEquals("x", function.upvalues.single().name)
-        assertEquals(0, function.upvalues.single().localRegister)
+        assertEquals(UpvalueSource.LOCAL, function.upvalues.single().source)
+        assertEquals(0, function.upvalues.single().sourceIndex)
         assertEquals(
             """
             0000  [3]  GET_UPVALUE R0 U0
@@ -336,7 +338,8 @@ class CompilerFunctionTest {
 
         val increment = counter.nested.single()
         assertEquals("x", increment.upvalues.single().name)
-        assertEquals(0, increment.upvalues.single().localRegister)
+        assertEquals(UpvalueSource.LOCAL, increment.upvalues.single().source)
+        assertEquals(0, increment.upvalues.single().sourceIndex)
         assertEquals(
             """
             0000  [4]  GET_UPVALUE R0 U0
@@ -347,6 +350,71 @@ class CompilerFunctionTest {
             0005  [5]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(increment),
+        )
+    }
+
+    @Test
+    fun `compiles transitive upvalue captures`() {
+        val prototype = Compiler.compile(
+            """
+            local function outer()
+                local x = 42
+                local function middle()
+                    return function()
+                        return x
+                    end
+                end
+                return middle
+            end
+            return outer
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [10]  MOVE R1 R0
+            0002  [10]  MOVE R0 R1
+            0003  [10]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+
+        val outer = prototype.nested.single()
+        assertEquals(
+            """
+            0000  [2]  LOAD_INT R0 42
+            0001  [3]  CLOSURE R1 P0
+            0002  [8]  MOVE R2 R1
+            0003  [8]  CLOSE_UPVALUES R0
+            0004  [8]  MOVE R0 R2
+            0005  [8]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(outer),
+        )
+
+        val middle = outer.nested.single()
+        assertEquals("x", middle.upvalues.single().name)
+        assertEquals(UpvalueSource.LOCAL, middle.upvalues.single().source)
+        assertEquals(0, middle.upvalues.single().sourceIndex)
+        assertEquals(
+            """
+            0000  [4]  CLOSURE R0 P0
+            0001  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(middle),
+        )
+
+        val inner = middle.nested.single()
+        assertEquals("x", inner.upvalues.single().name)
+        assertEquals(UpvalueSource.UPVALUE, inner.upvalues.single().source)
+        assertEquals(0, inner.upvalues.single().sourceIndex)
+        assertEquals(
+            """
+            0000  [5]  GET_UPVALUE R0 U0
+            0001  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(inner),
         )
     }
 

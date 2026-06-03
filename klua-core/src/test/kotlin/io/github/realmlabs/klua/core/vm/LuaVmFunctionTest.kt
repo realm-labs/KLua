@@ -283,6 +283,30 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `executes transitive captured local assignments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function outer()
+                    local x = 1
+                    local function middle()
+                        return function()
+                            x = x + 1
+                            return x
+                        end
+                    end
+                    return middle
+                end
+                local increment = outer()()
+                return increment(), increment()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2), LuaInteger(3)), result)
+    }
+
+    @Test
     fun `passes no arguments from empty open call arguments`() {
         val result = LuaVm().execute(
             Compiler.compile(
