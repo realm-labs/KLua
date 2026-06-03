@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.api
 
 import io.github.realmlabs.klua.core.KLuaCoreChunk
+import io.github.realmlabs.klua.core.KLuaCoreCallResult
 import io.github.realmlabs.klua.core.KLuaCoreExecution
 import io.github.realmlabs.klua.core.KLuaCoreGlobals
 import io.github.realmlabs.klua.core.KLuaCoreLoad
@@ -13,6 +14,7 @@ class LuaState private constructor(
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
+    private val coreBackedNativeGlobals = mutableSetOf<String>()
     private var lastError: LuaException? = null
 
     companion object {
@@ -60,8 +62,7 @@ class LuaState private constructor(
     }
 
     fun register(name: String, function: LuaFunction) {
-        coreGlobals.set(name, KLuaCoreValue.Nil)
-        globals.fields[name] = LuaStackValue.NativeFunctionValue(function)
+        setNativeGlobal(name, LuaStackValue.NativeFunctionValue(function))
     }
 
     private fun pcallChunk(
@@ -188,6 +189,17 @@ class LuaState private constructor(
     }
 
     fun getGlobal(name: String) {
+        if (name in coreBackedNativeGlobals) {
+            val value = coreGlobals.get(name)
+            if (value is KLuaCoreValue.UnsupportedValue && value.typeName == "function") {
+                stack += globals.fields[name] ?: value.toStackValue()
+            } else {
+                globals.fields.remove(name)
+                coreBackedNativeGlobals.remove(name)
+                stack += value.toStackValue()
+            }
+            return
+        }
         stack += globals.fields[name] ?: coreGlobals.get(name).toStackValue()
     }
 
@@ -197,9 +209,16 @@ class LuaState private constructor(
         val coreValue = value.toCoreValue()
         if (coreGlobals.set(name, coreValue)) {
             globals.fields.remove(name)
+            coreBackedNativeGlobals.remove(name)
         } else {
-            coreGlobals.set(name, KLuaCoreValue.Nil)
-            globals.fields[name] = value
+            when (value) {
+                is LuaStackValue.NativeFunctionValue -> setNativeGlobal(name, value)
+                else -> {
+                    coreGlobals.set(name, KLuaCoreValue.Nil)
+                    globals.fields[name] = value
+                    coreBackedNativeGlobals.remove(name)
+                }
+            }
         }
     }
 
@@ -312,6 +331,28 @@ class LuaState private constructor(
         }
     }
 
+    private fun setNativeGlobal(name: String, function: LuaStackValue.NativeFunctionValue) {
+        coreGlobals.setFunction(name) { arguments ->
+            callHostFunction(function.function, arguments.map { it.toStackValue() })
+        }
+        coreBackedNativeGlobals += name
+        globals.fields[name] = function
+    }
+
+    private fun callHostFunction(
+        function: LuaFunction,
+        arguments: List<LuaStackValue>,
+    ): KLuaCoreCallResult {
+        return try {
+            val result = function.call(DefaultLuaCallContext(arguments))
+            KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
+        } catch (exception: LuaException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        } catch (exception: RuntimeException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        }
+    }
+
     private fun KLuaCoreValue?.toStackValue(): LuaStackValue {
         return when (this) {
             null,
@@ -336,6 +377,21 @@ class LuaState private constructor(
             is Float -> LuaStackValue.NumberValue(toDouble())
             is Double -> LuaStackValue.NumberValue(this)
             is CharSequence -> LuaStackValue.StringValue(toString())
+            else -> throw IllegalArgumentException("cannot return ${this::class.java.name} as Lua value")
+        }
+    }
+
+    private fun Any?.toCoreReturnValue(): KLuaCoreValue {
+        return when (this) {
+            null -> KLuaCoreValue.Nil
+            is Boolean -> KLuaCoreValue.BooleanValue(this)
+            is Byte -> KLuaCoreValue.IntegerValue(toLong())
+            is Short -> KLuaCoreValue.IntegerValue(toLong())
+            is Int -> KLuaCoreValue.IntegerValue(toLong())
+            is Long -> KLuaCoreValue.IntegerValue(this)
+            is Float -> KLuaCoreValue.NumberValue(toDouble())
+            is Double -> KLuaCoreValue.NumberValue(this)
+            is CharSequence -> KLuaCoreValue.StringValue(toString())
             else -> throw IllegalArgumentException("cannot return ${this::class.java.name} as Lua value")
         }
     }

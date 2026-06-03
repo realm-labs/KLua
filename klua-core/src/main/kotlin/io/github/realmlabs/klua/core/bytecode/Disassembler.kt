@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaValue
@@ -107,7 +108,9 @@ internal object Disassembler {
             is LuaBoolean -> value.value.toString()
             is LuaInteger -> value.value.toString()
             is LuaFloat -> value.value.toString()
-            is LuaClosure -> "function"
+            is LuaClosure,
+            is LuaNativeFunction,
+            -> "function"
             is LuaString -> "\"${value.value}\""
             is LuaTable -> "table"
         }

@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import kotlin.test.Test
@@ -199,6 +200,23 @@ class LuaVmTest {
 
         assertEquals(listOf(LuaInteger(41)), result)
         assertEquals(LuaInteger(41), globals.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `calls native functions from globals`() {
+        val globals = LuaTable()
+        globals.rawSet(
+            LuaString("add"),
+            LuaNativeFunction { arguments ->
+                val left = arguments[0] as LuaInteger
+                val right = arguments[1] as LuaInteger
+                listOf(LuaInteger(left.value + right.value))
+            },
+        )
+
+        val result = LuaVm(globals).execute(Compiler.compile("return add(20, 22)"))
+
+        assertEquals(listOf(LuaInteger(42)), result)
     }
 
     @Test

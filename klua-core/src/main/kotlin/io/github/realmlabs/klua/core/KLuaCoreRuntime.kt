@@ -6,9 +6,11 @@ import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.lexer.LexerException
 import io.github.realmlabs.klua.core.parser.ParserException
 import io.github.realmlabs.klua.core.value.LuaBoolean
+import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaValue
@@ -81,6 +83,27 @@ public class KLuaCoreGlobals internal constructor(
         table.rawSet(LuaString(name), luaValue)
         return true
     }
+
+    public fun setFunction(name: String, function: KLuaCoreFunction) {
+        table.rawSet(
+            LuaString(name),
+            LuaNativeFunction { arguments -> callCoreFunction(function, arguments) },
+        )
+    }
+}
+
+public fun interface KLuaCoreFunction {
+    public fun call(arguments: List<KLuaCoreValue>): KLuaCoreCallResult
+}
+
+public sealed interface KLuaCoreCallResult {
+    public data class Success(
+        public val values: List<KLuaCoreValue>,
+    ) : KLuaCoreCallResult
+
+    public data class RuntimeError(
+        public val message: String,
+    ) : KLuaCoreCallResult
 }
 
 public sealed interface KLuaCoreLoad {
@@ -161,6 +184,37 @@ private fun toPublicValue(value: LuaValue): KLuaCoreValue {
         is LuaInteger -> KLuaCoreValue.IntegerValue(value.value)
         is LuaFloat -> KLuaCoreValue.NumberValue(value.value)
         is LuaString -> KLuaCoreValue.StringValue(value.value)
-        else -> KLuaCoreValue.UnsupportedValue(typeName = value::class.simpleName ?: "value")
+        is LuaNativeFunction -> KLuaCoreValue.UnsupportedValue("function")
+        else -> KLuaCoreValue.UnsupportedValue(typeName = value.publicTypeName())
+    }
+}
+
+private fun LuaValue.publicTypeName(): String {
+    return when (this) {
+        is LuaBoolean -> "boolean"
+        is LuaFloat,
+        is LuaInteger,
+        -> "number"
+        LuaNil -> "nil"
+        is LuaString -> "string"
+        is LuaClosure,
+        is LuaNativeFunction -> "function"
+        is LuaTable -> "table"
+    }
+}
+
+private fun callCoreFunction(function: KLuaCoreFunction, arguments: List<LuaValue>): List<LuaValue> {
+    return try {
+        when (val result = function.call(arguments.map(::toPublicValue))) {
+            is KLuaCoreCallResult.Success -> result.values.map { value ->
+                value.toLuaValueOrNull()
+                    ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
+            }
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+        }
+    } catch (error: LuaVmException) {
+        throw error
+    } catch (error: RuntimeException) {
+        throw LuaVmException(error.message ?: error::class.java.simpleName)
     }
 }

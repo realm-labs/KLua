@@ -10,6 +10,7 @@ import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaMetatableException
@@ -155,12 +156,13 @@ internal class LuaVm(
     private fun callValue(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return when (callee) {
             is LuaClosure -> execute(callee.prototype, arguments, callee.upvalues)
+            is LuaNativeFunction -> callee.function(arguments)
             is LuaTable -> {
                 val call = callee.metatableRawGet(CALL_KEY)
-                if (call is LuaClosure) {
-                    execute(call.prototype, listOf(callee) + arguments, call.upvalues)
-                } else {
-                    throw LuaVmException("attempt to call table")
+                when (call) {
+                    is LuaClosure -> execute(call.prototype, listOf(callee) + arguments, call.upvalues)
+                    is LuaNativeFunction -> call.function(listOf(callee) + arguments)
+                    else -> throw LuaVmException("attempt to call table")
                 }
             }
             else -> throw LuaVmException("attempt to call ${typeName(callee)}")
@@ -719,7 +721,9 @@ private fun stringCoercion(value: LuaValue): String? {
 private fun typeName(value: LuaValue): String {
     return when (value) {
         is LuaBoolean -> "boolean"
-        is LuaClosure -> "function"
+        is LuaClosure,
+        is LuaNativeFunction,
+        -> "function"
         is LuaFloat, is LuaInteger -> "number"
         LuaNil -> "nil"
         is LuaString -> "string"

@@ -27,6 +27,10 @@ internal data class LuaClosure(
     val upvalues: List<LuaUpvalue> = emptyList(),
 ) : LuaValue
 
+internal data class LuaNativeFunction(
+    val function: (List<LuaValue>) -> List<LuaValue>,
+) : LuaValue
+
 internal class LuaUpvalue(
     var value: LuaValue,
 )
