@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaStatus
+import java.util.Locale
 import java.util.Random
 import java.util.function.Consumer
 import kotlin.math.absoluteValue
@@ -15,6 +16,8 @@ import kotlin.math.sin
 import kotlin.math.tan
 
 public object LuaStdlib {
+    private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcqs"
+
     private var random = Random()
 
     @JvmStatic
@@ -76,6 +79,7 @@ public object LuaStdlib {
         setFunctionField(state, "byte", ::stringByte)
         setFunctionField(state, "char", ::stringChar)
         setFunctionField(state, "find", ::stringFind)
+        setFunctionField(state, "format", ::stringFormat)
         setFunctionField(state, "gsub", ::stringGsub)
         setFunctionField(state, "len", ::stringLen)
         setFunctionField(state, "lower", ::stringLower)
@@ -422,6 +426,45 @@ public object LuaStdlib {
         return LuaReturn.of(foundIndex + 1L, foundIndex + pattern.length.toLong())
     }
 
+    private fun stringFormat(context: LuaCallContext): LuaReturn {
+        val format = requiredString(context, 1, "string.format")
+        val result = StringBuilder()
+        var cursor = 0
+        var argument = 2
+        while (cursor < format.length) {
+            val char = format[cursor]
+            if (char != '%') {
+                result.append(char)
+                cursor++
+                continue
+            }
+
+            if (cursor + 1 >= format.length) {
+                throw LuaRuntimeException("invalid option '%' to 'string.format'")
+            }
+            if (format[cursor + 1] == '%') {
+                result.append('%')
+                cursor += 2
+                continue
+            }
+
+            val specStart = cursor
+            cursor++
+            while (cursor < format.length && format[cursor] !in FORMAT_CONVERSIONS) {
+                cursor++
+            }
+            if (cursor >= format.length) {
+                throw LuaRuntimeException("invalid option '%' to 'string.format'")
+            }
+            val conversion = format[cursor]
+            val specifier = format.substring(specStart, cursor + 1)
+            result.append(formatValue(context, argument, specifier, conversion))
+            argument++
+            cursor++
+        }
+        return LuaReturn.of(result.toString())
+    }
+
     private fun stringLower(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(requiredString(context, 1, "string.lower").lowercase())
     }
@@ -674,6 +717,67 @@ public object LuaStdlib {
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+    }
+
+    private fun formatValue(
+        context: LuaCallContext,
+        index: Int,
+        specifier: String,
+        conversion: Char,
+    ): String {
+        return when (conversion) {
+            's' -> specifier.formatWith(toLuaString(context, index))
+            'd',
+            'i',
+            'o',
+            'u',
+            'x',
+            'X',
+            -> specifier.javaIntegerSpecifier(conversion).formatWith(requiredInteger(context, index, "string.format"))
+            'f',
+            'F',
+            'e',
+            'E',
+            'g',
+            'G',
+            -> specifier.formatWith(requiredNumber(context, index, "string.format"))
+            'c' -> {
+                val code = requiredInteger(context, index, "string.format")
+                if (code !in 0L..Char.MAX_VALUE.code.toLong()) {
+                    throw LuaRuntimeException("bad argument #$index to 'string.format' (value out of range)")
+                }
+                code.toInt().toChar().toString()
+            }
+            'q' -> quoteString(requiredString(context, index, "string.format"))
+            else -> throw LuaRuntimeException("invalid option '%$conversion' to 'string.format'")
+        }
+    }
+
+    private fun String.formatWith(value: Any): String {
+        return java.lang.String.format(Locale.ROOT, this, value)
+    }
+
+    private fun String.javaIntegerSpecifier(conversion: Char): String {
+        return if (conversion == 'i' || conversion == 'u') {
+            dropLast(1) + 'd'
+        } else {
+            this
+        }
+    }
+
+    private fun quoteString(value: String): String {
+        val result = StringBuilder("\"")
+        for (char in value) {
+            when (char) {
+                '\\' -> result.append("\\\\")
+                '"' -> result.append("\\\"")
+                '\n' -> result.append("\\n")
+                '\r' -> result.append("\\r")
+                '\t' -> result.append("\\t")
+                else -> result.append(char)
+            }
+        }
+        return result.append('"').toString()
     }
 
     private fun toLuaString(context: LuaCallContext, index: Int): String {

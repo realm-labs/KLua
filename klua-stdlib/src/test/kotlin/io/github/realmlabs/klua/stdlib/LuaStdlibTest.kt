@@ -534,6 +534,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format renders common conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.format("name=%s count=%03d int=%i unsigned=%u ratio=%.2f pct=%% char=%c quoted=%q hex=%x",
+                    "klua", 7, -2, 9, 1.25, 65, "a\"b", 255)
+                """.trimIndent(),
+                "string-format.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("""name=klua count=007 int=-2 unsigned=9 ratio=1.25 pct=% char=A quoted="a\"b" hex=ff""", state.toString(1))
+    }
+
+    @Test
+    fun `string format reports argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.format("%d", "bad")""", "string-format-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'string.format' (integer expected)", state.toString(-1))
+    }
+
+    @Test
     fun `string gsub replaces literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
