@@ -819,7 +819,7 @@ public object LuaStdlib {
             -> specifier.formatWith(requiredNumber(context, index, "string.format"))
             'c' -> {
                 val code = requiredInteger(context, index, "string.format")
-                if (code !in 0L..Char.MAX_VALUE.code.toLong()) {
+                if (code !in 0L..255L) {
                     throw LuaRuntimeException("bad argument #$index to 'string.format' (value out of range)")
                 }
                 code.toInt().toChar().toString()

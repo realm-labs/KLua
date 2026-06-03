@@ -753,6 +753,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format reports char range errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.format("%c", 256)""", "string-format-char-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'string.format' (value out of range)", state.toString(-1))
+    }
+
+    @Test
     fun `string gsub replaces literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
