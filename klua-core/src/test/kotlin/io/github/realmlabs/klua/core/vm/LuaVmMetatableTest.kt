@@ -522,6 +522,57 @@ class LuaVmMetatableTest {
         assertEquals("attempt to compare table with number", error.message)
     }
 
+    @Test
+    fun `calls left closure le metamethod for table less than or equal`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__le"), LuaClosure(returnConstantPrototype(LuaBoolean(true))))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableComparePrototype(Opcode.LE, left, right))
+
+        assertEquals(listOf(LuaBoolean(true)), result)
+    }
+
+    @Test
+    fun `calls right closure le metamethod when left has none`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__le"), LuaClosure(returnConstantPrototype(LuaBoolean(true))))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableComparePrototype(Opcode.LE, left, right))
+
+        assertEquals(listOf(LuaBoolean(true)), result)
+    }
+
+    @Test
+    fun `uses falsey le metamethod result for table less than or equal`() {
+        val left = LuaTable()
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__le"), LuaClosure(returnConstantPrototype(LuaNil)))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableComparePrototype(Opcode.LE, left, right))
+
+        assertEquals(listOf(LuaBoolean(false)), result)
+    }
+
+    @Test
+    fun `rejects table less than or equal without closure le metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableComparePrototype(Opcode.LE, LuaTable(), LuaInteger(42)))
+        }
+
+        assertEquals("attempt to compare table with number", error.message)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
