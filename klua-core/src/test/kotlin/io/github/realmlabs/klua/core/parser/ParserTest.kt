@@ -8,6 +8,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalStatement
+import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
@@ -92,6 +93,25 @@ class ParserTest {
         val condition = assertIs<BinaryExpression>(statement.condition)
         assertEquals(BinaryOperator.LESS, condition.operator)
         assertEquals(1, statement.block.size)
+
+        val assignment = assertIs<AssignmentStatement>(statement.block.single())
+        assertEquals(listOf("count"), assignment.names)
+    }
+
+    @Test
+    fun `parses repeat until block`() {
+        val chunk = Parser.parse(
+            """
+            repeat
+                count = count + 1
+            until count >= 3
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<RepeatStatement>(chunk.statements.single())
+        assertEquals(1, statement.block.size)
+        val condition = assertIs<BinaryExpression>(statement.condition)
+        assertEquals(BinaryOperator.GREATER_EQUAL, condition.operator)
 
         val assignment = assertIs<AssignmentStatement>(statement.block.single())
         assertEquals(listOf("count"), assignment.names)

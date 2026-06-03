@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
+import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
@@ -62,6 +63,7 @@ internal class Compiler private constructor(
                 is AssignmentStatement -> compileAssignment(statement)
                 is IfStatement -> compileIf(statement)
                 is WhileStatement -> compileWhile(statement)
+                is RepeatStatement -> compileRepeat(statement)
                 is ReturnStatement -> compileReturn(statement)
             }
         }
@@ -168,6 +170,25 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
         patchJump(backJump, loopStart)
         patchTest(testIndex, writer.size)
+    }
+
+    private fun compileRepeat(statement: RepeatStatement) {
+        val savedLocals = LinkedHashMap(locals)
+        val savedNextLocalRegister = nextLocalRegister
+        val loopStart = writer.size
+
+        compileStatements(statement.block)
+
+        val conditionRegister = nextLocalRegister
+        compileExpression(statement.condition, conditionRegister)
+
+        val testIndex = writer.size
+        writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.condition.range.start.line)
+        patchTest(testIndex, loopStart)
+
+        locals.clear()
+        locals.putAll(savedLocals)
+        nextLocalRegister = savedNextLocalRegister
     }
 
     private fun compileReturn(statement: ReturnStatement) {

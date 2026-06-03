@@ -395,6 +395,37 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles repeat until loop`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 0
+            repeat
+                x = x + 1
+            until x >= 3
+            return x
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 0
+            0001  [3]  MOVE R1 R0
+            0002  [3]  LOAD_INT R2 1
+            0003  [3]  ADD R1 R1 R2
+            0004  [3]  MOVE R0 R1
+            0005  [4]  MOVE R1 R0
+            0006  [4]  LOAD_INT R2 3
+            0007  [4]  LE R1 R2 R1
+            0008  [4]  TEST R1 -8
+            0009  [5]  MOVE R1 R0
+            0010  [5]  MOVE R0 R1
+            0011  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `emits empty chunk as zero value return`() {
         val prototype = Compiler.compile("")
 

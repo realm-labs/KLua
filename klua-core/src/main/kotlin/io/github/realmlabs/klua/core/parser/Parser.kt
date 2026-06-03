@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
+import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
@@ -53,6 +54,7 @@ internal class Parser private constructor(
             match(TokenKind.RETURN) -> returnStatement(previous())
             match(TokenKind.IF) -> ifStatement(previous())
             match(TokenKind.WHILE) -> whileStatement(previous())
+            match(TokenKind.REPEAT) -> repeatStatement(previous())
             check(TokenKind.IDENTIFIER) -> assignmentStatement()
             else -> throw errorAt(peek(), "expected statement")
         }
@@ -130,6 +132,13 @@ internal class Parser private constructor(
         val block = parseBlock(setOf(TokenKind.END))
         val end = consume(TokenKind.END, "expected 'end' after while statement")
         return WhileStatement(condition, block, SourceRange(start.range.start, end.range.end))
+    }
+
+    private fun repeatStatement(start: Token): RepeatStatement {
+        val block = parseBlock(setOf(TokenKind.UNTIL))
+        consume(TokenKind.UNTIL, "expected 'until' after repeat block")
+        val condition = expression()
+        return RepeatStatement(block, condition, SourceRange(start.range.start, condition.range.end))
     }
 
     private fun expressionList(): List<Expression> {

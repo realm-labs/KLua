@@ -379,6 +379,58 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes repeat until loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                repeat
+                    x = x + 1
+                until x >= 3
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
+    fun `executes repeat body before checking condition`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 4
+                repeat
+                    x = x + 1
+                until x > 3
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(5)), result)
+    }
+
+    @Test
+    fun `allows repeat condition to see body locals`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                repeat
+                    local done = x >= 2
+                    x = x + 1
+                until done
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
     fun `rejects comparison between incompatible values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" < 1"""))
