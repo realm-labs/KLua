@@ -58,6 +58,8 @@ internal class LuaVm {
                 Opcode.SET_FIELD -> setField(stack, frame, instruction)
                 Opcode.CLOSURE -> createClosure(stack, frame, instruction)
                 Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
+                Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
+                Opcode.CLOSE_UPVALUES -> stack.closeCapturesFrom(register(frame, Instruction.a(instruction)))
                 Opcode.MOVE -> stack.copy(register(frame, Instruction.b(instruction)), register(frame, Instruction.a(instruction)))
                 Opcode.ADD -> arithmetic(stack, frame, instruction, Arithmetic.ADD)
                 Opcode.SUB -> arithmetic(stack, frame, instruction, Arithmetic.SUB)
@@ -171,6 +173,14 @@ internal class LuaVm {
             throw LuaVmException("upvalue index out of range: U$index")
         }
         stack.set(register(frame, Instruction.a(instruction)), frame.upvalues[index].value)
+    }
+
+    private fun setUpvalue(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val index = Instruction.a(instruction)
+        if (index !in frame.upvalues.indices) {
+            throw LuaVmException("upvalue index out of range: U$index")
+        }
+        frame.upvalues[index].value = stack.get(register(frame, Instruction.b(instruction)))
     }
 
     private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {

@@ -14,6 +14,8 @@ internal enum class Opcode {
     SET_FIELD,
     CLOSURE,
     GET_UPVALUE,
+    SET_UPVALUE,
+    CLOSE_UPVALUES,
     MOVE,
     ADD,
     SUB,

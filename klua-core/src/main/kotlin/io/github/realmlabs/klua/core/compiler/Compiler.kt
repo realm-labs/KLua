@@ -61,6 +61,7 @@ internal class Compiler private constructor(
     private val loopBreaks = mutableListOf<MutableList<Int>>()
     private var nextLocalRegister = 0
     private var maxRegister = 0
+    private var hasCapturedLocals = false
 
     fun compile(chunk: Chunk): Prototype {
         if (chunk.statements.isEmpty()) {
@@ -225,8 +226,16 @@ internal class Compiler private constructor(
             when (target) {
                 is LocalAssignmentTarget -> {
                     val targetSlot = locals[target.name]
-                        ?: throw unsupported(statement, "unknown local '${target.name}'")
-                    writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueBase + index), statement.range.start.line)
+                    if (targetSlot != null) {
+                        writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueBase + index), statement.range.start.line)
+                    } else {
+                        val upvalue = resolveUpvalue(target.name)
+                            ?: throw unsupported(statement, "unknown local '${target.name}'")
+                        if (upvalue > 255) {
+                            throw unsupported(statement, "too many upvalues")
+                        }
+                        writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueBase + index), statement.range.start.line)
+                    }
                 }
                 is IndexAssignmentTarget -> {
                     compileExpression(target.index.receiver, scratchBase)
@@ -349,6 +358,9 @@ internal class Compiler private constructor(
         val tempBase = nextLocalRegister
         for ((register, expression) in statement.values.withIndex()) {
             compileExpression(expression, tempBase + register)
+        }
+        if (hasCapturedLocals) {
+            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), statement.range.start.line)
         }
         for (register in statement.values.indices) {
             writer.emit(Instruction.abc(Opcode.MOVE, register, tempBase + register), statement.range.start.line)
@@ -491,6 +503,9 @@ internal class Compiler private constructor(
 
     private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {
         val prototype = compileNestedFunction(expression)
+        if (prototype.upvalues.isNotEmpty()) {
+            hasCapturedLocals = true
+        }
         val nestedIndex = nested.size
         if (nestedIndex > 255) {
             throw unsupported(expression, "too many nested function prototypes")

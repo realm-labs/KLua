@@ -39,6 +39,8 @@ internal object Disassembler {
             Opcode.SET_FIELD -> fieldSet(instruction, prototype)
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.GET_UPVALUE -> "GET_UPVALUE R${Instruction.a(instruction)} U${Instruction.b(instruction)}"
+            Opcode.SET_UPVALUE -> "SET_UPVALUE U${Instruction.a(instruction)} R${Instruction.b(instruction)}"
+            Opcode.CLOSE_UPVALUES -> "CLOSE_UPVALUES R${Instruction.a(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)
             Opcode.SUB -> binary("SUB", instruction)

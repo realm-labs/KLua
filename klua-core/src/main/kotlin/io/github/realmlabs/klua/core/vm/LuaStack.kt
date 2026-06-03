@@ -33,6 +33,10 @@ internal class LuaStack(size: Int) {
         return captures.getOrPut(index) { LuaUpvalue(values[index]) }
     }
 
+    fun closeCapturesFrom(index: Int) {
+        captures.keys.removeIf { it >= index }
+    }
+
     private fun checkIndex(index: Int) {
         require(index in values.indices) { "stack index out of range: $index" }
     }

@@ -298,6 +298,59 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `compiles captured parent local assignments`() {
+        val prototype = Compiler.compile(
+            """
+            local function counter()
+                local x = 0
+                return function()
+                    x = x + 1
+                    return x
+                end
+            end
+            return counter
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [8]  MOVE R1 R0
+            0002  [8]  MOVE R0 R1
+            0003  [8]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+
+        val counter = prototype.nested.single()
+        assertEquals(
+            """
+            0000  [2]  LOAD_INT R0 0
+            0001  [3]  CLOSURE R1 P0
+            0002  [3]  CLOSE_UPVALUES R0
+            0003  [3]  MOVE R0 R1
+            0004  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(counter),
+        )
+
+        val increment = counter.nested.single()
+        assertEquals("x", increment.upvalues.single().name)
+        assertEquals(0, increment.upvalues.single().localRegister)
+        assertEquals(
+            """
+            0000  [4]  GET_UPVALUE R0 U0
+            0001  [4]  LOAD_INT R1 1
+            0002  [4]  ADD R0 R0 R1
+            0003  [4]  SET_UPVALUE U0 R0
+            0004  [5]  GET_UPVALUE R0 U0
+            0005  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(increment),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 
