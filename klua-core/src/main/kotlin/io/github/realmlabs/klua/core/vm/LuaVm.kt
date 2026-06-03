@@ -467,10 +467,26 @@ internal class LuaVm {
         val leftValue = stack.get(register(frame, Instruction.b(instruction)))
         val rightValue = stack.get(register(frame, Instruction.c(instruction)))
         val left = integerValue(leftValue)
-            ?: throw LuaVmException("attempt to perform bitwise operation on ${typeName(leftValue)}")
         val right = integerValue(rightValue)
-            ?: throw LuaVmException("attempt to perform bitwise operation on ${typeName(rightValue)}")
+        if (left == null || right == null) {
+            val metamethod = bitwiseMetamethod(leftValue, rightValue, operation)
+            if (metamethod != null) {
+                val result = execute(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
+                stack.set(register(frame, Instruction.a(instruction)), result)
+                return
+            }
+            val failedValue = if (left == null) leftValue else rightValue
+            throw LuaVmException("attempt to perform bitwise operation on ${typeName(failedValue)}")
+        }
         stack.set(register(frame, Instruction.a(instruction)), LuaInteger(operation.apply(left, right)))
+    }
+
+    private fun bitwiseMetamethod(left: LuaValue, right: LuaValue, operation: Bitwise): LuaClosure? {
+        val key = when (operation) {
+            Bitwise.AND -> BAND_KEY
+            else -> return null
+        }
+        return tableMetamethod(left, key) ?: tableMetamethod(right, key)
     }
 
     private fun bitwiseNot(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -690,6 +706,7 @@ private val LT_KEY = LuaString("__lt")
 private val LE_KEY = LuaString("__le")
 private val CONCAT_KEY = LuaString("__concat")
 private val UNM_KEY = LuaString("__unm")
+private val BAND_KEY = LuaString("__band")
 private val ADD_KEY = LuaString("__add")
 private val SUB_KEY = LuaString("__sub")
 private val MUL_KEY = LuaString("__mul")

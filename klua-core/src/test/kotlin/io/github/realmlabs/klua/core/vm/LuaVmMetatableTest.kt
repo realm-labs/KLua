@@ -646,6 +646,50 @@ class LuaVmMetatableTest {
         assertEquals("attempt to perform arithmetic on table", error.message)
     }
 
+    @Test
+    fun `calls left closure band metamethod for table bitwise and`() {
+        val left = LuaTable()
+        val right = LuaInteger(3)
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__band"), LuaClosure(returnConstantPrototype(LuaString("anded"))))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BAND, left, right))
+
+        assertEquals(listOf(LuaString("anded")), result)
+    }
+
+    @Test
+    fun `calls right closure band metamethod when left has none`() {
+        val left = LuaInteger(6)
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__band"), LuaClosure(returnConstantPrototype(LuaString("anded"))))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BAND, left, right))
+
+        assertEquals(listOf(LuaString("anded")), result)
+    }
+
+    @Test
+    fun `continues to use primitive bitwise and for integers`() {
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.BAND, LuaInteger(6), LuaInteger(3)))
+
+        assertEquals(listOf(LuaInteger(2)), result)
+    }
+
+    @Test
+    fun `rejects table bitwise and without closure band metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableArithmeticPrototype(Opcode.BAND, LuaTable(), LuaInteger(3)))
+        }
+
+        assertEquals("attempt to perform bitwise operation on table", error.message)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
