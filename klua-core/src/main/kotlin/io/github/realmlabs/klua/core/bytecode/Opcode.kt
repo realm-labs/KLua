@@ -21,6 +21,7 @@ internal enum class Opcode {
     SHL,
     SHR,
     BNOT,
+    LEN,
     UNM,
     NOT,
     EQ,

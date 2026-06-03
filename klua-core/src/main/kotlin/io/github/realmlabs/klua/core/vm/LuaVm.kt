@@ -48,6 +48,7 @@ internal class LuaVm {
                 Opcode.SHL -> bitwise(stack, frame, instruction, Bitwise.SHIFT_LEFT)
                 Opcode.SHR -> bitwise(stack, frame, instruction, Bitwise.SHIFT_RIGHT)
                 Opcode.BNOT -> bitwiseNot(stack, frame, instruction)
+                Opcode.LEN -> length(stack, frame, instruction)
                 Opcode.UNM -> unaryMinus(stack, frame, instruction)
                 Opcode.NOT -> logicalNot(stack, frame, instruction)
                 Opcode.EQ -> compare(stack, frame, instruction, Comparison.EQ)
@@ -107,6 +108,15 @@ internal class LuaVm {
     private fun logicalNot(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val value = stack.get(register(frame, Instruction.b(instruction)))
         stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(!isTruthy(value)))
+    }
+
+    private fun length(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val value = stack.get(register(frame, Instruction.b(instruction)))
+        val result = when (value) {
+            is LuaString -> LuaInteger(value.value.encodeToByteArray().size.toLong())
+            else -> throw LuaVmException("attempt to get length of ${typeName(value)}")
+        }
+        stack.set(register(frame, Instruction.a(instruction)), result)
     }
 
     private fun compare(stack: LuaStack, frame: CallFrame, instruction: Int, comparison: Comparison) {

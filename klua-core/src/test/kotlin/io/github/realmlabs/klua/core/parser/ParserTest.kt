@@ -215,6 +215,19 @@ class ParserTest {
     }
 
     @Test
+    fun `parses unary length before concatenation`() {
+        val chunk = Parser.parse("""return #"abc" .. "x"""")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+
+        val concat = assertIs<BinaryExpression>(statement.values.single())
+        assertEquals(BinaryOperator.CONCAT, concat.operator)
+
+        val length = assertIs<UnaryExpression>(concat.left)
+        assertEquals(UnaryOperator.LENGTH, length.operator)
+        assertEquals("abc", assertIs<StringExpression>(length.expression).value)
+    }
+
+    @Test
     fun `parses literal expression values`() {
         val chunk = Parser.parse("""return nil, true, false, 42, 2.5, "ok"""")
         val values = assertIs<ReturnStatement>(chunk.statements.single()).values

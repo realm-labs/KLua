@@ -230,6 +230,25 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles string length expressions`() {
+        val prototype = Compiler.compile("""return #"abc", #("a" .. "b")""")
+
+        assertEquals(3, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_K R0 K0 ; "abc"
+            0001  [1]  LEN R0 R0
+            0002  [1]  LOAD_K R1 K1 ; "a"
+            0003  [1]  LOAD_K R2 K2 ; "b"
+            0004  [1]  CONCAT R1 R1 R2
+            0005  [1]  LEN R1 R1
+            0006  [1]  RETURN R0 2
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local declaration and local return`() {
         val prototype = Compiler.compile(
             """

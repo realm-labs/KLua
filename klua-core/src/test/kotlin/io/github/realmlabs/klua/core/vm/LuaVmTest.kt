@@ -286,6 +286,15 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes string length expressions`() {
+        val result = LuaVm().execute(
+            Compiler.compile("""return #"abc", #("a" .. "b"), #"""""),
+        )
+
+        assertEquals(listOf(LuaInteger(3), LuaInteger(2), LuaInteger(0)), result)
+    }
+
+    @Test
     fun `executes true if branch`() {
         val result = LuaVm().execute(
             Compiler.compile(
@@ -676,6 +685,15 @@ class LuaVmTest {
         assertEquals("attempt to perform bitwise operation on number", error.message)
         assertEquals("attempt to perform bitwise operation on number", rangeError.message)
         assertEquals("attempt to perform bitwise operation on number", shiftError.message)
+    }
+
+    @Test
+    fun `rejects length of non string values`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("return #1"))
+        }
+
+        assertEquals("attempt to get length of number", error.message)
     }
 
     @Test

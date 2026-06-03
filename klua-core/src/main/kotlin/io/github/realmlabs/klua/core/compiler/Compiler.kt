@@ -303,7 +303,12 @@ internal class Compiler private constructor(
                 writer.emit(Instruction.abc(Opcode.BNOT, register, register), expression.range.start.line)
                 return
             }
-            throw unsupported(expression, "only numeric negation, not, and bitwise not are supported by this compiler slice")
+            if (expression.operator == UnaryOperator.LENGTH) {
+                compileExpression(expression.expression, register)
+                writer.emit(Instruction.abc(Opcode.LEN, register, register), expression.range.start.line)
+                return
+            }
+            throw unsupported(expression, "only numeric negation, not, bitwise not, and length are supported by this compiler slice")
         }
         when (val inner = expression.expression) {
             is IntegerExpression -> emitInteger(register, -inner.value, expression.range.start.line)
