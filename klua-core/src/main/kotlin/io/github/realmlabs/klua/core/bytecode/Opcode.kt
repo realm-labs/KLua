@@ -19,5 +19,7 @@ internal enum class Opcode {
     EQ,
     LT,
     LE,
+    TEST,
+    JMP,
     RETURN,
 }

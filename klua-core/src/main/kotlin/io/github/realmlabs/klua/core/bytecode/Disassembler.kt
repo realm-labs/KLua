@@ -42,6 +42,8 @@ internal object Disassembler {
             Opcode.EQ -> binary("EQ", instruction)
             Opcode.LT -> binary("LT", instruction)
             Opcode.LE -> binary("LE", instruction)
+            Opcode.TEST -> "TEST R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
+            Opcode.JMP -> "JMP ${signedByte(Instruction.a(instruction))}"
             Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${Instruction.b(instruction)}"
         }
     }

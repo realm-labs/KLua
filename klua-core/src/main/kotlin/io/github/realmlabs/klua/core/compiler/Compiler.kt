@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
+import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
@@ -54,19 +55,23 @@ internal class Compiler private constructor(
     }
 
     private fun compileStatements(statements: List<Statement>) {
-        for ((index, statement) in statements.withIndex()) {
+        for (statement in statements) {
             when (statement) {
                 is LocalStatement -> compileLocal(statement)
                 is AssignmentStatement -> compileAssignment(statement)
-                is ReturnStatement -> {
-                    if (index != statements.lastIndex) {
-                        throw unsupported(statement, "return must be the final statement in this compiler slice")
-                    }
-                    compileReturn(statement)
-                }
-                else -> throw unsupported(statement, "only local, assignment, and return statements are supported by this compiler slice")
+                is IfStatement -> compileIf(statement)
+                is ReturnStatement -> compileReturn(statement)
             }
         }
+    }
+
+    private fun compileScopedBlock(statements: List<Statement>) {
+        val savedLocals = LinkedHashMap(locals)
+        val savedNextLocalRegister = nextLocalRegister
+        compileStatements(statements)
+        locals.clear()
+        locals.putAll(savedLocals)
+        nextLocalRegister = savedNextLocalRegister
     }
 
     private fun compileLocal(statement: LocalStatement) {
@@ -109,6 +114,42 @@ internal class Compiler private constructor(
         for ((index, targetSlot) in targetSlots.withIndex()) {
             writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, tempBase + index), statement.range.start.line)
         }
+    }
+
+    private fun compileIf(statement: IfStatement) {
+        val endJumps = mutableListOf<Int>()
+
+        compileConditionalBlock(statement.condition, statement.thenBlock, statement.range.start.line, endJumps)
+        for (branch in statement.elseifBranches) {
+            compileConditionalBlock(branch.condition, branch.block, branch.range.start.line, endJumps)
+        }
+        statement.elseBlock?.let { compileScopedBlock(it) }
+
+        val endIndex = writer.size
+        for (jump in endJumps) {
+            patchJump(jump, endIndex)
+        }
+    }
+
+    private fun compileConditionalBlock(
+        condition: Expression,
+        block: List<Statement>,
+        line: Int,
+        endJumps: MutableList<Int>,
+    ) {
+        val conditionRegister = nextLocalRegister
+        compileExpression(condition, conditionRegister)
+
+        val testIndex = writer.size
+        writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), line)
+
+        compileScopedBlock(block)
+
+        val endJump = writer.size
+        writer.emit(Instruction.abc(Opcode.JMP, 0), line)
+        endJumps += endJump
+
+        patchTest(testIndex, writer.size)
     }
 
     private fun compileReturn(statement: ReturnStatement) {
@@ -261,6 +302,15 @@ internal class Compiler private constructor(
 
     private fun emitReturn(register: Int, count: Int, line: Int) {
         writer.emit(Instruction.abc(Opcode.RETURN, register, count), line)
+    }
+
+    private fun patchTest(index: Int, targetIndex: Int) {
+        val register = Instruction.a(writer.code()[index])
+        writer.patch(index, Instruction.abc(Opcode.TEST, register, writer.jumpOffset(index, targetIndex)))
+    }
+
+    private fun patchJump(index: Int, targetIndex: Int) {
+        writer.patch(index, Instruction.abc(Opcode.JMP, writer.jumpOffset(index, targetIndex)))
     }
 
     private fun unsupported(statement: Statement, message: String): CompilerException {

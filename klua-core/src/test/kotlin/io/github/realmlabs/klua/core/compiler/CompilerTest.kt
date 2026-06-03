@@ -292,6 +292,77 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles if else assignment`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 0
+            if true then
+                x = 1
+            else
+                x = 2
+            end
+            return x
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 0
+            0001  [2]  LOAD_BOOL R1 true
+            0002  [2]  TEST R1 3
+            0003  [3]  LOAD_INT R1 1
+            0004  [3]  MOVE R0 R1
+            0005  [2]  JMP 2
+            0006  [5]  LOAD_INT R1 2
+            0007  [5]  MOVE R0 R1
+            0008  [7]  MOVE R1 R0
+            0009  [7]  MOVE R0 R1
+            0010  [7]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `compiles elseif chain`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 0
+            if false then
+                x = 1
+            elseif true then
+                x = 2
+            else
+                x = 3
+            end
+            return x
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 0
+            0001  [2]  LOAD_BOOL R1 false
+            0002  [2]  TEST R1 3
+            0003  [3]  LOAD_INT R1 1
+            0004  [3]  MOVE R0 R1
+            0005  [2]  JMP 7
+            0006  [4]  LOAD_BOOL R1 true
+            0007  [4]  TEST R1 3
+            0008  [5]  LOAD_INT R1 2
+            0009  [5]  MOVE R0 R1
+            0010  [4]  JMP 2
+            0011  [7]  LOAD_INT R1 3
+            0012  [7]  MOVE R0 R1
+            0013  [9]  MOVE R1 R0
+            0014  [9]  MOVE R0 R1
+            0015  [9]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `emits empty chunk as zero value return`() {
         val prototype = Compiler.compile("")
 

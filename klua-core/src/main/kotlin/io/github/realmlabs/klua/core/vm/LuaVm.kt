@@ -46,6 +46,12 @@ internal class LuaVm {
                 Opcode.EQ -> compare(stack, frame, instruction, Comparison.EQ)
                 Opcode.LT -> compare(stack, frame, instruction, Comparison.LT)
                 Opcode.LE -> compare(stack, frame, instruction, Comparison.LE)
+                Opcode.TEST -> {
+                    if (!isTruthy(stack.get(register(frame, Instruction.a(instruction))))) {
+                        frame.pc += signedByte(Instruction.b(instruction))
+                    }
+                }
+                Opcode.JMP -> frame.pc += signedByte(Instruction.a(instruction))
                 Opcode.RETURN -> return stack.slice(register(frame, Instruction.a(instruction)), Instruction.b(instruction))
             }
         }

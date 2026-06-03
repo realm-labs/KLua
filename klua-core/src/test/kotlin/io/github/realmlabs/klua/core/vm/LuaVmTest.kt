@@ -212,6 +212,121 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes true if branch`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                if true then
+                    x = 1
+                else
+                    x = 2
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `executes false if branch else path`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                if false then
+                    x = 1
+                else
+                    x = 2
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2)), result)
+    }
+
+    @Test
+    fun `executes elseif path`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                if false then
+                    x = 1
+                elseif true then
+                    x = 2
+                else
+                    x = 3
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2)), result)
+    }
+
+    @Test
+    fun `falls through if without else`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 1
+                if false then
+                    x = 2
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `uses lua truthiness for if conditions`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x, y = 0, 0
+                if 0 then
+                    x = 1
+                end
+                if nil then
+                    y = 1
+                else
+                    y = 2
+                end
+                return x, y
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1), LuaInteger(2)), result)
+    }
+
+    @Test
+    fun `keeps branch local declarations scoped`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 1
+                if true then
+                    local x = 2
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
     fun `rejects comparison between incompatible values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" < 1"""))
