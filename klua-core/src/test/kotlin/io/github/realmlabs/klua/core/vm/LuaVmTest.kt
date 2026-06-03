@@ -324,6 +324,40 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes local call initializers with multiple results`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function pair()
+                    return 1, 2
+                end
+                local a, b = pair()
+                return a + b
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
+    fun `fills missing local call results with nil`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function single()
+                    return 1
+                end
+                local a, b = single()
+                return a, b
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1), LuaNil), result)
+    }
+
+    @Test
     fun `rejects calls to non function values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("local value = 1 return value()"))

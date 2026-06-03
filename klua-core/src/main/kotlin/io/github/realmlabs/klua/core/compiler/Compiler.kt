@@ -131,6 +131,15 @@ internal class Compiler private constructor(
             slot
         }
 
+        val onlyValue = statement.values.singleOrNull()
+        if (onlyValue is CallExpression) {
+            compileCallExpression(onlyValue, slots.first(), slots.size)
+            for ((index, name) in statement.names.withIndex()) {
+                locals[name] = slots[index]
+            }
+            return
+        }
+
         for ((index, slot) in slots.withIndex()) {
             val value = statement.values.getOrNull(index)
             if (value == null) {
@@ -299,17 +308,20 @@ internal class Compiler private constructor(
         }
     }
 
-    private fun compileCallExpression(expression: CallExpression, register: Int) {
+    private fun compileCallExpression(expression: CallExpression, register: Int, resultCount: Int = 1) {
         if (expression.arguments.size > 255) {
             throw unsupported(expression, "too many function arguments")
+        }
+        if (resultCount !in 0..255) {
+            throw unsupported(expression, "too many function results")
         }
 
         compileExpression(expression.callee, register)
         for ((index, argument) in expression.arguments.withIndex()) {
             compileExpression(argument, register + index + 1)
         }
-        maxRegister = maxRegister.coerceAtLeast(register + expression.arguments.size + 1)
-        writer.emit(Instruction.abc(Opcode.CALL, register, expression.arguments.size, 1), expression.range.start.line)
+        maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 1, resultCount))
+        writer.emit(Instruction.abc(Opcode.CALL, register, expression.arguments.size, resultCount), expression.range.start.line)
     }
 
     private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {

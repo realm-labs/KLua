@@ -330,6 +330,34 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles local call initializer with multiple results`() {
+        val prototype = Compiler.compile(
+            """
+            local function pair()
+                return 1, 2
+            end
+            local a, b = pair()
+            return a + b
+            """.trimIndent(),
+        )
+
+        assertEquals(5, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [4]  MOVE R1 R0
+            0002  [4]  CALL R1 0 2
+            0003  [5]  MOVE R3 R1
+            0004  [5]  MOVE R4 R2
+            0005  [5]  ADD R3 R3 R4
+            0006  [5]  MOVE R0 R3
+            0007  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 
