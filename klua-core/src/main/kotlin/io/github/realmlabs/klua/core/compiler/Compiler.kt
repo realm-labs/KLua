@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.BooleanExpression
+import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
@@ -36,6 +37,7 @@ internal class Compiler private constructor(
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
     private val locals = linkedMapOf<String, Int>()
+    private val loopBreaks = mutableListOf<MutableList<Int>>()
     private var nextLocalRegister = 0
     private var maxRegister = 0
 
@@ -65,6 +67,7 @@ internal class Compiler private constructor(
                 is WhileStatement -> compileWhile(statement)
                 is RepeatStatement -> compileRepeat(statement)
                 is ReturnStatement -> compileReturn(statement)
+                is BreakStatement -> compileBreak(statement)
             }
         }
     }
@@ -157,6 +160,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileWhile(statement: WhileStatement) {
+        val breaks = pushLoopBreaks()
         val loopStart = writer.size
         val conditionRegister = nextLocalRegister
         compileExpression(statement.condition, conditionRegister)
@@ -170,9 +174,11 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
         patchJump(backJump, loopStart)
         patchTest(testIndex, writer.size)
+        patchLoopBreaks(breaks, writer.size)
     }
 
     private fun compileRepeat(statement: RepeatStatement) {
+        val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
         val savedNextLocalRegister = nextLocalRegister
         val loopStart = writer.size
@@ -185,10 +191,19 @@ internal class Compiler private constructor(
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.condition.range.start.line)
         patchTest(testIndex, loopStart)
+        patchLoopBreaks(breaks, writer.size)
 
         locals.clear()
         locals.putAll(savedLocals)
         nextLocalRegister = savedNextLocalRegister
+    }
+
+    private fun compileBreak(statement: BreakStatement) {
+        val breaks = loopBreaks.lastOrNull()
+            ?: throw unsupported(statement, "'break' outside loop")
+        val breakJump = writer.size
+        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        breaks += breakJump
     }
 
     private fun compileReturn(statement: ReturnStatement) {
@@ -350,6 +365,19 @@ internal class Compiler private constructor(
 
     private fun patchJump(index: Int, targetIndex: Int) {
         writer.patch(index, Instruction.abc(Opcode.JMP, writer.jumpOffset(index, targetIndex)))
+    }
+
+    private fun pushLoopBreaks(): MutableList<Int> {
+        val breaks = mutableListOf<Int>()
+        loopBreaks += breaks
+        return breaks
+    }
+
+    private fun patchLoopBreaks(breaks: MutableList<Int>, targetIndex: Int) {
+        require(loopBreaks.removeLast() === breaks) { "loop break stack is unbalanced" }
+        for (jump in breaks) {
+            patchJump(jump, targetIndex)
+        }
     }
 
     private fun unsupported(statement: Statement, message: String): CompilerException {

@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
+import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IntegerExpression
@@ -96,6 +97,20 @@ class ParserTest {
 
         val assignment = assertIs<AssignmentStatement>(statement.block.single())
         assertEquals(listOf("count"), assignment.names)
+    }
+
+    @Test
+    fun `parses break statement in loop block`() {
+        val chunk = Parser.parse(
+            """
+            while true do
+                break
+            end
+            """.trimIndent(),
+        )
+
+        val loop = assertIs<WhileStatement>(chunk.statements.single())
+        assertIs<BreakStatement>(loop.block.single())
     }
 
     @Test

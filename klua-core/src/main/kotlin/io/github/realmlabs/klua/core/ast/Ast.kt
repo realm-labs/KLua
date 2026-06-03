@@ -28,6 +28,10 @@ internal data class ReturnStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class BreakStatement(
+    override val range: SourceRange,
+) : Statement
+
 internal data class IfStatement(
     val condition: Expression,
     val thenBlock: List<Statement>,

@@ -426,6 +426,45 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles break to nearest loop exit`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 0
+            while true do
+                x = x + 1
+                if x == 2 then
+                    break
+                end
+            end
+            return x
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 0
+            0001  [2]  LOAD_BOOL R1 true
+            0002  [2]  TEST R1 11
+            0003  [3]  MOVE R1 R0
+            0004  [3]  LOAD_INT R2 1
+            0005  [3]  ADD R1 R1 R2
+            0006  [3]  MOVE R0 R1
+            0007  [4]  MOVE R1 R0
+            0008  [4]  LOAD_INT R2 2
+            0009  [4]  EQ R1 R1 R2
+            0010  [4]  TEST R1 2
+            0011  [5]  JMP 2
+            0012  [4]  JMP 0
+            0013  [2]  JMP -13
+            0014  [8]  MOVE R1 R0
+            0015  [8]  MOVE R0 R1
+            0016  [8]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `emits empty chunk as zero value return`() {
         val prototype = Compiler.compile("")
 
@@ -454,5 +493,14 @@ class CompilerTest {
         }
 
         assertEquals("bad-assign.lua:1:1: unknown local 'x'", error.message)
+    }
+
+    @Test
+    fun `rejects break outside loops`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("break", "bad-break.lua")
+        }
+
+        assertEquals("bad-break.lua:1:1: 'break' outside loop", error.message)
     }
 }

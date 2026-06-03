@@ -431,6 +431,65 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes break in while loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                while true do
+                    x = x + 1
+                    if x == 2 then
+                        break
+                    end
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2)), result)
+    }
+
+    @Test
+    fun `executes break in repeat loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 0
+                repeat
+                    x = x + 1
+                    break
+                until false
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `break exits nearest nested loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local outer, inner = 0, 0
+                while outer < 2 do
+                    outer = outer + 1
+                    while true do
+                        inner = inner + 1
+                        break
+                    end
+                end
+                return outer, inner
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2), LuaInteger(2)), result)
+    }
+
+    @Test
     fun `rejects comparison between incompatible values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" < 1"""))

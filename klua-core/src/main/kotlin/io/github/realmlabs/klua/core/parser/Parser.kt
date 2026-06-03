@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.core.parser
 import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.AssignmentStatement
+import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.ElseIfBranch
@@ -52,6 +53,7 @@ internal class Parser private constructor(
         return when {
             match(TokenKind.LOCAL) -> localStatement(previous())
             match(TokenKind.RETURN) -> returnStatement(previous())
+            match(TokenKind.BREAK) -> breakStatement(previous())
             match(TokenKind.IF) -> ifStatement(previous())
             match(TokenKind.WHILE) -> whileStatement(previous())
             match(TokenKind.REPEAT) -> repeatStatement(previous())
@@ -99,6 +101,13 @@ internal class Parser private constructor(
 
         val end = values.lastOrNull()?.range?.end ?: start.range.end
         return ReturnStatement(values, SourceRange(start.range.start, end))
+    }
+
+    private fun breakStatement(start: Token): BreakStatement {
+        if (match(TokenKind.SEMICOLON)) {
+            return BreakStatement(SourceRange(start.range.start, previous().range.end))
+        }
+        return BreakStatement(start.range)
     }
 
     private fun ifStatement(start: Token): IfStatement {
