@@ -61,6 +61,8 @@ public object LuaStdlib {
         setFunctionField(state, "randomseed", ::mathRandomSeed)
         setFunctionField(state, "sin", ::mathSin)
         setFunctionField(state, "tan", ::mathTan)
+        setNumberField(state, "huge", Double.POSITIVE_INFINITY)
+        setNumberField(state, "pi", Math.PI)
         state.setGlobal("math")
         return state
     }
@@ -475,6 +477,11 @@ public object LuaStdlib {
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
         state.pushFunction(function::invoke)
+        state.setField(-2, name)
+    }
+
+    private fun setNumberField(state: LuaState, name: String, value: Double) {
+        state.pushNumber(value)
         state.setField(-2, name)
     }
 

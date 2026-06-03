@@ -273,6 +273,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openMath installs numeric constants`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.pi, math.huge > 1e308""", "math-constants.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(Math.PI, state.toNumber(1) ?: error("missing pi result"), 1e-12)
+        assertTrue(state.toBoolean(2))
+    }
+
+    @Test
     fun `math random supports ranges and deterministic seeds`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
