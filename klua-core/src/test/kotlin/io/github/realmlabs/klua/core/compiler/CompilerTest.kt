@@ -169,6 +169,24 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles right associative concatenation`() {
+        val prototype = Compiler.compile("""return "a" .. 1 .. "b"""")
+
+        assertEquals(3, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_K R0 K0 ; "a"
+            0001  [1]  LOAD_INT R1 1
+            0002  [1]  LOAD_K R2 K1 ; "b"
+            0003  [1]  CONCAT R1 R1 R2
+            0004  [1]  CONCAT R0 R0 R1
+            0005  [1]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local declaration and local return`() {
         val prototype = Compiler.compile(
             """

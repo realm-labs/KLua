@@ -14,6 +14,7 @@ internal enum class Opcode {
     IDIV,
     MOD,
     POW,
+    CONCAT,
     UNM,
     NOT,
     EQ,

@@ -319,6 +319,11 @@ internal class Compiler private constructor(
             return
         }
 
+        if (expression.operator == BinaryOperator.CONCAT) {
+            compileBinaryOperation(expression, register, Opcode.CONCAT)
+            return
+        }
+
         val arithmeticOpcode = arithmeticOpcode(expression.operator)
         if (arithmeticOpcode != null) {
             compileBinaryOperation(expression, register, arithmeticOpcode)
@@ -330,7 +335,7 @@ internal class Compiler private constructor(
             return
         }
 
-        throw unsupported(expression, "only arithmetic, comparison, and logical binary expressions are supported by this compiler slice")
+        throw unsupported(expression, "only arithmetic, comparison, concatenation, and logical binary expressions are supported by this compiler slice")
     }
 
     private fun compileLogicalExpression(expression: BinaryExpression, register: Int) {

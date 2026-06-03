@@ -41,6 +41,7 @@ internal class LuaVm {
                 Opcode.IDIV -> arithmetic(stack, frame, instruction, Arithmetic.IDIV)
                 Opcode.MOD -> arithmetic(stack, frame, instruction, Arithmetic.MOD)
                 Opcode.POW -> arithmetic(stack, frame, instruction, Arithmetic.POW)
+                Opcode.CONCAT -> concat(stack, frame, instruction)
                 Opcode.UNM -> unaryMinus(stack, frame, instruction)
                 Opcode.NOT -> logicalNot(stack, frame, instruction)
                 Opcode.EQ -> compare(stack, frame, instruction, Comparison.EQ)
@@ -106,6 +107,16 @@ internal class LuaVm {
         val left = stack.get(register(frame, Instruction.b(instruction)))
         val right = stack.get(register(frame, Instruction.c(instruction)))
         stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(comparison.apply(left, right)))
+    }
+
+    private fun concat(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val leftValue = stack.get(register(frame, Instruction.b(instruction)))
+        val rightValue = stack.get(register(frame, Instruction.c(instruction)))
+        val left = stringCoercion(leftValue)
+            ?: throw LuaVmException("attempt to concatenate ${typeName(leftValue)}")
+        val right = stringCoercion(rightValue)
+            ?: throw LuaVmException("attempt to concatenate ${typeName(rightValue)}")
+        stack.set(register(frame, Instruction.a(instruction)), LuaString(left + right))
     }
 
     private fun forLoopContinues(stack: LuaStack, frame: CallFrame, instruction: Int): Boolean {
@@ -223,6 +234,15 @@ private fun numberValue(value: LuaValue): Double? {
     return when (value) {
         is LuaInteger -> value.value.toDouble()
         is LuaFloat -> value.value
+        else -> null
+    }
+}
+
+private fun stringCoercion(value: LuaValue): String? {
+    return when (value) {
+        is LuaString -> value.value
+        is LuaInteger -> value.value.toString()
+        is LuaFloat -> value.value.toString()
         else -> null
     }
 }

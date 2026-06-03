@@ -239,6 +239,15 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes string concatenation`() {
+        val result = LuaVm().execute(
+            Compiler.compile("""return "a" .. 1 .. "b", 1.5 .. "x""""),
+        )
+
+        assertEquals(listOf(LuaString("a1b"), LuaString("1.5x")), result)
+    }
+
+    @Test
     fun `executes true if branch`() {
         val result = LuaVm().execute(
             Compiler.compile(
@@ -603,6 +612,15 @@ class LuaVmTest {
         }
 
         assertEquals("attempt to perform arithmetic on string", error.message)
+    }
+
+    @Test
+    fun `rejects concatenation of non stringable values`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("""return "x" .. nil"""))
+        }
+
+        assertEquals("attempt to concatenate nil", error.message)
     }
 
     @Test

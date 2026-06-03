@@ -37,6 +37,7 @@ internal object Disassembler {
             Opcode.IDIV -> binary("IDIV", instruction)
             Opcode.MOD -> binary("MOD", instruction)
             Opcode.POW -> binary("POW", instruction)
+            Opcode.CONCAT -> binary("CONCAT", instruction)
             Opcode.UNM -> "UNM R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.NOT -> "NOT R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.EQ -> binary("EQ", instruction)
