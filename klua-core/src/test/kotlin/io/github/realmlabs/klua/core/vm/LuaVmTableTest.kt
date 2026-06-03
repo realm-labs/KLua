@@ -151,6 +151,41 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `calls closure len metamethod for table length`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__len"), LuaClosure(returnConstantPrototype(LuaInteger(42))))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableLengthPrototype(table))
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `uses raw table length without closure len metamethod`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        table.rawSet(LuaInteger(1), LuaString("a"))
+        table.rawSet(LuaInteger(2), LuaString("b"))
+        metatable.rawSet(LuaString("__len"), LuaInteger(42))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableLengthPrototype(table))
+
+        assertEquals(listOf(LuaInteger(2)), result)
+    }
+
+    @Test
+    fun `string length ignores len metamethod support`() {
+        val result = LuaVm().execute(Compiler.compile("return #\"abc\""))
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
     fun `returns nil for missing table keys`() {
         val result = LuaVm().execute(
             Compiler.compile(
@@ -434,6 +469,21 @@ class LuaVmTableTest {
         )
     }
 
+    private fun returnConstantPrototype(value: LuaValue): Prototype {
+        return Prototype(
+            sourceName = "metamethod",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = arrayOf(value),
+            lineInfo = intArrayOf(1, 1),
+            maxStackSize = 1,
+            numParams = 1,
+        )
+    }
+
     private fun returnSelfAndFirstArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
@@ -492,6 +542,21 @@ class LuaVmTableTest {
             constants = arrayOf(table, argument),
             lineInfo = intArrayOf(1, 1, 1, 1),
             maxStackSize = 2,
+        )
+    }
+
+    private fun tableLengthPrototype(table: LuaTable): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.LEN, 0, 0),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = arrayOf(table),
+            lineInfo = intArrayOf(1, 1, 1),
+            maxStackSize = 1,
         )
     }
 

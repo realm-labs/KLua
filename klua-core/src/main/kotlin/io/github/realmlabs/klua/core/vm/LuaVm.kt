@@ -359,10 +359,17 @@ internal class LuaVm {
         val value = stack.get(register(frame, Instruction.b(instruction)))
         val result = when (value) {
             is LuaString -> LuaInteger(value.value.encodeToByteArray().size.toLong())
-            is LuaTable -> LuaInteger(value.rawLength())
+            is LuaTable -> tableLength(value)
             else -> throw LuaVmException("attempt to get length of ${typeName(value)}")
         }
         stack.set(register(frame, Instruction.a(instruction)), result)
+    }
+
+    private fun tableLength(table: LuaTable): LuaValue {
+        return when (val length = table.metatableRawGet(LEN_KEY)) {
+            is LuaClosure -> execute(length.prototype, listOf(table), length.upvalues).firstOrNull() ?: LuaNil
+            else -> LuaInteger(table.rawLength())
+        }
     }
 
     private fun compare(stack: LuaStack, frame: CallFrame, instruction: Int, comparison: Comparison) {
@@ -602,3 +609,4 @@ private fun typeName(value: LuaValue): String {
 private val INDEX_KEY = LuaString("__index")
 private val NEW_INDEX_KEY = LuaString("__newindex")
 private val CALL_KEY = LuaString("__call")
+private val LEN_KEY = LuaString("__len")
