@@ -13,6 +13,14 @@ class LuaState private constructor(
 
     fun getTop(): Int = stack.size
 
+    fun absIndex(index: Int): Int {
+        return when {
+            index > 0 -> index
+            index < 0 -> stack.size + index + 1
+            else -> 0
+        }
+    }
+
     @JvmOverloads
     fun pop(count: Int = 1) {
         require(count >= 0) { "count must be non-negative" }
@@ -36,6 +44,20 @@ class LuaState private constructor(
         }
     }
 
+    fun pushValue(index: Int) {
+        stack += requireValue(index)
+    }
+
+    fun copy(fromIndex: Int, toIndex: Int) {
+        val value = requireValue(fromIndex)
+        val target = requireResolvedIndex(toIndex)
+        stack[target] = value
+    }
+
+    fun remove(index: Int) {
+        stack.removeAt(requireResolvedIndex(index))
+    }
+
     fun pushNil() {
         stack += LuaStackValue.Nil
     }
@@ -57,6 +79,42 @@ class LuaState private constructor(
     }
 
     fun isNil(index: Int): Boolean = valueAt(index) == LuaStackValue.Nil
+
+    fun isNone(index: Int): Boolean = valueAt(index) == null
+
+    fun isBoolean(index: Int): Boolean = valueAt(index) is LuaStackValue.BooleanValue
+
+    fun isNumber(index: Int): Boolean {
+        return when (val value = valueAt(index)) {
+            is LuaStackValue.IntegerValue,
+            is LuaStackValue.NumberValue,
+            -> true
+            is LuaStackValue.StringValue -> value.value.toDoubleOrNull() != null
+            else -> false
+        }
+    }
+
+    fun isString(index: Int): Boolean {
+        return when (valueAt(index)) {
+            is LuaStackValue.IntegerValue,
+            is LuaStackValue.NumberValue,
+            is LuaStackValue.StringValue,
+            -> true
+            else -> false
+        }
+    }
+
+    fun typeName(index: Int): String {
+        return when (valueAt(index)) {
+            null -> "none"
+            LuaStackValue.Nil -> "nil"
+            is LuaStackValue.BooleanValue -> "boolean"
+            is LuaStackValue.IntegerValue,
+            is LuaStackValue.NumberValue,
+            -> "number"
+            is LuaStackValue.StringValue -> "string"
+        }
+    }
 
     fun toBoolean(index: Int): Boolean {
         return when (val value = valueAt(index)) {
@@ -102,6 +160,20 @@ class LuaState private constructor(
             else -> return null
         }
         return stack.getOrNull(resolved)
+    }
+
+    private fun requireValue(index: Int): LuaStackValue {
+        return valueAt(index) ?: throw IllegalArgumentException("stack index out of range: $index")
+    }
+
+    private fun requireResolvedIndex(index: Int): Int {
+        val resolved = when {
+            index > 0 -> index - 1
+            index < 0 -> stack.size + index
+            else -> -1
+        }
+        require(resolved in stack.indices) { "stack index out of range: $index" }
+        return resolved
     }
 
     private fun integerFromNumber(value: Double): Long? {
