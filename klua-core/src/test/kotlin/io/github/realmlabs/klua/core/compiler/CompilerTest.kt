@@ -213,6 +213,85 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles local reassignment`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 1
+            x = x + 2
+            return x
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [2]  MOVE R1 R0
+            0002  [2]  LOAD_INT R2 2
+            0003  [2]  ADD R1 R1 R2
+            0004  [2]  MOVE R0 R1
+            0005  [3]  MOVE R1 R0
+            0006  [3]  MOVE R0 R1
+            0007  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `stages multi assignment before writing targets`() {
+        val prototype = Compiler.compile(
+            """
+            local x, y = 1, 2
+            x, y = y, x
+            return x, y
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_INT R1 2
+            0002  [2]  MOVE R2 R1
+            0003  [2]  MOVE R3 R0
+            0004  [2]  MOVE R0 R2
+            0005  [2]  MOVE R1 R3
+            0006  [3]  MOVE R2 R0
+            0007  [3]  MOVE R3 R1
+            0008  [3]  MOVE R0 R2
+            0009  [3]  MOVE R1 R3
+            0010  [3]  RETURN R0 2
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `compiles assignment missing values as nil`() {
+        val prototype = Compiler.compile(
+            """
+            local x, y = 1, 2
+            x, y = 3
+            return y
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_INT R1 2
+            0002  [2]  LOAD_INT R2 3
+            0003  [2]  LOAD_NIL R3
+            0004  [2]  MOVE R0 R2
+            0005  [2]  MOVE R1 R3
+            0006  [3]  MOVE R2 R1
+            0007  [3]  MOVE R0 R2
+            0008  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `emits empty chunk as zero value return`() {
         val prototype = Compiler.compile("")
 
@@ -232,5 +311,14 @@ class CompilerTest {
         assertEquals(1, error.position.line)
         assertEquals(8, error.position.column)
         assertEquals("unsupported.lua:1:8: unknown local 'name'", error.message)
+    }
+
+    @Test
+    fun `rejects assignment to unknown local variables`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("x = 1", "bad-assign.lua")
+        }
+
+        assertEquals("bad-assign.lua:1:1: unknown local 'x'", error.message)
     }
 }

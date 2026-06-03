@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.core.parser
 
 import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
+import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.IfStatement
@@ -74,6 +75,23 @@ class ParserTest {
 
         val thenReturn = assertIs<ReturnStatement>(statement.thenBlock.single())
         assertEquals("high", assertIs<StringExpression>(thenReturn.values.single()).value)
+    }
+
+    @Test
+    fun `parses simple assignment statement`() {
+        val chunk = Parser.parse(
+            """
+            local x = 1
+            x = x + 1
+            return x
+            """.trimIndent(),
+        )
+
+        assertEquals(3, chunk.statements.size)
+        val assignment = assertIs<AssignmentStatement>(chunk.statements[1])
+        assertEquals(listOf("x"), assignment.names)
+        val value = assertIs<BinaryExpression>(assignment.values.single())
+        assertEquals(BinaryOperator.ADD, value.operator)
     }
 
     @Test

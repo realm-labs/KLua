@@ -129,6 +129,51 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes local reassignment`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 1
+                x = x + 41
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `executes staged multi assignment`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x, y = 1, 2
+                x, y = y, x
+                return x, y
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2), LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `assigns nil when reassignment has fewer values than targets`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x, y = 1, 2
+                x, y = 3
+                return x, y
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3), LuaNil), result)
+    }
+
+    @Test
     fun `executes equality and comparison expressions`() {
         val result = LuaVm().execute(
             Compiler.compile("""return 1 == 1.0, 2 ~= 3, 2 < 3, 3 <= 3, 4 > 3, 4 >= 5, "a" < "b""""),

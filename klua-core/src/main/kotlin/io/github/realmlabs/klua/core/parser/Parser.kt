@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.core.parser
 
 import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
+import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.ElseIfBranch
@@ -50,6 +51,7 @@ internal class Parser private constructor(
             match(TokenKind.LOCAL) -> localStatement(previous())
             match(TokenKind.RETURN) -> returnStatement(previous())
             match(TokenKind.IF) -> ifStatement(previous())
+            check(TokenKind.IDENTIFIER) -> assignmentStatement()
             else -> throw errorAt(peek(), "expected statement")
         }
     }
@@ -64,6 +66,20 @@ internal class Parser private constructor(
         val values = if (match(TokenKind.ASSIGN)) expressionList() else emptyList()
         val end = values.lastOrNull()?.range?.end ?: previous().range.end
         return LocalStatement(names, values, SourceRange(start.range.start, end))
+    }
+
+    private fun assignmentStatement(): AssignmentStatement {
+        val start = peek()
+        val names = mutableListOf<String>()
+        do {
+            val name = consume(TokenKind.IDENTIFIER, "expected assignment target")
+            names += name.literal as String
+        } while (match(TokenKind.COMMA))
+
+        consume(TokenKind.ASSIGN, "expected '=' in assignment")
+        val values = expressionList()
+        val end = values.last().range.end
+        return AssignmentStatement(names, values, SourceRange(start.range.start, end))
     }
 
     private fun returnStatement(start: Token): ReturnStatement {

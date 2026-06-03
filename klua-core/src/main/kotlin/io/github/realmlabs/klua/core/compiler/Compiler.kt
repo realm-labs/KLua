@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.core.compiler
 
+import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BinaryExpression
 import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.BooleanExpression
@@ -56,13 +57,14 @@ internal class Compiler private constructor(
         for ((index, statement) in statements.withIndex()) {
             when (statement) {
                 is LocalStatement -> compileLocal(statement)
+                is AssignmentStatement -> compileAssignment(statement)
                 is ReturnStatement -> {
                     if (index != statements.lastIndex) {
                         throw unsupported(statement, "return must be the final statement in this compiler slice")
                     }
                     compileReturn(statement)
                 }
-                else -> throw unsupported(statement, "only local and return statements are supported by this compiler slice")
+                else -> throw unsupported(statement, "only local, assignment, and return statements are supported by this compiler slice")
             }
         }
     }
@@ -85,6 +87,27 @@ internal class Compiler private constructor(
 
         for ((index, name) in statement.names.withIndex()) {
             locals[name] = slots[index]
+        }
+    }
+
+    private fun compileAssignment(statement: AssignmentStatement) {
+        val targetSlots = statement.names.map { name ->
+            locals[name] ?: throw unsupported(statement, "unknown local '$name'")
+        }
+        val tempBase = nextLocalRegister
+
+        for (index in statement.names.indices) {
+            val value = statement.values.getOrNull(index)
+            if (value == null) {
+                writer.emit(Instruction.abc(Opcode.LOAD_NIL, tempBase + index), statement.range.start.line)
+                maxRegister = maxRegister.coerceAtLeast(tempBase + index + 1)
+            } else {
+                compileExpression(value, tempBase + index)
+            }
+        }
+
+        for ((index, targetSlot) in targetSlots.withIndex()) {
+            writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, tempBase + index), statement.range.start.line)
         }
     }
 

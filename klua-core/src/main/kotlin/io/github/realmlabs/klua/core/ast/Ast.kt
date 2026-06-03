@@ -17,6 +17,12 @@ internal data class LocalStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class AssignmentStatement(
+    val names: List<String>,
+    val values: List<Expression>,
+    override val range: SourceRange,
+) : Statement
+
 internal data class ReturnStatement(
     val values: List<Expression>,
     override val range: SourceRange,
