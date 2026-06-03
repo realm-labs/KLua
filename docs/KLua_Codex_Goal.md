@@ -11,6 +11,16 @@ Reference documents:
 
 Do not duplicate those documents here. Use them for deeper rationale and feature detail when a milestone needs more context.
 
+## Codex Goal Prompt
+
+Use this prompt to bootstrap Codex work sessions for this repository:
+
+```text
+/goal Follow docs/KLua_Codex_Goal.md to continue implementing KLua as a pure Kotlin Lua runtime for JVM 17+. Use the current repository state as authoritative, work in small verifiable milestone-aligned steps, run the relevant verification for each step, commit each completed verified step with a Conventional Commit message, and keep moving through the remaining gaps without redefining the overall goal as complete.
+```
+
+Update this prompt only when the execution rules in this document materially change.
+
 ## Project Goal
 
 KLua is a greenfield pure Kotlin Lua runtime for JVM 17+. It should provide:
@@ -47,8 +57,11 @@ Implementation starts clean. There is no requirement to preserve old project API
 - Prefer one coherent behavior change per step.
 - Every step should have an obvious verification command, test, golden output, or documentation check.
 - Do not batch unrelated milestone work into one change.
+- Commit each coherent verified implementation step before moving to unrelated milestone work.
+- Run the relevant verification before committing. If verification cannot be run, document why and get explicit user approval before committing.
 - Use Conventional Commit messages for all commits.
 - Commit messages should use a clear type and scope, such as `feat(core): add token model`, `test(parser): cover numeric literals`, or `docs(goal): clarify delivery rules`.
+- Keep each commit scoped to one coherent behavior, API, test, or documentation change.
 - Do not mark work complete until its verification has been run or the reason it could not be run is documented.
 
 ## File Structure Rules
@@ -122,9 +135,35 @@ The first major proof point is:
 Lua source -> lexer/parser -> AST -> compiler -> KLua bytecode -> VM -> observable result
 ```
 
-## First Implementation Target
+## Current Status And Remaining Gaps
 
-The first implementation slice should prove a minimal language pipeline:
+This section is a rolling implementation snapshot, not a change log. Update it when milestone reality materially changes; do not record per-commit history here.
+
+Current implemented areas:
+
+- Multi-module Gradle project with Kotlin/JVM 17 modules and tests.
+- Lexer and parser for current supported Lua syntax.
+- AST model, compiler, internal bytecode, prototype model, constant pool, and disassembler.
+- Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, and basic userdata bindings.
+- Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
+- Focused parser, compiler, VM, API, Kotlin helper, compatibility, and foundation tests.
+
+Remaining major gaps:
+
+- Broader Lua language and conformance hardening.
+- Standard library implementation.
+- Coroutine runtime.
+- Error handling, tracebacks, and debug metadata.
+- Debug hooks and source-level debugger.
+- DAP adapter and command-line/debug tooling.
+- Script packaging and KLua bytecode loading.
+- Sandbox and game-server execution limits.
+- Benchmark-driven performance pass.
+- Multi-version compatibility hardening.
+
+## Completed Initial Proof Point
+
+The initial implementation slice has already proven a minimal language pipeline:
 
 - Multi-module Gradle project using Kotlin/JVM 17.
 - Lexer and parser for simple chunks.
@@ -135,7 +174,13 @@ The first implementation slice should prove a minimal language pipeline:
 - Minimal VM stack, call frame, and interpreter loop.
 - Behavior tests that can compile and run `return 42`.
 
-After this works, extend through locals, arithmetic, branches, loops, functions, tables, closures, and metatables in milestone order.
+This proof point should remain covered by tests while later milestones evolve the runtime.
+
+## Next Implementation Focus
+
+Continue from the current milestone frontier rather than restarting the initial proof point. The active frontier is around M11 userdata/JVM interop and M12 standard library work, while earlier milestones still need conformance hardening as gaps are discovered.
+
+Follow milestone order unless a later task is strictly necessary to unblock an earlier one. Keep new work tied to named milestone behavior, focused tests, and a verification command.
 
 ## Testing Requirements
 
@@ -182,11 +227,21 @@ A feature is done only when:
 - Use reflection only at registration time for host bindings; runtime calls should use cached adapters.
 - Use VM-managed coroutine state, not JVM threads.
 
+## Maintaining This Document
+
+- Keep this document aligned with the current committed repository state.
+- Update the status and gap snapshot when milestone reality materially changes.
+- Do not record per-commit history, dates, release notes, or detailed change logs here.
+- Keep detailed roadmap content in `docs/KLua_Implementation_Milestones.md`.
+- Keep user-facing project status in `README.md`.
+
 ## Assumptions
 
-- The repository starts as documentation-only, so implementation can be structured cleanly from the beginning.
+- The repository already contains working compiler, VM, API, Kotlin helper, userdata, and test slices.
+- This document is the operational execution brief and must stay aligned with the current repo state.
 - "No backward capability" means no legacy project API preservation.
 - It does not mean removing the planned Lua compatibility profiles.
 - Lua 5.4 remains the first real runtime target.
-- Clean structure is more important than minimizing module count.
+- Interpreter-first architecture remains the required path before any JVM bytecode compiler.
+- Clean module structure is more important than minimizing module count.
 - Performance work starts after correctness and benchmark baselines exist.
