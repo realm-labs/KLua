@@ -53,6 +53,8 @@ internal class LuaVm {
                 Opcode.NEW_TABLE -> stack.set(register(frame, Instruction.a(instruction)), LuaTable())
                 Opcode.GET_TABLE -> getTable(stack, frame, instruction)
                 Opcode.SET_TABLE -> setTable(stack, frame, instruction)
+                Opcode.GET_FIELD -> getField(stack, frame, instruction)
+                Opcode.SET_FIELD -> setField(stack, frame, instruction)
                 Opcode.CLOSURE -> {
                     stack.set(register(frame, Instruction.a(instruction)), LuaClosure(nested(prototype, Instruction.b(instruction))))
                 }
@@ -174,12 +176,39 @@ internal class LuaVm {
         tableSet(table, key, value)
     }
 
+    private fun getField(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val table = stack.get(register(frame, Instruction.b(instruction)))
+        if (table !is LuaTable) {
+            throw LuaVmException("attempt to index ${typeName(table)}")
+        }
+        val key = stringConstant(frame.prototype, Instruction.c(instruction))
+        stack.set(register(frame, Instruction.a(instruction)), tableGet(table, key))
+    }
+
+    private fun setField(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val table = stack.get(register(frame, Instruction.a(instruction)))
+        if (table !is LuaTable) {
+            throw LuaVmException("attempt to index ${typeName(table)}")
+        }
+        val key = stringConstant(frame.prototype, Instruction.b(instruction))
+        val value = stack.get(register(frame, Instruction.c(instruction)))
+        tableSet(table, key, value)
+    }
+
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {
         return try {
             table.get(key)
         } catch (error: LuaTableKeyException) {
             throw LuaVmException(error.message ?: "invalid table key")
         }
+    }
+
+    private fun stringConstant(prototype: Prototype, index: Int): LuaString {
+        val constant = constant(prototype, index)
+        if (constant !is LuaString) {
+            throw LuaVmException("field opcode expected string constant at K$index")
+        }
+        return constant
     }
 
     private fun tableSet(table: LuaTable, key: LuaValue, value: LuaValue) {

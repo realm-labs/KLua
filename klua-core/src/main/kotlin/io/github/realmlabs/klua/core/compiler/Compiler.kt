@@ -225,12 +225,20 @@ internal class Compiler private constructor(
                 }
                 is IndexAssignmentTarget -> {
                     compileExpression(target.index.receiver, scratchBase)
-                    compileExpression(target.index.key, scratchBase + 1)
-                    maxRegister = maxRegister.coerceAtLeast(scratchBase + 2)
-                    writer.emit(
-                        Instruction.abc(Opcode.SET_TABLE, scratchBase, scratchBase + 1, valueBase + index),
-                        target.range.start.line,
-                    )
+                    if (target.index.key is StringExpression) {
+                        val field = stringConstantIndex(target.index.key.value)
+                        writer.emit(
+                            Instruction.abc(Opcode.SET_FIELD, scratchBase, field, valueBase + index),
+                            target.range.start.line,
+                        )
+                    } else {
+                        compileExpression(target.index.key, scratchBase + 1)
+                        maxRegister = maxRegister.coerceAtLeast(scratchBase + 2)
+                        writer.emit(
+                            Instruction.abc(Opcode.SET_TABLE, scratchBase, scratchBase + 1, valueBase + index),
+                            target.range.start.line,
+                        )
+                    }
                 }
             }
         }
@@ -381,6 +389,13 @@ internal class Compiler private constructor(
     }
 
     private fun compileIndexExpression(expression: IndexExpression, register: Int) {
+        if (expression.key is StringExpression) {
+            compileExpression(expression.receiver, register)
+            val field = stringConstantIndex(expression.key.value)
+            writer.emit(Instruction.abc(Opcode.GET_FIELD, register, register, field), expression.range.start.line)
+            return
+        }
+
         val keyRegister = register + 1
         compileExpression(expression.receiver, register)
         compileExpression(expression.key, keyRegister)
@@ -406,14 +421,18 @@ internal class Compiler private constructor(
                 }
                 is NamedTableEntry -> {
                     compileExpression(entry.value, valueRegister)
-                    emitString(keyRegister, entry.name, entry.range.start.line)
+                    val field = stringConstantIndex(entry.name)
+                    writer.emit(Instruction.abc(Opcode.SET_FIELD, register, field, valueRegister), entry.range.start.line)
                 }
                 is KeyedTableEntry -> {
                     compileExpression(entry.key, keyRegister)
                     compileExpression(entry.value, valueRegister)
+                    writer.emit(Instruction.abc(Opcode.SET_TABLE, register, keyRegister, valueRegister), entry.range.start.line)
                 }
             }
-            writer.emit(Instruction.abc(Opcode.SET_TABLE, register, keyRegister, valueRegister), entry.range.start.line)
+            if (entry is ListTableEntry) {
+                writer.emit(Instruction.abc(Opcode.SET_TABLE, register, keyRegister, valueRegister), entry.range.start.line)
+            }
         }
     }
 
@@ -673,9 +692,11 @@ internal class Compiler private constructor(
     }
 
     private fun emitString(register: Int, value: String, line: Int) {
-        val constant = constants.add(LuaString(value))
+        val constant = stringConstantIndex(value)
         writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
     }
+
+    private fun stringConstantIndex(value: String): Int = constants.add(LuaString(value))
 
     private fun emitReturn(register: Int, count: Int, line: Int) {
         writer.emit(Instruction.abc(Opcode.RETURN, register, count), line)

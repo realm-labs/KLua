@@ -10,6 +10,8 @@ internal enum class Opcode {
     NEW_TABLE,
     GET_TABLE,
     SET_TABLE,
+    GET_FIELD,
+    SET_FIELD,
     CLOSURE,
     MOVE,
     ADD,

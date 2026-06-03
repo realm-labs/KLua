@@ -50,9 +50,8 @@ class CompilerTableTest {
             """
             0000  [1]  NEW_TABLE R0
             0001  [1]  LOAD_INT R2 42
-            0002  [1]  LOAD_K R1 K0 ; "answer"
-            0003  [1]  SET_TABLE R0 R1 R2
-            0004  [1]  RETURN R0 1
+            0002  [1]  SET_FIELD R0 K0 R2 ; "answer"
+            0003  [1]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -113,19 +112,17 @@ class CompilerTableTest {
             """.trimIndent(),
         )
 
-        assertEquals(4, prototype.maxStackSize)
+        assertEquals(3, prototype.maxStackSize)
         assertEquals(
             """
             0000  [1]  NEW_TABLE R0
             0001  [2]  LOAD_INT R1 42
             0002  [2]  MOVE R2 R0
-            0003  [2]  LOAD_K R3 K0 ; "answer"
-            0004  [2]  SET_TABLE R2 R3 R1
-            0005  [3]  MOVE R1 R0
-            0006  [3]  LOAD_K R2 K0 ; "answer"
-            0007  [3]  GET_TABLE R1 R1 R2
-            0008  [3]  MOVE R0 R1
-            0009  [3]  RETURN R0 1
+            0003  [2]  SET_FIELD R2 K0 R1 ; "answer"
+            0004  [3]  MOVE R1 R0
+            0005  [3]  GET_FIELD R1 R1 K0 ; "answer"
+            0006  [3]  MOVE R0 R1
+            0007  [3]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )

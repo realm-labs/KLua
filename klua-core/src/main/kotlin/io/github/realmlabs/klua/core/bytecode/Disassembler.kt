@@ -35,6 +35,8 @@ internal object Disassembler {
             Opcode.NEW_TABLE -> "NEW_TABLE R${Instruction.a(instruction)}"
             Opcode.GET_TABLE -> binary("GET_TABLE", instruction)
             Opcode.SET_TABLE -> binary("SET_TABLE", instruction)
+            Opcode.GET_FIELD -> fieldGet(instruction, prototype)
+            Opcode.SET_FIELD -> fieldSet(instruction, prototype)
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)
@@ -70,6 +72,16 @@ internal object Disassembler {
 
     private fun binary(name: String, instruction: Int): String {
         return "$name R${Instruction.a(instruction)} R${Instruction.b(instruction)} R${Instruction.c(instruction)}"
+    }
+
+    private fun fieldGet(instruction: Int, prototype: Prototype): String {
+        val constant = prototype.constants[Instruction.c(instruction)]
+        return "GET_FIELD R${Instruction.a(instruction)} R${Instruction.b(instruction)} K${Instruction.c(instruction)} ; ${formatConstant(constant)}"
+    }
+
+    private fun fieldSet(instruction: Int, prototype: Prototype): String {
+        val constant = prototype.constants[Instruction.b(instruction)]
+        return "SET_FIELD R${Instruction.a(instruction)} K${Instruction.b(instruction)} R${Instruction.c(instruction)} ; ${formatConstant(constant)}"
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value
