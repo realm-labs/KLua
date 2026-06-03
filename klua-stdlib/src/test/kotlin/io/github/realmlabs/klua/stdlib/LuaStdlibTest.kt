@@ -451,6 +451,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string match returns literal matches`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.match("hello", "ell"),
+                    string.match("banana", "an", 3),
+                    string.match("banana", "an", -4),
+                    string.match("hello", "xyz")
+                """.trimIndent(),
+                "string-match.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("ell", state.toString(1))
+        assertEquals("an", state.toString(2))
+        assertEquals("an", state.toString(3))
+        assertTrue(state.isNil(4))
+    }
+
+    @Test
+    fun `string match reports unsupported patterns`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.match("abc", ".")""", "string-match-pattern.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("string patterns are not supported", state.toString(-1))
+    }
+
+    @Test
     fun `string byte returns no values for empty ranges`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

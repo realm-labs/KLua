@@ -75,6 +75,7 @@ public object LuaStdlib {
         setFunctionField(state, "find", ::stringFind)
         setFunctionField(state, "len", ::stringLen)
         setFunctionField(state, "lower", ::stringLower)
+        setFunctionField(state, "match", ::stringMatch)
         setFunctionField(state, "rep", ::stringRep)
         setFunctionField(state, "reverse", ::stringReverse)
         setFunctionField(state, "sub", ::stringSub)
@@ -323,6 +324,26 @@ public object LuaStdlib {
 
     private fun stringLower(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(requiredString(context, 1, "string.lower").lowercase())
+    }
+
+    private fun stringMatch(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "string.match")
+        val pattern = requiredString(context, 2, "string.match")
+        val start = if (context.isNone(3) || context.isNil(3)) {
+            1L
+        } else {
+            requiredInteger(context, 3, "string.match")
+        }
+        if (pattern.hasLuaPatternMagic()) {
+            throw LuaRuntimeException("string patterns are not supported")
+        }
+
+        val startIndex = text.normalizeSearchStart(start) - 1
+        val foundIndex = text.indexOf(pattern, startIndex)
+        if (foundIndex < 0) {
+            return LuaReturn.of(null)
+        }
+        return LuaReturn.of(text.substring(foundIndex, foundIndex + pattern.length))
     }
 
     private fun stringRep(context: LuaCallContext): LuaReturn {
