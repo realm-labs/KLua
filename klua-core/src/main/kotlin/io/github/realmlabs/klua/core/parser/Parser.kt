@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.core.ast.AssignmentStatement
 import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.CallExpression
+import io.github.realmlabs.klua.core.ast.CallStatement
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.ElseIfBranch
 import io.github.realmlabs.klua.core.ast.Expression
@@ -64,6 +65,7 @@ internal class Parser private constructor(
             match(TokenKind.REPEAT) -> repeatStatement(previous())
             match(TokenKind.FOR) -> forStatement(previous())
             match(TokenKind.FUNCTION) -> functionStatement(previous())
+            check(TokenKind.IDENTIFIER) && checkNext(TokenKind.LEFT_PAREN) -> callStatement()
             check(TokenKind.IDENTIFIER) -> assignmentStatement()
             else -> throw errorAt(peek(), "expected statement")
         }
@@ -117,6 +119,13 @@ internal class Parser private constructor(
         val values = expressionList()
         val end = values.last().range.end
         return AssignmentStatement(names, values, SourceRange(start.range.start, end))
+    }
+
+    private fun callStatement(): CallStatement {
+        val expression = expression()
+        val call = expression as? CallExpression
+            ?: throw errorAt(previous(), "expected function call statement")
+        return CallStatement(call, call.range)
     }
 
     private fun returnStatement(start: Token): ReturnStatement {
@@ -383,6 +392,8 @@ internal class Parser private constructor(
     }
 
     private fun check(kind: TokenKind): Boolean = peek().kind == kind
+
+    private fun checkNext(kind: TokenKind): Boolean = tokens.getOrNull(current + 1)?.kind == kind
 
     private fun checkAny(kinds: Set<TokenKind>): Boolean = peek().kind in kinds
 

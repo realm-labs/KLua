@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.core.ast.BinaryOperator
 import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.CallExpression
+import io.github.realmlabs.klua.core.ast.CallStatement
 import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
@@ -70,6 +71,7 @@ internal class Compiler private constructor(
             when (statement) {
                 is LocalStatement -> compileLocal(statement)
                 is AssignmentStatement -> compileAssignment(statement)
+                is CallStatement -> compileCallStatement(statement)
                 is IfStatement -> compileIf(statement)
                 is WhileStatement -> compileWhile(statement)
                 is RepeatStatement -> compileRepeat(statement)
@@ -80,6 +82,10 @@ internal class Compiler private constructor(
                 is BreakStatement -> compileBreak(statement)
             }
         }
+    }
+
+    private fun compileCallStatement(statement: CallStatement) {
+        compileCallExpression(statement.call, nextLocalRegister, 0)
     }
 
     private fun compileScopedBlock(statements: List<Statement>) {

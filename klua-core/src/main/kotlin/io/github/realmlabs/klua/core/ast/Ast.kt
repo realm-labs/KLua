@@ -35,6 +35,11 @@ internal data class AssignmentStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class CallStatement(
+    val call: CallExpression,
+    override val range: SourceRange,
+) : Statement
+
 internal data class ReturnStatement(
     val values: List<Expression>,
     override val range: SourceRange,

@@ -391,6 +391,32 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles function call statements with discarded results`() {
+        val prototype = Compiler.compile(
+            """
+            local function value()
+                return 42
+            end
+            value()
+            return 1
+            """.trimIndent(),
+        )
+
+        assertEquals(2, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [4]  MOVE R1 R0
+            0002  [4]  CALL R1 0 0
+            0003  [5]  LOAD_INT R1 1
+            0004  [5]  MOVE R0 R1
+            0005  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `adds implicit empty return to function bodies`() {
         val prototype = Compiler.compile("return function() local x = 1 end")
 

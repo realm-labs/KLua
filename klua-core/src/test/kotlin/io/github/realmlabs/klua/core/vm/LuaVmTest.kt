@@ -376,6 +376,42 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes function call statements and discards results`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function value()
+                    return 42
+                end
+                value()
+                return 1
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `propagates errors from function call statements`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local function fail()
+                        return #1
+                    end
+                    fail()
+                    return 1
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("attempt to get length of number", error.message)
+    }
+
+    @Test
     fun `rejects calls to non function values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("local value = 1 return value()"))
