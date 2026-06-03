@@ -635,6 +635,50 @@ class LuaVmMetamethodOperatorTest {
         assertEquals("attempt to perform bitwise operation on table", error.message)
     }
 
+    @Test
+    fun `calls left closure shl metamethod for table shift left`() {
+        val left = LuaTable()
+        val right = LuaInteger(2)
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__shl"), LuaClosure(returnConstantPrototype(LuaString("shifted"))))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.SHL, left, right))
+
+        assertEquals(listOf(LuaString("shifted")), result)
+    }
+
+    @Test
+    fun `calls right closure shl metamethod when left has none`() {
+        val left = LuaInteger(4)
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__shl"), LuaClosure(returnConstantPrototype(LuaString("shifted"))))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.SHL, left, right))
+
+        assertEquals(listOf(LuaString("shifted")), result)
+    }
+
+    @Test
+    fun `continues to use primitive shift left for integers`() {
+        val result = LuaVm().execute(tableArithmeticPrototype(Opcode.SHL, LuaInteger(4), LuaInteger(2)))
+
+        assertEquals(listOf(LuaInteger(16)), result)
+    }
+
+    @Test
+    fun `rejects table shift left without closure shl metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableArithmeticPrototype(Opcode.SHL, LuaTable(), LuaInteger(2)))
+        }
+
+        assertEquals("attempt to perform bitwise operation on table", error.message)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
