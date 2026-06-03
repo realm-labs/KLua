@@ -573,6 +573,50 @@ class LuaVmMetatableTest {
         assertEquals("attempt to compare table with number", error.message)
     }
 
+    @Test
+    fun `calls left closure concat metamethod for table concatenation`() {
+        val left = LuaTable()
+        val right = LuaString("suffix")
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__concat"), LuaClosure(returnConstantPrototype(LuaString("joined"))))
+        left.metatable = metatable
+
+        val result = LuaVm().execute(tableConcatPrototype(left, right))
+
+        assertEquals(listOf(LuaString("joined")), result)
+    }
+
+    @Test
+    fun `calls right closure concat metamethod when left has none`() {
+        val left = LuaString("prefix")
+        val right = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__concat"), LuaClosure(returnConstantPrototype(LuaString("joined"))))
+        right.metatable = metatable
+
+        val result = LuaVm().execute(tableConcatPrototype(left, right))
+
+        assertEquals(listOf(LuaString("joined")), result)
+    }
+
+    @Test
+    fun `continues to use primitive concatenation for stringable values`() {
+        val result = LuaVm().execute(tableConcatPrototype(LuaString("a"), LuaInteger(1)))
+
+        assertEquals(listOf(LuaString("a1")), result)
+    }
+
+    @Test
+    fun `rejects table concatenation without closure concat metamethods`() {
+        val error = kotlin.test.assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableConcatPrototype(LuaTable(), LuaString("suffix")))
+        }
+
+        assertEquals("attempt to concatenate table", error.message)
+    }
+
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
@@ -707,6 +751,22 @@ class LuaVmMetatableTest {
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.LOAD_K, 1, 1),
                 Instruction.abc(opcode, 0, 0, 1),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = arrayOf(left, right),
+            lineInfo = intArrayOf(1, 1, 1, 1),
+            maxStackSize = 2,
+        )
+    }
+
+    private fun tableConcatPrototype(left: LuaValue, right: LuaValue): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.LOAD_K, 1, 1),
+                Instruction.abc(Opcode.CONCAT, 0, 0, 1),
                 Instruction.abc(Opcode.RETURN, 0, 1),
             ),
             constants = arrayOf(left, right),

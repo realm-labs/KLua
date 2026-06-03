@@ -442,9 +442,17 @@ internal class LuaVm {
         val leftValue = stack.get(register(frame, Instruction.b(instruction)))
         val rightValue = stack.get(register(frame, Instruction.c(instruction)))
         val left = stringCoercion(leftValue)
-            ?: throw LuaVmException("attempt to concatenate ${typeName(leftValue)}")
         val right = stringCoercion(rightValue)
-            ?: throw LuaVmException("attempt to concatenate ${typeName(rightValue)}")
+        if (left == null || right == null) {
+            val metamethod = tableMetamethod(leftValue, CONCAT_KEY) ?: tableMetamethod(rightValue, CONCAT_KEY)
+            if (metamethod != null) {
+                val result = execute(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
+                stack.set(register(frame, Instruction.a(instruction)), result)
+                return
+            }
+            val failedValue = if (left == null) leftValue else rightValue
+            throw LuaVmException("attempt to concatenate ${typeName(failedValue)}")
+        }
         stack.set(register(frame, Instruction.a(instruction)), LuaString(left + right))
     }
 
@@ -673,6 +681,7 @@ private val LEN_KEY = LuaString("__len")
 private val EQ_KEY = LuaString("__eq")
 private val LT_KEY = LuaString("__lt")
 private val LE_KEY = LuaString("__le")
+private val CONCAT_KEY = LuaString("__concat")
 private val ADD_KEY = LuaString("__add")
 private val SUB_KEY = LuaString("__sub")
 private val MUL_KEY = LuaString("__mul")
