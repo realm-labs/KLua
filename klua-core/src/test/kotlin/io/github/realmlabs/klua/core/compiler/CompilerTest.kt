@@ -120,6 +120,31 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles comparison and not expressions`() {
+        val prototype = Compiler.compile("""return 1 == 1.0, 2 ~= 3, "b" > "a", not nil""")
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_FLOAT R1 1.0
+            0002  [1]  EQ R0 R0 R1
+            0003  [1]  LOAD_INT R1 2
+            0004  [1]  LOAD_INT R2 3
+            0005  [1]  EQ R1 R1 R2
+            0006  [1]  NOT R1 R1
+            0007  [1]  LOAD_K R2 K1 ; "b"
+            0008  [1]  LOAD_K R3 K2 ; "a"
+            0009  [1]  LT R2 R3 R2
+            0010  [1]  LOAD_NIL R3
+            0011  [1]  NOT R3 R3
+            0012  [1]  RETURN R0 4
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local declaration and local return`() {
         val prototype = Compiler.compile(
             """

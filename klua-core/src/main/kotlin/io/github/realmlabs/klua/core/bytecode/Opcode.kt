@@ -15,5 +15,9 @@ internal enum class Opcode {
     MOD,
     POW,
     UNM,
+    NOT,
+    EQ,
+    LT,
+    LE,
     RETURN,
 }

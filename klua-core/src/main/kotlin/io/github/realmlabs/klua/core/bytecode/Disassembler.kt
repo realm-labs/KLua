@@ -38,6 +38,10 @@ internal object Disassembler {
             Opcode.MOD -> binary("MOD", instruction)
             Opcode.POW -> binary("POW", instruction)
             Opcode.UNM -> "UNM R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
+            Opcode.NOT -> "NOT R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
+            Opcode.EQ -> binary("EQ", instruction)
+            Opcode.LT -> binary("LT", instruction)
+            Opcode.LE -> binary("LE", instruction)
             Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${Instruction.b(instruction)}"
         }
     }

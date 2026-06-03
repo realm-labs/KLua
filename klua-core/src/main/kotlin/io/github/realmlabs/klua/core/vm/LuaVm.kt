@@ -42,6 +42,10 @@ internal class LuaVm {
                 Opcode.MOD -> arithmetic(stack, frame, instruction, Arithmetic.MOD)
                 Opcode.POW -> arithmetic(stack, frame, instruction, Arithmetic.POW)
                 Opcode.UNM -> unaryMinus(stack, frame, instruction)
+                Opcode.NOT -> logicalNot(stack, frame, instruction)
+                Opcode.EQ -> compare(stack, frame, instruction, Comparison.EQ)
+                Opcode.LT -> compare(stack, frame, instruction, Comparison.LT)
+                Opcode.LE -> compare(stack, frame, instruction, Comparison.LE)
                 Opcode.RETURN -> return stack.slice(register(frame, Instruction.a(instruction)), Instruction.b(instruction))
             }
         }
@@ -74,6 +78,17 @@ internal class LuaVm {
             else -> throw LuaVmException("attempt to perform arithmetic on ${typeName(value)}")
         }
         stack.set(register(frame, Instruction.a(instruction)), result)
+    }
+
+    private fun logicalNot(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val value = stack.get(register(frame, Instruction.b(instruction)))
+        stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(!isTruthy(value)))
+    }
+
+    private fun compare(stack: LuaStack, frame: CallFrame, instruction: Int, comparison: Comparison) {
+        val left = stack.get(register(frame, Instruction.b(instruction)))
+        val right = stack.get(register(frame, Instruction.c(instruction)))
+        stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(comparison.apply(left, right)))
     }
 
     private enum class Arithmetic {
@@ -119,6 +134,45 @@ internal class LuaVm {
             }
         }
     }
+
+    private enum class Comparison {
+        EQ,
+        LT,
+        LE;
+
+        fun apply(left: LuaValue, right: LuaValue): Boolean {
+            return when (this) {
+                EQ -> luaEquals(left, right)
+                LT -> orderedCompare(left, right) < 0
+                LE -> orderedCompare(left, right) <= 0
+            }
+        }
+
+        private fun luaEquals(left: LuaValue, right: LuaValue): Boolean {
+            val leftNumber = numberValue(left)
+            val rightNumber = numberValue(right)
+            if (leftNumber != null && rightNumber != null) {
+                return leftNumber == rightNumber
+            }
+            return left == right
+        }
+
+        private fun orderedCompare(left: LuaValue, right: LuaValue): Int {
+            val leftNumber = numberValue(left)
+            val rightNumber = numberValue(right)
+            if (leftNumber != null && rightNumber != null) {
+                return leftNumber.compareTo(rightNumber)
+            }
+            if (left is LuaString && right is LuaString) {
+                return left.value.compareTo(right.value)
+            }
+            throw LuaVmException("attempt to compare ${typeName(left)} with ${typeName(right)}")
+        }
+    }
+}
+
+private fun isTruthy(value: LuaValue): Boolean {
+    return value != LuaNil && value != LuaBoolean(false)
 }
 
 private fun numberValue(value: LuaValue): Double? {

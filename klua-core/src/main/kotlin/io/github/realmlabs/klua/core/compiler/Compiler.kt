@@ -138,10 +138,15 @@ internal class Compiler private constructor(
     }
 
     private fun compileUnaryExpression(expression: UnaryExpression, register: Int) {
-        if (expression.operator != UnaryOperator.NEGATE) {
-            throw unsupported(expression, "only numeric negation is supported by this compiler slice")
+        if (expression.operator == UnaryOperator.NOT) {
+            compileExpression(expression.expression, register)
+            writer.emit(Instruction.abc(Opcode.NOT, register, register), expression.range.start.line)
+            return
         }
 
+        if (expression.operator != UnaryOperator.NEGATE) {
+            throw unsupported(expression, "only numeric negation and not are supported by this compiler slice")
+        }
         when (val inner = expression.expression) {
             is IntegerExpression -> emitInteger(register, -inner.value, expression.range.start.line)
             is FloatExpression -> {
@@ -156,13 +161,47 @@ internal class Compiler private constructor(
     }
 
     private fun compileBinaryExpression(expression: BinaryExpression, register: Int) {
-        val opcode = arithmeticOpcode(expression.operator)
-            ?: throw unsupported(expression, "only arithmetic binary expressions are supported by this compiler slice")
+        val arithmeticOpcode = arithmeticOpcode(expression.operator)
+        if (arithmeticOpcode != null) {
+            compileBinaryOperation(expression, register, arithmeticOpcode)
+            return
+        }
+
+        if (isComparisonOperator(expression.operator)) {
+            compileComparisonExpression(expression, register)
+            return
+        }
+
+        throw unsupported(expression, "only arithmetic and comparison binary expressions are supported by this compiler slice")
+    }
+
+    private fun compileBinaryOperation(expression: BinaryExpression, register: Int, opcode: Opcode) {
         val rightRegister = register + 1
 
         compileExpression(expression.left, register)
         compileExpression(expression.right, rightRegister)
         writer.emit(Instruction.abc(opcode, register, register, rightRegister), expression.range.start.line)
+        maxRegister = maxRegister.coerceAtLeast(rightRegister + 1)
+    }
+
+    private fun compileComparisonExpression(expression: BinaryExpression, register: Int) {
+        val rightRegister = register + 1
+        compileExpression(expression.left, register)
+        compileExpression(expression.right, rightRegister)
+
+        when (expression.operator) {
+            BinaryOperator.EQUAL -> writer.emit(Instruction.abc(Opcode.EQ, register, register, rightRegister), expression.range.start.line)
+            BinaryOperator.NOT_EQUAL -> {
+                writer.emit(Instruction.abc(Opcode.EQ, register, register, rightRegister), expression.range.start.line)
+                writer.emit(Instruction.abc(Opcode.NOT, register, register), expression.range.start.line)
+            }
+            BinaryOperator.LESS -> writer.emit(Instruction.abc(Opcode.LT, register, register, rightRegister), expression.range.start.line)
+            BinaryOperator.LESS_EQUAL -> writer.emit(Instruction.abc(Opcode.LE, register, register, rightRegister), expression.range.start.line)
+            BinaryOperator.GREATER -> writer.emit(Instruction.abc(Opcode.LT, register, rightRegister, register), expression.range.start.line)
+            BinaryOperator.GREATER_EQUAL -> writer.emit(Instruction.abc(Opcode.LE, register, rightRegister, register), expression.range.start.line)
+            else -> throw unsupported(expression, "not a comparison operator")
+        }
+
         maxRegister = maxRegister.coerceAtLeast(rightRegister + 1)
     }
 
@@ -177,6 +216,15 @@ internal class Compiler private constructor(
             BinaryOperator.POWER -> Opcode.POW
             else -> null
         }
+    }
+
+    private fun isComparisonOperator(operator: BinaryOperator): Boolean {
+        return operator == BinaryOperator.EQUAL ||
+            operator == BinaryOperator.NOT_EQUAL ||
+            operator == BinaryOperator.LESS ||
+            operator == BinaryOperator.LESS_EQUAL ||
+            operator == BinaryOperator.GREATER ||
+            operator == BinaryOperator.GREATER_EQUAL
     }
 
     private fun emitInteger(register: Int, value: Long, line: Int) {

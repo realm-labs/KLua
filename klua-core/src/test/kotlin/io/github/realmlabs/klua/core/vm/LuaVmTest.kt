@@ -129,6 +129,53 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes equality and comparison expressions`() {
+        val result = LuaVm().execute(
+            Compiler.compile("""return 1 == 1.0, 2 ~= 3, 2 < 3, 3 <= 3, 4 > 3, 4 >= 5, "a" < "b""""),
+        )
+
+        assertEquals(
+            listOf(
+                LuaBoolean(true),
+                LuaBoolean(true),
+                LuaBoolean(true),
+                LuaBoolean(true),
+                LuaBoolean(true),
+                LuaBoolean(false),
+                LuaBoolean(true),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `executes not with lua truthiness`() {
+        val result = LuaVm().execute(
+            Compiler.compile("""return not nil, not false, not true, not 0, not "text""""),
+        )
+
+        assertEquals(
+            listOf(
+                LuaBoolean(true),
+                LuaBoolean(true),
+                LuaBoolean(false),
+                LuaBoolean(false),
+                LuaBoolean(false),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `rejects comparison between incompatible values`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("""return "x" < 1"""))
+        }
+
+        assertEquals("attempt to compare string with number", error.message)
+    }
+
+    @Test
     fun `rejects arithmetic on non numeric values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" + 1"""))
