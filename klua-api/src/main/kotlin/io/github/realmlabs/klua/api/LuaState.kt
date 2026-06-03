@@ -1,9 +1,16 @@
 package io.github.realmlabs.klua.api
 
+import io.github.realmlabs.klua.core.KLuaCoreChunk
+import io.github.realmlabs.klua.core.KLuaCoreExecution
+import io.github.realmlabs.klua.core.KLuaCoreLoad
+import io.github.realmlabs.klua.core.KLuaCoreRuntime
+import io.github.realmlabs.klua.core.KLuaCoreValue
+
 class LuaState private constructor(
     val config: LuaConfig,
 ) {
     private val stack = mutableListOf<LuaStackValue>()
+    private var lastError: LuaException? = null
 
     companion object {
         @JvmStatic
@@ -12,6 +19,62 @@ class LuaState private constructor(
     }
 
     fun getTop(): Int = stack.size
+
+    fun getLastError(): LuaException? = lastError
+
+    @JvmOverloads
+    fun load(source: String, chunkName: String = "chunk"): LuaStatus {
+        return when (val result = KLuaCoreRuntime.compile(source, chunkName)) {
+            is KLuaCoreLoad.Success -> {
+                lastError = null
+                stack += LuaStackValue.ChunkValue(result.chunk)
+                LuaStatus.OK
+            }
+            is KLuaCoreLoad.SyntaxError -> {
+                lastError = LuaSyntaxException(result.message)
+                stack += LuaStackValue.StringValue(result.message)
+                LuaStatus.SYNTAX_ERROR
+            }
+        }
+    }
+
+    @JvmOverloads
+    fun pcall(argumentCount: Int, resultCount: Int = -1): LuaStatus {
+        require(argumentCount >= 0) { "argumentCount must be non-negative" }
+        require(resultCount >= -1) { "resultCount must be -1 or non-negative" }
+        val functionIndex = stack.size - argumentCount - 1
+        require(functionIndex in stack.indices) { "stack does not contain a callable value" }
+
+        val chunk = stack[functionIndex] as? LuaStackValue.ChunkValue
+        if (chunk == null) {
+            val message = "attempt to call ${typeName(functionIndex + 1)}"
+            lastError = LuaRuntimeException(message)
+            removeCallFrame(functionIndex)
+            stack += LuaStackValue.StringValue(message)
+            return LuaStatus.RUNTIME_ERROR
+        }
+
+        return when (val result = KLuaCoreRuntime.execute(chunk.chunk)) {
+            is KLuaCoreExecution.Success -> {
+                lastError = null
+                removeCallFrame(functionIndex)
+                pushResults(result.values, resultCount)
+                LuaStatus.OK
+            }
+            is KLuaCoreExecution.SyntaxError -> {
+                lastError = LuaSyntaxException(result.message)
+                removeCallFrame(functionIndex)
+                stack += LuaStackValue.StringValue(result.message)
+                LuaStatus.SYNTAX_ERROR
+            }
+            is KLuaCoreExecution.RuntimeError -> {
+                lastError = LuaRuntimeException(result.message)
+                removeCallFrame(functionIndex)
+                stack += LuaStackValue.StringValue(result.message)
+                LuaStatus.RUNTIME_ERROR
+            }
+        }
+    }
 
     fun absIndex(index: Int): Int {
         return when {
@@ -105,14 +168,16 @@ class LuaState private constructor(
     }
 
     fun typeName(index: Int): String {
-        return when (valueAt(index)) {
+        return when (val value = valueAt(index)) {
             null -> "none"
             LuaStackValue.Nil -> "nil"
             is LuaStackValue.BooleanValue -> "boolean"
+            is LuaStackValue.ChunkValue -> "function"
             is LuaStackValue.IntegerValue,
             is LuaStackValue.NumberValue,
             -> "number"
             is LuaStackValue.StringValue -> "string"
+            is LuaStackValue.UnsupportedValue -> value.typeName
         }
     }
 
@@ -150,6 +215,32 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> value.value.toString()
             is LuaStackValue.StringValue -> value.value
             else -> null
+        }
+    }
+
+    private fun removeCallFrame(functionIndex: Int) {
+        while (stack.size > functionIndex) {
+            stack.removeAt(stack.lastIndex)
+        }
+    }
+
+    private fun pushResults(values: List<KLuaCoreValue>, resultCount: Int) {
+        val count = if (resultCount == -1) values.size else resultCount
+        for (index in 0 until count) {
+            stack += values.getOrNull(index).toStackValue()
+        }
+    }
+
+    private fun KLuaCoreValue?.toStackValue(): LuaStackValue {
+        return when (this) {
+            null,
+            KLuaCoreValue.Nil,
+            -> LuaStackValue.Nil
+            is KLuaCoreValue.BooleanValue -> LuaStackValue.BooleanValue(value)
+            is KLuaCoreValue.IntegerValue -> LuaStackValue.IntegerValue(value)
+            is KLuaCoreValue.NumberValue -> LuaStackValue.NumberValue(value)
+            is KLuaCoreValue.StringValue -> LuaStackValue.StringValue(value)
+            is KLuaCoreValue.UnsupportedValue -> LuaStackValue.UnsupportedValue(typeName)
         }
     }
 
@@ -201,6 +292,14 @@ class LuaState private constructor(
 
         data class StringValue(
             val value: String,
+        ) : LuaStackValue
+
+        data class ChunkValue(
+            val chunk: KLuaCoreChunk,
+        ) : LuaStackValue
+
+        data class UnsupportedValue(
+            val typeName: String,
         ) : LuaStackValue
     }
 }
