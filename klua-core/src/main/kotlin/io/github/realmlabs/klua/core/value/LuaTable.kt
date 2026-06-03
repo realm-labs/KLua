@@ -4,11 +4,18 @@ internal class LuaTableKeyException(
     message: String,
 ) : RuntimeException(message)
 
+internal class LuaMetatableException(
+    message: String,
+) : RuntimeException(message)
+
 internal class LuaTable : LuaValue {
     private val values = mutableMapOf<LuaValue, LuaValue>()
     var metatable: LuaTable? = null
 
-    fun get(key: LuaValue): LuaValue = rawGet(key)
+    fun get(key: LuaValue): LuaValue {
+        val canonicalKey = canonicalKey(key)
+        return get(canonicalKey, mutableSetOf())
+    }
 
     fun set(key: LuaValue, value: LuaValue) {
         rawSet(key, value)
@@ -43,9 +50,28 @@ internal class LuaTable : LuaValue {
             else -> key
         }
     }
+
+    private fun get(canonicalKey: LuaValue, visited: MutableSet<LuaTable>): LuaValue {
+        val value = values[canonicalKey]
+        if (value != null) {
+            return value
+        }
+
+        if (!visited.add(this)) {
+            throw LuaMetatableException("cycle in __index chain")
+        }
+
+        val index = metatable?.rawGet(INDEX_KEY)
+        return if (index is LuaTable) {
+            index.get(canonicalKey, visited)
+        } else {
+            LuaNil
+        }
+    }
 }
 
 private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
+private val INDEX_KEY = LuaString("__index")
 
 private fun Double.isIntegralLong(): Boolean {
     return java.lang.Double.isFinite(this) &&

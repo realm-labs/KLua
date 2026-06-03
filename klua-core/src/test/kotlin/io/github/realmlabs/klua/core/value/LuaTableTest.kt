@@ -13,6 +13,7 @@ class LuaTableTest {
         table.rawSet(LuaString("answer"), LuaInteger(42))
 
         assertEquals(LuaInteger(42), table.rawGet(LuaString("answer")))
+        assertEquals(LuaInteger(42), table.get(LuaString("answer")))
     }
 
     @Test
@@ -67,5 +68,86 @@ class LuaTableTest {
         table.metatable = metatable
 
         assertEquals(0, table.rawLength())
+    }
+
+    @Test
+    fun `table index metamethod resolves missing fields`() {
+        val table = LuaTable()
+        val prototype = LuaTable()
+        val metatable = LuaTable()
+
+        prototype.rawSet(LuaString("answer"), LuaInteger(42))
+        metatable.rawSet(LuaString("__index"), prototype)
+        table.metatable = metatable
+
+        assertEquals(LuaInteger(42), table.get(LuaString("answer")))
+    }
+
+    @Test
+    fun `own fields take precedence over table index metamethod`() {
+        val table = LuaTable()
+        val prototype = LuaTable()
+        val metatable = LuaTable()
+
+        table.rawSet(LuaString("answer"), LuaInteger(42))
+        prototype.rawSet(LuaString("answer"), LuaInteger(99))
+        metatable.rawSet(LuaString("__index"), prototype)
+        table.metatable = metatable
+
+        assertEquals(LuaInteger(42), table.get(LuaString("answer")))
+    }
+
+    @Test
+    fun `raw get bypasses table index metamethod`() {
+        val table = LuaTable()
+        val prototype = LuaTable()
+        val metatable = LuaTable()
+
+        prototype.rawSet(LuaString("answer"), LuaInteger(42))
+        metatable.rawSet(LuaString("__index"), prototype)
+        table.metatable = metatable
+
+        assertEquals(LuaNil, table.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `table index metamethod follows chained tables`() {
+        val table = LuaTable()
+        val firstPrototype = LuaTable()
+        val secondPrototype = LuaTable()
+        val metatable = LuaTable()
+        val prototypeMetatable = LuaTable()
+
+        secondPrototype.rawSet(LuaString("answer"), LuaInteger(42))
+        prototypeMetatable.rawSet(LuaString("__index"), secondPrototype)
+        firstPrototype.metatable = prototypeMetatable
+        metatable.rawSet(LuaString("__index"), firstPrototype)
+        table.metatable = metatable
+
+        assertEquals(LuaInteger(42), table.get(LuaString("answer")))
+    }
+
+    @Test
+    fun `non table index metamethod is ignored until function calls are supported`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__index"), LuaInteger(42))
+        table.metatable = metatable
+
+        assertEquals(LuaNil, table.get(LuaString("answer")))
+    }
+
+    @Test
+    fun `table index metamethod detects cycles`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        metatable.rawSet(LuaString("__index"), table)
+        table.metatable = metatable
+
+        assertFailsWith<LuaMetatableException> {
+            table.get(LuaString("answer"))
+        }
     }
 }
