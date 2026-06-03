@@ -122,6 +122,91 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pcall returns protected success and failure results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pair(first, second)
+                    return first, second
+                end
+                local ok, first, second = pcall(pair, "a", 2)
+                local failed, message = pcall(function() error("boom") end)
+                return ok, first, second, failed, message
+                """.trimIndent(),
+                "pcall.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("a", state.toString(2))
+        assertEquals(2L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("boom", state.toString(5))
+    }
+
+    @Test
+    fun `pcall preserves table arguments and results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {name = "klua"}
+                local ok, returned, name = pcall(function(input)
+                    return input, input.name
+                end, values)
+                return ok, returned == values, name
+                """.trimIndent(),
+                "pcall-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("klua", state.toString(3))
+    }
+
+    @Test
+    fun `xpcall invokes error handlers`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, value = xpcall(function(input)
+                    return input .. "!"
+                end, function(message)
+                    return "handled:" .. message
+                end, "done")
+                local failed, handled = xpcall(function()
+                    error("boom")
+                end, function(message)
+                    return "handled:" .. message
+                end)
+                return ok, value, failed, handled
+                """.trimIndent(),
+                "xpcall.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("done!", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("handled:boom", state.toString(4))
+    }
+
+    @Test
     fun `select returns vararg count and suffixes`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

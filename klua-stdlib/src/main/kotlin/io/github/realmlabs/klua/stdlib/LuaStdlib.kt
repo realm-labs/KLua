@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaException
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -45,6 +46,7 @@ public object LuaStdlib {
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
         state.register("next", ::next)
+        state.register("pcall", ::pcall)
         state.register("print") { context -> print(context, output) }
         state.register("rawequal", ::rawequal)
         state.register("rawget", ::rawget)
@@ -54,6 +56,7 @@ public object LuaStdlib {
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
         state.register("type", ::type)
+        state.register("xpcall", ::xpcall)
         installLuaSource(
             state,
             """
@@ -226,6 +229,13 @@ public object LuaStdlib {
         return LuaReturn.ofValues(context.nextTableEntry(1, key) ?: listOf(null))
     }
 
+    private fun pcall(context: LuaCallContext): LuaReturn {
+        if (context.typeName(1) != "function") {
+            throw LuaRuntimeException("bad argument #1 to 'pcall' (function expected)")
+        }
+        return protectedCall(context, functionIndex = 1, firstArgumentIndex = 2, handlerIndex = null)
+    }
+
     private fun print(context: LuaCallContext, output: Consumer<String>): LuaReturn {
         output.accept((1..context.argumentCount).joinToString("\t") { index -> toLuaString(context, index) })
         return LuaReturn.none()
@@ -302,6 +312,16 @@ public object LuaStdlib {
         return LuaReturn.of(context.getTable(1))
     }
 
+    private fun xpcall(context: LuaCallContext): LuaReturn {
+        if (context.typeName(1) != "function") {
+            throw LuaRuntimeException("bad argument #1 to 'xpcall' (function expected)")
+        }
+        if (context.typeName(2) != "function") {
+            throw LuaRuntimeException("bad argument #2 to 'xpcall' (function expected)")
+        }
+        return protectedCall(context, functionIndex = 1, firstArgumentIndex = 3, handlerIndex = 2)
+    }
+
     private fun tonumber(context: LuaCallContext): LuaReturn {
         val value = context.get(1) ?: return LuaReturn.of(null)
         if (!context.isNone(2) && !context.isNil(2)) {
@@ -333,6 +353,30 @@ public object LuaStdlib {
 
     private fun type(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(context.typeName(1))
+    }
+
+    private fun protectedCall(
+        context: LuaCallContext,
+        functionIndex: Int,
+        firstArgumentIndex: Int,
+        handlerIndex: Int?,
+    ): LuaReturn {
+        return try {
+            val result = context.call(functionIndex, (firstArgumentIndex..context.argumentCount).map { index -> argumentValue(context, index) })
+            LuaReturn.ofValues(listOf(true) + result.values)
+        } catch (exception: LuaException) {
+            protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
+        } catch (exception: RuntimeException) {
+            protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
+        }
+    }
+
+    private fun protectedCallError(context: LuaCallContext, message: String, handlerIndex: Int?): LuaReturn {
+        if (handlerIndex == null) {
+            return LuaReturn.of(false, message)
+        }
+        val handlerResult = context.call(handlerIndex, listOf(message))
+        return LuaReturn.ofValues(listOf(false) + handlerResult.values)
     }
 
     private fun mathAbs(context: LuaCallContext): LuaReturn {
@@ -865,6 +909,13 @@ public object LuaStdlib {
             -> context.toString(index) ?: context.typeName(index)
             "userdata" -> context.get(index)?.toString() ?: "userdata"
             else -> context.typeName(index)
+        }
+    }
+
+    private fun argumentValue(context: LuaCallContext, index: Int): Any? {
+        return when (context.typeName(index)) {
+            "table" -> context.getTable(index)
+            else -> context.get(index)
         }
     }
 

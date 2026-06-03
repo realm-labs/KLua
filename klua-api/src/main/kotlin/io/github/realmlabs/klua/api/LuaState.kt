@@ -487,9 +487,9 @@ class LuaState private constructor(
             is KLuaCoreValue.NumberValue -> LuaStackValue.NumberValue(value)
             is KLuaCoreValue.StringValue -> LuaStackValue.StringValue(value)
             is KLuaCoreValue.FunctionValue -> LuaStackValue.NativeFunctionValue { context ->
-                val arguments = (1..context.argumentCount).map { index -> context.get(index).toCoreReturnValue() }
+                val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
                 when (val result = function.call(arguments)) {
-                    is KLuaCoreCallResult.Success -> LuaReturn.ofValues(result.values.map { it.toStackValue().toAnyValue() })
+                    is KLuaCoreCallResult.Success -> LuaReturn.ofValues(result.values.map { it.toStackValue() })
                     is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
                 }
             }
@@ -498,7 +498,7 @@ class LuaState private constructor(
                 if (cached != null) {
                     return cached
                 }
-                val tableValue = LuaStackValue.TableValue()
+                val tableValue = LuaStackValue.TableValue(coreValue = this)
                 tableCache[this] = tableValue
                 tableValue.fields.putAll(
                     fields.map { (fieldKey, fieldValue) ->
@@ -524,6 +524,7 @@ class LuaState private constructor(
             is Float -> LuaStackValue.NumberValue(toDouble())
             is Double -> LuaStackValue.NumberValue(this)
             is CharSequence -> LuaStackValue.StringValue(toString())
+            is LuaFunction -> LuaStackValue.NativeFunctionValue(this)
             is Map<*, *> -> toStackTableValue()
             is LuaStackValue -> this
             else -> LuaStackValue.UserDataValue(this)
@@ -541,8 +542,19 @@ class LuaState private constructor(
             is Float -> KLuaCoreValue.NumberValue(toDouble())
             is Double -> KLuaCoreValue.NumberValue(this)
             is CharSequence -> KLuaCoreValue.StringValue(toString())
+            is LuaFunction -> KLuaCoreValue.FunctionValue { arguments ->
+                callHostFunction(this, arguments)
+            }
             is Map<*, *> -> toCoreTableValue()
+            is LuaStackValue -> toCoreValue()
             else -> KLuaCoreValue.UserDataValue(this)
+        }
+    }
+
+    private fun LuaCallContext.argumentToCoreValue(index: Int): KLuaCoreValue {
+        return when (typeName(index)) {
+            "table" -> getTable(index).toCoreReturnValue()
+            else -> get(index).toCoreReturnValue()
         }
     }
 
@@ -607,7 +619,9 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
-            is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.UnsupportedValue("function")
+            is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.FunctionValue { arguments ->
+                callHostFunction(function, arguments)
+            }
             is LuaStackValue.TableValue -> toCoreTableValue(tableCache)
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
@@ -620,6 +634,10 @@ class LuaState private constructor(
         val cached = tableCache[this]
         if (cached != null) {
             return cached
+        }
+        if (coreValue != null) {
+            syncStackTableToCore(this, coreValue, tableCache)
+            return coreValue
         }
         val tableValue = KLuaCoreValue.TableValue(mutableMapOf())
         tableCache[this] = tableValue
@@ -788,6 +806,12 @@ class LuaState private constructor(
             }
         }
 
+        override fun call(index: Int, arguments: List<Any?>): LuaReturn {
+            val function = valueAt(index) as? LuaStackValue.NativeFunctionValue
+                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            return function.function.call(DefaultLuaCallContext(arguments.map { argument -> argument.toStackValue() }))
+        }
+
         override fun getTable(index: Int): Any? {
             return valueAt(index) as? LuaStackValue.TableValue
         }
@@ -929,6 +953,7 @@ class LuaState private constructor(
 
         data class TableValue(
             val fields: MutableMap<LuaStackValue, LuaStackValue> = linkedMapOf(),
+            val coreValue: KLuaCoreValue.TableValue? = null,
         ) : LuaStackValue {
             var metatable: TableValue? = null
         }

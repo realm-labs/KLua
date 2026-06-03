@@ -61,7 +61,9 @@ public object KLuaCoreRuntime {
                 }
         }
         return try {
-            KLuaCoreExecution.Success(LuaVm(globals.table).execute(chunk.prototype, vmArguments).map(::toPublicValue))
+            KLuaCoreExecution.Success(LuaVm(globals.table).execute(chunk.prototype, vmArguments).map { value ->
+                toPublicValue(value, globals)
+            })
         } catch (error: LuaVmException) {
             KLuaCoreExecution.RuntimeError(error.message ?: "runtime error")
         }
@@ -83,7 +85,7 @@ public class KLuaCoreGlobals internal constructor(
         public fun create(): KLuaCoreGlobals = KLuaCoreGlobals()
     }
 
-    public fun get(name: String): KLuaCoreValue = toPublicValue(table.rawGet(LuaString(name)))
+    public fun get(name: String): KLuaCoreValue = toPublicValue(table.rawGet(LuaString(name)), this)
 
     public fun set(name: String, value: KLuaCoreValue): Boolean {
         val luaValue = value.toLuaValueOrNull(this) ?: return false
@@ -141,7 +143,7 @@ public class KLuaCoreGlobals internal constructor(
                     }
                     val value = arguments.getOrNull(1)
                         ?: throw LuaVmException("userdata property '$name' missing value")
-                    callCoreUserDataSetter(type.cast(receiver.value), propertySetter, value)
+                    callCoreUserDataSetter(type.cast(receiver.value), propertySetter, value, this)
                 }
             },
         )
@@ -234,6 +236,7 @@ public sealed interface KLuaCoreValue {
         public val fields: MutableMap<KLuaCoreValue, KLuaCoreValue>,
     ) : KLuaCoreValue {
         public var metatable: TableValue? = null
+        internal var sourceTable: LuaTable? = null
     }
 
     public data class UserDataValue(
@@ -282,6 +285,11 @@ private fun KLuaCoreValue.toLuaValueOrNull(
             if (cached != null) {
                 return cached
             }
+            val originalTable = this.sourceTable
+            if (originalTable != null) {
+                syncPublicTableToLua(originalTable, this, globals, tableCache)
+                return originalTable
+            }
             val table = LuaTable()
             tableCache[this] = table
             for ((fieldKey, fieldValue) in fields) {
@@ -297,10 +305,11 @@ private fun KLuaCoreValue.toLuaValueOrNull(
     }
 }
 
-private fun toPublicValue(value: LuaValue): KLuaCoreValue = toPublicValue(value, IdentityHashMap())
+private fun toPublicValue(value: LuaValue, globals: KLuaCoreGlobals): KLuaCoreValue = toPublicValue(value, globals, IdentityHashMap())
 
 private fun toPublicValue(
     value: LuaValue,
+    globals: KLuaCoreGlobals,
     tableCache: MutableMap<LuaTable, KLuaCoreValue.TableValue>,
 ): KLuaCoreValue {
     return when (value) {
@@ -316,16 +325,20 @@ private fun toPublicValue(
             }
             val tableValue = KLuaCoreValue.TableValue(mutableMapOf())
             tableCache[value] = tableValue
+            tableValue.sourceTable = value
             tableValue.fields.putAll(
                 value.rawEntries()
-                    .map { (key, fieldValue) -> toPublicValue(key, tableCache) to toPublicValue(fieldValue, tableCache) },
+                    .map { (key, fieldValue) -> toPublicValue(key, globals, tableCache) to toPublicValue(fieldValue, globals, tableCache) },
             )
-            tableValue.metatable = value.metatable?.let { metatable -> toPublicValue(metatable, tableCache) as KLuaCoreValue.TableValue }
+            tableValue.metatable = value.metatable?.let { metatable -> toPublicValue(metatable, globals, tableCache) as KLuaCoreValue.TableValue }
             tableValue
         }
         is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)
-        is LuaNativeFunction -> KLuaCoreValue.UnsupportedValue("function")
-        else -> KLuaCoreValue.UnsupportedValue(typeName = value.publicTypeName())
+        is LuaClosure,
+        is LuaNativeFunction,
+        -> KLuaCoreValue.FunctionValue { arguments ->
+            callPublicLuaFunction(value, arguments, globals)
+        }
     }
 }
 
@@ -350,7 +363,7 @@ private fun callCoreFunction(
     globals: KLuaCoreGlobals,
 ): List<LuaValue> {
     val tableCache = IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
-    val publicArguments = arguments.map { value -> toPublicValue(value, tableCache) }
+    val publicArguments = arguments.map { value -> toPublicValue(value, globals, tableCache) }
     return try {
         when (val result = function.call(publicArguments)) {
             is KLuaCoreCallResult.Success -> {
@@ -444,7 +457,7 @@ private fun <T : Any> callCoreUserDataMethod(
     globals: KLuaCoreGlobals,
 ): List<LuaValue> {
     return try {
-        when (val result = method.call(receiver, arguments.map(::toPublicValue))) {
+        when (val result = method.call(receiver, arguments.map { value -> toPublicValue(value, globals) })) {
             is KLuaCoreCallResult.Success -> result.values.map { value ->
                 value.toLuaValueOrNull(globals)
                     ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
@@ -482,9 +495,10 @@ private fun <T : Any> callCoreUserDataSetter(
     receiver: T,
     setter: KLuaCoreUserDataSetter<T>,
     value: LuaValue,
+    globals: KLuaCoreGlobals,
 ): List<LuaValue> {
     return try {
-        when (val result = setter.set(receiver, toPublicValue(value))) {
+        when (val result = setter.set(receiver, toPublicValue(value, globals))) {
             is KLuaCoreCallResult.Success -> emptyList()
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
@@ -492,5 +506,23 @@ private fun <T : Any> callCoreUserDataSetter(
         throw error
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
+    }
+}
+
+private fun callPublicLuaFunction(
+    function: LuaValue,
+    arguments: List<KLuaCoreValue>,
+    globals: KLuaCoreGlobals,
+): KLuaCoreCallResult {
+    val luaArguments = arguments.map { value ->
+        value.toLuaValueOrNull(globals)
+            ?: return KLuaCoreCallResult.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
+    }
+    return try {
+        KLuaCoreCallResult.Success(
+            LuaVm(globals.table).call(function, luaArguments).map { value -> toPublicValue(value, globals) },
+        )
+    } catch (error: LuaVmException) {
+        KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error")
     }
 }

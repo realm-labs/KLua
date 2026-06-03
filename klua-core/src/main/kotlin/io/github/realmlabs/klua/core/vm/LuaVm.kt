@@ -30,6 +30,10 @@ internal class LuaVm(
         return execute(prototype, arguments, emptyList())
     }
 
+    internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
+        return callValue(callee, arguments)
+    }
+
     private fun execute(prototype: Prototype, arguments: List<LuaValue>, upvalues: List<LuaUpvalue>): List<LuaValue> {
         val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
         for (index in 0 until prototype.numParams) {
