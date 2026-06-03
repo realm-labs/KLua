@@ -147,6 +147,30 @@ class LuaStateNativeFunctionJavaTest {
     }
 
     @Test
+    void nativeFunctionsInspectTableArgumentsFromLuaSource() {
+        LuaState state = LuaState.create();
+
+        state.register("inspect", context -> {
+            assertTrue(context.isTable(1));
+            assertEquals(3L, context.tableLength(1));
+            assertEquals("first", context.getTableValue(1, 1L));
+            assertEquals("second", context.getTableValue(1, 2L));
+            assertEquals("named", context.getTableValue(1, "name"));
+            return LuaReturn.of(context.tableLength(1), context.getTableValue(1, 3L), context.getTableValue(1, "name"));
+        });
+
+        assertEquals(
+                LuaStatus.OK,
+                state.load("return inspect({\"first\", \"second\", \"third\", name = \"named\"})", "native-table.lua")
+        );
+        assertEquals(LuaStatus.OK, state.pcall(0, 3));
+
+        assertEquals(3L, state.toInteger(1));
+        assertEquals("third", state.toString(2));
+        assertEquals("named", state.toString(3));
+    }
+
+    @Test
     void nativeFunctionResultsRespectFixedResultCounts() {
         LuaState state = LuaState.create();
 

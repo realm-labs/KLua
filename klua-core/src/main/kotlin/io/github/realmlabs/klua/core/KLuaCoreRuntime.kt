@@ -230,7 +230,7 @@ public sealed interface KLuaCoreValue {
     ) : KLuaCoreValue
 
     public data class TableValue(
-        public val fields: Map<String, KLuaCoreValue>,
+        public val fields: Map<KLuaCoreValue, KLuaCoreValue>,
     ) : KLuaCoreValue
 
     public data class UserDataValue(
@@ -269,9 +269,10 @@ private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? 
         }
         is KLuaCoreValue.TableValue -> {
             val table = LuaTable()
-            for ((field, fieldValue) in fields) {
+            for ((fieldKey, fieldValue) in fields) {
+                val luaKey = fieldKey.toLuaValueOrNull(globals) ?: return null
                 val luaValue = fieldValue.toLuaValueOrNull(globals) ?: return null
-                table.rawSet(LuaString(field), luaValue)
+                table.rawSet(luaKey, luaValue)
             }
             table
         }
@@ -289,13 +290,7 @@ private fun toPublicValue(value: LuaValue): KLuaCoreValue {
         is LuaString -> KLuaCoreValue.StringValue(value.value)
         is LuaTable -> KLuaCoreValue.TableValue(
             value.rawEntries()
-                .mapNotNull { (key, fieldValue) ->
-                    if (key is LuaString) {
-                        key.value to toPublicValue(fieldValue)
-                    } else {
-                        null
-                    }
-                }
+                .map { (key, fieldValue) -> toPublicValue(key) to toPublicValue(fieldValue) }
                 .toMap(),
         )
         is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)

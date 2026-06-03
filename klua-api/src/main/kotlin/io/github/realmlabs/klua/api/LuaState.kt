@@ -209,7 +209,7 @@ class LuaState private constructor(
 
     fun getField(index: Int, key: String) {
         val table = requireTable(index)
-        stack += table.fields[key] ?: LuaStackValue.Nil
+        stack += table.fields[LuaStackValue.StringValue(key)] ?: LuaStackValue.Nil
     }
 
     fun setField(index: Int, key: String) {
@@ -217,40 +217,42 @@ class LuaState private constructor(
         val value = requireValue(-1)
         stack.removeAt(stack.lastIndex)
         if (value == LuaStackValue.Nil) {
-            table.fields.remove(key)
+            table.fields.remove(LuaStackValue.StringValue(key))
         } else {
-            table.fields[key] = value
+            table.fields[LuaStackValue.StringValue(key)] = value
         }
     }
 
     fun getGlobal(name: String) {
+        val key = LuaStackValue.StringValue(name)
         if (name in coreBackedNativeGlobals) {
             val value = coreGlobals.get(name)
             if (value is KLuaCoreValue.UnsupportedValue && value.typeName == "function") {
-                stack += globals.fields[name] ?: value.toStackValue()
+                stack += globals.fields[key] ?: value.toStackValue()
             } else {
-                globals.fields.remove(name)
+                globals.fields.remove(key)
                 coreBackedNativeGlobals.remove(name)
                 stack += value.toStackValue()
             }
             return
         }
-        stack += globals.fields[name] ?: coreGlobals.get(name).toStackValue()
+        stack += globals.fields[key] ?: coreGlobals.get(name).toStackValue()
     }
 
     fun setGlobal(name: String) {
+        val key = LuaStackValue.StringValue(name)
         val value = requireValue(-1)
         stack.removeAt(stack.lastIndex)
         val coreValue = value.toCoreValue()
         if (coreGlobals.set(name, coreValue)) {
-            globals.fields.remove(name)
+            globals.fields.remove(key)
             coreBackedNativeGlobals.remove(name)
         } else {
             when (value) {
                 is LuaStackValue.NativeFunctionValue -> setNativeGlobal(name, value)
                 else -> {
                     coreGlobals.set(name, KLuaCoreValue.Nil)
-                    globals.fields[name] = value
+                    globals.fields[key] = value
                     coreBackedNativeGlobals.remove(name)
                 }
             }
@@ -401,7 +403,7 @@ class LuaState private constructor(
             callHostFunction(function.function, arguments.map { it.toStackValue() })
         }
         coreBackedNativeGlobals += name
-        globals.fields[name] = function
+        globals.fields[LuaStackValue.StringValue(name)] = function
     }
 
     private fun callHostFunction(
@@ -479,7 +481,8 @@ class LuaState private constructor(
                 }
             }
             is KLuaCoreValue.TableValue -> LuaStackValue.TableValue(
-                fields.mapValues { (_, fieldValue) -> fieldValue.toStackValue() }.toMutableMap(),
+                fields.map { (fieldKey, fieldValue) -> fieldKey.toStackValue() to fieldValue.toStackValue() }
+                    .toMap(mutableMapOf()),
             )
             is KLuaCoreValue.UserDataValue -> LuaStackValue.UserDataValue(value)
             is KLuaCoreValue.UnsupportedValue -> LuaStackValue.UnsupportedValue(typeName)
@@ -539,7 +542,9 @@ class LuaState private constructor(
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
-                fields.mapValues { (_, fieldValue) -> fieldValue.toCoreTableFieldValue() },
+                fields.map { (fieldKey, fieldValue) ->
+                    fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
+                }.toMap(),
             )
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
@@ -557,7 +562,9 @@ class LuaState private constructor(
                 callHostFunction(function, arguments.map { it.toStackValue() })
             }
             is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
-                fields.mapValues { (_, fieldValue) -> fieldValue.toCoreTableFieldValue() },
+                fields.map { (fieldKey, fieldValue) ->
+                    fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
+                }.toMap(),
             )
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
@@ -628,6 +635,8 @@ class LuaState private constructor(
 
         override fun isNone(index: Int): Boolean = valueAt(index) == null
 
+        override fun isTable(index: Int): Boolean = valueAt(index) is LuaStackValue.TableValue
+
         override fun typeName(index: Int): String = stackTypeName(valueAt(index))
 
         override fun get(index: Int): Any? {
@@ -643,6 +652,20 @@ class LuaState private constructor(
                 is LuaStackValue.UserDataValue -> value.value
                 else -> throw IllegalArgumentException("argument $index is ${stackTypeName(value)}")
             }
+        }
+
+        override fun getTableValue(index: Int, key: Any?): Any? {
+            val table = valueAt(index) as? LuaStackValue.TableValue ?: return null
+            return table.fields[key.toStackValue()]?.toAnyValue()
+        }
+
+        override fun tableLength(index: Int): Long? {
+            val table = valueAt(index) as? LuaStackValue.TableValue ?: return null
+            var length = 0L
+            while (table.fields[LuaStackValue.IntegerValue(length + 1L)] != null) {
+                length++
+            }
+            return length
         }
 
         override fun toBoolean(index: Int): Boolean {
@@ -721,7 +744,7 @@ class LuaState private constructor(
         ) : LuaStackValue
 
         data class TableValue(
-            val fields: MutableMap<String, LuaStackValue> = linkedMapOf(),
+            val fields: MutableMap<LuaStackValue, LuaStackValue> = linkedMapOf(),
         ) : LuaStackValue
 
         data class ChunkValue(
