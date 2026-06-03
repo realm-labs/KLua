@@ -10,6 +10,7 @@ class LuaState private constructor(
     val config: LuaConfig,
 ) {
     private val stack = mutableListOf<LuaStackValue>()
+    private val globals = LuaStackValue.TableValue()
     private var lastError: LuaException? = null
 
     companion object {
@@ -139,6 +140,20 @@ class LuaState private constructor(
             table.fields.remove(key)
         } else {
             table.fields[key] = value
+        }
+    }
+
+    fun getGlobal(name: String) {
+        stack += globals.fields[name] ?: LuaStackValue.Nil
+    }
+
+    fun setGlobal(name: String) {
+        val value = requireValue(-1)
+        stack.removeAt(stack.lastIndex)
+        if (value == LuaStackValue.Nil) {
+            globals.fields.remove(name)
+        } else {
+            globals.fields[name] = value
         }
     }
 
