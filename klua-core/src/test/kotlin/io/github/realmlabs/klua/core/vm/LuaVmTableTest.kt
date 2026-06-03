@@ -1,10 +1,17 @@
 package io.github.realmlabs.klua.core.vm
 
+import io.github.realmlabs.klua.core.bytecode.Instruction
+import io.github.realmlabs.klua.core.bytecode.Opcode
+import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.compiler.Compiler
+import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaBoolean
+import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -248,6 +255,35 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `calls closure index metamethod for missing table keys`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+        metatable.rawSet(LuaString("__index"), LuaClosure(returnSecondArgumentPrototype()))
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableFieldReadPrototype(table, "answer"))
+
+        assertEquals(listOf(LuaString("answer")), result)
+    }
+
+    @Test
+    fun `calls closure index metamethod through table index chain`() {
+        val table = LuaTable()
+        val prototype = LuaTable()
+        val metatable = LuaTable()
+        val prototypeMetatable = LuaTable()
+
+        prototypeMetatable.rawSet(LuaString("__index"), LuaClosure(returnSecondArgumentPrototype()))
+        prototype.metatable = prototypeMetatable
+        metatable.rawSet(LuaString("__index"), prototype)
+        table.metatable = metatable
+
+        val result = LuaVm().execute(tableFieldReadPrototype(table, "answer"))
+
+        assertEquals(listOf(LuaString("answer")), result)
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))
@@ -295,5 +331,35 @@ class LuaVmTableTest {
         }
 
         assertEquals("table index is NaN", error.message)
+    }
+
+    private fun returnSecondArgumentPrototype(): Prototype {
+        return Prototype(
+            sourceName = "metamethod",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.MOVE, 0, 1),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = emptyArray(),
+            lineInfo = intArrayOf(1, 1),
+            maxStackSize = 2,
+            numParams = 2,
+        )
+    }
+
+    private fun tableFieldReadPrototype(table: LuaTable, field: String): Prototype {
+        return Prototype(
+            sourceName = "metatable-test",
+            version = LuaSourceVersion.LUA_54,
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, 0, 0),
+                Instruction.abc(Opcode.GET_FIELD, 1, 0, 1),
+                Instruction.abc(Opcode.RETURN, 1, 1),
+            ),
+            constants = arrayOf<LuaValue>(table, LuaString(field)),
+            lineInfo = intArrayOf(1, 1, 1),
+            maxStackSize = 2,
+        )
     }
 }

@@ -26,6 +26,10 @@ internal class LuaTable : LuaValue {
         return values[canonicalKey(key)] ?: LuaNil
     }
 
+    fun metatableRawGet(key: LuaString): LuaValue {
+        return metatable?.rawGet(key) ?: LuaNil
+    }
+
     fun rawSet(key: LuaValue, value: LuaValue) {
         val canonicalKey = canonicalKey(key)
         if (value == LuaNil) {

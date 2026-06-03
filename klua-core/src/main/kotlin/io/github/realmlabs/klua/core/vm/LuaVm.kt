@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaMetatableException
 import io.github.realmlabs.klua.core.value.LuaTableKeyException
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
@@ -233,9 +234,27 @@ internal class LuaVm {
 
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {
         return try {
-            table.get(key)
+            tableGet(table, key, mutableSetOf())
         } catch (error: LuaTableKeyException) {
             throw LuaVmException(error.message ?: "invalid table key")
+        } catch (error: LuaMetatableException) {
+            throw LuaVmException(error.message ?: "invalid metatable operation")
+        }
+    }
+
+    private fun tableGet(table: LuaTable, key: LuaValue, visited: MutableSet<LuaTable>): LuaValue {
+        val value = table.rawGet(key)
+        if (value != LuaNil) {
+            return value
+        }
+        if (!visited.add(table)) {
+            throw LuaMetatableException("cycle in __index chain")
+        }
+
+        return when (val index = table.metatableRawGet(INDEX_KEY)) {
+            is LuaTable -> tableGet(index, key, visited)
+            is LuaClosure -> execute(index.prototype, listOf(table, key), index.upvalues).firstOrNull() ?: LuaNil
+            else -> LuaNil
         }
     }
 
@@ -252,6 +271,8 @@ internal class LuaVm {
             table.set(key, value)
         } catch (error: LuaTableKeyException) {
             throw LuaVmException(error.message ?: "invalid table key")
+        } catch (error: LuaMetatableException) {
+            throw LuaVmException(error.message ?: "invalid metatable operation")
         }
     }
 
@@ -550,3 +571,5 @@ private fun typeName(value: LuaValue): String {
         is LuaTable -> "table"
     }
 }
+
+private val INDEX_KEY = LuaString("__index")
