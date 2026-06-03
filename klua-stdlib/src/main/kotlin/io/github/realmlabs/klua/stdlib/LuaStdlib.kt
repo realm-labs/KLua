@@ -4,17 +4,29 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import java.util.function.Consumer
 
 public object LuaStdlib {
     @JvmStatic
     public fun openLibs(state: LuaState): LuaState {
-        return openBase(state)
+        return openLibs(state, standardOutput())
+    }
+
+    @JvmStatic
+    public fun openLibs(state: LuaState, output: Consumer<String>): LuaState {
+        return openBase(state, output)
     }
 
     @JvmStatic
     public fun openBase(state: LuaState): LuaState {
+        return openBase(state, standardOutput())
+    }
+
+    @JvmStatic
+    public fun openBase(state: LuaState, output: Consumer<String>): LuaState {
         state.register("assert", ::assert)
         state.register("error", ::error)
+        state.register("print") { context -> print(context, output) }
         state.register("select", ::select)
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
@@ -31,6 +43,11 @@ public object LuaStdlib {
 
     private fun error(context: LuaCallContext): LuaReturn {
         throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
+    }
+
+    private fun print(context: LuaCallContext, output: Consumer<String>): LuaReturn {
+        output.accept((1..context.argumentCount).joinToString("\t") { index -> toLuaString(context, index) })
+        return LuaReturn.none()
     }
 
     private fun select(context: LuaCallContext): LuaReturn {
@@ -66,24 +83,31 @@ public object LuaStdlib {
     }
 
     private fun tostring(context: LuaCallContext): LuaReturn {
-        val text = when (context.typeName(1)) {
-            "nil" -> "nil"
-            "boolean" -> context.toBoolean(1).toString()
-            "number",
-            "string",
-            -> context.toString(1)
-            "userdata" -> context.get(1)?.toString() ?: "userdata"
-            else -> context.typeName(1)
-        }
-        return LuaReturn.of(text)
+        return LuaReturn.of(toLuaString(context, 1))
     }
 
     private fun type(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(context.typeName(1))
     }
 
+    private fun toLuaString(context: LuaCallContext, index: Int): String {
+        return when (context.typeName(index)) {
+            "nil" -> "nil"
+            "boolean" -> context.toBoolean(index).toString()
+            "number",
+            "string",
+            -> context.toString(index) ?: context.typeName(index)
+            "userdata" -> context.get(index)?.toString() ?: "userdata"
+            else -> context.typeName(index)
+        }
+    }
+
     private fun parseNumber(text: String): Number? {
         val trimmed = text.trim()
         return trimmed.toLongOrNull() ?: trimmed.toDoubleOrNull()
+    }
+
+    private fun standardOutput(): Consumer<String> {
+        return Consumer { line -> println(line) }
     }
 }

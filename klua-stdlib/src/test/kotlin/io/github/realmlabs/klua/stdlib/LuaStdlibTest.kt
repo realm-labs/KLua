@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.stdlib
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaStatus
+import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -126,6 +127,20 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'select' (index out of range)", state.toString(-1))
+    }
+
+    @Test
+    fun `print writes tab separated line to configured output`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> output += line })
+
+        assertEquals(LuaStatus.OK, state.load("""print("level", 42, false, nil)""", "print.lua"))
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertEquals(listOf("level\t42\tfalse\tnil"), output)
+        assertEquals(0, state.getTop())
     }
 
     @Test
