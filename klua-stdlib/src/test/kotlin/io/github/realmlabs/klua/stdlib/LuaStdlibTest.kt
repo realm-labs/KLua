@@ -608,6 +608,62 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gmatch iterates literal matches`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator = string.gmatch("banana", "an")
+                local first = iterator()
+                local second = iterator()
+                local done = iterator()
+                local collector = string.gmatch("xx-xx", "xx")
+                local collected = ""
+                while true do
+                    local match = collector()
+                    if match == nil then
+                        break
+                    end
+                    collected = collected .. match
+                end
+                return first, second, done, collected
+                """.trimIndent(),
+                "string-gmatch.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("an", state.toString(1))
+        assertEquals("an", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("xxxx", state.toString(4))
+    }
+
+    @Test
+    fun `string gmatch reports unsupported patterns`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator = string.gmatch("abc", ".")
+                return iterator()
+                """.trimIndent(),
+                "string-gmatch-pattern.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("string patterns are not supported", state.toString(-1))
+    }
+
+    @Test
     fun `string match returns literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

@@ -89,6 +89,23 @@ public object LuaStdlib {
         setFunctionField(state, "sub", ::stringSub)
         setFunctionField(state, "upper", ::stringUpper)
         state.setGlobal("string")
+        installLuaSource(
+            state,
+            """
+            string.gmatch = function(text, pattern)
+                local init = 1
+                return function()
+                    local first, last = string.find(text, pattern, init)
+                    if first == nil then
+                        return nil
+                    end
+                    init = last + 1
+                    return string.sub(text, first, last)
+                end
+            end
+            """.trimIndent(),
+            "stdlib-string-gmatch.lua",
+        )
         return state
     }
 
