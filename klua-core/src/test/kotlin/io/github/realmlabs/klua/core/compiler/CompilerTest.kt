@@ -321,9 +321,8 @@ class CompilerTest {
             0001  [4]  MOVE R1 R0
             0002  [4]  LOAD_INT R2 20
             0003  [4]  LOAD_INT R3 22
-            0004  [4]  CALL R1 2 1
-            0005  [4]  MOVE R0 R1
-            0006  [4]  RETURN R0 1
+            0004  [4]  CALL R1 2 *
+            0005  [4]  RETURN R1 *
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -441,6 +440,38 @@ class CompilerTest {
             0005  [3]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(function),
+        )
+    }
+
+    @Test
+    fun `compiles open vararg and call returns`() {
+        val prototype = Compiler.compile(
+            """
+            local function pass(...)
+                return ...
+            end
+            return pass(1, 2)
+            """.trimIndent(),
+        )
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [4]  MOVE R1 R0
+            0002  [4]  LOAD_INT R2 1
+            0003  [4]  LOAD_INT R3 2
+            0004  [4]  CALL R1 2 *
+            0005  [4]  RETURN R1 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+        assertEquals(
+            """
+            0000  [2]  VARARG R0 *
+            0001  [2]  RETURN R0 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype.nested.single()),
         )
     }
 

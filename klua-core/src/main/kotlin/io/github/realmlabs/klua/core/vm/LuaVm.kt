@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.Instruction
+import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.value.LuaBoolean
@@ -89,7 +90,11 @@ internal class LuaVm {
                     }
                 }
                 Opcode.CALL -> call(stack, frame, instruction)
-                Opcode.RETURN -> return stack.slice(register(frame, Instruction.a(instruction)), Instruction.b(instruction))
+                Opcode.RETURN -> {
+                    val base = register(frame, Instruction.a(instruction))
+                    val count = returnCount(frame, base, Instruction.b(instruction))
+                    return stack.slice(base, count)
+                }
             }
         }
 
@@ -121,16 +126,46 @@ internal class LuaVm {
 
         val arguments = stack.slice(base + 1, Instruction.b(instruction))
         val results = execute(callee.prototype, arguments)
-        for (index in 0 until Instruction.c(instruction)) {
+        val expectedResults = Instruction.c(instruction)
+        if (expectedResults == OPEN_RESULT_COUNT) {
+            setOpenResults(stack, frame, base, results)
+            return
+        }
+
+        for (index in 0 until expectedResults) {
             stack.set(base + index, results.getOrElse(index) { LuaNil })
         }
     }
 
     private fun loadVarargs(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val base = register(frame, Instruction.a(instruction))
-        for (index in 0 until Instruction.b(instruction)) {
+        val expectedResults = Instruction.b(instruction)
+        if (expectedResults == OPEN_RESULT_COUNT) {
+            setOpenResults(stack, frame, base, frame.varargs)
+            return
+        }
+
+        for (index in 0 until expectedResults) {
             stack.set(base + index, frame.varargs.getOrElse(index) { LuaNil })
         }
+    }
+
+    private fun setOpenResults(stack: LuaStack, frame: CallFrame, base: Int, results: List<LuaValue>) {
+        for ((index, result) in results.withIndex()) {
+            stack.set(base + index, result)
+        }
+        frame.openResultBase = base
+        frame.openResultCount = results.size
+    }
+
+    private fun returnCount(frame: CallFrame, base: Int, count: Int): Int {
+        if (count != OPEN_RESULT_COUNT) {
+            return count
+        }
+        if (frame.openResultBase < base) {
+            throw LuaVmException("open return result base is before return base")
+        }
+        return frame.openResultBase - base + frame.openResultCount
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value

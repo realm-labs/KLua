@@ -29,6 +29,7 @@ import io.github.realmlabs.klua.core.ast.VariableExpression
 import io.github.realmlabs.klua.core.ast.WhileStatement
 import io.github.realmlabs.klua.core.bytecode.BytecodeWriter
 import io.github.realmlabs.klua.core.bytecode.Instruction
+import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.parser.Parser
@@ -298,6 +299,11 @@ internal class Compiler private constructor(
     }
 
     private fun compileReturn(statement: ReturnStatement) {
+        if (statement.values.lastOrNull().isOpenResultExpression()) {
+            compileOpenReturn(statement)
+            return
+        }
+
         if (nextLocalRegister == 0) {
             for ((register, expression) in statement.values.withIndex()) {
                 compileExpression(expression, register)
@@ -314,6 +320,16 @@ internal class Compiler private constructor(
             writer.emit(Instruction.abc(Opcode.MOVE, register, tempBase + register), statement.range.start.line)
         }
         emitReturn(0, statement.values.size, statement.range.start.line)
+    }
+
+    private fun compileOpenReturn(statement: ReturnStatement) {
+        val tempBase = nextLocalRegister
+        val lastIndex = statement.values.lastIndex
+        for (index in 0 until lastIndex) {
+            compileExpression(statement.values[index], tempBase + index)
+        }
+        compileOpenResultExpression(statement.values[lastIndex], tempBase + lastIndex)
+        emitReturn(tempBase, OPEN_RESULT_COUNT, statement.range.start.line)
     }
 
     private fun compileExpression(expression: Expression, register: Int) {
@@ -341,6 +357,14 @@ internal class Compiler private constructor(
         }
     }
 
+    private fun compileOpenResultExpression(expression: Expression, register: Int) {
+        when (expression) {
+            is CallExpression -> compileCallExpression(expression, register, OPEN_RESULT_COUNT)
+            is VarargExpression -> compileVarargExpression(expression, register, OPEN_RESULT_COUNT)
+            else -> throw unsupported(expression, "not an open result expression")
+        }
+    }
+
     private fun compileVarargExpression(expression: VarargExpression, register: Int, resultCount: Int) {
         if (!isVarargFunction) {
             throw unsupported(expression, "cannot use '...' outside a vararg function")
@@ -349,7 +373,8 @@ internal class Compiler private constructor(
             throw unsupported(expression, "too many vararg results")
         }
 
-        maxRegister = maxRegister.coerceAtLeast(register + resultCount)
+        val minimumResultSlots = if (resultCount == OPEN_RESULT_COUNT) 1 else resultCount
+        maxRegister = maxRegister.coerceAtLeast(register + minimumResultSlots)
         writer.emit(Instruction.abc(Opcode.VARARG, register, resultCount), expression.range.start.line)
     }
 
@@ -365,7 +390,8 @@ internal class Compiler private constructor(
         for ((index, argument) in expression.arguments.withIndex()) {
             compileExpression(argument, register + index + 1)
         }
-        maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 1, resultCount))
+        val minimumResultSlots = if (resultCount == OPEN_RESULT_COUNT) 1 else resultCount
+        maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 1, minimumResultSlots))
         writer.emit(Instruction.abc(Opcode.CALL, register, expression.arguments.size, resultCount), expression.range.start.line)
     }
 
@@ -564,6 +590,8 @@ internal class Compiler private constructor(
             operator == BinaryOperator.GREATER ||
             operator == BinaryOperator.GREATER_EQUAL
     }
+
+    private fun Expression?.isOpenResultExpression(): Boolean = this is CallExpression || this is VarargExpression
 
     private fun emitInteger(register: Int, value: Long, line: Int) {
         if (value >= Byte.MIN_VALUE && value <= Byte.MAX_VALUE) {

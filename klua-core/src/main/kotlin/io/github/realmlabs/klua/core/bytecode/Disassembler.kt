@@ -30,7 +30,7 @@ internal object Disassembler {
                 val constant = prototype.constants[Instruction.b(instruction)]
                 "LOAD_K R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
             }
-            Opcode.VARARG -> "VARARG R${Instruction.a(instruction)} ${Instruction.b(instruction)}"
+            Opcode.VARARG -> "VARARG R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)
@@ -57,10 +57,12 @@ internal object Disassembler {
             Opcode.JMP -> "JMP ${signedByte(Instruction.a(instruction))}"
             Opcode.FOR_TEST -> "FOR_TEST R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
             Opcode.FOR_LOOP -> "FOR_LOOP R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
-            Opcode.CALL -> "CALL R${Instruction.a(instruction)} ${Instruction.b(instruction)} ${Instruction.c(instruction)}"
-            Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${Instruction.b(instruction)}"
+            Opcode.CALL -> "CALL R${Instruction.a(instruction)} ${Instruction.b(instruction)} ${formatCount(Instruction.c(instruction))}"
+            Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
         }
     }
+
+    private fun formatCount(count: Int): String = if (count == OPEN_RESULT_COUNT) "*" else count.toString()
 
     private fun binary(name: String, instruction: Int): String {
         return "$name R${Instruction.a(instruction)} R${Instruction.b(instruction)} R${Instruction.c(instruction)}"

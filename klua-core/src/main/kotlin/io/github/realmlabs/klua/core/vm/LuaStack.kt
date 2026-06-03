@@ -4,7 +4,7 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaStack(size: Int) {
-    private val values = Array<LuaValue>(size.coerceAtLeast(1)) { LuaNil }
+    private val values = MutableList<LuaValue>(size.coerceAtLeast(1)) { LuaNil }
 
     fun get(index: Int): LuaValue {
         checkIndex(index)
@@ -12,7 +12,7 @@ internal class LuaStack(size: Int) {
     }
 
     fun set(index: Int, value: LuaValue) {
-        checkIndex(index)
+        ensureIndex(index)
         values[index] = value
     }
 
@@ -27,5 +27,12 @@ internal class LuaStack(size: Int) {
 
     private fun checkIndex(index: Int) {
         require(index in values.indices) { "stack index out of range: $index" }
+    }
+
+    private fun ensureIndex(index: Int) {
+        require(index >= 0) { "stack index out of range: $index" }
+        while (index >= values.size) {
+            values += LuaNil
+        }
     }
 }

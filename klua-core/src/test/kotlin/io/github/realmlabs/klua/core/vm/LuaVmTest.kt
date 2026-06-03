@@ -427,6 +427,54 @@ class LuaVmTest {
     }
 
     @Test
+    fun `returns all varargs from vararg functions`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function pass(...)
+                    return ...
+                end
+                return pass(1, 2, 3)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1), LuaInteger(2), LuaInteger(3)), result)
+    }
+
+    @Test
+    fun `returns empty open call results`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function none()
+                    return
+                end
+                return none()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(emptyList(), result)
+    }
+
+    @Test
+    fun `treats non-final vararg returns as single values`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function prefix(...)
+                    return ..., 9
+                end
+                return prefix(1, 2)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1), LuaInteger(9)), result)
+    }
+
+    @Test
     fun `propagates errors from function call statements`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(
