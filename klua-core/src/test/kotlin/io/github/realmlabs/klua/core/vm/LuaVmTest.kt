@@ -87,6 +87,48 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes local declaration and local return`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 40 + 2
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `preserves local values while staging return values`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x, y = 1, 2
+                return y, x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(2), LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `initializes missing local values to nil at runtime`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x, y = 1
+                return y
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaNil), result)
+    }
+
+    @Test
     fun `rejects arithmetic on non numeric values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" + 1"""))

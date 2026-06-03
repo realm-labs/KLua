@@ -7,12 +7,14 @@ import io.github.realmlabs.klua.core.ast.Chunk
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.IntegerExpression
+import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.NilExpression
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
 import io.github.realmlabs.klua.core.ast.UnaryOperator
+import io.github.realmlabs.klua.core.ast.VariableExpression
 import io.github.realmlabs.klua.core.bytecode.BytecodeWriter
 import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.Opcode
@@ -29,6 +31,8 @@ internal class Compiler private constructor(
 ) {
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
+    private val locals = linkedMapOf<String, Int>()
+    private var nextLocalRegister = 0
     private var maxRegister = 0
 
     fun compile(chunk: Chunk): Prototype {
@@ -50,20 +54,55 @@ internal class Compiler private constructor(
 
     private fun compileStatements(statements: List<Statement>) {
         for ((index, statement) in statements.withIndex()) {
-            if (index != statements.lastIndex) {
-                throw unsupported(statement, "only a final return statement is supported by this compiler slice")
-            }
-
             when (statement) {
-                is ReturnStatement -> compileReturn(statement)
-                else -> throw unsupported(statement, "only return statements are supported by this compiler slice")
+                is LocalStatement -> compileLocal(statement)
+                is ReturnStatement -> {
+                    if (index != statements.lastIndex) {
+                        throw unsupported(statement, "return must be the final statement in this compiler slice")
+                    }
+                    compileReturn(statement)
+                }
+                else -> throw unsupported(statement, "only local and return statements are supported by this compiler slice")
             }
         }
     }
 
+    private fun compileLocal(statement: LocalStatement) {
+        val slots = statement.names.map { name ->
+            val slot = nextLocalRegister++
+            maxRegister = maxRegister.coerceAtLeast(slot + 1)
+            slot
+        }
+
+        for ((index, slot) in slots.withIndex()) {
+            val value = statement.values.getOrNull(index)
+            if (value == null) {
+                writer.emit(Instruction.abc(Opcode.LOAD_NIL, slot), statement.range.start.line)
+            } else {
+                compileExpression(value, slot)
+            }
+        }
+
+        for ((index, name) in statement.names.withIndex()) {
+            locals[name] = slots[index]
+        }
+    }
+
     private fun compileReturn(statement: ReturnStatement) {
+        if (nextLocalRegister == 0) {
+            for ((register, expression) in statement.values.withIndex()) {
+                compileExpression(expression, register)
+            }
+            emitReturn(0, statement.values.size, statement.range.start.line)
+            return
+        }
+
+        val tempBase = nextLocalRegister
         for ((register, expression) in statement.values.withIndex()) {
-            compileExpression(expression, register)
+            compileExpression(expression, tempBase + register)
+        }
+        for (register in statement.values.indices) {
+            writer.emit(Instruction.abc(Opcode.MOVE, register, tempBase + register), statement.range.start.line)
         }
         emitReturn(0, statement.values.size, statement.range.start.line)
     }
@@ -84,9 +123,17 @@ internal class Compiler private constructor(
                 val constant = constants.add(LuaString(expression.value))
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
+            is VariableExpression -> compileVariable(expression, register)
             is UnaryExpression -> compileUnaryExpression(expression, register)
             is BinaryExpression -> compileBinaryExpression(expression, register)
-            else -> throw unsupported(expression, "unsupported expression in this compiler slice")
+        }
+    }
+
+    private fun compileVariable(expression: VariableExpression, register: Int) {
+        val source = locals[expression.name]
+            ?: throw unsupported(expression, "unknown local '${expression.name}'")
+        if (source != register) {
+            writer.emit(Instruction.abc(Opcode.MOVE, register, source), expression.range.start.line)
         }
     }
 

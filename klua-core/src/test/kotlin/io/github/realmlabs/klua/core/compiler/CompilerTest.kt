@@ -120,6 +120,74 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles local declaration and local return`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 1 + 2
+            return x
+            """.trimIndent(),
+        )
+
+        assertEquals(2, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_INT R1 2
+            0002  [1]  ADD R0 R0 R1
+            0003  [2]  MOVE R1 R0
+            0004  [2]  MOVE R0 R1
+            0005  [2]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `stages local return values before moving into return registers`() {
+        val prototype = Compiler.compile(
+            """
+            local x, y = 1, 2
+            return y, x
+            """.trimIndent(),
+        )
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_INT R1 2
+            0002  [2]  MOVE R2 R1
+            0003  [2]  MOVE R3 R0
+            0004  [2]  MOVE R0 R2
+            0005  [2]  MOVE R1 R3
+            0006  [2]  RETURN R0 2
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `initializes missing local values to nil`() {
+        val prototype = Compiler.compile(
+            """
+            local x, y = 1
+            return y
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_NIL R1
+            0002  [2]  MOVE R2 R1
+            0003  [2]  MOVE R0 R2
+            0004  [2]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `emits empty chunk as zero value return`() {
         val prototype = Compiler.compile("")
 
@@ -130,7 +198,7 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects non literal return expressions in this slice`() {
+    fun `rejects unknown local variables`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("return name", "unsupported.lua")
         }
@@ -138,5 +206,6 @@ class CompilerTest {
         assertEquals("unsupported.lua", error.position.sourceName)
         assertEquals(1, error.position.line)
         assertEquals(8, error.position.column)
+        assertEquals("unsupported.lua:1:8: unknown local 'name'", error.message)
     }
 }
