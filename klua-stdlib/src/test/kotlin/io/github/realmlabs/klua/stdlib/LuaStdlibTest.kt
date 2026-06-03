@@ -666,6 +666,58 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move copies ranges and returns destination table`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local source = {"a", "b", "c"}
+                local destination = {"x"}
+                local returned = table.move(source, 1, 2, 2, destination)
+                returned[4] = "tail"
+                return destination[1], destination[2], destination[3], destination[4], returned == destination
+                """.trimIndent(),
+                "table-move-destination.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("x", state.toString(1))
+        assertEquals("a", state.toString(2))
+        assertEquals("b", state.toString(3))
+        assertEquals("tail", state.toString(4))
+        assertTrue(state.toBoolean(5))
+    }
+
+    @Test
+    fun `table move handles overlapping self moves`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {"a", "b", "c", "d"}
+                local returned = table.move(values, 1, 3, 2)
+                return values[1], values[2], values[3], values[4], returned == values
+                """.trimIndent(),
+                "table-move-overlap.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("a", state.toString(2))
+        assertEquals("b", state.toString(3))
+        assertEquals("c", state.toString(4))
+        assertTrue(state.toBoolean(5))
+    }
+
+    @Test
     fun `table remove mutates list values and returns removed values`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

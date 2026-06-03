@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaStatus
 import java.util.Random
 import java.util.function.Consumer
 import kotlin.math.absoluteValue
@@ -95,6 +96,30 @@ public object LuaStdlib {
         setFunctionField(state, "sort", ::tableSort)
         setFunctionField(state, "unpack", ::tableUnpack)
         state.setGlobal("table")
+        installLuaSource(
+            state,
+            """
+            table.move = function(source, first, last, target, destination)
+                if destination == nil then
+                    destination = source
+                end
+                if first > last then
+                    return destination
+                end
+                if source == destination and target > first and target <= last then
+                    for offset = last - first, 0, -1 do
+                        destination[target + offset] = source[first + offset]
+                    end
+                else
+                    for offset = 0, last - first do
+                        destination[target + offset] = source[first + offset]
+                    end
+                end
+                return destination
+            end
+            """.trimIndent(),
+            "stdlib-table-move.lua",
+        )
         return state
     }
 
@@ -646,6 +671,17 @@ public object LuaStdlib {
     private fun setNumberField(state: LuaState, name: String, value: Double) {
         state.pushNumber(value)
         state.setField(-2, name)
+    }
+
+    private fun installLuaSource(state: LuaState, source: String, chunkName: String) {
+        val loadStatus = state.load(source, chunkName)
+        if (loadStatus != LuaStatus.OK) {
+            throw LuaRuntimeException(state.toString(-1) ?: "failed to load $chunkName")
+        }
+        val callStatus = state.pcall(0, 0)
+        if (callStatus != LuaStatus.OK) {
+            throw LuaRuntimeException(state.toString(-1) ?: "failed to run $chunkName")
+        }
     }
 
     private fun String.substringByLuaRange(start: Long, end: Long): String {
