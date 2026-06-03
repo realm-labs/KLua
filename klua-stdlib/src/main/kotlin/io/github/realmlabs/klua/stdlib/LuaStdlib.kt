@@ -19,6 +19,7 @@ public object LuaStdlib {
     public fun openLibs(state: LuaState, output: Consumer<String>): LuaState {
         openBase(state, output)
         openMath(state)
+        openString(state)
         return state
     }
 
@@ -48,6 +49,19 @@ public object LuaStdlib {
         setFunctionField(state, "max", ::mathMax)
         setFunctionField(state, "min", ::mathMin)
         state.setGlobal("math")
+        return state
+    }
+
+    @JvmStatic
+    public fun openString(state: LuaState): LuaState {
+        state.newTable()
+        setFunctionField(state, "len", ::stringLen)
+        setFunctionField(state, "lower", ::stringLower)
+        setFunctionField(state, "rep", ::stringRep)
+        setFunctionField(state, "reverse", ::stringReverse)
+        setFunctionField(state, "sub", ::stringSub)
+        setFunctionField(state, "upper", ::stringUpper)
+        state.setGlobal("string")
         return state
     }
 
@@ -169,6 +183,55 @@ public object LuaStdlib {
         }
     }
 
+    private fun stringLen(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(requiredString(context, 1, "string.len").length.toLong())
+    }
+
+    private fun stringLower(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(requiredString(context, 1, "string.lower").lowercase())
+    }
+
+    private fun stringRep(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "string.rep")
+        val count = requiredInteger(context, 2, "string.rep")
+        if (count <= 0L) {
+            return LuaReturn.of("")
+        }
+        if (count > Int.MAX_VALUE) {
+            throw LuaRuntimeException("bad argument #2 to 'string.rep' (repeat count too large)")
+        }
+        return LuaReturn.of(text.repeat(count.toInt()))
+    }
+
+    private fun stringReverse(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(requiredString(context, 1, "string.reverse").reversed())
+    }
+
+    private fun stringSub(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "string.sub")
+        val start = requiredInteger(context, 2, "string.sub")
+        val end = if (context.isNone(3) || context.isNil(3)) {
+            -1L
+        } else {
+            requiredInteger(context, 3, "string.sub")
+        }
+        return LuaReturn.of(text.substringByLuaRange(start, end))
+    }
+
+    private fun stringUpper(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(requiredString(context, 1, "string.upper").uppercase())
+    }
+
+    private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
+        return context.toString(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+    }
+
+    private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+        return context.toInteger(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+    }
+
     private fun toLuaString(context: LuaCallContext, index: Int): String {
         return when (context.typeName(index)) {
             "nil" -> "nil"
@@ -193,5 +256,28 @@ public object LuaStdlib {
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
         state.pushFunction(function::invoke)
         state.setField(-2, name)
+    }
+
+    private fun String.substringByLuaRange(start: Long, end: Long): String {
+        val normalizedStart = normalizeStringIndex(start)
+        val normalizedEnd = normalizeStringIndex(end)
+        if (normalizedStart > normalizedEnd) {
+            return ""
+        }
+        val first = normalizedStart.coerceIn(1, length + 1)
+        val last = normalizedEnd.coerceIn(0, length)
+        if (first > last) {
+            return ""
+        }
+        return substring(first - 1, last)
+    }
+
+    private fun String.normalizeStringIndex(index: Long): Int {
+        return when {
+            index > Int.MAX_VALUE -> Int.MAX_VALUE
+            index < Int.MIN_VALUE -> Int.MIN_VALUE
+            index >= 0L -> index.toInt()
+            else -> (length + index + 1L).coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
+        }
     }
 }

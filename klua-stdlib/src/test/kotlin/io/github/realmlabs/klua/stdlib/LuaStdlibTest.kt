@@ -216,4 +216,44 @@ class LuaStdlibTest {
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'math.abs' (number expected)", state.toString(-1))
     }
+
+    @Test
+    fun `openString installs basic string functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.len("hello"), string.lower("HeLLo"), string.upper("HeLLo"),
+                    string.reverse("abc"), string.rep("ha", 3), string.sub("abcdef", 2, 4),
+                    string.sub("abcdef", -3, -1), string.sub("abcdef", 4, 2)
+                """.trimIndent(),
+                "string.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(5L, state.toInteger(1))
+        assertEquals("hello", state.toString(2))
+        assertEquals("HELLO", state.toString(3))
+        assertEquals("cba", state.toString(4))
+        assertEquals("hahaha", state.toString(5))
+        assertEquals("bcd", state.toString(6))
+        assertEquals("def", state.toString(7))
+        assertEquals("", state.toString(8))
+    }
+
+    @Test
+    fun `string functions report argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.rep("x", "bad")""", "string-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'string.rep' (integer expected)", state.toString(-1))
+    }
 }
