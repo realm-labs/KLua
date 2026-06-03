@@ -425,4 +425,63 @@ class LuaStdlibTest {
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'table.concat' (table expected)", state.toString(-1))
     }
+
+    @Test
+    fun `table unpack returns list values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local a, b, c = table.unpack({"a", "b", "c"})
+                local d, e = table.unpack({"a", "b", "c"}, 2, 3)
+                local count = select("#", table.unpack({"first", nil, "third"}, 1, 3))
+                local first, second, third = table.unpack({"first", nil, "third"}, 1, 3)
+                return a, b, c, d, e, count, first, second, third
+                """.trimIndent(),
+                "table-unpack.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("b", state.toString(2))
+        assertEquals("c", state.toString(3))
+        assertEquals("b", state.toString(4))
+        assertEquals("c", state.toString(5))
+        assertEquals(3L, state.toInteger(6))
+        assertEquals("first", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals("third", state.toString(9))
+    }
+
+    @Test
+    fun `table unpack returns no values for empty ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return select("#", table.unpack({"a", "b"}, 3, 2))""", "table-unpack-empty.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0L, state.toInteger(1))
+    }
+
+    @Test
+    fun `table unpack reports table argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return table.unpack("not-table")""", "table-unpack-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'table.unpack' (table expected)", state.toString(-1))
+    }
 }

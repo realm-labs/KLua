@@ -83,6 +83,7 @@ public object LuaStdlib {
     public fun openTable(state: LuaState): LuaState {
         state.newTable()
         setFunctionField(state, "concat", ::tableConcat)
+        setFunctionField(state, "unpack", ::tableUnpack)
         state.setGlobal("table")
         return state
     }
@@ -373,6 +374,39 @@ public object LuaStdlib {
             is CharSequence -> value.toString()
             else -> throw LuaRuntimeException("invalid value at index $index in table for 'concat'")
         }
+    }
+
+    private fun tableUnpack(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'table.unpack' (table expected)")
+        }
+
+        val start = if (context.isNone(2) || context.isNil(2)) {
+            1L
+        } else {
+            requiredInteger(context, 2, "table.unpack")
+        }
+        val end = if (context.isNone(3) || context.isNil(3)) {
+            context.tableLength(1) ?: 0L
+        } else {
+            requiredInteger(context, 3, "table.unpack")
+        }
+
+        if (start > end) {
+            return LuaReturn.none()
+        }
+
+        val values = mutableListOf<Any?>()
+        var index = start
+        while (index <= end) {
+            values += try {
+                context.getTableValue(1, index)
+            } catch (_: IllegalArgumentException) {
+                throw LuaRuntimeException("invalid value at index $index in table for 'unpack'")
+            }
+            index++
+        }
+        return LuaReturn.ofValues(values)
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
