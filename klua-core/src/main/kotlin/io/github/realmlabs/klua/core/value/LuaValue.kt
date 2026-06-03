@@ -34,16 +34,15 @@ internal class LuaTable : LuaValue {
     private val values = mutableMapOf<LuaValue, LuaValue>()
 
     fun get(key: LuaValue): LuaValue {
-        requireValidKey(key)
-        return values[key] ?: LuaNil
+        return values[canonicalKey(key)] ?: LuaNil
     }
 
     fun set(key: LuaValue, value: LuaValue) {
-        requireValidKey(key)
+        val canonicalKey = canonicalKey(key)
         if (value == LuaNil) {
-            values.remove(key)
+            values.remove(canonicalKey)
         } else {
-            values[key] = value
+            values[canonicalKey] = value
         }
     }
 
@@ -55,10 +54,21 @@ internal class LuaTable : LuaValue {
         return length
     }
 
-    private fun requireValidKey(key: LuaValue) {
-        when {
+    private fun canonicalKey(key: LuaValue): LuaValue {
+        return when {
             key == LuaNil -> throw LuaTableKeyException("table index is nil")
             key is LuaFloat && key.value.isNaN() -> throw LuaTableKeyException("table index is NaN")
+            key is LuaFloat && key.value.isIntegralLong() -> LuaInteger(key.value.toLong())
+            else -> key
         }
     }
+}
+
+private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
+
+private fun Double.isIntegralLong(): Boolean {
+    return java.lang.Double.isFinite(this) &&
+        this % 1.0 == 0.0 &&
+        this >= Long.MIN_VALUE.toDouble() &&
+        this < LONG_MAX_EXCLUSIVE
 }

@@ -202,6 +202,52 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `normalizes integral float table keys`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {}
+                table[1.0] = 42
+                return table[1]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `removes normalized numeric table keys`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {}
+                table[1] = 42
+                table[1.0] = nil
+                return table[1]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaNil), result)
+    }
+
+    @Test
+    fun `keeps non integral float table keys distinct`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {}
+                table[1.5] = 42
+                return table[1.5], table[1]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42), LuaNil), result)
+    }
+
+    @Test
     fun `rejects indexing non table values`() {
         val error = kotlin.test.assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("return 1[1]"))
