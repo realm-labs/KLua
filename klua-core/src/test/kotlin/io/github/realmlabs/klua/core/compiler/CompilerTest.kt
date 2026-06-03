@@ -657,6 +657,20 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles opt-in top-level vararg chunks`() {
+        val prototype = Compiler.compile("return ...", "vararg-chunk.lua", isVarargChunk = true)
+
+        assertEquals(true, prototype.isVararg)
+        assertEquals(
+            """
+            0000  [1]  VARARG R0 *
+            0001  [1]  RETURN R0 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `rejects break outside loops`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("break", "bad-break.lua")

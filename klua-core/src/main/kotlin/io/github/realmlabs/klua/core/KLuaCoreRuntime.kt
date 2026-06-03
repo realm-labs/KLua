@@ -17,7 +17,7 @@ import io.github.realmlabs.klua.core.vm.LuaVmException
 public object KLuaCoreRuntime {
     public fun compile(source: String, chunkName: String): KLuaCoreLoad {
         return try {
-            KLuaCoreLoad.Success(KLuaCoreChunk(Compiler.compile(source, chunkName)))
+            KLuaCoreLoad.Success(KLuaCoreChunk(Compiler.compile(source, chunkName, isVarargChunk = true)))
         } catch (error: LexerException) {
             KLuaCoreLoad.SyntaxError(error.message ?: "lexer error")
         } catch (error: ParserException) {
@@ -35,8 +35,24 @@ public object KLuaCoreRuntime {
     }
 
     public fun execute(chunk: KLuaCoreChunk): KLuaCoreExecution {
+        return execute(chunk, emptyList())
+    }
+
+    public fun execute(chunk: KLuaCoreChunk, arguments: List<KLuaCoreValue>): KLuaCoreExecution {
+        val vmArguments = arguments.map { value ->
+            when (value) {
+                KLuaCoreValue.Nil -> LuaNil
+                is KLuaCoreValue.BooleanValue -> LuaBoolean(value.value)
+                is KLuaCoreValue.IntegerValue -> LuaInteger(value.value)
+                is KLuaCoreValue.NumberValue -> LuaFloat(value.value)
+                is KLuaCoreValue.StringValue -> LuaString(value.value)
+                is KLuaCoreValue.UnsupportedValue -> {
+                    return KLuaCoreExecution.RuntimeError("cannot pass ${value.typeName} as Lua argument")
+                }
+            }
+        }
         return try {
-            KLuaCoreExecution.Success(LuaVm().execute(chunk.prototype).map(::toPublicValue))
+            KLuaCoreExecution.Success(LuaVm().execute(chunk.prototype, vmArguments).map(::toPublicValue))
         } catch (error: LuaVmException) {
             KLuaCoreExecution.RuntimeError(error.message ?: "runtime error")
         }

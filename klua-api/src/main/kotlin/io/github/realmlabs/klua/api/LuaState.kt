@@ -54,7 +54,8 @@ class LuaState private constructor(
             return LuaStatus.RUNTIME_ERROR
         }
 
-        return when (val result = KLuaCoreRuntime.execute(chunk.chunk)) {
+        val arguments = stack.subList(functionIndex + 1, stack.size).map { it.toCoreValue() }
+        return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments)) {
             is KLuaCoreExecution.Success -> {
                 lastError = null
                 removeCallFrame(functionIndex)
@@ -241,6 +242,18 @@ class LuaState private constructor(
             is KLuaCoreValue.NumberValue -> LuaStackValue.NumberValue(value)
             is KLuaCoreValue.StringValue -> LuaStackValue.StringValue(value)
             is KLuaCoreValue.UnsupportedValue -> LuaStackValue.UnsupportedValue(typeName)
+        }
+    }
+
+    private fun LuaStackValue.toCoreValue(): KLuaCoreValue {
+        return when (this) {
+            LuaStackValue.Nil -> KLuaCoreValue.Nil
+            is LuaStackValue.BooleanValue -> KLuaCoreValue.BooleanValue(value)
+            is LuaStackValue.IntegerValue -> KLuaCoreValue.IntegerValue(value)
+            is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
+            is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
+            is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
+            is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
         }
     }
 

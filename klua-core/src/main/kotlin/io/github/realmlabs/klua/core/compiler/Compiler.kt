@@ -81,6 +81,7 @@ internal class Compiler private constructor(
             upvalues = upvalues.toTypedArray(),
             lineInfo = writer.lineInfo(),
             maxStackSize = maxRegister.coerceAtLeast(1),
+            isVararg = isVarargFunction,
         )
     }
 
@@ -799,9 +800,10 @@ internal class Compiler private constructor(
             source: String,
             sourceName: String = "chunk",
             version: LuaSourceVersion = LuaSourceVersion.LUA_54,
+            isVarargChunk: Boolean = false,
         ): Prototype {
             val chunk = Parser.parse(source, sourceName)
-            return Compiler(sourceName, version).compile(chunk)
+            return Compiler(sourceName, version, isVarargFunction = isVarargChunk).compile(chunk)
         }
     }
 }

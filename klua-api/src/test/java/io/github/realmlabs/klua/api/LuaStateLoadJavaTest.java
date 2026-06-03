@@ -37,6 +37,49 @@ class LuaStateLoadJavaTest {
     }
 
     @Test
+    void pcallPassesStackArgumentsToLoadedChunks() {
+        LuaState state = LuaState.create();
+
+        assertEquals(LuaStatus.OK, state.load("local a, b = ... return a + b", "args.lua"));
+        state.pushInteger(20);
+        state.pushInteger(22);
+
+        assertEquals(LuaStatus.OK, state.pcall(2, 1));
+
+        assertEquals(1, state.getTop());
+        assertEquals(42L, state.toInteger(-1));
+    }
+
+    @Test
+    void pcallSupportsTopLevelOpenVarargReturns() {
+        LuaState state = LuaState.create();
+
+        assertEquals(LuaStatus.OK, state.load("return ...", "varargs.lua"));
+        state.pushString("a");
+        state.pushString("b");
+
+        assertEquals(LuaStatus.OK, state.pcall(2, -1));
+
+        assertEquals(2, state.getTop());
+        assertEquals("a", state.toString(1));
+        assertEquals("b", state.toString(2));
+    }
+
+    @Test
+    void pcallRejectsUnsupportedArgumentValuesWithoutThrowing() {
+        LuaState state = LuaState.create();
+
+        assertEquals(LuaStatus.OK, state.load("return ...", "unsupported-argument.lua"));
+        assertEquals(LuaStatus.OK, state.load("return 1", "argument.lua"));
+
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(1, -1));
+
+        assertEquals(1, state.getTop());
+        assertTrue(state.getLastError() instanceof LuaRuntimeException);
+        assertEquals("cannot pass function as Lua argument", state.toString(-1));
+    }
+
+    @Test
     void loadReturnsSyntaxErrorAndPushesMessage() {
         LuaState state = LuaState.create();
 
