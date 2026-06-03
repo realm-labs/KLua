@@ -10,7 +10,7 @@ internal class LuaStack(size: Int) {
 
     fun get(index: Int): LuaValue {
         checkIndex(index)
-        return values[index]
+        return captures[index]?.value ?: values[index]
     }
 
     fun set(index: Int, value: LuaValue) {

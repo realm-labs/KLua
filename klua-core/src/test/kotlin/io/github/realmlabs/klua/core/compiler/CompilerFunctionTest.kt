@@ -202,6 +202,35 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `compiles indexed function call statements with discarded results`() {
+        val prototype = Compiler.compile(
+            """
+            local t = {}
+            t.tick = function(value) return value end
+            t.tick(1)
+            return 2
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [2]  CLOSURE R1 P0
+            0002  [2]  MOVE R2 R0
+            0003  [2]  SET_FIELD R2 K0 R1 ; "tick"
+            0004  [3]  MOVE R1 R0
+            0005  [3]  GET_FIELD R1 R1 K0 ; "tick"
+            0006  [3]  LOAD_INT R2 1
+            0007  [3]  CALL R1 1 0
+            0008  [4]  LOAD_INT R1 2
+            0009  [4]  MOVE R0 R1
+            0010  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles local vararg expansion`() {
         val prototype = Compiler.compile(
             """

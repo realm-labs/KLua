@@ -309,6 +309,17 @@ class ParserTest {
     }
 
     @Test
+    fun `parses indexed function call statements`() {
+        val chunk = Parser.parse("t.tick(1)")
+        val statement = assertIs<CallStatement>(chunk.statements.single())
+
+        val callee = assertIs<IndexExpression>(statement.call.callee)
+        assertEquals("t", assertIs<VariableExpression>(callee.receiver).name)
+        assertEquals("tick", assertIs<StringExpression>(callee.key).value)
+        assertEquals(1, statement.call.arguments.size)
+    }
+
+    @Test
     fun `parses empty table constructors`() {
         val chunk = Parser.parse("return {}")
         val statement = assertIs<ReturnStatement>(chunk.statements.single())

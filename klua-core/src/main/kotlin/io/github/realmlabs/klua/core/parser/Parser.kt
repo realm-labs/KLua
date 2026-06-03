@@ -75,8 +75,8 @@ internal class Parser private constructor(
             match(TokenKind.REPEAT) -> repeatStatement(previous())
             match(TokenKind.FOR) -> forStatement(previous())
             match(TokenKind.FUNCTION) -> functionStatement(previous())
-            check(TokenKind.IDENTIFIER) && checkNext(TokenKind.LEFT_PAREN) -> callStatement()
-            check(TokenKind.IDENTIFIER) -> assignmentStatement()
+            check(TokenKind.IDENTIFIER) -> assignmentOrCallStatement()
+            check(TokenKind.LEFT_PAREN) -> callStatement()
             else -> throw errorAt(peek(), "expected statement")
         }
     }
@@ -117,12 +117,18 @@ internal class Parser private constructor(
         )
     }
 
-    private fun assignmentStatement(): AssignmentStatement {
+    private fun assignmentOrCallStatement(): Statement {
         val start = peek()
+        val first = postfix()
+        if (first is CallExpression && !check(TokenKind.COMMA) && !check(TokenKind.ASSIGN)) {
+            return CallStatement(first, first.range)
+        }
+
         val targets = mutableListOf<AssignmentTarget>()
-        do {
-            targets += assignmentTarget()
-        } while (match(TokenKind.COMMA))
+        targets += assignmentTarget(first)
+        while (match(TokenKind.COMMA)) {
+            targets += assignmentTarget(postfix())
+        }
 
         consume(TokenKind.ASSIGN, "expected '=' in assignment")
         val values = expressionList()
@@ -130,8 +136,8 @@ internal class Parser private constructor(
         return AssignmentStatement(targets, values, SourceRange(start.range.start, end))
     }
 
-    private fun assignmentTarget(): AssignmentTarget {
-        return when (val target = postfix()) {
+    private fun assignmentTarget(target: Expression): AssignmentTarget {
+        return when (target) {
             is VariableExpression -> LocalAssignmentTarget(target.name, target.range)
             is IndexExpression -> IndexAssignmentTarget(target)
             else -> throw ParserException(target.range.start, "expected assignment target")
