@@ -41,6 +41,13 @@ internal class LuaTable : LuaValue {
 
     fun rawEntries(): Map<LuaValue, LuaValue> = values.toMap()
 
+    fun rawReplace(entries: Iterable<Pair<LuaValue, LuaValue>>) {
+        values.clear()
+        for ((key, value) in entries) {
+            rawSet(key, value)
+        }
+    }
+
     fun rawLength(): Long {
         var length = 0L
         while (length < Long.MAX_VALUE && rawGet(LuaInteger(length + 1L)) != LuaNil) {

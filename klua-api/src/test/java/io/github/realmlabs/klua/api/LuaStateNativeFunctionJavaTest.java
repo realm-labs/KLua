@@ -171,6 +171,40 @@ class LuaStateNativeFunctionJavaTest {
     }
 
     @Test
+    void nativeFunctionsMutateTableArgumentsFromLuaSource() {
+        LuaState state = LuaState.create();
+
+        state.register("mutate", context -> {
+            assertTrue(context.isTable(1));
+            context.setTableValue(1, 2L, "updated");
+            context.setTableValue(1, 3L, "third");
+            context.setTableValue(1, "name", null);
+            context.setTableValue(1, "extra", 42L);
+            return LuaReturn.none();
+        });
+
+        assertEquals(
+                LuaStatus.OK,
+                state.load(
+                        """
+                        local values = {"first", "second", name = "named"}
+                        mutate(values)
+                        return values[1], values[2], values[3], values.name, values.extra, #values
+                        """,
+                        "native-table-mutate.lua"
+                )
+        );
+        assertEquals(LuaStatus.OK, state.pcall(0, 6));
+
+        assertEquals("first", state.toString(1));
+        assertEquals("updated", state.toString(2));
+        assertEquals("third", state.toString(3));
+        assertTrue(state.isNil(4));
+        assertEquals(42L, state.toInteger(5));
+        assertEquals(3L, state.toInteger(6));
+    }
+
+    @Test
     void nativeFunctionResultsRespectFixedResultCounts() {
         LuaState state = LuaState.create();
 

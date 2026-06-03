@@ -230,7 +230,7 @@ public sealed interface KLuaCoreValue {
     ) : KLuaCoreValue
 
     public data class TableValue(
-        public val fields: Map<KLuaCoreValue, KLuaCoreValue>,
+        public val fields: MutableMap<KLuaCoreValue, KLuaCoreValue>,
     ) : KLuaCoreValue
 
     public data class UserDataValue(
@@ -291,7 +291,7 @@ private fun toPublicValue(value: LuaValue): KLuaCoreValue {
         is LuaTable -> KLuaCoreValue.TableValue(
             value.rawEntries()
                 .map { (key, fieldValue) -> toPublicValue(key) to toPublicValue(fieldValue) }
-                .toMap(),
+                .toMap(mutableMapOf()),
         )
         is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)
         is LuaNativeFunction -> KLuaCoreValue.UnsupportedValue("function")
@@ -319,11 +319,15 @@ private fun callCoreFunction(
     arguments: List<LuaValue>,
     globals: KLuaCoreGlobals,
 ): List<LuaValue> {
+    val publicArguments = arguments.map(::toPublicValue)
     return try {
-        when (val result = function.call(arguments.map(::toPublicValue))) {
-            is KLuaCoreCallResult.Success -> result.values.map { value ->
-                value.toLuaValueOrNull(globals)
-                    ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
+        when (val result = function.call(publicArguments)) {
+            is KLuaCoreCallResult.Success -> {
+                syncPublicTablesToLua(arguments, publicArguments, globals)
+                result.values.map { value ->
+                    value.toLuaValueOrNull(globals)
+                        ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
+                }
             }
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
@@ -331,6 +335,25 @@ private fun callCoreFunction(
         throw error
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
+    }
+}
+
+private fun syncPublicTablesToLua(
+    luaArguments: List<LuaValue>,
+    publicArguments: List<KLuaCoreValue>,
+    globals: KLuaCoreGlobals,
+) {
+    for (index in luaArguments.indices) {
+        val luaTable = luaArguments[index] as? LuaTable ?: continue
+        val publicTable = publicArguments.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
+        val entries = publicTable.fields.map { (key, value) ->
+            val luaKey = key.toLuaValueOrNull(globals)
+                ?: throw LuaVmException("cannot use ${key.publicTypeName()} as Lua table key")
+            val luaValue = value.toLuaValueOrNull(globals)
+                ?: throw LuaVmException("cannot use ${value.publicTypeName()} as Lua table value")
+            luaKey to luaValue
+        }
+        luaTable.rawReplace(entries)
     }
 }
 

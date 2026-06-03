@@ -400,7 +400,7 @@ class LuaState private constructor(
 
     private fun setNativeGlobal(name: String, function: LuaStackValue.NativeFunctionValue) {
         coreGlobals.setFunction(name) { arguments ->
-            callHostFunction(function.function, arguments.map { it.toStackValue() })
+            callHostFunction(function.function, arguments)
         }
         coreBackedNativeGlobals += name
         globals.fields[LuaStackValue.StringValue(name)] = function
@@ -408,10 +408,12 @@ class LuaState private constructor(
 
     private fun callHostFunction(
         function: LuaFunction,
-        arguments: List<LuaStackValue>,
+        arguments: List<KLuaCoreValue>,
     ): KLuaCoreCallResult {
+        val stackArguments = arguments.map { it.toStackValue() }
         return try {
-            val result = function.call(DefaultLuaCallContext(arguments))
+            val result = function.call(DefaultLuaCallContext(stackArguments))
+            syncStackArgumentsToCore(arguments, stackArguments)
             KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
@@ -544,7 +546,7 @@ class LuaState private constructor(
             is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
                 fields.map { (fieldKey, fieldValue) ->
                     fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
-                }.toMap(),
+                }.toMap(mutableMapOf()),
             )
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
@@ -559,16 +561,32 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.FunctionValue { arguments ->
-                callHostFunction(function, arguments.map { it.toStackValue() })
+                callHostFunction(function, arguments)
             }
             is LuaStackValue.TableValue -> KLuaCoreValue.TableValue(
                 fields.map { (fieldKey, fieldValue) ->
                     fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
-                }.toMap(),
+                }.toMap(mutableMapOf()),
             )
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
+        }
+    }
+
+    private fun syncStackArgumentsToCore(
+        coreArguments: List<KLuaCoreValue>,
+        stackArguments: List<LuaStackValue>,
+    ) {
+        for (index in coreArguments.indices) {
+            val coreTable = coreArguments[index] as? KLuaCoreValue.TableValue ?: continue
+            val stackTable = stackArguments.getOrNull(index) as? LuaStackValue.TableValue ?: continue
+            coreTable.fields.clear()
+            coreTable.fields.putAll(
+                stackTable.fields.map { (fieldKey, fieldValue) ->
+                    fieldKey.toCoreTableFieldValue() to fieldValue.toCoreTableFieldValue()
+                },
+            )
         }
     }
 
@@ -657,6 +675,18 @@ class LuaState private constructor(
         override fun getTableValue(index: Int, key: Any?): Any? {
             val table = valueAt(index) as? LuaStackValue.TableValue ?: return null
             return table.fields[key.toStackValue()]?.toAnyValue()
+        }
+
+        override fun setTableValue(index: Int, key: Any?, value: Any?) {
+            val table = valueAt(index) as? LuaStackValue.TableValue
+                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            val stackKey = key.toStackValue()
+            val stackValue = value.toStackValue()
+            if (stackValue == LuaStackValue.Nil) {
+                table.fields.remove(stackKey)
+            } else {
+                table.fields[stackKey] = stackValue
+            }
         }
 
         override fun tableLength(index: Int): Long? {
