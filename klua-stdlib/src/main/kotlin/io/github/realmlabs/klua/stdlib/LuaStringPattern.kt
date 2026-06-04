@@ -53,15 +53,7 @@ internal class LuaStringPattern private constructor(
         }
 
         return when (val token = patternTokens[tokenIndex]) {
-            is Token.Optional -> {
-                if (textIndex < text.length && token.token.matches(text[textIndex])) {
-                    val consumed = matchEnd(text, textIndex + 1, patternTokens, tokenIndex + 1)
-                    if (consumed != null) {
-                        return consumed
-                    }
-                }
-                matchEnd(text, textIndex, patternTokens, tokenIndex + 1)
-            }
+            is Token.Repetition -> matchRepetition(text, textIndex, patternTokens, tokenIndex, token)
             else -> {
                 if (textIndex >= text.length || !token.matches(text[textIndex])) {
                     null
@@ -70,6 +62,38 @@ internal class LuaStringPattern private constructor(
                 }
             }
         }
+    }
+
+    private fun matchRepetition(
+        text: String,
+        textIndex: Int,
+        patternTokens: List<Token>,
+        tokenIndex: Int,
+        repetition: Token.Repetition,
+    ): Int? {
+        var endIndex = textIndex
+        while (
+            endIndex < text.length &&
+            (repetition.maximum == null || endIndex - textIndex < repetition.maximum) &&
+            repetition.token.matches(text[endIndex])
+        ) {
+            endIndex++
+        }
+
+        val minimumEnd = textIndex + repetition.minimum
+        if (endIndex < minimumEnd) {
+            return null
+        }
+
+        var candidateEnd = endIndex
+        while (candidateEnd >= minimumEnd) {
+            val matchEnd = matchEnd(text, candidateEnd, patternTokens, tokenIndex + 1)
+            if (matchEnd != null) {
+                return matchEnd
+            }
+            candidateEnd--
+        }
+        return null
     }
 
     internal companion object {
@@ -119,7 +143,7 @@ internal class LuaStringPattern private constructor(
                     in UNSUPPORTED_MAGIC,
                     -> throw LuaRuntimeException("string patterns are not supported")
                     else -> {
-                        if (index + 1 < pattern.length && pattern[index + 1] == '?') {
+                        if (index + 1 < pattern.length && pattern[index + 1] in "?*+") {
                             hasPatternToken = true
                         }
                         index = addToken(tokens, Token.Literal(char), pattern, index + 1)
@@ -130,9 +154,21 @@ internal class LuaStringPattern private constructor(
         }
 
         private fun addToken(tokens: MutableList<Token>, token: Token, pattern: String, nextIndex: Int): Int {
-            if (nextIndex < pattern.length && pattern[nextIndex] == '?') {
-                tokens += Token.Optional(token)
-                return nextIndex + 1
+            if (nextIndex < pattern.length) {
+                when (pattern[nextIndex]) {
+                    '?' -> {
+                        tokens += Token.Repetition(token, minimum = 0, maximum = 1)
+                        return nextIndex + 1
+                    }
+                    '*' -> {
+                        tokens += Token.Repetition(token, minimum = 0, maximum = null)
+                        return nextIndex + 1
+                    }
+                    '+' -> {
+                        tokens += Token.Repetition(token, minimum = 1, maximum = null)
+                        return nextIndex + 1
+                    }
+                }
             }
             tokens += token
             return nextIndex
@@ -246,8 +282,10 @@ private sealed interface Token {
         }
     }
 
-    data class Optional(
+    data class Repetition(
         val token: Token,
+        val minimum: Int,
+        val maximum: Int?,
     ) : Token {
         override fun matches(char: Char): Boolean = token.matches(char)
     }

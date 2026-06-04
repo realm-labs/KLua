@@ -1048,6 +1048,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns support greedy repetitions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local plusStart, plusEnd = string.find("aaab", "a+b")
+                local starStart, starEnd = string.find("b", "a*b")
+                local replaced, count = string.gsub("a1 22 333", "%d+", "n")
+                local iterator = string.gmatch("a12b3", "%d+")
+                return plusStart, plusEnd, starStart, starEnd,
+                    string.match("aaab", "a*"),
+                    string.match("b", "a+"),
+                    replaced, count,
+                    iterator(), iterator(), iterator()
+                """.trimIndent(),
+                "string-pattern-repetition.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(4L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals("aaa", state.toString(5))
+        assertTrue(state.isNil(6))
+        assertEquals("an n n", state.toString(7))
+        assertEquals(3L, state.toInteger(8))
+        assertEquals("12", state.toString(9))
+        assertEquals("3", state.toString(10))
+        assertTrue(state.isNil(11))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
