@@ -1696,6 +1696,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine functions report argument errors`() {
+        val createState = LuaState.create()
+        LuaStdlib.openCoroutine(createState)
+
+        assertEquals(LuaStatus.OK, createState.load("""return coroutine.create(nil)""", "coroutine-create-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, createState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(createState.getLastError())
+        assertEquals("bad argument #1 to 'coroutine.create' (function expected)", createState.toString(-1))
+
+        val resumeState = LuaState.create()
+        LuaStdlib.openCoroutine(resumeState)
+
+        assertEquals(
+            LuaStatus.OK,
+            resumeState.load("""return coroutine.resume("not-thread")""", "coroutine-resume-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, resumeState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(resumeState.getLastError())
+        assertEquals("bad argument #1 to 'coroutine.resume' (thread expected)", resumeState.toString(-1))
+
+        val statusState = LuaState.create()
+        LuaStdlib.openCoroutine(statusState)
+
+        assertEquals(
+            LuaStatus.OK,
+            statusState.load("""return coroutine.status("not-thread")""", "coroutine-status-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, statusState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(statusState.getLastError())
+        assertEquals("bad argument #1 to 'coroutine.status' (thread expected)", statusState.toString(-1))
+
+        val wrapState = LuaState.create()
+        LuaStdlib.openCoroutine(wrapState)
+
+        assertEquals(LuaStatus.OK, wrapState.load("""return coroutine.wrap(nil)""", "coroutine-wrap-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, wrapState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(wrapState.getLastError())
+        assertEquals("bad argument #1 to 'coroutine.create' (function expected)", wrapState.toString(-1))
+    }
+
+    @Test
     fun `openMath installs math numeric functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
