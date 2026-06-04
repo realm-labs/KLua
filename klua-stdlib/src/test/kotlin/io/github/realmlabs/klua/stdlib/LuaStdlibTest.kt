@@ -2,10 +2,13 @@ package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaConfig
+import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaStatus
 import io.github.realmlabs.klua.api.LuaVersion
+import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
+import io.github.realmlabs.klua.api.withContinuation
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.function.Consumer
@@ -2033,6 +2036,62 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(4))
         assertEquals("done", state.toString(5))
         assertEquals("dead", state.toString(6))
+    }
+
+    @Test
+    fun `coroutine resume supports host function continuations that yield again`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostYieldTwice",
+            LuaYieldableFunction { context ->
+                try {
+                    context.yield(listOf("first", context.get(1)))
+                } catch (yield: LuaYieldException) {
+                    throw yield.withContinuation { firstResume ->
+                        try {
+                            context.yield(listOf("second", firstResume.firstOrNull()))
+                        } catch (nextYield: LuaYieldException) {
+                            throw nextYield.withContinuation { secondResume ->
+                                LuaReturn.of("done", secondResume.firstOrNull())
+                            }
+                        }
+                    }
+                }
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(hostYieldTwice)
+                local firstOk, firstMarker, firstArg = coroutine.resume(co, "start")
+                local statusAfterFirstYield = coroutine.status(co)
+                local secondOk, secondMarker, secondArg = coroutine.resume(co, "middle")
+                local statusAfterSecondYield = coroutine.status(co)
+                local finalOk, doneMarker, finalArg = coroutine.resume(co, "finish")
+                return firstOk, firstMarker, firstArg, statusAfterFirstYield,
+                    secondOk, secondMarker, secondArg, statusAfterSecondYield,
+                    finalOk, doneMarker, finalArg, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-yieldable-host-continuation.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("first", state.toString(2))
+        assertEquals("start", state.toString(3))
+        assertEquals("suspended", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("second", state.toString(6))
+        assertEquals("middle", state.toString(7))
+        assertEquals("suspended", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("done", state.toString(10))
+        assertEquals("finish", state.toString(11))
+        assertEquals("dead", state.toString(12))
     }
 
     @Test
