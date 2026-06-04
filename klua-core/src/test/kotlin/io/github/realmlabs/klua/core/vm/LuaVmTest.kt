@@ -51,6 +51,13 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes long bracket string literals`() {
+        val result = LuaVm().execute(Compiler.compile("""return [[hello]], [==[a ]=] b]==]"""))
+
+        assertEquals(listOf(LuaString("hello"), LuaString("a ]=] b")), result)
+    }
+
+    @Test
     fun `executes move opcode`() {
         val prototype = Prototype(
             sourceName = "move.lua",

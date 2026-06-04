@@ -28,6 +28,10 @@ internal class Lexer(
             return token(TokenKind.EOF, "", start, null)
         }
 
+        longBracketEquals()?.let { equals ->
+            return longString(start, equals)
+        }
+
         val char = advance()
         return when {
             char.isIdentifierStart() -> identifier(start)
@@ -104,6 +108,12 @@ internal class Lexer(
 
         advance()
         return token(TokenKind.STRING, source.substring(start.offset, offset), start, builder.toString())
+    }
+
+    private fun longString(start: SourcePosition, equals: Int): Token {
+        consumeLongBracketOpening(equals)
+        val literal = readLongBracketContent(equals, start, "unterminated long string")
+        return token(TokenKind.STRING, source.substring(start.offset, offset), start, literal)
     }
 
     private fun readEscape(start: SourcePosition): Char {
@@ -205,12 +215,13 @@ internal class Lexer(
             }
 
             if (peek() == '-' && peekNext() == '-') {
+                val commentStart = position()
                 advance()
                 advance()
-                if (peek() == '[' && peekNext() == '[') {
-                    advance()
-                    advance()
-                    skipLongComment()
+                val equals = longBracketEquals()
+                if (equals != null) {
+                    consumeLongBracketOpening(equals)
+                    readLongBracketContent(equals, commentStart, "unterminated long comment")
                 } else {
                     while (!isAtEnd() && peek() != '\n') {
                         advance()
@@ -221,16 +232,69 @@ internal class Lexer(
         }
     }
 
-    private fun skipLongComment() {
-        while (!isAtEnd()) {
-            if (peek() == ']' && peekNext() == ']') {
-                advance()
-                advance()
-                return
-            }
+    private fun readLongBracketContent(equals: Int, start: SourcePosition, errorMessage: String): String {
+        if (peek() == '\r' || peek() == '\n') {
             advance()
         }
-        throw errorAt(position(), "unterminated long comment")
+
+        val builder = StringBuilder()
+        while (!isAtEnd()) {
+            if (matchesLongBracketClose(equals)) {
+                consumeLongBracketClose(equals)
+                return builder.toString()
+            }
+            builder.append(advance())
+        }
+        throw errorAt(start, errorMessage)
+    }
+
+    private fun longBracketEquals(): Int? {
+        if (peek() != '[') {
+            return null
+        }
+
+        var index = offset + 1
+        var equals = 0
+        while (index < source.length && source[index] == '=') {
+            index++
+            equals++
+        }
+
+        return if (index < source.length && source[index] == '[') equals else null
+    }
+
+    private fun consumeLongBracketOpening(equals: Int) {
+        advance()
+        repeat(equals) {
+            advance()
+        }
+        advance()
+    }
+
+    private fun matchesLongBracketClose(equals: Int): Boolean {
+        if (peek() != ']') {
+            return false
+        }
+
+        val closeIndex = offset + equals + 1
+        if (closeIndex >= source.length || source[closeIndex] != ']') {
+            return false
+        }
+
+        for (index in 1..equals) {
+            if (source[offset + index] != '=') {
+                return false
+            }
+        }
+        return true
+    }
+
+    private fun consumeLongBracketClose(equals: Int) {
+        advance()
+        repeat(equals) {
+            advance()
+        }
+        advance()
     }
 
     private fun token(

@@ -75,6 +75,21 @@ class LexerTest {
     }
 
     @Test
+    fun `tokenizes long bracket strings`() {
+        val tokens = Lexer(
+            """
+            [[
+            first line]]
+            [=[keeps [brackets] and ]] text]=]
+            """.trimIndent(),
+        ).tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals("first line", tokens[0].literal)
+        assertEquals("keeps [brackets] and ]] text", tokens[1].literal)
+    }
+
+    @Test
     fun `reports decimal escape range errors`() {
         val error = assertFailsWith<LexerException> {
             Lexer("return \"\\256\"", "escape.lua").tokenize()
@@ -91,6 +106,8 @@ class LexerTest {
             local x = 1 -- trailing
             --[[ long
             comment ]]
+            --[=[ long equal
+            comment ]=]
             return x
             """.trimIndent(),
         ).tokenize()
