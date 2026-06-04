@@ -166,6 +166,15 @@ class LexerTest {
     }
 
     @Test
+    fun `reports invalid string escape errors`() {
+        val error = assertFailsWith<LexerException> {
+            Lexer("return \"\\q\"", "invalid-escape.lua").tokenize()
+        }
+
+        assertEquals("invalid-escape.lua:1:8: invalid escape sequence", error.message)
+    }
+
+    @Test
     fun `skips line and long comments`() {
         val tokens = Lexer(
             """

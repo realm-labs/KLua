@@ -202,7 +202,7 @@ internal class Lexer(
             '\'' -> "'"
             '\n' -> "\n"
             in '0'..'9' -> readDecimalEscape(start, escaped)
-            else -> escaped.toString()
+            else -> throw errorAt(start, "invalid escape sequence")
         }
     }
 
