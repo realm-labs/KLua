@@ -286,9 +286,13 @@ public class KLuaCoreCoroutine internal constructor(
 ) {
     private val vm = LuaVm(globals.table)
     private var started = false
+    private var dead = false
     private var pendingContinuation: LuaYieldContinuation? = null
 
     public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCoroutineExecution {
+        if (dead) {
+            return KLuaCoreCoroutineExecution.RuntimeError("cannot resume dead coroutine")
+        }
         val luaArguments = arguments.map { value ->
             value.toLuaValueOrNull(globals)
                 ?: return KLuaCoreCoroutineExecution.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
@@ -302,15 +306,19 @@ public class KLuaCoreCoroutine internal constructor(
                 else -> vm.callYieldable(function, luaArguments)
             }
             result.toCoroutineExecution(globals).also {
-                if (result is LuaExecutionResult.Yielded) {
-                    pendingContinuation = result.continuation ?: if (vm.currentFrame == null) {
-                        LuaYieldContinuation { resumedArguments -> LuaExecutionResult.Returned(resumedArguments) }
-                    } else {
-                        null
+                when (result) {
+                    is LuaExecutionResult.Returned -> dead = true
+                    is LuaExecutionResult.Yielded -> {
+                        pendingContinuation = result.continuation ?: if (vm.currentFrame == null) {
+                            LuaYieldContinuation { resumedArguments -> LuaExecutionResult.Returned(resumedArguments) }
+                        } else {
+                            null
+                        }
                     }
                 }
             }
         } catch (error: LuaVmException) {
+            dead = true
             KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error")
         } finally {
             started = true

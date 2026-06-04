@@ -81,6 +81,10 @@ class KLuaCoreRuntimeCoroutineTest {
             KLuaCoreCoroutineExecution.Returned(listOf(KLuaCoreValue.StringValue("done"))),
             coroutine.resume(listOf(KLuaCoreValue.StringValue("done"))),
         )
+        assertEquals(
+            KLuaCoreCoroutineExecution.RuntimeError("cannot resume dead coroutine"),
+            coroutine.resume(emptyList()),
+        )
     }
 
     @Test
@@ -101,6 +105,10 @@ class KLuaCoreRuntimeCoroutineTest {
         assertEquals(
             KLuaCoreCoroutineExecution.Returned(listOf(KLuaCoreValue.StringValue("done"))),
             coroutine.resume(listOf(KLuaCoreValue.StringValue("done"))),
+        )
+        assertEquals(
+            KLuaCoreCoroutineExecution.RuntimeError("cannot resume dead coroutine"),
+            coroutine.resume(emptyList()),
         )
     }
 }
