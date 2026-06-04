@@ -595,6 +595,51 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load compiles string chunks with shared globals and arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                value = 40
+                local chunk = load("local add = ...; value = value + add; return value", "loaded.lua")
+                return chunk(2), value
+                """.trimIndent(),
+                "load.lua",
+            ),
+        )
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(42L, state.toInteger(2))
+    }
+
+    @Test
+    fun `load returns syntax errors without running chunks`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local chunk, message = load("local x <close> = {}", "bad-loaded.lua")
+                return chunk, message
+                """.trimIndent(),
+                "load-error.lua",
+            ),
+        )
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("bad-loaded.lua:1:1: to-be-closed local variables are not supported", state.toString(2))
+    }
+
+    @Test
     fun `next iterates raw table entries`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

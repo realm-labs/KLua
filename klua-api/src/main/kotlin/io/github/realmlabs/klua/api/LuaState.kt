@@ -165,6 +165,25 @@ class LuaState private constructor(
         return LuaStatus.RUNTIME_ERROR
     }
 
+    private fun loadLuaFunction(source: String, chunkName: String): LuaReturn {
+        return when (val load = KLuaCoreRuntime.compile(source, chunkName)) {
+            is KLuaCoreLoad.Success -> {
+                val function = LuaFunction { context ->
+                    val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
+                    when (val result = KLuaCoreRuntime.execute(load.chunk, arguments, coreGlobals)) {
+                        is KLuaCoreExecution.Success -> LuaReturn.ofValues(
+                            result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
+                        )
+                        is KLuaCoreExecution.SyntaxError -> throw LuaSyntaxException(result.message)
+                        is KLuaCoreExecution.RuntimeError -> throw LuaRuntimeException(result.message)
+                    }
+                }
+                LuaReturn.of(function)
+            }
+            is KLuaCoreLoad.SyntaxError -> LuaReturn.of(null, load.message)
+        }
+    }
+
     fun absIndex(index: Int): Int {
         return when {
             index > 0 -> index
@@ -831,6 +850,10 @@ class LuaState private constructor(
             val nativeFunction = stackFunction as? LuaStackValue.NativeFunctionValue
                 ?: throw IllegalArgumentException("value is ${stackTypeName(stackFunction)}")
             return callFunction(nativeFunction, arguments)
+        }
+
+        override fun load(source: String, chunkName: String): LuaReturn {
+            return loadLuaFunction(source, chunkName)
         }
 
         private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {

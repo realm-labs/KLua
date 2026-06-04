@@ -47,6 +47,7 @@ public object LuaStdlib {
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
         state.register("ipairs", ::ipairs)
+        state.register("load", ::load)
         state.register("next", ::next)
         state.register("pairs", ::pairs)
         state.register("pcall", ::pcall)
@@ -157,6 +158,16 @@ public object LuaStdlib {
         }
         val metatable = context.getMetatable(1) ?: return LuaReturn.of(null)
         return LuaReturn.of(context.getTableField(metatable, "__metatable") ?: metatable)
+    }
+
+    private fun load(context: LuaCallContext): LuaReturn {
+        val source = requiredString(context, 1, "load")
+        val chunkName = if (context.isNone(2) || context.isNil(2)) {
+            source
+        } else {
+            requiredString(context, 2, "load")
+        }
+        return context.load(source, chunkName)
     }
 
     private fun ipairs(context: LuaCallContext): LuaReturn {
