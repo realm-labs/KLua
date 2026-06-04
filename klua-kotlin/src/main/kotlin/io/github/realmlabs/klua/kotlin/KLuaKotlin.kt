@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaGlobals
 import io.github.realmlabs.klua.api.LuaReturn
+import io.github.realmlabs.klua.api.LuaUserDataType
 import kotlin.jvm.JvmName
 
 fun Lua.Companion.createDefault(): Lua = create()
@@ -20,6 +21,10 @@ operator fun LuaGlobals.set(name: String, value: Any?) {
 
 fun LuaGlobals.function(name: String, function: LuaFunction) {
     setFunction(name, function)
+}
+
+inline fun <reified T : Any> Lua.registerType(noinline configure: LuaUserDataType<T>.() -> Unit) {
+    registerType(T::class.java) { type -> type.configure() }
 }
 
 fun Lua.functionContext(block: LuaCallContext.() -> LuaReturn): LuaFunction {

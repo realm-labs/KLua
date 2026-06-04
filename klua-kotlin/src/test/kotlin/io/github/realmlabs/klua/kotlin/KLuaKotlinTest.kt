@@ -42,4 +42,25 @@ class KLuaKotlinTest {
 
         assertEquals("ok", lua.load("""return identity("ok")""").evalString())
     }
+
+    @Test
+    fun `registers userdata types with reified kotlin helper`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+
+        lua.registerType<HostObject> {
+            method("rename") { receiver, context ->
+                receiver.name = context.toString(1) ?: error("name expected")
+                LuaReturn.of(receiver.name)
+            }
+        }
+        lua.globals["host"] = host
+
+        assertEquals("renamed", lua.load("""return host:rename("renamed")""").evalString())
+        assertEquals("renamed", host.name)
+    }
+
+    private data class HostObject(
+        var name: String,
+    )
 }
