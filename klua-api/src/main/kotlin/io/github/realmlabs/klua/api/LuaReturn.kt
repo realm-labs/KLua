@@ -44,6 +44,24 @@ class LuaReturn private constructor(
             ?: throw LuaRuntimeException("return value $index is not a string")
     }
 
+    fun getUserData(index: Int): Any {
+        val value = get(index)
+        return if (value != null && isUserDataValue(value)) {
+            value
+        } else {
+            throw LuaRuntimeException("return value $index is not userdata")
+        }
+    }
+
+    fun <T : Any> getUserData(index: Int, type: Class<T>): T {
+        val value = getUserData(index)
+        return if (type.isInstance(value)) {
+            type.cast(value)
+        } else {
+            throw LuaRuntimeException("return value $index is not ${type.name}")
+        }
+    }
+
     companion object {
         @JvmStatic
         fun none(): LuaReturn = LuaReturn(emptyList())
@@ -53,6 +71,22 @@ class LuaReturn private constructor(
 
         @JvmStatic
         fun ofValues(values: List<Any?>): LuaReturn = LuaReturn(values.toList())
+    }
+}
+
+private fun isUserDataValue(value: Any): Boolean {
+    return when (value) {
+        is Boolean,
+        is Byte,
+        is Short,
+        is Int,
+        is Long,
+        is Float,
+        is Double,
+        is CharSequence,
+        is LuaFunction,
+        -> false
+        else -> true
     }
 }
 

@@ -56,6 +56,34 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade returns typed host userdata results`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+
+        val result = lua.load("return ...", "api-return-userdata.lua").call(host)
+
+        assertSame(host, result.getUserData(1))
+        assertSame(host, result.getUserData(1, HostObject::class.java))
+        val error = assertFailsWith<LuaRuntimeException> {
+            result.getUserData(1, OtherObject::class.java)
+        }
+
+        assertEquals("return value 1 is not ${OtherObject::class.java.name}", error.message)
+    }
+
+    @Test
+    fun `userdata result accessors reject scalar values`() {
+        val lua = Lua.create()
+
+        val result = lua.load("""return "not-userdata"""", "api-return-string.lua").eval()
+        val error = assertFailsWith<LuaRuntimeException> {
+            result.getUserData(1)
+        }
+
+        assertEquals("return value 1 is not userdata", error.message)
+    }
+
+    @Test
     fun `facade globals can carry host userdata through lua`() {
         val lua = Lua.create()
         val host = HostObject("host")
@@ -124,5 +152,9 @@ class LuaApiSmokeTest {
 
     private data class HostObject(
         var name: String,
+    )
+
+    private data class OtherObject(
+        val name: String,
     )
 }
