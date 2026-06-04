@@ -20,9 +20,8 @@ import kotlin.math.sqrt
 import kotlin.math.tan
 
 internal object LuaMathLibrary {
-    private var random = Random()
-
     fun open(state: LuaState): LuaState {
+        val randomState = MathRandomState()
         state.newTable()
         setFunctionField(state, "abs", ::mathAbs)
         setFunctionField(state, "acos", ::mathAcos)
@@ -39,8 +38,8 @@ internal object LuaMathLibrary {
         setFunctionField(state, "min", ::mathMin)
         setFunctionField(state, "modf", ::mathModf)
         setFunctionField(state, "rad", ::mathRad)
-        setFunctionField(state, "random", ::mathRandom)
-        setFunctionField(state, "randomseed", ::mathRandomSeed)
+        setFunctionField(state, "random") { context -> mathRandom(context, randomState) }
+        setFunctionField(state, "randomseed") { context -> mathRandomSeed(context, randomState) }
         setFunctionField(state, "sin", ::mathSin)
         setFunctionField(state, "sqrt", ::mathSqrt)
         setFunctionField(state, "tan", ::mathTan)
@@ -177,23 +176,23 @@ internal object LuaMathLibrary {
         return LuaReturn.of(requiredNumber(context, 1, "math.rad") * Math.PI / 180.0)
     }
 
-    private fun mathRandom(context: LuaCallContext): LuaReturn {
+    private fun mathRandom(context: LuaCallContext, randomState: MathRandomState): LuaReturn {
         return when (context.argumentCount) {
-            0 -> LuaReturn.of(random.nextDouble())
+            0 -> LuaReturn.of(randomState.random.nextDouble())
             1 -> {
                 val upper = requiredInteger(context, 1, "math.random")
-                LuaReturn.of(randomInteger(1L, upper))
+                LuaReturn.of(randomInteger(randomState, 1L, upper))
             }
             2 -> {
                 val lower = requiredInteger(context, 1, "math.random")
                 val upper = requiredInteger(context, 2, "math.random")
-                LuaReturn.of(randomInteger(lower, upper))
+                LuaReturn.of(randomInteger(randomState, lower, upper))
             }
             else -> throw LuaRuntimeException("wrong number of arguments to 'math.random'")
         }
     }
 
-    private fun mathRandomSeed(context: LuaCallContext): LuaReturn {
+    private fun mathRandomSeed(context: LuaCallContext, randomState: MathRandomState): LuaReturn {
         if (context.argumentCount > 2) {
             throw LuaRuntimeException("wrong number of arguments to 'math.randomseed'")
         }
@@ -207,7 +206,7 @@ internal object LuaMathLibrary {
         } else {
             requiredInteger(context, 2, "math.randomseed")
         }
-        random = Random(combineSeeds(firstSeed, secondSeed))
+        randomState.random = Random(combineSeeds(firstSeed, secondSeed))
         return LuaReturn.of(firstSeed, secondSeed)
     }
 
@@ -295,35 +294,35 @@ internal object LuaMathLibrary {
         return if (integer.toDouble() == value) integer else null
     }
 
-    private fun randomInteger(lower: Long, upper: Long): Long {
+    private fun randomInteger(randomState: MathRandomState, lower: Long, upper: Long): Long {
         if (lower > upper) {
             throw LuaRuntimeException("bad argument #1 to 'math.random' (interval is empty)")
         }
         val width = upper - lower + 1
         if (width == 0L) {
-            return random.nextLong()
+            return randomState.random.nextLong()
         }
         if (width > 0L) {
-            return lower + randomLongBelow(width)
+            return lower + randomLongBelow(randomState, width)
         }
 
         var candidate: Long
         do {
-            candidate = random.nextLong()
+            candidate = randomState.random.nextLong()
         } while (java.lang.Long.compareUnsigned(candidate, width) >= 0)
         return lower + candidate
     }
 
-    private fun randomLongBelow(bound: Long): Long {
+    private fun randomLongBelow(randomState: MathRandomState, bound: Long): Long {
         val mask = bound - 1
         if (bound and mask == 0L) {
-            return random.nextLong() and mask
+            return randomState.random.nextLong() and mask
         }
 
         var candidate: Long
         var value: Long
         do {
-            candidate = random.nextLong().ushr(1)
+            candidate = randomState.random.nextLong().ushr(1)
             value = candidate % bound
         } while (candidate + mask - value < 0L)
         return value
@@ -347,4 +346,8 @@ internal object LuaMathLibrary {
         state.pushNumber(value)
         state.setField(-2, name)
     }
+
+    private data class MathRandomState(
+        var random: Random = Random(),
+    )
 }

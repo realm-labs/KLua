@@ -1370,6 +1370,63 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random state is isolated per Lua state`() {
+        val firstState = LuaState.create()
+        LuaStdlib.openMath(firstState)
+        assertEquals(
+            LuaStatus.OK,
+            firstState.load(
+                """
+                math.randomseed(321)
+                local first = math.random()
+                return first
+                """.trimIndent(),
+                "math-random-state-first.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, firstState.pcall(0, -1))
+        firstState.pop()
+
+        val secondState = LuaState.create()
+        LuaStdlib.openMath(secondState)
+        assertEquals(
+            LuaStatus.OK,
+            secondState.load(
+                """
+                math.randomseed(999)
+                return math.random()
+                """.trimIndent(),
+                "math-random-state-second.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, secondState.pcall(0, -1))
+
+        assertEquals(
+            LuaStatus.OK,
+            firstState.load("""return math.random()""", "math-random-state-first-continues.lua"),
+        )
+        assertEquals(LuaStatus.OK, firstState.pcall(0, -1))
+        val continued = firstState.toNumber(-1) ?: error("missing continued random value")
+
+        val referenceState = LuaState.create()
+        LuaStdlib.openMath(referenceState)
+        assertEquals(
+            LuaStatus.OK,
+            referenceState.load(
+                """
+                math.randomseed(321)
+                math.random()
+                return math.random()
+                """.trimIndent(),
+                "math-random-state-reference.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, referenceState.pcall(0, -1))
+
+        assertEquals(referenceState.toNumber(1) ?: error("missing reference random value"), continued, 0.0)
+    }
+
+    @Test
     fun `math random supports wide integer ranges`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
