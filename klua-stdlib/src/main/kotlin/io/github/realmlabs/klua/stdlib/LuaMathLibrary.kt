@@ -224,6 +224,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathType(context: LuaCallContext): LuaReturn {
+        requireAnyArgument(context, "math.type")
         if (context.typeName(1) != "number") {
             return LuaReturn.of(null)
         }
@@ -241,6 +242,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathToInteger(context: LuaCallContext): LuaReturn {
+        requireAnyArgument(context, "math.tointeger")
         return LuaReturn.of(context.toInteger(1))
     }
 
@@ -263,6 +265,12 @@ internal object LuaMathLibrary {
     private fun requireMathArguments(context: LuaCallContext, functionName: String) {
         if (context.argumentCount == 0) {
             throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
+        }
+    }
+
+    private fun requireAnyArgument(context: LuaCallContext, functionName: String) {
+        if (context.isNone(1)) {
+            throw LuaRuntimeException("bad argument #1 to '$functionName' (value expected)")
         }
     }
 

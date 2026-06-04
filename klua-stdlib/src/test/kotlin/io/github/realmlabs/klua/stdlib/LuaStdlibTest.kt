@@ -993,6 +993,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math tointeger reports missing argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.tointeger()""", "math-tointeger-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'math.tointeger' (value expected)", state.toString(-1))
+    }
+
+    @Test
     fun `math type classifies integer and float numbers`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -1017,6 +1029,18 @@ class LuaStdlibTest {
         assertTrue(state.isNil(3))
         assertTrue(state.isNil(4))
         assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `math type reports missing argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.type()""", "math-type-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'math.type' (value expected)", state.toString(-1))
     }
 
     @Test
