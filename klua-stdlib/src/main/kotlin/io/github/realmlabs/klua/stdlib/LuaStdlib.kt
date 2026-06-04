@@ -123,9 +123,7 @@ public object LuaStdlib {
     }
 
     private fun ipairs(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'ipairs' (table expected)")
-        }
+        requireAnyArgument(context, "ipairs")
         val iterator = LuaFunction { iteratorContext ->
             if (!iteratorContext.isTable(1)) {
                 throw LuaRuntimeException("bad argument #1 to 'ipairs iterator' (table expected)")
@@ -138,7 +136,7 @@ public object LuaStdlib {
                 LuaReturn.of(nextIndex, value)
             }
         }
-        return LuaReturn.ofValues(listOf(iterator, context.getTable(1), 0L))
+        return LuaReturn.ofValues(listOf(iterator, argumentValue(context, 1), 0L))
     }
 
     private fun next(context: LuaCallContext): LuaReturn {
@@ -154,10 +152,8 @@ public object LuaStdlib {
     }
 
     private fun pairs(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'pairs' (table expected)")
-        }
-        return LuaReturn.ofValues(listOf(LuaFunction(::next), context.getTable(1), null))
+        requireAnyArgument(context, "pairs")
+        return LuaReturn.ofValues(listOf(LuaFunction(::next), argumentValue(context, 1), null))
     }
 
     private fun pcall(context: LuaCallContext): LuaReturn {

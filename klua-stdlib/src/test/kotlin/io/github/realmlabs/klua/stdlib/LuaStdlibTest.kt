@@ -515,20 +515,53 @@ class LuaStdlibTest {
         val pairState = LuaState.create()
         LuaStdlib.openBase(pairState)
 
-        assertEquals(LuaStatus.OK, pairState.load("""return pairs("not-table")""", "pairs-error.lua"))
+        assertEquals(LuaStatus.OK, pairState.load("""return pairs()""", "pairs-error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, pairState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(pairState.getLastError())
-        assertEquals("bad argument #1 to 'pairs' (table expected)", pairState.toString(-1))
+        assertEquals("bad argument #1 to 'pairs' (value expected)", pairState.toString(-1))
 
         val ipairsState = LuaState.create()
         LuaStdlib.openBase(ipairsState)
 
-        assertEquals(LuaStatus.OK, ipairsState.load("""return ipairs("not-table")""", "ipairs-error.lua"))
+        assertEquals(LuaStatus.OK, ipairsState.load("""return ipairs()""", "ipairs-error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, ipairsState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(ipairsState.getLastError())
-        assertEquals("bad argument #1 to 'ipairs' (table expected)", ipairsState.toString(-1))
+        assertEquals("bad argument #1 to 'ipairs' (value expected)", ipairsState.toString(-1))
+    }
+
+    @Test
+    fun `pairs and ipairs defer non table errors to iterators`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local pairIterator, pairState, pairKey = pairs("not-table")
+                local pairOk, pairMessage = pcall(pairIterator, pairState, pairKey)
+                local ipairsIterator, ipairsState, ipairsIndex = ipairs("not-table")
+                local ipairsOk, ipairsMessage = pcall(ipairsIterator, ipairsState, ipairsIndex)
+                return type(pairIterator), pairState, pairKey, pairOk, pairMessage,
+                    type(ipairsIterator), ipairsState, ipairsIndex, ipairsOk, ipairsMessage
+                """.trimIndent(),
+                "pairs-ipairs-non-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("function", state.toString(1))
+        assertEquals("not-table", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #1 to 'next' (table expected)", state.toString(5))
+        assertEquals("function", state.toString(6))
+        assertEquals("not-table", state.toString(7))
+        assertEquals(0L, state.toInteger(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'ipairs iterator' (table expected)", state.toString(10))
     }
 
     @Test
