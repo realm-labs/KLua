@@ -191,12 +191,25 @@ internal class LuaStringPattern private constructor(
 
         fun compile(pattern: String): LuaStringPattern {
             val startAnchored = pattern.startsWith('^')
-            val endAnchored = pattern.endsWith('$') && pattern.length > if (startAnchored) 1 else 0
+            val endAnchored = hasEndAnchor(pattern, startAnchored)
             val bodyStart = if (startAnchored) 1 else 0
             val bodyEnd = if (endAnchored) pattern.length - 1 else pattern.length
             val body = pattern.substring(bodyStart, bodyEnd)
             val tokens = tokenize(body)
             return LuaStringPattern(pattern, tokens = tokens ?: body.map { Token.Literal(it) }, startAnchored, endAnchored)
+        }
+
+        private fun hasEndAnchor(pattern: String, startAnchored: Boolean): Boolean {
+            if (!pattern.endsWith('$') || pattern.length <= if (startAnchored) 1 else 0) {
+                return false
+            }
+            var percentCount = 0
+            var index = pattern.length - 2
+            while (index >= 0 && pattern[index] == '%') {
+                percentCount++
+                index--
+            }
+            return percentCount % 2 == 0
         }
 
         private fun tokenize(pattern: String): List<Token>? {

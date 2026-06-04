@@ -1823,8 +1823,12 @@ class LuaStdlibTest {
                 local commaStart, commaEnd = string.find("a,b", "%,")
                 local bang = string.match("ok!", "%!")
                 local replaced, count = string.gsub("a/b/c", "%/", "|")
+                local dollarStart, dollarEnd = string.find("cost $", "%$")
+                local dollar = string.match("end$", "%$")
+                local percentAtEnd = string.match("done%", "%%$")
                 local iterator = string.gmatch("a,b;c", "%p")
-                return commaStart, commaEnd, bang, replaced, count, iterator(), iterator(), iterator()
+                return commaStart, commaEnd, bang, replaced, count, dollarStart, dollarEnd, dollar, percentAtEnd,
+                    iterator(), iterator(), iterator()
                 """.trimIndent(),
                 "string-pattern-escaped-punctuation.lua",
             ),
@@ -1836,9 +1840,13 @@ class LuaStdlibTest {
         assertEquals("!", state.toString(3))
         assertEquals("a|b|c", state.toString(4))
         assertEquals(2L, state.toInteger(5))
-        assertEquals(",", state.toString(6))
-        assertEquals(";", state.toString(7))
-        assertTrue(state.isNil(8))
+        assertEquals(6L, state.toInteger(6))
+        assertEquals(6L, state.toInteger(7))
+        assertEquals("$", state.toString(8))
+        assertEquals("%", state.toString(9))
+        assertEquals(",", state.toString(10))
+        assertEquals(";", state.toString(11))
+        assertTrue(state.isNil(12))
     }
 
     @Test
