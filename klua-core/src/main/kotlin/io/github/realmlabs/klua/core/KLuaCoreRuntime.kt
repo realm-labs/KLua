@@ -156,7 +156,9 @@ public class KLuaCoreGlobals internal constructor(
         }
         val properties = linkedMapOf<String, LuaUserDataProperty>()
         for ((_, registeredProperties) in applicableUserDataEntries(userDataProperties, value)) {
-            properties.putAll(registeredProperties)
+            for ((name, property) in registeredProperties) {
+                properties[name] = properties[name]?.mergeWith(property) ?: property
+            }
         }
         if (methods.isEmpty() && properties.isEmpty()) {
             return null
@@ -181,6 +183,13 @@ public class KLuaCoreGlobals internal constructor(
             else -> 0
         }
     }
+}
+
+private fun LuaUserDataProperty.mergeWith(moreSpecific: LuaUserDataProperty): LuaUserDataProperty {
+    return LuaUserDataProperty(
+        getter = moreSpecific.getter ?: getter,
+        setter = moreSpecific.setter ?: setter,
+    )
 }
 
 public fun interface KLuaCoreFunction {

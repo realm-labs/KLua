@@ -81,6 +81,26 @@ class LuaFacadeJavaTest {
     }
 
     @Test
+    void registeredUserDataTypesMergeAssignablePropertyAccessors() {
+        Lua lua = Lua.create();
+        Player player = new Player(7);
+
+        lua.globals().set("player", player);
+        lua.registerType(Named.class, type ->
+                type.property("name", receiver -> LuaReturn.of(receiver.getName()))
+        );
+        lua.registerType(Player.class, type ->
+                type.property("name", null, (receiver, value) -> receiver.setName((String) value))
+        );
+
+        assertEquals("renamed", lua.load("""
+                player.name = "renamed"
+                return player.name
+                """).evalString());
+        assertEquals("renamed", player.getName());
+    }
+
+    @Test
     void evalThrowsStructuredErrors() {
         Lua lua = Lua.create();
 
@@ -103,6 +123,7 @@ class LuaFacadeJavaTest {
 
     private static final class Player implements Named {
         private long level;
+        private String name = "player";
 
         private Player(long level) {
             this.level = level;
@@ -110,7 +131,7 @@ class LuaFacadeJavaTest {
 
         @Override
         public String getName() {
-            return "player";
+            return name;
         }
 
         private long getLevel() {
@@ -123,6 +144,10 @@ class LuaFacadeJavaTest {
 
         private void setLevel(long level) {
             this.level = level;
+        }
+
+        private void setName(String name) {
+            this.name = name;
         }
     }
 }
