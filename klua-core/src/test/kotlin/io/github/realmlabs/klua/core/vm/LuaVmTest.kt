@@ -368,6 +368,64 @@ class LuaVmTest {
     }
 
     @Test
+    fun `resumes yielded lua call with supplied values`() {
+        val globals = LuaTable()
+        globals.rawSet(
+            LuaString("yield"),
+            LuaNativeFunction { arguments ->
+                throw LuaYieldSignal(arguments)
+            },
+        )
+        val vm = LuaVm(globals)
+
+        val yielded = vm.executeYieldable(
+            Compiler.compile(
+                """
+                local function nested(value)
+                    local resumed = yield(value)
+                    return resumed + 1
+                end
+                return nested(42)
+                """.trimIndent(),
+            ),
+        )
+        val resumed = vm.resumeYieldable(listOf(LuaInteger(99)))
+
+        assertEquals(LuaExecutionResult.Yielded(listOf(LuaInteger(42))), yielded)
+        assertEquals(LuaExecutionResult.Returned(listOf(LuaInteger(100))), resumed)
+        assertEquals(0, vm.activeCallDepth)
+    }
+
+    @Test
+    fun `resumes lua call across multiple yields`() {
+        val globals = LuaTable()
+        globals.rawSet(
+            LuaString("yield"),
+            LuaNativeFunction { arguments ->
+                throw LuaYieldSignal(arguments)
+            },
+        )
+        val vm = LuaVm(globals)
+
+        val firstYield = vm.executeYieldable(
+            Compiler.compile(
+                """
+                local first = yield(1)
+                local second = yield(first + 1)
+                return second + 1
+                """.trimIndent(),
+            ),
+        )
+        val secondYield = vm.resumeYieldable(listOf(LuaInteger(41)))
+        val returned = vm.resumeYieldable(listOf(LuaInteger(99)))
+
+        assertEquals(LuaExecutionResult.Yielded(listOf(LuaInteger(1))), firstYield)
+        assertEquals(LuaExecutionResult.Yielded(listOf(LuaInteger(42))), secondYield)
+        assertEquals(LuaExecutionResult.Returned(listOf(LuaInteger(100))), returned)
+        assertEquals(0, vm.activeCallDepth)
+    }
+
+    @Test
     fun `clears yielded frames when top level execution rejects yield`() {
         val globals = LuaTable()
         globals.rawSet(

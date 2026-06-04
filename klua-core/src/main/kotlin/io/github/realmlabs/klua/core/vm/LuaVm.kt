@@ -46,6 +46,20 @@ internal class LuaVm(
         return executeFrame(prototype, arguments, emptyList())
     }
 
+    internal fun resumeYieldable(arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
+        var frame = thread.currentFrame ?: throw LuaVmException("cannot resume a coroutine that is not suspended")
+        applyPendingCallResults(frame, arguments)
+        while (true) {
+            when (val result = runFrameAndPopOnCompletion(frame)) {
+                is LuaExecutionResult.Yielded -> return result
+                is LuaExecutionResult.Returned -> {
+                    frame = thread.currentFrame ?: return result
+                    applyPendingCallResults(frame, result.values)
+                }
+            }
+        }
+    }
+
     private fun executeReturned(
         prototype: Prototype,
         arguments: List<LuaValue>,
@@ -70,11 +84,15 @@ internal class LuaVm(
         upvalues: List<LuaUpvalue>,
     ): LuaExecutionResult {
         val frame = thread.pushCall(prototype, arguments, upvalues)
+        return runFrameAndPopOnCompletion(frame)
+    }
+
+    private fun runFrameAndPopOnCompletion(frame: CallFrame): LuaExecutionResult {
         val stack = frame.stack
         var yielded = false
         try {
-            while (frame.pc < prototype.code.size) {
-                val instruction = prototype.code[frame.pc++]
+            while (frame.pc < frame.prototype.code.size) {
+                val instruction = frame.prototype.code[frame.pc++]
                 when (Instruction.opcode(instruction)) {
                     Opcode.LOAD_NIL -> stack.set(register(frame, Instruction.a(instruction)), LuaNil)
                     Opcode.LOAD_BOOL -> {
@@ -84,13 +102,13 @@ internal class LuaVm(
                         stack.set(register(frame, Instruction.a(instruction)), LuaInteger(signedByte(Instruction.b(instruction)).toLong()))
                     }
                     Opcode.LOAD_FLOAT -> {
-                        val constant = constant(prototype, Instruction.b(instruction))
+                        val constant = constant(frame.prototype, Instruction.b(instruction))
                         if (constant !is LuaFloat) {
                             throw LuaVmException("LOAD_FLOAT expected float constant at K${Instruction.b(instruction)}")
                         }
                         stack.set(register(frame, Instruction.a(instruction)), constant)
                     }
-                    Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(prototype, Instruction.b(instruction)))
+                    Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(frame.prototype, Instruction.b(instruction)))
                     Opcode.VARARG -> loadVarargs(stack, frame, instruction)
                     Opcode.NEW_TABLE -> stack.set(register(frame, Instruction.a(instruction)), LuaTable())
                     Opcode.GET_TABLE -> getTable(stack, frame, instruction)
@@ -185,22 +203,43 @@ internal class LuaVm(
         val callee = stack.get(base)
         val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
         val results = callValue(callee, arguments)
+        val expectedResults = Instruction.c(instruction)
         if (results is LuaExecutionResult.Yielded) {
             frame.pendingCallResultBase = base
-            frame.pendingCallExpectedResults = Instruction.c(instruction)
+            frame.pendingCallExpectedResults = expectedResults
             return results
         }
-        val expectedResults = Instruction.c(instruction)
         val returnedValues = (results as LuaExecutionResult.Returned).values
+        applyCallResults(stack, frame, base, expectedResults, returnedValues)
+        return null
+    }
+
+    private fun applyPendingCallResults(frame: CallFrame, results: List<LuaValue>) {
+        val base = frame.pendingCallResultBase
+        val expectedResults = frame.pendingCallExpectedResults
+        if (base < 0 || expectedResults < 0) {
+            throw LuaVmException("suspended frame has no pending call")
+        }
+        frame.pendingCallResultBase = -1
+        frame.pendingCallExpectedResults = -1
+        applyCallResults(frame.stack, frame, base, expectedResults, results)
+    }
+
+    private fun applyCallResults(
+        stack: LuaStack,
+        frame: CallFrame,
+        base: Int,
+        expectedResults: Int,
+        results: List<LuaValue>,
+    ) {
         if (expectedResults == OPEN_RESULT_COUNT) {
-            setOpenResults(stack, frame, base, returnedValues)
-            return null
+            setOpenResults(stack, frame, base, results)
+            return
         }
 
         for (index in 0 until expectedResults) {
-            stack.set(base + index, returnedValues.getOrElse(index) { LuaNil })
+            stack.set(base + index, results.getOrElse(index) { LuaNil })
         }
-        return null
     }
 
     private fun callValue(callee: LuaValue, arguments: List<LuaValue>): LuaExecutionResult {
