@@ -146,7 +146,7 @@ Current implemented areas:
 - AST model, compiler, internal bytecode, prototype model, constant pool, and disassembler.
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, and basic userdata bindings.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
-- Partial `klua-stdlib` support with base, math, string, table, and initial utf8 library installers covered by focused Lua-source tests.
+- Partial `klua-stdlib` support with base, math, string, table, utf8, package, and initial coroutine library installers covered by focused Lua-source tests.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
 - Focused parser, compiler, VM, API, Kotlin helper, compatibility, and foundation tests.
@@ -155,7 +155,7 @@ Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
-- Coroutine runtime.
+- Coroutine runtime yield/resume continuation semantics and non-yieldable call detection.
 - Error handling, tracebacks, and debug metadata.
 - Debug hooks and source-level debugger.
 - DAP adapter and command-line/debug tooling.
@@ -181,7 +181,7 @@ This proof point should remain covered by tests while later milestones evolve th
 
 ## Next Implementation Focus
 
-Continue from the current milestone frontier rather than restarting the initial proof point. The active frontier is around M11 userdata/JVM interop and M12 standard library work, while earlier milestones still need conformance hardening as gaps are discovered.
+Continue from the current milestone frontier rather than restarting the initial proof point. The active frontier is around M13 coroutine runtime work, especially yield/resume continuation semantics, while M11/M12 and earlier milestones still need conformance hardening as gaps are discovered.
 
 Follow milestone order unless a later task is strictly necessary to unblock an earlier one. Keep new work tied to named milestone behavior, focused tests, and a verification command.
 
