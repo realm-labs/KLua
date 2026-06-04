@@ -549,6 +549,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pcall protects errors after coroutine yield`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local ok, message = pcall(function()
+                        coroutine.yield("pause")
+                        error("boom")
+                    end)
+                    return ok, message
+                end)
+                local firstOk, yielded = coroutine.resume(co)
+                local statusAfterYield = coroutine.status(co)
+                local secondOk, protectedOk, message = coroutine.resume(co)
+                return firstOk, yielded, statusAfterYield, secondOk, protectedOk, message, coroutine.status(co)
+                """.trimIndent(),
+                "pcall-yield-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("boom", state.toString(6))
+        assertEquals("dead", state.toString(7))
+    }
+
+    @Test
     fun `pcall protects non callable arguments`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -638,6 +673,43 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
         assertEquals("xdone", state.toString(6))
+        assertEquals("dead", state.toString(7))
+    }
+
+    @Test
+    fun `xpcall invokes error handler after coroutine yield`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local ok, message = xpcall(function()
+                        coroutine.yield("xpause")
+                        error("boom")
+                    end, function(message)
+                        return "handled:" .. message
+                    end)
+                    return ok, message
+                end)
+                local firstOk, yielded = coroutine.resume(co)
+                local statusAfterYield = coroutine.status(co)
+                local secondOk, protectedOk, message = coroutine.resume(co)
+                return firstOk, yielded, statusAfterYield, secondOk, protectedOk, message, coroutine.status(co)
+                """.trimIndent(),
+                "xpcall-yield-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("xpause", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("handled:boom", state.toString(6))
         assertEquals("dead", state.toString(7))
     }
 
