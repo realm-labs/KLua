@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.kotlin
 
 import io.github.realmlabs.klua.api.Lua
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaChunk
 import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaGlobals
 import io.github.realmlabs.klua.api.LuaReturn
@@ -25,6 +26,10 @@ fun LuaGlobals.function(name: String, function: LuaFunction) {
 
 inline fun <reified T : Any> Lua.registerType(noinline configure: LuaUserDataType<T>.() -> Unit) {
     registerType(T::class.java) { type -> type.configure() }
+}
+
+operator fun LuaChunk.invoke(vararg arguments: Any?): LuaReturn {
+    return call(*arguments)
 }
 
 fun Lua.functionContext(block: LuaCallContext.() -> LuaReturn): LuaFunction {

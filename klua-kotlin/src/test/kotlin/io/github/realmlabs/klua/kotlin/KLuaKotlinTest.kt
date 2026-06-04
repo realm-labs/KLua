@@ -33,6 +33,15 @@ class KLuaKotlinTest {
     }
 
     @Test
+    fun `calls loaded chunks with invoke operator`() {
+        val lua = Lua.create()
+
+        val result = lua.load("local left, right = ...; return left + right")(20L, 22L)
+
+        assertEquals(42L, result.getLong(1))
+    }
+
+    @Test
     fun `registers context host functions`() {
         val lua = Lua.create()
 
