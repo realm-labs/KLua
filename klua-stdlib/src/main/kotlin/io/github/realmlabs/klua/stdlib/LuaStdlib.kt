@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaVersion
 import java.util.function.Consumer
 
 public object LuaStdlib {
@@ -31,6 +32,8 @@ public object LuaStdlib {
 
     @JvmStatic
     public fun openBase(state: LuaState, output: Consumer<String>): LuaState {
+        state.pushString(luaVersionName(state.config.version))
+        state.setGlobal("_VERSION")
         state.register("assert", ::assert)
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
@@ -50,6 +53,17 @@ public object LuaStdlib {
         state.register("type", ::type)
         state.register("xpcall", ::xpcall)
         return state
+    }
+
+    private fun luaVersionName(version: LuaVersion): String {
+        return when (version) {
+            LuaVersion.LUA_51 -> "Lua 5.1"
+            LuaVersion.LUA_52 -> "Lua 5.2"
+            LuaVersion.LUA_53 -> "Lua 5.3"
+            LuaVersion.LUA_54 -> "Lua 5.4"
+            LuaVersion.LUA_55 -> "Lua 5.5"
+            LuaVersion.LUAJIT_21 -> "LuaJIT 2.1"
+        }
     }
 
     @JvmStatic
