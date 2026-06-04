@@ -777,9 +777,12 @@ class LuaStdlibTest {
                 local patternStart, patternEnd = string.find("abc", "a.c")
                 local digitStart, digitEnd = string.find("a1", "%d")
                 local literalDotStart, literalDotEnd = string.find("a.b", "%.")
+                local anchorStart, anchorEnd = string.find("abc", "^a")
+                local endStart, endEnd = string.find("abc", "c$")
                 return firstStart, firstEnd, secondStart, secondEnd, lastStart, lastEnd,
                     dotStart, dotEnd, patternStart, patternEnd, digitStart, digitEnd,
-                    literalDotStart, literalDotEnd, string.find("hello", "xyz")
+                    literalDotStart, literalDotEnd, anchorStart, anchorEnd, endStart, endEnd,
+                    string.find("hello", "xyz"), string.find("abc", "^b")
                 """.trimIndent(),
                 "string-find.lua",
             ),
@@ -800,7 +803,12 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(12))
         assertEquals(2L, state.toInteger(13))
         assertEquals(2L, state.toInteger(14))
-        assertTrue(state.isNil(15))
+        assertEquals(1L, state.toInteger(15))
+        assertEquals(1L, state.toInteger(16))
+        assertEquals(3L, state.toInteger(17))
+        assertEquals(3L, state.toInteger(18))
+        assertTrue(state.isNil(19))
+        assertTrue(state.isNil(20))
     }
 
     @Test
@@ -808,7 +816,7 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.find("abc", "[a]")""", "string-find-pattern.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return string.find("abc", "a^")""", "string-find-pattern.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
@@ -1134,6 +1142,8 @@ class LuaStdlibTest {
                     string.match("banana", "an", -4),
                     string.match("abc", "a.c"),
                     string.match("a1", "%a%d"),
+                    string.match("abc", "^a"),
+                    string.match("abc", "c$"),
                     string.match("hello", "xyz")
                 """.trimIndent(),
                 "string-match.lua",
@@ -1146,7 +1156,9 @@ class LuaStdlibTest {
         assertEquals("an", state.toString(3))
         assertEquals("abc", state.toString(4))
         assertEquals("a1", state.toString(5))
-        assertTrue(state.isNil(6))
+        assertEquals("a", state.toString(6))
+        assertEquals("c", state.toString(7))
+        assertTrue(state.isNil(8))
     }
 
     @Test

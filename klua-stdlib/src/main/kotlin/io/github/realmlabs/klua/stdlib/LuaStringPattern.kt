@@ -10,6 +10,8 @@ internal data class LuaPatternMatch(
 internal class LuaStringPattern private constructor(
     private val pattern: String,
     private val tokens: List<Token>?,
+    private val startAnchored: Boolean = false,
+    private val endAnchored: Boolean = false,
 ) {
     fun find(text: String, startIndex: Int): LuaPatternMatch? {
         val patternTokens = tokens
@@ -27,10 +29,13 @@ internal class LuaStringPattern private constructor(
 
     private fun findPattern(text: String, startIndex: Int, patternTokens: List<Token>): LuaPatternMatch? {
         val lastStart = text.length - patternTokens.size
-        var index = startIndex
+        var index = if (startAnchored) 0 else startIndex
         while (index <= lastStart) {
-            if (matchesAt(text, index, patternTokens)) {
+            if (index >= startIndex && matchesAt(text, index, patternTokens)) {
                 return LuaPatternMatch(index, index + patternTokens.size)
+            }
+            if (startAnchored) {
+                return null
             }
             index++
         }
@@ -38,6 +43,9 @@ internal class LuaStringPattern private constructor(
     }
 
     private fun matchesAt(text: String, startIndex: Int, patternTokens: List<Token>): Boolean {
+        if (endAnchored && startIndex + patternTokens.size != text.length) {
+            return false
+        }
         for (offset in patternTokens.indices) {
             if (!patternTokens[offset].matches(text[startIndex + offset])) {
                 return false
@@ -52,8 +60,13 @@ internal class LuaStringPattern private constructor(
         }
 
         fun compile(pattern: String): LuaStringPattern {
-            val tokens = tokenize(pattern)
-            return LuaStringPattern(pattern, tokens = tokens)
+            val startAnchored = pattern.startsWith('^')
+            val endAnchored = pattern.endsWith('$') && pattern.length > if (startAnchored) 1 else 0
+            val bodyStart = if (startAnchored) 1 else 0
+            val bodyEnd = if (endAnchored) pattern.length - 1 else pattern.length
+            val body = pattern.substring(bodyStart, bodyEnd)
+            val tokens = tokenize(body)
+            return LuaStringPattern(pattern, tokens = tokens ?: body.map { Token.Literal(it) }, startAnchored, endAnchored)
         }
 
         private fun tokenize(pattern: String): List<Token>? {
@@ -80,7 +93,10 @@ internal class LuaStringPattern private constructor(
                         hasPatternToken = true
                         index += 2
                     }
-                    in UNSUPPORTED_MAGIC -> throw LuaRuntimeException("string patterns are not supported")
+                    '^',
+                    '$',
+                    in UNSUPPORTED_MAGIC,
+                    -> throw LuaRuntimeException("string patterns are not supported")
                     else -> {
                         tokens += Token.Literal(char)
                         index++
