@@ -80,6 +80,36 @@ class CompilerTest {
     }
 
     @Test
+    fun `snapshots debug metadata for serialization`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 1
+            do
+                local y = 2
+                x = y
+            end
+            return x
+            """.trimIndent(),
+            "debug-snapshot.lua",
+        )
+
+        val snapshot = prototype.debugInfo.toSnapshot()
+
+        assertEquals("debug-snapshot.lua", snapshot.sourceName)
+        assertEquals("debug-snapshot.lua", snapshot.sourceId)
+        assertEquals(prototype.lineInfo.toList(), snapshot.lineByPc)
+        assertEquals(null, snapshot.columnByPc)
+        assertEquals(listOf(1, 3, 4, 6), snapshot.validBreakpointLines)
+        assertEquals(
+            listOf(
+                "x" to 0,
+                "y" to 1,
+            ),
+            snapshot.localVars.map { local -> local.name to local.slot },
+        )
+    }
+
+    @Test
     fun `compiles multiple literal return values`() {
         val prototype = Compiler.compile("""return nil, true, false, "ok", 2.5""")
 

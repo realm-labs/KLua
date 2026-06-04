@@ -87,6 +87,46 @@ internal class DebugInfo(
     val validBreakpointLines: IntArray,
     val lineDefined: Int,
     val lastLineDefined: Int,
+) {
+    fun toSnapshot(): DebugInfoSnapshot {
+        return DebugInfoSnapshot(
+            sourceName = sourceName,
+            sourceId = sourceId,
+            lineByPc = lineByPc.toList(),
+            columnByPc = columnByPc?.toList(),
+            localVars = localVars.map { local ->
+                LocalVarInfoSnapshot(
+                    name = local.name,
+                    slot = local.slot,
+                    startPc = local.startPc,
+                    endPc = local.endPc,
+                )
+            },
+            upvalueNames = upvalueNames.toList(),
+            validBreakpointLines = validBreakpointLines.toList(),
+            lineDefined = lineDefined,
+            lastLineDefined = lastLineDefined,
+        )
+    }
+}
+
+internal data class DebugInfoSnapshot(
+    val sourceName: String,
+    val sourceId: String,
+    val lineByPc: List<Int>,
+    val columnByPc: List<Int>?,
+    val localVars: List<LocalVarInfoSnapshot>,
+    val upvalueNames: List<String>,
+    val validBreakpointLines: List<Int>,
+    val lineDefined: Int,
+    val lastLineDefined: Int,
+)
+
+internal data class LocalVarInfoSnapshot(
+    val name: String,
+    val slot: Int,
+    val startPc: Int,
+    val endPc: Int,
 )
 
 private fun upvalueNames(upvalues: Array<UpvalueDescriptor>): Array<String> {

@@ -376,6 +376,7 @@ class CompilerFunctionTest {
         assertEquals("x", function.upvalues.single().name)
         assertContentEquals(arrayOf("x"), function.upvalueNames)
         assertContentEquals(arrayOf("x"), function.debugInfo.upvalueNames)
+        assertEquals(listOf("x"), function.debugInfo.toSnapshot().upvalueNames)
         assertEquals(UpvalueSource.LOCAL, function.upvalues.single().source)
         assertEquals(0, function.upvalues.single().sourceIndex)
         assertEquals(
