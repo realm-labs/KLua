@@ -714,6 +714,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `xpcall error handler can yield and resume`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local ok, handled = xpcall(function()
+                        error("boom")
+                    end, function(message)
+                        local first = coroutine.yield("handling:" .. message)
+                        local second = coroutine.yield(first .. " again")
+                        return second
+                    end)
+                    return ok, handled
+                end)
+                local firstOk, yielded = coroutine.resume(co)
+                local statusAfterYield = coroutine.status(co)
+                local secondOk, yieldedAgain = coroutine.resume(co, "middle")
+                local statusAfterSecondYield = coroutine.status(co)
+                local thirdOk, protectedOk, handled = coroutine.resume(co, "done")
+                return firstOk, yielded, statusAfterYield, secondOk, yieldedAgain, statusAfterSecondYield,
+                    thirdOk, protectedOk, handled, coroutine.status(co)
+                """.trimIndent(),
+                "xpcall-handler-yield.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(true, state.toBoolean(1), "first resume failed: ${state.toString(2)}")
+        assertEquals("handling:boom", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("middle again", state.toString(5))
+        assertEquals("suspended", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("done", state.toString(9))
+        assertEquals("dead", state.toString(10))
+    }
+
+    @Test
     fun `xpcall protects non callable arguments with handler`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

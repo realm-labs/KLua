@@ -489,8 +489,25 @@ public object LuaStdlib {
         if (handlerIndex == null) {
             return LuaReturn.of(false, message)
         }
-        val handlerResult = context.call(handlerIndex, listOf(message))
-        return LuaReturn.ofValues(listOf(false) + handlerResult.values)
+        return try {
+            val handlerResult = context.call(handlerIndex, listOf(message))
+            LuaReturn.ofValues(listOf(false) + handlerResult.values)
+        } catch (yield: LuaYieldException) {
+            throw yield.withContinuation { arguments ->
+                protectedCallErrorResume(yield, arguments)
+            }
+        }
+    }
+
+    private fun protectedCallErrorResume(yield: LuaYieldException, arguments: List<Any?>): LuaReturn {
+        return try {
+            val handlerResult = yield.continueWith(arguments)
+            LuaReturn.ofValues(listOf(false) + handlerResult.values)
+        } catch (nextYield: LuaYieldException) {
+            throw nextYield.withContinuation { nextArguments ->
+                protectedCallErrorResume(nextYield, nextArguments)
+            }
+        }
     }
 
     private fun tableConcat(context: LuaCallContext): LuaReturn {
