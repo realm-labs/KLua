@@ -6,10 +6,17 @@ class LuaChunk internal constructor(
     val chunkName: String,
 ) {
     fun eval(): LuaReturn {
+        return call()
+    }
+
+    fun call(vararg arguments: Any?): LuaReturn {
         val base = state.getTop()
         try {
             checkStatus(state.load(source, chunkName))
-            checkStatus(state.pcall(0, -1))
+            for (argument in arguments) {
+                pushValue(argument)
+            }
+            checkStatus(state.pcall(arguments.size, -1))
             return LuaReturn.ofValues(readResults(base))
         } finally {
             state.setTop(base)
@@ -30,6 +37,22 @@ class LuaChunk internal constructor(
 
     private fun readResults(base: Int): List<Any?> {
         return (base + 1..state.getTop()).map { index -> state.toAny(index) }
+    }
+
+    private fun pushValue(value: Any?) {
+        when (value) {
+            null -> state.pushNil()
+            is Boolean -> state.pushBoolean(value)
+            is Byte -> state.pushInteger(value.toLong())
+            is Short -> state.pushInteger(value.toLong())
+            is Int -> state.pushInteger(value.toLong())
+            is Long -> state.pushInteger(value)
+            is Float -> state.pushNumber(value.toDouble())
+            is Double -> state.pushNumber(value)
+            is CharSequence -> state.pushString(value.toString())
+            is LuaFunction -> state.pushFunction(value)
+            else -> state.pushUserData(value)
+        }
     }
 
     private fun checkStatus(status: LuaStatus) {

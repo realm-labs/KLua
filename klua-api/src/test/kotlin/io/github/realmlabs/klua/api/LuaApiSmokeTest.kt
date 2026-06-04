@@ -29,6 +29,33 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade calls chunks with host arguments`() {
+        val lua = Lua.create()
+
+        val result = lua.load(
+            """
+            local left, middle, right = ...
+            return left + right, middle == nil, right
+            """.trimIndent(),
+            "api-call-arguments.lua",
+        ).call(20L, null, 22L)
+
+        assertEquals(42L, result.getLong(1))
+        assertEquals(true, result.getBoolean(2))
+        assertEquals(22L, result.getLong(3))
+    }
+
+    @Test
+    fun `facade calls chunks with host userdata arguments`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+
+        val result = lua.load("return ...", "api-call-userdata.lua").call(host)
+
+        assertSame(host, result.get(1))
+    }
+
+    @Test
     fun `facade globals can carry host userdata through lua`() {
         val lua = Lua.create()
         val host = HostObject("host")
