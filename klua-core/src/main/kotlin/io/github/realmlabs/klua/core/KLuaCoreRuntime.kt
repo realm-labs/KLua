@@ -17,6 +17,7 @@ import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUserDataProperty
 import io.github.realmlabs.klua.core.value.LuaUserDataType
 import io.github.realmlabs.klua.core.value.LuaValue
+import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
 import io.github.realmlabs.klua.core.vm.LuaYieldSignal
@@ -68,6 +69,18 @@ public object KLuaCoreRuntime {
         } catch (error: LuaVmException) {
             KLuaCoreExecution.RuntimeError(error.message ?: "runtime error")
         }
+    }
+
+    public fun canCreateCoroutine(function: KLuaCoreValue.FunctionValue): Boolean {
+        return function.sourceFunction != null
+    }
+
+    public fun createCoroutine(
+        function: KLuaCoreValue.FunctionValue,
+        globals: KLuaCoreGlobals,
+    ): KLuaCoreCoroutine? {
+        val sourceFunction = function.sourceFunction ?: return null
+        return KLuaCoreCoroutine(sourceFunction, globals)
     }
 }
 
@@ -249,6 +262,49 @@ public sealed interface KLuaCoreExecution {
     public data class RuntimeError(
         public val message: String,
     ) : KLuaCoreExecution
+}
+
+public class KLuaCoreCoroutine internal constructor(
+    private val function: LuaValue,
+    private val globals: KLuaCoreGlobals,
+) {
+    private val vm = LuaVm(globals.table)
+    private var started = false
+
+    public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCoroutineExecution {
+        val luaArguments = arguments.map { value ->
+            value.toLuaValueOrNull(globals)
+                ?: return KLuaCoreCoroutineExecution.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
+        }
+        return try {
+            when (val result = if (started) vm.resumeYieldable(luaArguments) else vm.callYieldable(function, luaArguments)) {
+                is LuaExecutionResult.Returned -> KLuaCoreCoroutineExecution.Returned(
+                    result.values.map { value -> toPublicValue(value, globals) },
+                )
+                is LuaExecutionResult.Yielded -> KLuaCoreCoroutineExecution.Yielded(
+                    result.values.map { value -> toPublicValue(value, globals) },
+                )
+            }
+        } catch (error: LuaVmException) {
+            KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error")
+        } finally {
+            started = true
+        }
+    }
+}
+
+public sealed interface KLuaCoreCoroutineExecution {
+    public data class Returned(
+        public val values: List<KLuaCoreValue>,
+    ) : KLuaCoreCoroutineExecution
+
+    public data class Yielded(
+        public val values: List<KLuaCoreValue>,
+    ) : KLuaCoreCoroutineExecution
+
+    public data class RuntimeError(
+        public val message: String,
+    ) : KLuaCoreCoroutineExecution
 }
 
 public sealed interface KLuaCoreValue {

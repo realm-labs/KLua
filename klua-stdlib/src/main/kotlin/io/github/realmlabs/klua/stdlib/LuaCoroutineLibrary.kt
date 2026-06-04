@@ -1,6 +1,9 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaCoroutineFunction
+import io.github.realmlabs.klua.api.LuaCoroutineHandle
+import io.github.realmlabs.klua.api.LuaCoroutineResult
 import io.github.realmlabs.klua.api.LuaException
 import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
@@ -16,7 +19,7 @@ internal object LuaCoroutineLibrary {
         setFunctionField(state, "running") { coroutineRunning(runtime) }
         setFunctionField(state, "status", ::coroutineStatus)
         setFunctionField(state, "wrap") { context -> coroutineWrap(context, runtime) }
-        setFunctionField(state, "yield") { coroutineYield(runtime) }
+        setFunctionField(state, "yield") { context -> coroutineYield(context, runtime) }
         state.setGlobal("coroutine")
         return state
     }
@@ -27,7 +30,7 @@ internal object LuaCoroutineLibrary {
         }
         val function = context.get(1) as? LuaFunction
             ?: throw LuaRuntimeException("bad argument #1 to 'coroutine.create' (function expected)")
-        return LuaReturn.of(LuaCoroutine(function))
+        return LuaReturn.of(LuaCoroutine(function, (function as? LuaCoroutineFunction)?.createCoroutine()))
     }
 
     private fun coroutineResume(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
@@ -57,9 +60,27 @@ internal object LuaCoroutineLibrary {
         val previousRunning = runtime.running
         runtime.running = coroutine
         return try {
-            val result = context.call(coroutine.function, arguments)
-            coroutine.status = CoroutineStatus.DEAD
-            LuaReturn.ofValues(listOf(true) + result.values)
+            val handle = coroutine.handle
+            if (handle != null) {
+                when (val result = handle.resume(arguments)) {
+                    is LuaCoroutineResult.Returned -> {
+                        coroutine.status = CoroutineStatus.DEAD
+                        LuaReturn.ofValues(listOf(true) + result.values)
+                    }
+                    is LuaCoroutineResult.Yielded -> {
+                        coroutine.status = CoroutineStatus.SUSPENDED
+                        LuaReturn.ofValues(listOf(true) + result.values)
+                    }
+                    is LuaCoroutineResult.RuntimeError -> {
+                        coroutine.status = CoroutineStatus.DEAD
+                        LuaReturn.of(false, result.message)
+                    }
+                }
+            } else {
+                val result = context.call(coroutine.function, arguments)
+                coroutine.status = CoroutineStatus.DEAD
+                LuaReturn.ofValues(listOf(true) + result.values)
+            }
         } catch (exception: LuaException) {
             coroutine.status = CoroutineStatus.DEAD
             LuaReturn.of(false, exception.message ?: exception::class.java.simpleName)
@@ -80,11 +101,11 @@ internal object LuaCoroutineLibrary {
         }
     }
 
-    private fun coroutineYield(runtime: CoroutineRuntime): LuaReturn {
+    private fun coroutineYield(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
         if (runtime.running == null) {
             throw LuaRuntimeException("attempt to yield from outside a coroutine")
         }
-        throw LuaRuntimeException("attempt to yield across a non-yieldable boundary")
+        context.yield((1..context.argumentCount).map { index -> argumentValue(context, index) })
     }
 
     private fun coroutineStatus(context: LuaCallContext): LuaReturn {
@@ -145,6 +166,7 @@ internal object LuaCoroutineLibrary {
 
     private class LuaCoroutine(
         val function: LuaFunction,
+        val handle: LuaCoroutineHandle? = null,
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
     )
 

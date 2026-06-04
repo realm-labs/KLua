@@ -2,6 +2,8 @@ package io.github.realmlabs.klua.api
 
 import io.github.realmlabs.klua.core.KLuaCoreChunk
 import io.github.realmlabs.klua.core.KLuaCoreCallResult
+import io.github.realmlabs.klua.core.KLuaCoreCoroutine
+import io.github.realmlabs.klua.core.KLuaCoreCoroutineExecution
 import io.github.realmlabs.klua.core.KLuaCoreExecution
 import io.github.realmlabs.klua.core.KLuaCoreGlobals
 import io.github.realmlabs.klua.core.KLuaCoreLoad
@@ -520,14 +522,7 @@ class LuaState private constructor(
             is KLuaCoreValue.IntegerValue -> LuaStackValue.IntegerValue(value)
             is KLuaCoreValue.NumberValue -> LuaStackValue.NumberValue(value)
             is KLuaCoreValue.StringValue -> LuaStackValue.StringValue(value)
-            is KLuaCoreValue.FunctionValue -> LuaStackValue.NativeFunctionValue { context ->
-                val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
-                when (val result = function.call(arguments)) {
-                    is KLuaCoreCallResult.Success -> LuaReturn.ofValues(result.values.map { it.toStackValue().toPublicCallReturnValue() })
-                    is KLuaCoreCallResult.Yielded -> throw LuaRuntimeException("attempt to yield from outside a coroutine")
-                    is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
-                }
-            }
+            is KLuaCoreValue.FunctionValue -> LuaStackValue.NativeFunctionValue(toLuaFunctionValue(this), this)
             is KLuaCoreValue.TableValue -> {
                 val cached = tableCache[this]
                 if (cached != null) {
@@ -545,6 +540,38 @@ class LuaState private constructor(
             }
             is KLuaCoreValue.UserDataValue -> LuaStackValue.UserDataValue(value)
             is KLuaCoreValue.UnsupportedValue -> LuaStackValue.UnsupportedValue(typeName)
+        }
+    }
+
+    private fun toLuaFunctionValue(functionValue: KLuaCoreValue.FunctionValue): LuaFunction {
+        return if (KLuaCoreRuntime.canCreateCoroutine(functionValue)) {
+            object : LuaCoroutineFunction {
+                override fun call(context: LuaCallContext): LuaReturn {
+                    return callCoreFunctionValue(functionValue, context)
+                }
+
+                override fun createCoroutine(): LuaCoroutineHandle {
+                    val coroutine = KLuaCoreRuntime.createCoroutine(functionValue, coreGlobals)
+                        ?: throw LuaRuntimeException("cannot create coroutine from function")
+                    return CoreBackedLuaCoroutine(coroutine)
+                }
+            }
+        } else {
+            LuaFunction { context -> callCoreFunctionValue(functionValue, context) }
+        }
+    }
+
+    private fun callCoreFunctionValue(
+        functionValue: KLuaCoreValue.FunctionValue,
+        context: LuaCallContext,
+    ): LuaReturn {
+        val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
+        return when (val result = functionValue.function.call(arguments)) {
+            is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
+                result.values.map { it.toStackValue().toPublicCallReturnValue() },
+            )
+            is KLuaCoreCallResult.Yielded -> throw LuaRuntimeException("attempt to yield from outside a coroutine")
+            is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
         }
     }
 
@@ -663,7 +690,7 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
-            is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.FunctionValue { arguments ->
+            is LuaStackValue.NativeFunctionValue -> coreFunction ?: KLuaCoreValue.FunctionValue { arguments ->
                 callHostFunction(function, arguments)
             }
             is LuaStackValue.TableValue -> toCoreTableValue(tableCache)
@@ -703,7 +730,7 @@ class LuaState private constructor(
             is LuaStackValue.IntegerValue -> KLuaCoreValue.IntegerValue(value)
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
-            is LuaStackValue.NativeFunctionValue -> KLuaCoreValue.FunctionValue { arguments ->
+            is LuaStackValue.NativeFunctionValue -> coreFunction ?: KLuaCoreValue.FunctionValue { arguments ->
                 callHostFunction(function, arguments)
             }
             is LuaStackValue.TableValue -> toCoreTableValue(tableCache)
@@ -819,6 +846,24 @@ class LuaState private constructor(
             is LuaStackValue.StringValue -> "string"
             is LuaStackValue.UserDataValue -> "userdata"
             is LuaStackValue.UnsupportedValue -> value.typeName
+        }
+    }
+
+    private inner class CoreBackedLuaCoroutine(
+        private val coroutine: KLuaCoreCoroutine,
+    ) : LuaCoroutineHandle {
+        override fun resume(arguments: List<Any?>): LuaCoroutineResult {
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            val coreArguments = arguments.map { argument -> argument.toStackValue().toCoreValue(tableCache) }
+            return when (val result = coroutine.resume(coreArguments)) {
+                is KLuaCoreCoroutineExecution.Returned -> LuaCoroutineResult.Returned(
+                    result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
+                )
+                is KLuaCoreCoroutineExecution.Yielded -> LuaCoroutineResult.Yielded(
+                    result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
+                )
+                is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(result.message)
+            }
         }
     }
 
@@ -1032,6 +1077,7 @@ class LuaState private constructor(
 
         data class NativeFunctionValue(
             val function: LuaFunction,
+            val coreFunction: KLuaCoreValue.FunctionValue? = null,
         ) : LuaStackValue
 
         data class UserDataValue(

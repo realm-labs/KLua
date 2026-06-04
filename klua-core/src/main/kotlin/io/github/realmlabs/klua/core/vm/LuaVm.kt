@@ -42,6 +42,10 @@ internal class LuaVm(
         return returnedValues(callValue(callee, arguments))
     }
 
+    internal fun callYieldable(callee: LuaValue, arguments: List<LuaValue>): LuaExecutionResult {
+        return callValue(callee, arguments)
+    }
+
     internal fun executeYieldable(prototype: Prototype, arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
         return executeFrame(prototype, arguments, emptyList())
     }

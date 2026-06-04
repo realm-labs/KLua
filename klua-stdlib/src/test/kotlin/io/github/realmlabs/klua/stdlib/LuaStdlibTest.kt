@@ -1661,7 +1661,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `coroutine wrap resumes non yielding functions and raises failures`() {
+    fun `coroutine wrap resumes yielding functions and raises failures`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
         LuaStdlib.openCoroutine(state)
@@ -1672,16 +1672,18 @@ class LuaStdlibTest {
                 """
                 local payload = {name = "wrapped"}
                 local wrapped = coroutine.wrap(function(left, right, value)
-                    return left + right, value == payload, value.name
+                    local resumeValue = coroutine.yield(left + right, value == payload, value.name)
+                    return resumeValue
                 end)
                 local sum, samePayload, payloadName = wrapped(20, 22, payload)
+                local resumeValue = wrapped("done")
                 local deadOk, deadMessage = pcall(wrapped)
 
                 local failing = coroutine.wrap(function()
                     error("boom")
                 end)
                 local failOk, failMessage = pcall(failing)
-                return sum, samePayload, payloadName,
+                return sum, samePayload, payloadName, resumeValue,
                     deadOk, deadMessage, failOk, failMessage
                 """.trimIndent(),
                 "coroutine-wrap.lua",
@@ -1692,10 +1694,11 @@ class LuaStdlibTest {
         assertEquals(42L, state.toInteger(1))
         assertTrue(state.toBoolean(2))
         assertEquals("wrapped", state.toString(3))
-        assertFalse(state.toBoolean(4))
-        assertEquals("cannot resume dead coroutine", state.toString(5))
-        assertFalse(state.toBoolean(6))
-        assertEquals("boom", state.toString(7))
+        assertEquals("done", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("cannot resume dead coroutine", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("boom", state.toString(8))
     }
 
     @Test
@@ -1733,7 +1736,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `coroutine yield reports non yieldable contexts`() {
+    fun `coroutine yield suspends and resumes lua functions`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
         LuaStdlib.openCoroutine(state)
@@ -1744,21 +1747,29 @@ class LuaStdlibTest {
                 """
                 local outsideOk, outsideMessage = pcall(coroutine.yield, "outside")
                 local co = coroutine.create(function()
-                    return coroutine.yield("inside")
+                    local resumeValue = coroutine.yield("inside")
+                    return resumeValue
                 end)
-                local insideOk, insideMessage = coroutine.resume(co)
-                return outsideOk, outsideMessage, insideOk, insideMessage, coroutine.status(co)
+                local insideOk, yielded = coroutine.resume(co)
+                local suspended = coroutine.status(co)
+                local resumeOk, returned = coroutine.resume(co, "after")
+                local after = coroutine.status(co)
+                return outsideOk, outsideMessage, insideOk, yielded, suspended,
+                    resumeOk, returned, after
                 """.trimIndent(),
-                "coroutine-yield-errors.lua",
+                "coroutine-yield.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertFalse(state.toBoolean(1))
         assertEquals("attempt to yield from outside a coroutine", state.toString(2))
-        assertFalse(state.toBoolean(3))
-        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(4))
-        assertEquals("dead", state.toString(5))
+        assertTrue(state.toBoolean(3))
+        assertEquals("inside", state.toString(4))
+        assertEquals("suspended", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("after", state.toString(7))
+        assertEquals("dead", state.toString(8))
     }
 
     @Test

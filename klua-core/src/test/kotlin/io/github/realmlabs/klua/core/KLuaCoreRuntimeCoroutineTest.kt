@@ -44,4 +44,38 @@ class KLuaCoreRuntimeCoroutineTest {
 
         assertNotNull(function.sourceFunction)
     }
+
+    @Test
+    fun `core coroutine runner resumes yielded lua functions`() {
+        val globals = KLuaCoreGlobals.create()
+        globals.setFunction("yield") { arguments ->
+            KLuaCoreCallResult.Yielded(arguments)
+        }
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile(
+                """
+                return function(value)
+                    local resumed = yield(value)
+                    return resumed
+                end
+                """.trimIndent(),
+                "core-coroutine-runner.lua",
+            ),
+        ).chunk
+
+        val result = assertIs<KLuaCoreExecution.Success>(
+            KLuaCoreRuntime.execute(chunk, emptyList(), globals),
+        )
+        val function = assertIs<KLuaCoreValue.FunctionValue>(result.values.single())
+        val coroutine = assertNotNull(KLuaCoreRuntime.createCoroutine(function, globals))
+
+        assertEquals(
+            KLuaCoreCoroutineExecution.Yielded(listOf(KLuaCoreValue.IntegerValue(42))),
+            coroutine.resume(listOf(KLuaCoreValue.IntegerValue(42))),
+        )
+        assertEquals(
+            KLuaCoreCoroutineExecution.Returned(listOf(KLuaCoreValue.StringValue("done"))),
+            coroutine.resume(listOf(KLuaCoreValue.StringValue("done"))),
+        )
+    }
 }
