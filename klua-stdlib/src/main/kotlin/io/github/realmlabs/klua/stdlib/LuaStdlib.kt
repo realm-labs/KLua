@@ -172,9 +172,16 @@ public object LuaStdlib {
     }
 
     private fun load(context: LuaCallContext): LuaReturn {
-        val source = requiredString(context, 1, "load")
+        val sourceType = context.typeName(1)
+        if (sourceType != "string" && sourceType != "function") {
+            throw LuaRuntimeException("bad argument #1 to 'load' (string or function expected)")
+        }
         val chunkName = if (context.isNone(2) || context.isNil(2)) {
-            source
+            if (sourceType == "string") {
+                requiredString(context, 1, "load")
+            } else {
+                "=(load)"
+            }
         } else {
             requiredString(context, 2, "load")
         }
@@ -182,7 +189,27 @@ public object LuaStdlib {
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
         }
+        val source = if (sourceType == "string") {
+            requiredString(context, 1, "load")
+        } else {
+            readChunkSource(context)
+        }
+        if (source == null) {
+            return LuaReturn.of(null, "reader function must return a string")
+        }
         return context.load(source, chunkName)
+    }
+
+    private fun readChunkSource(context: LuaCallContext): String? {
+        val source = StringBuilder()
+        while (true) {
+            val chunk = context.call(1, emptyList()).get(1) ?: break
+            if (chunk !is String) {
+                return null
+            }
+            source.append(chunk)
+        }
+        return source.toString()
     }
 
     private fun loadfile(context: LuaCallContext): LuaReturn {

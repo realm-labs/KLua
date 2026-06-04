@@ -798,6 +798,86 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load compiles chunks from reader functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local index = 0
+                local parts = {
+                    "local add = ...; ",
+                    "return 34 + add",
+                }
+                local chunk = load(function()
+                    index = index + 1
+                    return parts[index]
+                end, "reader.lua")
+                return chunk(8), index
+                """.trimIndent(),
+                "load-reader.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(3L, state.toInteger(2))
+    }
+
+    @Test
+    fun `load reports reader function syntax errors with default chunk name`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local done = false
+                local chunk, message = load(function()
+                    if done then
+                        return nil
+                    end
+                    done = true
+                    return "local x <close> = {}"
+                end)
+                return chunk, message
+                """.trimIndent(),
+                "load-reader-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("=(load):1:1: to-be-closed local variables are not supported", state.toString(2))
+    }
+
+    @Test
+    fun `load rejects non string reader function results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local chunk, message = load(function()
+                    return 42
+                end, "reader-number.lua")
+                return chunk, message
+                """.trimIndent(),
+                "load-reader-number.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("reader function must return a string", state.toString(2))
+    }
+
+    @Test
     fun `load returns syntax errors without running chunks`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
