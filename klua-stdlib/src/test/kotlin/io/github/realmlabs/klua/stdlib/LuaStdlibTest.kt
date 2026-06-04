@@ -1240,6 +1240,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns support frontier matches`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, last = string.find("hello world", "%f[%a]world")
+                local matched = string.match("hello world", "%f[%a]world")
+                local replaced, count = string.gsub("one two", "%f[%a]", "|")
+                local iterator = string.gmatch("one, two", "%f[%a]%a+")
+                local endFirst, endLast = string.find("word!", "%f[%A]")
+                local missing = string.match("hello", "%f[%d]%a")
+                return first, last, matched, replaced, count, iterator(), iterator(), iterator(),
+                    endFirst, endLast, missing
+                """.trimIndent(),
+                "string-pattern-frontier.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(7L, state.toInteger(1))
+        assertEquals(11L, state.toInteger(2))
+        assertEquals("world", state.toString(3))
+        assertEquals("|one |two", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals("one", state.toString(6))
+        assertEquals("two", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals(5L, state.toInteger(9))
+        assertEquals(4L, state.toInteger(10))
+        assertTrue(state.isNil(11))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

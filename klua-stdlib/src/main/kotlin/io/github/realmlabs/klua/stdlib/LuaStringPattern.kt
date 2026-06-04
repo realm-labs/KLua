@@ -94,6 +94,15 @@ internal class LuaStringPattern private constructor(
                 val endIndex = matchBalanced(text, textIndex, token.open, token.close) ?: return null
                 matchEnd(text, endIndex, patternTokens, tokenIndex + 1, captureStarts, captures)
             }
+            is Token.Frontier -> {
+                val previous = if (textIndex > 0) text[textIndex - 1] else '\u0000'
+                val current = if (textIndex < text.length) text[textIndex] else '\u0000'
+                if (!token.set.matches(previous) && token.set.matches(current)) {
+                    matchEnd(text, textIndex, patternTokens, tokenIndex + 1, captureStarts, captures)
+                } else {
+                    null
+                }
+            }
             is Token.Repetition -> matchRepetition(text, textIndex, patternTokens, tokenIndex, token, captureStarts, captures)
             else -> {
                 if (textIndex >= text.length || !token.matches(text[textIndex])) {
@@ -223,6 +232,14 @@ internal class LuaStringPattern private constructor(
                             tokens += Token.Balanced(pattern[index + 2], pattern[index + 3])
                             hasPatternToken = true
                             index += 4
+                        } else if (next == 'f') {
+                            if (index + 2 >= pattern.length || pattern[index + 2] != '[') {
+                                throw LuaRuntimeException("string patterns are not supported")
+                            }
+                            val (token, nextIndex) = bracketClassToken(pattern, index + 2)
+                            tokens += Token.Frontier(token)
+                            hasPatternToken = true
+                            index = nextIndex
                         } else {
                             val token = percentToken(next)
                             if (token == null) {
@@ -409,6 +426,12 @@ private sealed interface Token {
     data class Balanced(
         val open: Char,
         val close: Char,
+    ) : Token {
+        override fun matches(char: Char): Boolean = false
+    }
+
+    data class Frontier(
+        val set: Token,
     ) : Token {
         override fun matches(char: Char): Boolean = false
     }
