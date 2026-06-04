@@ -2043,6 +2043,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format rejects quote modifiers`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.format("%5q", "x")""", "string-format-quote-modifier-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("invalid option '%5q' to 'string.format'", state.toString(-1))
+    }
+
+    @Test
     fun `string gsub replaces literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

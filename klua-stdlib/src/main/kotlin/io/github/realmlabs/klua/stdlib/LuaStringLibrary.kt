@@ -399,7 +399,12 @@ internal object LuaStringLibrary {
                 }
                 specifier.formatWith(code.toInt())
             }
-            'q' -> quoteValue(context, index)
+            'q' -> {
+                if (specifier != "%q") {
+                    throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+                }
+                quoteValue(context, index)
+            }
             else -> throw LuaRuntimeException("invalid option '%$conversion' to 'string.format'")
         }
     }
