@@ -32,6 +32,10 @@ operator fun LuaChunk.invoke(vararg arguments: Any?): LuaReturn {
     return call(*arguments)
 }
 
+inline fun <reified T : Any> LuaReturn.getUserData(index: Int): T {
+    return getUserData(index, T::class.java)
+}
+
 fun Lua.functionContext(block: LuaCallContext.() -> LuaReturn): LuaFunction {
     return LuaFunction { context -> context.block() }
 }

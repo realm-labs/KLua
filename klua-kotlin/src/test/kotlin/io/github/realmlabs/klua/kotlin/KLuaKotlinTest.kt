@@ -42,6 +42,16 @@ class KLuaKotlinTest {
     }
 
     @Test
+    fun `reads userdata returns with reified helper`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+
+        val result = lua.load("return ...")(host)
+
+        assertEquals(host, result.getUserData<HostObject>(1))
+    }
+
+    @Test
     fun `registers context host functions`() {
         val lua = Lua.create()
 
