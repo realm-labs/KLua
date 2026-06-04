@@ -496,6 +496,7 @@ internal object LuaStringLibrary {
     ): String {
         val value = requiredInteger(context, index, "string.format")
         val parsed = parseFormatSpecifier(specifier)
+        validateIntegerFormatFlags(specifier, conversion, parsed)
         if (parsed.precision == null) {
             val formatValue = if (conversion == 'u') unsignedIntegerValue(value) else value
             return specifier.javaIntegerSpecifier(conversion).formatWith(formatValue)
@@ -549,6 +550,27 @@ internal object LuaStringLibrary {
             formatted.padEnd(width, ' ')
         } else {
             formatted.padStart(width, ' ')
+        }
+    }
+
+    private fun validateIntegerFormatFlags(
+        specifier: String,
+        conversion: Char,
+        parsed: FormatSpecifier,
+    ) {
+        val allowedFlags = when (conversion) {
+            'd',
+            'i',
+            -> "-+0 "
+            'u' -> "-0"
+            'o',
+            'x',
+            'X',
+            -> "-#0"
+            else -> ""
+        }
+        if (parsed.flags.any { flag -> flag !in allowedFlags }) {
+            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
         }
     }
 

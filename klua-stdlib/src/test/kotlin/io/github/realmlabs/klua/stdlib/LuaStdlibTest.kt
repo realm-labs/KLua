@@ -2085,6 +2085,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format rejects invalid integer flags`() {
+        val hashState = LuaState.create()
+        LuaStdlib.openString(hashState)
+
+        assertEquals(LuaStatus.OK, hashState.load("""return string.format("%#d", 1)""", "string-format-integer-hash-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, hashState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(hashState.getLastError())
+        assertEquals("invalid option '%#d' to 'string.format'", hashState.toString(-1))
+
+        val plusState = LuaState.create()
+        LuaStdlib.openString(plusState)
+
+        assertEquals(LuaStatus.OK, plusState.load("""return string.format("%+u", 1)""", "string-format-unsigned-plus-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(plusState.getLastError())
+        assertEquals("invalid option '%+u' to 'string.format'", plusState.toString(-1))
+
+        val spaceState = LuaState.create()
+        LuaStdlib.openString(spaceState)
+
+        assertEquals(LuaStatus.OK, spaceState.load("""return string.format("% x", 1)""", "string-format-hex-space-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, spaceState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(spaceState.getLastError())
+        assertEquals("invalid option '% x' to 'string.format'", spaceState.toString(-1))
+    }
+
+    @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
