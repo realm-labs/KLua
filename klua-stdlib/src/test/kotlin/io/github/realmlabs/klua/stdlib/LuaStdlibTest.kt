@@ -2142,6 +2142,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format rejects oversized width and precision`() {
+        val integerState = LuaState.create()
+        LuaStdlib.openString(integerState)
+
+        assertEquals(LuaStatus.OK, integerState.load("""return string.format("%100d", 1)""", "string-format-wide-integer-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, integerState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(integerState.getLastError())
+        assertEquals("invalid option '%100d' to 'string.format'", integerState.toString(-1))
+
+        val floatState = LuaState.create()
+        LuaStdlib.openString(floatState)
+
+        assertEquals(LuaStatus.OK, floatState.load("""return string.format("%.100f", 1)""", "string-format-precise-float-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, floatState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(floatState.getLastError())
+        assertEquals("invalid option '%.100f' to 'string.format'", floatState.toString(-1))
+
+        val stringState = LuaState.create()
+        LuaStdlib.openString(stringState)
+
+        assertEquals(LuaStatus.OK, stringState.load("""return string.format("%100s", "x")""", "string-format-wide-string-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, stringState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(stringState.getLastError())
+        assertEquals("invalid option '%100s' to 'string.format'", stringState.toString(-1))
+    }
+
+    @Test
     fun `string format reports char range errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

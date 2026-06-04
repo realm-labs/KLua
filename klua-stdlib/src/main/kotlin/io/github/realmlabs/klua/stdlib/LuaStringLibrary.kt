@@ -392,7 +392,10 @@ internal object LuaStringLibrary {
             'E',
             'g',
             'G',
-            -> specifier.formatWith(requiredNumber(context, index, "string.format"))
+            -> {
+                validateFormatSize(specifier)
+                specifier.formatWith(requiredNumber(context, index, "string.format"))
+            }
             'c' -> {
                 validateCharacterFormatSpecifier(specifier)
                 val code = requiredInteger(context, index, "string.format")
@@ -422,6 +425,10 @@ internal object LuaStringLibrary {
         } else {
             this
         }
+    }
+
+    private fun validateFormatSize(specifier: String) {
+        parseFormatSpecifier(specifier)
     }
 
     private fun formatPointerValue(
@@ -556,14 +563,22 @@ internal object LuaStringLibrary {
         while (cursor < specifier.lastIndex && specifier[cursor].isDigit()) {
             cursor++
         }
-        val width = specifier.substring(widthStart, cursor).takeIf { it.isNotEmpty() }?.toInt()
+        val widthDigits = specifier.substring(widthStart, cursor)
+        if (widthDigits.length > 2) {
+            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+        }
+        val width = widthDigits.takeIf { it.isNotEmpty() }?.toInt()
         val precision = if (cursor < specifier.lastIndex && specifier[cursor] == '.') {
             cursor++
             val precisionStart = cursor
             while (cursor < specifier.lastIndex && specifier[cursor].isDigit()) {
                 cursor++
             }
-            specifier.substring(precisionStart, cursor).takeIf { it.isNotEmpty() }?.toInt() ?: 0
+            val precisionDigits = specifier.substring(precisionStart, cursor)
+            if (precisionDigits.length > 2) {
+                throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+            }
+            precisionDigits.takeIf { it.isNotEmpty() }?.toInt() ?: 0
         } else {
             null
         }
