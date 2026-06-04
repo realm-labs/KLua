@@ -325,7 +325,9 @@ internal class LuaStringPattern private constructor(
                 val start = pattern[index]
                 if (start == ']') {
                     if (ranges.isEmpty() && tokens.isEmpty()) {
-                        throw LuaRuntimeException("string patterns are not supported")
+                        ranges += start..start
+                        index++
+                        continue
                     }
                     return Token.CharSet(ranges, tokens, negated) to index + 1
                 }

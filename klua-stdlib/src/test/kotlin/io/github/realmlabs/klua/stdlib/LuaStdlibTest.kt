@@ -1785,6 +1785,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string bracket patterns support leading closing brackets`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local closeStart, closeEnd = string.find("a]b", "[]]")
+                local notCloseStart, notCloseEnd = string.find("]a", "[^]]")
+                local replaced, count = string.gsub("a]b]", "[]]", "x")
+                return closeStart, closeEnd, notCloseStart, notCloseEnd, replaced, count
+                """.trimIndent(),
+                "string-bracket-closing-bracket.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals("axbx", state.toString(5))
+        assertEquals(2L, state.toInteger(6))
+    }
+
+    @Test
     fun `string patterns support escaped punctuation literals`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
