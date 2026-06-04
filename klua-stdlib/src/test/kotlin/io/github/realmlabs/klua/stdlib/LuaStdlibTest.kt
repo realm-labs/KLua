@@ -1608,6 +1608,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format applies width to character conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%3c|%-3c", 65, 66)""",
+                "string-format-char-width.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("  A|B  ", state.toString(1))
+    }
+
+    @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

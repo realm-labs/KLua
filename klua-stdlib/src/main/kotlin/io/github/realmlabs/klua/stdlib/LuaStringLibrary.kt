@@ -389,7 +389,7 @@ internal object LuaStringLibrary {
                 if (code !in 0L..255L) {
                     throw LuaRuntimeException("bad argument #$index to 'string.format' (value out of range)")
                 }
-                code.toInt().toChar().toString()
+                specifier.formatWith(code.toInt())
             }
             'q' -> quoteValue(context, index)
             else -> throw LuaRuntimeException("invalid option '%$conversion' to 'string.format'")
