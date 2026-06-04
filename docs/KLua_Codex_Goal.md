@@ -144,7 +144,7 @@ Current implemented areas:
 - Multi-module Gradle project with Kotlin/JVM 17 modules and tests.
 - Lexer and parser for current supported Lua syntax.
 - AST model, compiler, internal bytecode, prototype model, constant pool, and disassembler.
-- Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and internal thread/yield/resume plumbing.
+- Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and internal thread/yield/resume/dead-state plumbing.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
 - Partial `klua-stdlib` support with base, math, string, table, utf8, package, and coroutine library installers covered by focused Lua-source tests, including Lua-backed coroutine yield/resume, protected `pcall`/`xpcall` yield continuation, wrap/close/isyieldable behavior, main/normal coroutine status and close reporting, coroutine thread type/string reporting, and host/native yield-boundary checks.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
