@@ -150,7 +150,7 @@ class LuaState private constructor(
                     result.cause,
                     sourceName = result.sourceName,
                     line = result.line,
-                    luaFrames = result.luaFrames.toApiStackFrames(),
+                    luaFrames = toApiStackFrames(result.luaFrames),
                 )
                 removeCallFrame(functionIndex)
                 stack += LuaStackValue.StringValue(result.message)
@@ -204,7 +204,7 @@ class LuaState private constructor(
                             result.cause,
                             sourceName = result.sourceName,
                             line = result.line,
-                            luaFrames = result.luaFrames.toApiStackFrames(),
+                            luaFrames = toApiStackFrames(result.luaFrames),
                         )
                     }
                 }
@@ -482,7 +482,7 @@ class LuaState private constructor(
         val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
         val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
         return try {
-            val result = function.call(DefaultLuaCallContext(stackArguments, luaFrames.toApiStackFrames()))
+            val result = function.call(DefaultLuaCallContext(stackArguments, toApiStackFrames(luaFrames)))
             syncStackArgumentsToCore(arguments, stackArguments)
             KLuaCoreCallResult.Success(
                 result.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
@@ -993,6 +993,23 @@ class LuaState private constructor(
         }
     }
 
+    private fun toApiStackFrames(frames: List<KLuaCoreStackFrame>): List<LuaStackFrame> {
+        return frames.map { frame ->
+            LuaStackFrame(
+                frame.sourceName,
+                frame.line,
+                frame.lineDefined,
+                frame.lastLineDefined,
+                frame.locals.map { local ->
+                    LuaLocalVariable(
+                        local.name,
+                        local.value.toStackValue().toPublicCallReturnValue(),
+                    )
+                },
+            )
+        }
+    }
+
     private inner class CoreBackedLuaCoroutine(
         private val coroutine: KLuaCoreCoroutine,
     ) : LuaCoroutineHandle {
@@ -1011,7 +1028,7 @@ class LuaState private constructor(
                     sourceName = result.sourceName,
                     line = result.line,
                     cause = result.cause,
-                    luaFrames = result.luaFrames.toApiStackFrames(),
+                    luaFrames = toApiStackFrames(result.luaFrames),
                 )
             }
         }
@@ -1238,17 +1255,6 @@ class LuaState private constructor(
         data class UnsupportedValue(
             val typeName: String,
         ) : LuaStackValue
-    }
-}
-
-private fun List<KLuaCoreStackFrame>.toApiStackFrames(): List<LuaStackFrame> {
-    return map { frame ->
-        LuaStackFrame(
-            frame.sourceName,
-            frame.line,
-            frame.lineDefined,
-            frame.lastLineDefined,
-        )
     }
 }
 

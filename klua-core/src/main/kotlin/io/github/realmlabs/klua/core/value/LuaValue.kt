@@ -77,6 +77,12 @@ internal data class LuaNativeStackFrame(
     val line: Int,
     val lineDefined: Int,
     val lastLineDefined: Int,
+    val locals: List<LuaNativeLocalVariable> = emptyList(),
+)
+
+internal data class LuaNativeLocalVariable(
+    val name: String,
+    val value: LuaValue,
 )
 
 internal class LuaUpvalue(

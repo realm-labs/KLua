@@ -9,6 +9,7 @@ internal object LuaDebugLibrary {
     fun open(state: LuaState): LuaState {
         state.register("klua_debug_traceback") { context -> LuaReturn.of(traceback(context)) }
         state.register("klua_debug_getinfo") { context -> getInfo(context) }
+        state.register("klua_debug_getlocal") { context -> getLocal(context) }
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
         return state
     }
@@ -33,8 +34,10 @@ internal object LuaDebugLibrary {
             for (frame in frames) {
                 append("\n\t")
                 append(frame.sourceName)
-                append(':')
-                append(frame.line)
+                if (frame.line > 0) {
+                    append(':')
+                    append(frame.line)
+                }
             }
         }
     }
@@ -53,6 +56,17 @@ internal object LuaDebugLibrary {
                 "namewhat" to "",
             ),
         )
+    }
+
+    private fun getLocal(context: LuaCallContext): LuaReturn {
+        val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
+        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+        if (index <= 0) {
+            return LuaReturn.of(null)
+        }
+        val frame = context.luaFrames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
+        val local = frame.locals.getOrNull(index - 1) ?: return LuaReturn.of(null)
+        return LuaReturn.of(local.name, local.value)
     }
 
     private const val DEBUG_SOURCE: String = """
@@ -74,6 +88,10 @@ internal object LuaDebugLibrary {
 
         function debug.getinfo(threadOrLevel, what)
             return klua_debug_getinfo(threadOrLevel, what)
+        end
+
+        function debug.getlocal(threadOrLevel, index)
+            return klua_debug_getlocal(threadOrLevel, index)
         end
     """
 }

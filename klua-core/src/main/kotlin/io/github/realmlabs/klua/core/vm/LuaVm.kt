@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaNativeFunction
+import io.github.realmlabs.klua.core.value.LuaNativeLocalVariable
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaMetatableException
@@ -331,7 +332,8 @@ internal class LuaVm(
 
     private fun luaStackFrames(): List<LuaNativeStackFrame> {
         return thread.stackFrames().mapNotNull { frame ->
-            val line = frame.lineForPc((frame.pc - 1).coerceAtLeast(0))
+            val pc = (frame.pc - 1).coerceAtLeast(0)
+            val line = frame.lineForPc(pc)
             if (line <= 0) {
                 null
             } else {
@@ -340,9 +342,21 @@ internal class LuaVm(
                     line,
                     frame.prototype.lineDefined,
                     frame.prototype.lastLineDefined,
+                    activeLocals(frame, pc),
                 )
             }
         }
+    }
+
+    private fun activeLocals(frame: CallFrame, pc: Int): List<LuaNativeLocalVariable> {
+        return frame.prototype.localVars
+            .filter { local -> local.startPc <= pc && pc < local.endPc }
+            .map { local ->
+                LuaNativeLocalVariable(
+                    local.name,
+                    frame.stack.get(register(frame, local.slot)),
+                )
+            }
     }
 
     private fun continueNativeYield(

@@ -319,6 +319,12 @@ public data class KLuaCoreStackFrame(
     public val line: Int,
     public val lineDefined: Int = 0,
     public val lastLineDefined: Int = 0,
+    public val locals: List<KLuaCoreLocalVariable> = emptyList(),
+)
+
+public data class KLuaCoreLocalVariable(
+    public val name: String,
+    public val value: KLuaCoreValue,
 )
 
 public fun interface KLuaCoreContinuation {
@@ -582,13 +588,19 @@ private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> 
     return map { frame -> KLuaCoreStackFrame(frame.sourceName, frame.line) }
 }
 
-private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(): List<KLuaCoreStackFrame> {
+private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaCoreGlobals): List<KLuaCoreStackFrame> {
     return map { frame ->
         KLuaCoreStackFrame(
             frame.sourceName,
             frame.line,
             frame.lineDefined,
             frame.lastLineDefined,
+            frame.locals.map { local ->
+                KLuaCoreLocalVariable(
+                    local.name,
+                    toPublicValue(local.value, globals),
+                )
+            },
         )
     }
 }
@@ -624,7 +636,7 @@ private fun callCoreContextFunction(
     globals: KLuaCoreGlobals,
 ): List<LuaValue> {
     return callCoreFunction(context.arguments, globals) { publicArguments ->
-        function.call(KLuaCoreCallContext(publicArguments, context.luaFrames.toCoreStackFramesFromNative()))
+        function.call(KLuaCoreCallContext(publicArguments, context.luaFrames.toCoreStackFramesFromNative(globals)))
     }
 }
 

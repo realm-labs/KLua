@@ -25,6 +25,12 @@ data class LuaStackFrame(
     val line: Int,
     val lineDefined: Int = 0,
     val lastLineDefined: Int = 0,
+    val locals: List<LuaLocalVariable> = emptyList(),
+)
+
+data class LuaLocalVariable(
+    val name: String,
+    val value: Any?,
 )
 
 internal fun formatLuaTraceback(message: String, frames: List<LuaStackFrame>): String {
