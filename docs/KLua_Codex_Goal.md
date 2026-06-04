@@ -146,7 +146,7 @@ Current implemented areas:
 - AST model, compiler, internal bytecode, prototype model, constant pool, and disassembler.
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and internal thread/yield/resume plumbing.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
-- Partial `klua-stdlib` support with base, math, string, table, utf8, package, and coroutine library installers covered by focused Lua-source tests, including Lua-backed coroutine yield/resume and wrap behavior.
+- Partial `klua-stdlib` support with base, math, string, table, utf8, package, and coroutine library installers covered by focused Lua-source tests, including Lua-backed coroutine yield/resume, wrap behavior, and host/native yield-boundary checks.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
 - Focused parser, compiler, VM, API, Kotlin helper, compatibility, and foundation tests.
@@ -155,7 +155,7 @@ Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
-- Broader coroutine runtime hardening, including nested coroutine edge cases, host-function yield boundaries, and Lua 5.4 conformance coverage beyond the initial Lua-backed stdlib yield/resume path.
+- Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.4 conformance coverage beyond the initial Lua-backed stdlib yield/resume path.
 - Error handling, tracebacks, and debug metadata.
 - Debug hooks and source-level debugger.
 - DAP adapter and command-line/debug tooling.
