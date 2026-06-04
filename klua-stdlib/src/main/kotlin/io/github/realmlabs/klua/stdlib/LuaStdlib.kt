@@ -7,6 +7,9 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaVersion
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.function.Consumer
 
 public object LuaStdlib {
@@ -44,10 +47,12 @@ public object LuaStdlib {
             garbageCollectorMode = result.mode
             result.returnValue
         }
+        state.register("dofile", ::dofile)
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
         state.register("ipairs", ::ipairs)
         state.register("load", ::load)
+        state.register("loadfile", ::loadfile)
         state.register("next", ::next)
         state.register("pairs", ::pairs)
         state.register("pcall", ::pcall)
@@ -168,6 +173,25 @@ public object LuaStdlib {
             requiredString(context, 2, "load")
         }
         return context.load(source, chunkName)
+    }
+
+    private fun loadfile(context: LuaCallContext): LuaReturn {
+        val filename = requiredString(context, 1, "loadfile")
+        val source = try {
+            Files.readString(Path.of(filename))
+        } catch (error: IOException) {
+            return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
+        }
+        return context.load(source, filename)
+    }
+
+    private fun dofile(context: LuaCallContext): LuaReturn {
+        val loaded = loadfile(context)
+        val function = loaded.get(1)
+        if (function == null) {
+            throw LuaRuntimeException(loaded.get(2)?.toString() ?: "cannot load file")
+        }
+        return context.call(function, emptyList())
     }
 
     private fun ipairs(context: LuaCallContext): LuaReturn {

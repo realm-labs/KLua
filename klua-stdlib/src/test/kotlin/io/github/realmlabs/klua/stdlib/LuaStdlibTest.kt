@@ -5,6 +5,8 @@ import io.github.realmlabs.klua.api.LuaConfig
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaStatus
 import io.github.realmlabs.klua.api.LuaVersion
+import java.nio.file.Files
+import java.nio.file.Path
 import java.util.function.Consumer
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -637,6 +639,73 @@ class LuaStdlibTest {
 
         assertTrue(state.isNil(1))
         assertEquals("bad-loaded.lua:1:1: to-be-closed local variables are not supported", state.toString(2))
+    }
+
+    @Test
+    fun `loadfile compiles files with shared globals and arguments`() {
+        val file = Files.createTempFile("klua-loadfile", ".lua")
+        try {
+            Files.writeString(file, "local add = ...; value = value + add; return value")
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    value = 40
+                    local chunk = loadfile("${file.luaPath()}")
+                    return chunk(2), value
+                    """.trimIndent(),
+                    "loadfile.lua",
+                ),
+            )
+            val status = state.pcall(0, -1)
+            assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+            assertEquals(42L, state.toInteger(1))
+            assertEquals(42L, state.toInteger(2))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `dofile returns file chunk values`() {
+        val file = Files.createTempFile("klua-dofile", ".lua")
+        try {
+            Files.writeString(file, """return 42, "ok"""")
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(LuaStatus.OK, state.load("""return dofile("${file.luaPath()}")""", "dofile.lua"))
+            val status = state.pcall(0, -1)
+            assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+            assertEquals(42L, state.toInteger(1))
+            assertEquals("ok", state.toString(2))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `loadfile returns syntax errors`() {
+        val file = Files.createTempFile("klua-loadfile-error", ".lua")
+        try {
+            Files.writeString(file, "local x <close> = {}")
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(LuaStatus.OK, state.load("""return loadfile("${file.luaPath()}")""", "loadfile-error.lua"))
+            val status = state.pcall(0, -1)
+            assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals("${file}:1:1: to-be-closed local variables are not supported", state.toString(2))
+        } finally {
+            Files.deleteIfExists(file)
+        }
     }
 
     @Test
@@ -4027,3 +4096,5 @@ class LuaStdlibTest {
         assertEquals("bad argument #1 to 'table.unpack' (table expected)", state.toString(-1))
     }
 }
+
+private fun Path.luaPath(): String = toString().replace("\\", "\\\\")
