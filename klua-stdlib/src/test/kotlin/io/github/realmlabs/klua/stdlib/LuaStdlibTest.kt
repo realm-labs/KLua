@@ -2052,6 +2052,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format reports missing argument errors`() {
+        val firstMissingState = LuaState.create()
+        LuaStdlib.openString(firstMissingState)
+
+        assertEquals(LuaStatus.OK, firstMissingState.load("""return string.format("%s")""", "string-format-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, firstMissingState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(firstMissingState.getLastError())
+        assertEquals("bad argument #2 to 'string.format' (no value)", firstMissingState.toString(-1))
+
+        val laterMissingState = LuaState.create()
+        LuaStdlib.openString(laterMissingState)
+
+        assertEquals(
+            LuaStatus.OK,
+            laterMissingState.load("""return string.format("%% %s %d", "x")""", "string-format-later-missing-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, laterMissingState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(laterMissingState.getLastError())
+        assertEquals("bad argument #3 to 'string.format' (no value)", laterMissingState.toString(-1))
+    }
+
+    @Test
     fun `string format reports char range errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

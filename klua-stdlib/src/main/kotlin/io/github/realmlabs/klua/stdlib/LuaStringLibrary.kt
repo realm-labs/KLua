@@ -274,6 +274,9 @@ internal object LuaStringLibrary {
             }
             val conversion = format[cursor]
             val specifier = format.substring(specStart, cursor + 1)
+            if (argument > context.argumentCount) {
+                throw LuaRuntimeException("bad argument #$argument to 'string.format' (no value)")
+            }
             result.append(formatValue(context, argument, specifier, conversion))
             argument++
             cursor++
