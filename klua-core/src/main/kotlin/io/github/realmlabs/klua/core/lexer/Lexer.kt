@@ -190,6 +190,7 @@ internal class Lexer(
             't' -> "\t"
             'v' -> "\u000B"
             'x' -> readHexEscape(start)
+            'u' -> readUnicodeEscape(start)
             'z' -> {
                 while (peek().isWhitespace()) {
                     advance()
@@ -230,6 +231,36 @@ internal class Lexer(
             throw errorAt(start, "expected two hexadecimal digits in escape sequence")
         }
         return advance().digitToInt(16)
+    }
+
+    private fun readUnicodeEscape(start: SourcePosition): String {
+        if (!match('{')) {
+            throw errorAt(start, "expected '{' after unicode escape")
+        }
+        if (peek() == '}') {
+            throw errorAt(start, "expected hexadecimal digits in unicode escape")
+        }
+
+        var value = 0L
+        while (!isAtEnd() && peek() != '}') {
+            if (!peek().isHexDigit()) {
+                throw errorAt(start, "expected hexadecimal digit in unicode escape")
+            }
+            value = value * 16 + advance().digitToInt(16)
+            if (value > Character.MAX_CODE_POINT) {
+                throw errorAt(start, "unicode escape out of range")
+            }
+        }
+
+        if (!match('}')) {
+            throw errorAt(start, "unterminated unicode escape")
+        }
+
+        val codePoint = value.toInt()
+        if (!Character.isValidCodePoint(codePoint) || codePoint in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code) {
+            throw errorAt(start, "unicode escape out of range")
+        }
+        return String(Character.toChars(codePoint))
     }
 
     private fun symbol(start: SourcePosition, char: Char): Token {

@@ -105,6 +105,16 @@ class LexerTest {
     }
 
     @Test
+    fun `tokenizes unicode string escapes`() {
+        val tokens = Lexer(
+            "\"\\u{41}\\u{1F642}\"",
+        ).tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals("A" + String(Character.toChars(0x1F642)), tokens[0].literal)
+    }
+
+    @Test
     fun `tokenizes long bracket strings`() {
         val tokens = Lexer(
             """
@@ -135,6 +145,24 @@ class LexerTest {
         }
 
         assertEquals("hex-escape.lua:1:8: expected two hexadecimal digits in escape sequence", error.message)
+    }
+
+    @Test
+    fun `reports malformed unicode escape errors`() {
+        val error = assertFailsWith<LexerException> {
+            Lexer("return \"\\u{}\"", "unicode-escape.lua").tokenize()
+        }
+
+        assertEquals("unicode-escape.lua:1:8: expected hexadecimal digits in unicode escape", error.message)
+    }
+
+    @Test
+    fun `reports surrogate unicode escape errors`() {
+        val error = assertFailsWith<LexerException> {
+            Lexer("return \"\\u{D800}\"", "surrogate-escape.lua").tokenize()
+        }
+
+        assertEquals("surrogate-escape.lua:1:8: unicode escape out of range", error.message)
     }
 
     @Test

@@ -72,6 +72,13 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes unicode string escapes`() {
+        val result = LuaVm().execute(Compiler.compile("return \"\\u{41}\\u{1F642}\""))
+
+        assertEquals(listOf(LuaString("A" + String(Character.toChars(0x1F642)))), result)
+    }
+
+    @Test
     fun `executes move opcode`() {
         val prototype = Prototype(
             sourceName = "move.lua",
