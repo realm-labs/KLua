@@ -153,12 +153,26 @@ internal class LuaStringPattern private constructor(
             return when (char) {
                 'a' -> Token.CharClass { value -> value.isLetter() }
                 'A' -> Token.CharClass { value -> !value.isLetter() }
+                'c' -> Token.CharClass { value -> value.code in 0..31 || value.code == 127 }
+                'C' -> Token.CharClass { value -> value.code !in 0..31 && value.code != 127 }
                 'd' -> Token.CharClass { value -> value.isDigit() }
                 'D' -> Token.CharClass { value -> !value.isDigit() }
+                'g' -> Token.CharClass { value -> !value.isWhitespace() && value.code !in 0..31 && value.code != 127 }
+                'G' -> Token.CharClass { value -> value.isWhitespace() || value.code in 0..31 || value.code == 127 }
+                'l' -> Token.CharClass { value -> value.isLowerCase() }
+                'L' -> Token.CharClass { value -> !value.isLowerCase() }
+                'p' -> Token.CharClass { value -> value.isAsciiPunctuation() }
+                'P' -> Token.CharClass { value -> !value.isAsciiPunctuation() }
                 's' -> Token.CharClass { value -> value.isWhitespace() }
                 'S' -> Token.CharClass { value -> !value.isWhitespace() }
+                'u' -> Token.CharClass { value -> value.isUpperCase() }
+                'U' -> Token.CharClass { value -> !value.isUpperCase() }
                 'w' -> Token.CharClass { value -> value.isLetterOrDigit() }
                 'W' -> Token.CharClass { value -> !value.isLetterOrDigit() }
+                'x' -> Token.CharClass { value -> value.isDigit() || value in 'a'..'f' || value in 'A'..'F' }
+                'X' -> Token.CharClass { value -> !(value.isDigit() || value in 'a'..'f' || value in 'A'..'F') }
+                'z' -> Token.CharClass { value -> value == '\u0000' }
+                'Z' -> Token.CharClass { value -> value != '\u0000' }
                 in ESCAPABLE_LITERAL -> Token.Literal(char)
                 else -> null
             }
@@ -198,3 +212,7 @@ private sealed interface Token {
 
 private const val UNSUPPORTED_MAGIC = "^$()]*+-?"
 private const val ESCAPABLE_LITERAL = "^$()%.[]*+-?"
+
+private fun Char.isAsciiPunctuation(): Boolean {
+    return this in '!'..'/' || this in ':'..'@' || this in '['..'`' || this in '{'..'~'
+}

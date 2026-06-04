@@ -834,6 +834,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns match additional lua classes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local newline = string.char(10)
+                return string.match("abc", "%l"),
+                    string.match("ABC", "%u"),
+                    string.match("id=2f", "%x%x"),
+                    string.match("a!", "%p"),
+                    string.match("a" .. newline, "%c"),
+                    string.match(" x", "%g"),
+                    string.match("a" .. zero .. "b", "%z"),
+                    string.match("a1", "%L"),
+                    string.match("A1", "%U"),
+                    string.match("!a", "%P"),
+                    string.match("f!", "%X"),
+                    string.match(zero .. "a", "%Z"),
+                    string.match(newline .. "A", "%C"),
+                    string.match("A ", "%G")
+                """.trimIndent(),
+                "string-pattern-classes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("A", state.toString(2))
+        assertEquals("2f", state.toString(3))
+        assertEquals("!", state.toString(4))
+        assertEquals("\n", state.toString(5))
+        assertEquals("x", state.toString(6))
+        assertEquals("\u0000", state.toString(7))
+        assertEquals("1", state.toString(8))
+        assertEquals("1", state.toString(9))
+        assertEquals("a", state.toString(10))
+        assertEquals("!", state.toString(11))
+        assertEquals("a", state.toString(12))
+        assertEquals("A", state.toString(13))
+        assertEquals(" ", state.toString(14))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
