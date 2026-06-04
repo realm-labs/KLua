@@ -95,7 +95,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 return type(package), type(package.searchpath), package.path, package.config,
-                    type(package.loaded), type(package.preload), type(require)
+                    type(package.loaded), type(package.preload), type(package.searchers), type(require)
                 """.trimIndent(),
                 "package-openlibs.lua",
             ),
@@ -108,7 +108,8 @@ class LuaStdlibTest {
         assertTrue(state.toString(4)?.contains(";\n?") == true)
         assertEquals("table", state.toString(5))
         assertEquals("table", state.toString(6))
-        assertEquals("function", state.toString(7))
+        assertEquals("table", state.toString(7))
+        assertEquals("function", state.toString(8))
     }
 
     @Test
@@ -224,6 +225,42 @@ class LuaStdlibTest {
         val message = state.toString(-1) ?: ""
         assertTrue(message.contains("module 'missing' not found"))
         assertTrue(message.contains("no field package.preload['missing']"))
+    }
+
+    @Test
+    fun `require loads Lua files found on package path`() {
+        val root = Files.createTempDirectory("klua-require-file")
+        Files.createDirectories(root.resolve("alpha"))
+        Files.writeString(
+            root.resolve("alpha").resolve("beta.lua"),
+            """
+            local name, filename = ...
+            return { name = name, filename = filename }
+            """.trimIndent(),
+        )
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = "${root.luaPath()}/?.lua"
+                local first = require("alpha.beta")
+                local second = require("alpha.beta")
+                return first.name, first.filename,
+                    first == second, package.loaded["alpha.beta"] == first
+                """.trimIndent(),
+                "require-file.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("alpha.beta", state.toString(1))
+        assertTrue(state.toString(2)?.endsWith("beta.lua") == true)
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
     }
 
     @Test

@@ -71,6 +71,28 @@ internal object LuaPackageLibrary {
     }
 
     private const val REQUIRE_SOURCE: String = """
+        package.searchers = {
+            function(name)
+                local loader = package.preload[name]
+                if loader ~= nil then
+                    return loader, ":preload:"
+                end
+                return nil, "\n\tno field package.preload['" .. name .. "']"
+            end,
+
+            function(name)
+                local filename, searchError = package.searchpath(name, package.path)
+                if filename == nil then
+                    return nil, searchError
+                end
+                local loader, loadError = loadfile(filename)
+                if loader == nil then
+                    return nil, "\n\t" .. loadError
+                end
+                return loader, filename
+            end,
+        }
+
         function require(name)
             local loaded = package.loaded
             local value = loaded[name]
@@ -78,22 +100,35 @@ internal object LuaPackageLibrary {
                 return value
             end
 
-            local loader = package.preload[name]
-            if loader == nil then
-                error("module '" .. name .. "' not found:" ..
-                    "\n\tno field package.preload['" .. name .. "']")
+            local errors = ""
+            local searchers = package.searchers
+            local index = 1
+            while true do
+                local searcher = searchers[index]
+                if searcher == nil then
+                    break
+                end
+
+                local loader, extra = searcher(name)
+                if loader ~= nil then
+                    local result = loader(name, extra)
+                    if result ~= nil then
+                        loaded[name] = result
+                    end
+                    value = loaded[name]
+                    if value == nil then
+                        value = true
+                        loaded[name] = value
+                    end
+                    return value
+                end
+                if extra ~= nil then
+                    errors = errors .. extra
+                end
+                index = index + 1
             end
 
-            local result = loader(name)
-            if result ~= nil then
-                loaded[name] = result
-            end
-            value = loaded[name]
-            if value == nil then
-                value = true
-                loaded[name] = value
-            end
-            return value
+            error("module '" .. name .. "' not found:" .. errors)
         end
     """
 }
