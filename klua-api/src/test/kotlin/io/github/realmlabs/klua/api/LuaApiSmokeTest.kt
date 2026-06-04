@@ -204,6 +204,47 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `state runtime errors expose host call frames`() {
+        val state = LuaState.create()
+        state.register("explode") {
+            throw IllegalStateException("host boom")
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function outer()
+                    return explode()
+                end
+                return outer()
+                """.trimIndent(),
+                "api-host-trace.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        val error = assertIs<LuaRuntimeException>(state.getLastError())
+
+        assertEquals("host boom", error.message)
+        assertEquals(
+            listOf(
+                LuaStackFrame("[Kotlin]: explode", 0),
+                LuaStackFrame("api-host-trace.lua", 2),
+                LuaStackFrame("api-host-trace.lua", 4),
+            ),
+            error.luaFrames,
+        )
+        assertEquals(
+            "host boom\n" +
+                "stack traceback:\n" +
+                "\t[Kotlin]: explode\n" +
+                "\tapi-host-trace.lua:2\n" +
+                "\tapi-host-trace.lua:4",
+            error.traceback,
+        )
+    }
+
+    @Test
     fun `facade coroutine runtime errors expose lua call frames`() {
         val lua = Lua.create()
         val function = lua.load(

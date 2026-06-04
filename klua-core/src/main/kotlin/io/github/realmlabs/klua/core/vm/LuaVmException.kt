@@ -24,5 +24,5 @@ internal class LuaVmException(
 
 internal data class LuaVmStackFrame(
     val sourceName: String,
-    val line: Int,
+    val line: Int = 0,
 )

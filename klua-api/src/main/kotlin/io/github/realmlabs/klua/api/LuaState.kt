@@ -444,7 +444,14 @@ class LuaState private constructor(
         coreGlobals.set(
             name,
             KLuaCoreRuntime.createContextFunctionValue(
-                function = { context -> callHostFunction(function.function, context.arguments, context.luaFrames) },
+                function = { context ->
+                    callHostFunction(
+                        function.function,
+                        context.arguments,
+                        context.luaFrames,
+                        nativeFrameName = name,
+                    )
+                },
                 yieldable = function.function is LuaYieldableFunction,
             ),
         )
@@ -456,6 +463,7 @@ class LuaState private constructor(
         function: LuaFunction,
         arguments: List<KLuaCoreValue>,
         luaFrames: List<KLuaCoreStackFrame> = emptyList(),
+        nativeFrameName: String? = null,
     ): KLuaCoreCallResult {
         val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
         val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
@@ -468,9 +476,16 @@ class LuaState private constructor(
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult(stackArguments, arguments)
         } catch (exception: LuaException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                exception,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         }
     }
 
@@ -1197,6 +1212,10 @@ private fun List<KLuaCoreStackFrame>.toApiStackFrames(): List<LuaStackFrame> {
             frame.lastLineDefined,
         )
     }
+}
+
+private fun String?.toNativeFrames(): List<String> {
+    return if (this == null) emptyList() else listOf(this)
 }
 
 class LuaYieldException internal constructor(

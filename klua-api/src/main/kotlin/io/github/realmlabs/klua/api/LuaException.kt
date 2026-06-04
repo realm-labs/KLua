@@ -34,8 +34,10 @@ internal fun formatLuaTraceback(message: String, frames: List<LuaStackFrame>): S
         for (frame in frames) {
             append("\n\t")
             append(frame.sourceName)
-            append(':')
-            append(frame.line)
+            if (frame.line > 0) {
+                append(':')
+                append(frame.line)
+            }
         }
     }
 }

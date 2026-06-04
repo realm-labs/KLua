@@ -280,6 +280,7 @@ public sealed interface KLuaCoreCallResult {
     public data class RuntimeError(
         public val message: String,
         public val cause: Throwable? = null,
+        public val nativeFrames: List<String> = emptyList(),
     ) : KLuaCoreCallResult
 }
 
@@ -599,8 +600,10 @@ private fun formatCoreTraceback(message: String, frames: List<KLuaCoreStackFrame
         for (frame in frames) {
             append("\n\t")
             append(frame.sourceName)
-            append(':')
-            append(frame.line)
+            if (frame.line > 0) {
+                append(':')
+                append(frame.line)
+            }
         }
     }
 }
@@ -644,7 +647,11 @@ private fun callCoreFunction(
                 syncPublicTablesToLua(arguments, publicArguments, globals)
                 throw result.toLuaYieldSignal(arguments, publicArguments, globals)
             }
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
+                result.message,
+                luaFrames = result.nativeFrames.toNativeStackFrames(),
+                cause = result.cause,
+            )
         }
     } catch (error: LuaVmException) {
         throw error
@@ -684,8 +691,16 @@ private fun continuePublicYield(
                 ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
         }
         is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldSignal(arguments, publicArguments, globals)
-        is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
+        is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
+            result.message,
+            luaFrames = result.nativeFrames.toNativeStackFrames(),
+            cause = result.cause,
+        )
     }
+}
+
+private fun List<String>.toNativeStackFrames(): List<LuaVmStackFrame> {
+    return map { name -> LuaVmStackFrame("[Kotlin]: $name") }
 }
 
 private fun KLuaCoreValue.toLuaReturnValue(
