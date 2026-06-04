@@ -5147,6 +5147,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move preserves nil holes`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local source = {"a", nil, "c"}
+                local destination = {"x", "y", "z"}
+                table.move(source, 1, 3, 1, destination)
+                return destination[1], destination[2], destination[3]
+                """.trimIndent(),
+                "table-move-nil-holes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a", state.toString(1))
+        assertTrue(state.isNil(2))
+        assertEquals("c", state.toString(3))
+    }
+
+    @Test
     fun `table move reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
