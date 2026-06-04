@@ -425,7 +425,7 @@ public object LuaStdlib {
                 break
             }
             result.append(text, cursor, match.startIndex)
-            result.append(replacement)
+            result.append(expandReplacement(replacement, text.substring(match.startIndex, match.endIndex), "string.gsub"))
             cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
                 result.append(text[match.endIndex])
                 match.endIndex + 1
@@ -440,6 +440,29 @@ public object LuaStdlib {
             result.append(text, cursor, text.length)
         }
         return LuaReturn.of(result.toString(), replacements)
+    }
+
+    private fun expandReplacement(replacement: String, wholeMatch: String, functionName: String): String {
+        val result = StringBuilder()
+        var index = 0
+        while (index < replacement.length) {
+            val char = replacement[index]
+            if (char != '%') {
+                result.append(char)
+                index++
+                continue
+            }
+            if (index + 1 >= replacement.length) {
+                throw LuaRuntimeException("invalid use of '%' in replacement string")
+            }
+            when (val next = replacement[index + 1]) {
+                '%' -> result.append('%')
+                '0' -> result.append(wholeMatch)
+                else -> throw LuaRuntimeException("bad argument #3 to '$functionName' (invalid capture index %$next)")
+            }
+            index += 2
+        }
+        return result.toString()
     }
 
     private fun stringFind(context: LuaCallContext): LuaReturn {

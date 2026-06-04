@@ -1257,6 +1257,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub expands replacement percents`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local quoted, quotedCount = string.gsub("abc", "%a+", "[%0]")
+                local percent, percentCount = string.gsub("a.b", "%.", "%%")
+                return quoted, quotedCount, percent, percentCount
+                """.trimIndent(),
+                "string-gsub-replacement.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("[abc]", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals("a%b", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+    }
+
+    @Test
     fun `string gsub reports unsupported patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -1266,6 +1290,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("string patterns are not supported", state.toString(-1))
+    }
+
+    @Test
+    fun `string gsub reports unsupported replacement captures`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", "a", "%1")""", "string-gsub-capture-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #3 to 'string.gsub' (invalid capture index %1)", state.toString(-1))
     }
 
     @Test
