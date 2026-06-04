@@ -10,6 +10,7 @@ import java.util.Locale
 
 internal object LuaStringLibrary {
     private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcqs"
+    private const val FORMAT_FLAGS = "-+ #0"
     private val GSUB_REPLACEMENT_TYPES = setOf("string", "function", "table")
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
@@ -377,10 +378,8 @@ internal object LuaStringLibrary {
             'o',
             'x',
             'X',
-            -> specifier.javaIntegerSpecifier(conversion).formatWith(requiredInteger(context, index, "string.format"))
-            'u' -> specifier.javaIntegerSpecifier(conversion).formatWith(
-                unsignedIntegerValue(requiredInteger(context, index, "string.format")),
-            )
+            -> formatIntegerValue(context, index, specifier, conversion)
+            'u' -> formatIntegerValue(context, index, specifier, conversion)
             'f',
             'F',
             'e',
@@ -412,10 +411,105 @@ internal object LuaStringLibrary {
         }
     }
 
+    private fun formatIntegerValue(
+        context: LuaCallContext,
+        index: Int,
+        specifier: String,
+        conversion: Char,
+    ): String {
+        val value = requiredInteger(context, index, "string.format")
+        val parsed = parseFormatSpecifier(specifier)
+        if (parsed.precision == null) {
+            val formatValue = if (conversion == 'u') unsignedIntegerValue(value) else value
+            return specifier.javaIntegerSpecifier(conversion).formatWith(formatValue)
+        }
+
+        val unsigned = conversion == 'o' || conversion == 'u' || conversion == 'x' || conversion == 'X'
+        val radix = when (conversion) {
+            'o' -> 8
+            'x',
+            'X',
+            -> 16
+            else -> 10
+        }
+        val absolute = if (unsigned) {
+            unsignedIntegerValue(value)
+        } else {
+            BigInteger.valueOf(value).abs()
+        }
+        var digits = if (parsed.precision == 0 && absolute == BigInteger.ZERO) {
+            ""
+        } else {
+            absolute.toString(radix)
+        }
+        if (conversion == 'X') {
+            digits = digits.uppercase(Locale.ROOT)
+        }
+        if (digits.length < parsed.precision) {
+            digits = digits.padStart(parsed.precision, '0')
+        }
+
+        val sign = when {
+            unsigned -> ""
+            value < 0L -> "-"
+            '+' in parsed.flags -> "+"
+            ' ' in parsed.flags -> " "
+            else -> ""
+        }
+        val prefix = when {
+            '#' !in parsed.flags -> ""
+            conversion == 'o' && !digits.startsWith("0") -> "0"
+            conversion == 'x' && absolute != BigInteger.ZERO -> "0x"
+            conversion == 'X' && absolute != BigInteger.ZERO -> "0X"
+            else -> ""
+        }
+        val formatted = sign + prefix + digits
+        val width = parsed.width ?: return formatted
+        if (formatted.length >= width) {
+            return formatted
+        }
+        return if ('-' in parsed.flags) {
+            formatted.padEnd(width, ' ')
+        } else {
+            formatted.padStart(width, ' ')
+        }
+    }
+
+    private fun parseFormatSpecifier(specifier: String): FormatSpecifier {
+        var cursor = 1
+        val flagsStart = cursor
+        while (cursor < specifier.lastIndex && specifier[cursor] in FORMAT_FLAGS) {
+            cursor++
+        }
+        val flags = specifier.substring(flagsStart, cursor)
+        val widthStart = cursor
+        while (cursor < specifier.lastIndex && specifier[cursor].isDigit()) {
+            cursor++
+        }
+        val width = specifier.substring(widthStart, cursor).takeIf { it.isNotEmpty() }?.toInt()
+        val precision = if (cursor < specifier.lastIndex && specifier[cursor] == '.') {
+            cursor++
+            val precisionStart = cursor
+            while (cursor < specifier.lastIndex && specifier[cursor].isDigit()) {
+                cursor++
+            }
+            specifier.substring(precisionStart, cursor).takeIf { it.isNotEmpty() }?.toInt() ?: 0
+        } else {
+            null
+        }
+        return FormatSpecifier(flags, width, precision)
+    }
+
     private fun unsignedIntegerValue(value: Long): BigInteger {
         val integer = BigInteger.valueOf(value)
         return if (value < 0L) integer + UINT64_MODULUS else integer
     }
+
+    private data class FormatSpecifier(
+        val flags: String,
+        val width: Int?,
+        val precision: Int?,
+    )
 
     private fun quoteString(value: String): String {
         val result = StringBuilder("\"")

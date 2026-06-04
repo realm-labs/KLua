@@ -1779,6 +1779,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format applies precision to integer conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%.3d|%8.3d|%-8.3d|%+.3d|%.4x|%.21u", 7, 7, 7, 7, 255, -1)""",
+                "string-format-integer-precision.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("007|     007|007     |+007|00ff|018446744073709551615", state.toString(1))
+    }
+
+    @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
