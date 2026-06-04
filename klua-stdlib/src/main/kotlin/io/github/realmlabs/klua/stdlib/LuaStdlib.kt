@@ -234,8 +234,11 @@ public object LuaStdlib {
             index < 0L -> context.argumentCount + index + 1L
             else -> throw LuaRuntimeException("bad argument #1 to 'select' (index out of range)")
         }
-        if (start < 2L || start > context.argumentCount.toLong()) {
+        if (start < 2L) {
             throw LuaRuntimeException("bad argument #1 to 'select' (index out of range)")
+        }
+        if (start > context.argumentCount.toLong()) {
+            return LuaReturn.none()
         }
         return LuaReturn.ofValues((start.toInt()..context.argumentCount).map { argument -> argumentValue(context, argument) })
     }

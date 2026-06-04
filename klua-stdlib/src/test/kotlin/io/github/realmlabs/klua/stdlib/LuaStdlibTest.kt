@@ -318,6 +318,20 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `select returns no values for positive indexes past the end`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return select("#", select(4, "a", "b", "c"))""", "select-empty.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0L, state.toInteger(1))
+    }
+
+    @Test
     fun `select rejects out of range indexes`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
