@@ -686,11 +686,45 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return math.pi, math.huge > 1e308""", "math-constants.lua"))
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return math.pi, math.huge > 1e308, math.maxinteger, math.mininteger""", "math-constants.lua"),
+        )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(Math.PI, state.toNumber(1) ?: error("missing pi result"), 1e-12)
         assertTrue(state.toBoolean(2))
+        assertEquals(Long.MAX_VALUE, state.toInteger(3))
+        assertEquals(Long.MIN_VALUE, state.toInteger(4))
+    }
+
+    @Test
+    fun `math integer helpers convert and compare integers`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return math.tointeger(3.0),
+                    math.tointeger(3.5),
+                    math.tointeger("42"),
+                    math.ult(0, -1),
+                    math.ult(-1, 0),
+                    math.ult(math.mininteger, math.maxinteger)
+                """.trimIndent(),
+                "math-integers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertEquals(42L, state.toInteger(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertFalse(state.toBoolean(6))
     }
 
     @Test

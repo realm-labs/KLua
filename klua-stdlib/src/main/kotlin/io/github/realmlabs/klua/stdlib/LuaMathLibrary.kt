@@ -44,7 +44,11 @@ internal object LuaMathLibrary {
         setFunctionField(state, "sin", ::mathSin)
         setFunctionField(state, "sqrt", ::mathSqrt)
         setFunctionField(state, "tan", ::mathTan)
+        setFunctionField(state, "tointeger", ::mathToInteger)
+        setFunctionField(state, "ult", ::mathUnsignedLessThan)
         setNumberField(state, "huge", Double.POSITIVE_INFINITY)
+        setIntegerField(state, "maxinteger", Long.MAX_VALUE)
+        setIntegerField(state, "mininteger", Long.MIN_VALUE)
         setNumberField(state, "pi", Math.PI)
         state.setGlobal("math")
         return state
@@ -176,6 +180,16 @@ internal object LuaMathLibrary {
         return LuaReturn.of(tan(requiredNumber(context, 1, "math.tan")))
     }
 
+    private fun mathToInteger(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(context.toInteger(1))
+    }
+
+    private fun mathUnsignedLessThan(context: LuaCallContext): LuaReturn {
+        val left = requiredInteger(context, 1, "math.ult")
+        val right = requiredInteger(context, 2, "math.ult")
+        return LuaReturn.of(java.lang.Long.compareUnsigned(left, right) < 0)
+    }
+
     private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {
         return context.toNumber(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
@@ -205,6 +219,11 @@ internal object LuaMathLibrary {
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
         state.pushFunction(function)
+        state.setField(-2, name)
+    }
+
+    private fun setIntegerField(state: LuaState, name: String, value: Long) {
+        state.pushInteger(value)
         state.setField(-2, name)
     }
 
