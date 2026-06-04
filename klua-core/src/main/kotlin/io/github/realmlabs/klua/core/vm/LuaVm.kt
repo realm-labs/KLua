@@ -645,6 +645,9 @@ internal class LuaVm(
             if (leftNumber != null && rightNumber != null) {
                 return leftNumber == rightNumber
             }
+            if (left is LuaUserData && right is LuaUserData) {
+                return left.value === right.value
+            }
             return left == right
         }
 

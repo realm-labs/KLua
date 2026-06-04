@@ -43,6 +43,28 @@ class KLuaCoreRuntimeUserDataTest {
     }
 
     @Test
+    fun `compares userdata by host object identity`() {
+        val host = HostObject("same")
+        val other = HostObject("other")
+        val globals = KLuaCoreGlobals.create()
+        globals.set("left", KLuaCoreValue.UserDataValue(host))
+        globals.set("right", KLuaCoreValue.UserDataValue(host))
+        globals.set("other", KLuaCoreValue.UserDataValue(other))
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile("return left == right, left == other", "userdata-equality.lua"),
+        ).chunk
+
+        val result = assertIs<KLuaCoreExecution.Success>(
+            KLuaCoreRuntime.execute(chunk, emptyList(), globals),
+        )
+
+        assertEquals(
+            listOf(KLuaCoreValue.BooleanValue(true), KLuaCoreValue.BooleanValue(false)),
+            result.values,
+        )
+    }
+
+    @Test
     fun `calls registered userdata methods from lua source`() {
         val host = HostObject("player")
         val globals = KLuaCoreGlobals.create()
