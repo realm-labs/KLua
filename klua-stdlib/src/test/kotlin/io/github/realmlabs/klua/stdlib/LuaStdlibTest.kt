@@ -1940,6 +1940,29 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `type reports coroutine threads`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainThread = coroutine.running()
+                local co = coroutine.create(function() end)
+                return type(mainThread), type(co)
+                """.trimIndent(),
+                "coroutine-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("thread", state.toString(1))
+        assertEquals("thread", state.toString(2))
+    }
+
+    @Test
     fun `coroutine yield suspends and resumes lua functions`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

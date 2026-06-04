@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaTypedValue
 import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.continueWith
@@ -237,7 +238,9 @@ internal object LuaCoroutineLibrary {
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
         var pendingYield: LuaYieldException? = null,
         val isMain: Boolean = false,
-    )
+    ) : LuaTypedValue {
+        override val luaTypeName: String = "thread"
+    }
 
     private enum class CoroutineStatus {
         SUSPENDED,

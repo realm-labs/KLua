@@ -921,7 +921,7 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue,
             -> "number"
             is LuaStackValue.StringValue -> "string"
-            is LuaStackValue.UserDataValue -> "userdata"
+            is LuaStackValue.UserDataValue -> (value.value as? LuaTypedValue)?.luaTypeName ?: "userdata"
             is LuaStackValue.UnsupportedValue -> value.typeName
         }
     }
