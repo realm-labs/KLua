@@ -638,6 +638,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openMath installs remainder and fractional functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local positiveInteger, positiveFraction = math.modf(3.75)
+                local negativeInteger, negativeFraction = math.modf(-3.75)
+                return math.fmod(7, 3), math.fmod(-7, 3),
+                    positiveInteger, positiveFraction, negativeInteger, negativeFraction
+                """.trimIndent(),
+                "math-remainder.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1.0, state.toNumber(1) ?: error("missing fmod result"), 1e-12)
+        assertEquals(-1.0, state.toNumber(2) ?: error("missing negative fmod result"), 1e-12)
+        assertEquals(3.0, state.toNumber(3) ?: error("missing modf integer result"), 1e-12)
+        assertEquals(0.75, state.toNumber(4) ?: error("missing modf fraction result"), 1e-12)
+        assertEquals(-3.0, state.toNumber(5) ?: error("missing negative modf integer result"), 1e-12)
+        assertEquals(-0.75, state.toNumber(6) ?: error("missing negative modf fraction result"), 1e-12)
+    }
+
+    @Test
     fun `openMath installs numeric constants`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)

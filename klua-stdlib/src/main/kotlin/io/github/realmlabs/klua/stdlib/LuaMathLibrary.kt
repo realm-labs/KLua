@@ -26,9 +26,11 @@ internal object LuaMathLibrary {
         setFunctionField(state, "deg", ::mathDeg)
         setFunctionField(state, "exp", ::mathExp)
         setFunctionField(state, "floor", ::mathFloor)
+        setFunctionField(state, "fmod", ::mathFmod)
         setFunctionField(state, "log", ::mathLog)
         setFunctionField(state, "max", ::mathMax)
         setFunctionField(state, "min", ::mathMin)
+        setFunctionField(state, "modf", ::mathModf)
         setFunctionField(state, "rad", ::mathRad)
         setFunctionField(state, "random", ::mathRandom)
         setFunctionField(state, "randomseed", ::mathRandomSeed)
@@ -69,6 +71,12 @@ internal object LuaMathLibrary {
         return LuaReturn.of(floor(requiredNumber(context, 1, "math.floor")).toLong())
     }
 
+    private fun mathFmod(context: LuaCallContext): LuaReturn {
+        val dividend = requiredNumber(context, 1, "math.fmod")
+        val divisor = requiredNumber(context, 2, "math.fmod")
+        return LuaReturn.of(dividend % divisor)
+    }
+
     private fun mathLog(context: LuaCallContext): LuaReturn {
         val value = ln(requiredNumber(context, 1, "math.log"))
         if (context.argumentCount < 2) {
@@ -99,6 +107,12 @@ internal object LuaMathLibrary {
             }
         }
         return LuaReturn.of(min)
+    }
+
+    private fun mathModf(context: LuaCallContext): LuaReturn {
+        val value = requiredNumber(context, 1, "math.modf")
+        val integerPart = if (value < 0) ceil(value) else floor(value)
+        return LuaReturn.of(integerPart, value - integerPart)
     }
 
     private fun mathRad(context: LuaCallContext): LuaReturn {
