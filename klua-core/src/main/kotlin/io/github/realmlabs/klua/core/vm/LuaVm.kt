@@ -33,7 +33,7 @@ internal class LuaVm(
     }
 
     internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
-        return callValue(callee, arguments)
+        return returnedValues(callValue(callee, arguments))
     }
 
     private fun executeReturned(
@@ -41,7 +41,11 @@ internal class LuaVm(
         arguments: List<LuaValue>,
         upvalues: List<LuaUpvalue>,
     ): List<LuaValue> {
-        return when (val result = executeFrame(prototype, arguments, upvalues)) {
+        return returnedValues(executeFrame(prototype, arguments, upvalues))
+    }
+
+    private fun returnedValues(result: LuaExecutionResult): List<LuaValue> {
+        return when (result) {
             is LuaExecutionResult.Returned -> result.values
             is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield from outside a coroutine")
         }
@@ -123,7 +127,12 @@ internal class LuaVm(
                             frame.pc += signedByte(Instruction.b(instruction))
                         }
                     }
-                    Opcode.CALL -> call(stack, frame, instruction)
+                    Opcode.CALL -> {
+                        val result = call(stack, frame, instruction)
+                        if (result != null) {
+                            return result
+                        }
+                    }
                     Opcode.RETURN -> {
                         val base = register(frame, Instruction.a(instruction))
                         val count = returnCount(frame, base, Instruction.b(instruction))
@@ -154,31 +163,36 @@ internal class LuaVm(
         return prototype.nested[index]
     }
 
-    private fun call(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun call(stack: LuaStack, frame: CallFrame, instruction: Int): LuaExecutionResult? {
         val base = register(frame, Instruction.a(instruction))
         val callee = stack.get(base)
         val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
         val results = callValue(callee, arguments)
+        if (results is LuaExecutionResult.Yielded) {
+            return results
+        }
         val expectedResults = Instruction.c(instruction)
+        val returnedValues = (results as LuaExecutionResult.Returned).values
         if (expectedResults == OPEN_RESULT_COUNT) {
-            setOpenResults(stack, frame, base, results)
-            return
+            setOpenResults(stack, frame, base, returnedValues)
+            return null
         }
 
         for (index in 0 until expectedResults) {
-            stack.set(base + index, results.getOrElse(index) { LuaNil })
+            stack.set(base + index, returnedValues.getOrElse(index) { LuaNil })
         }
+        return null
     }
 
-    private fun callValue(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
+    private fun callValue(callee: LuaValue, arguments: List<LuaValue>): LuaExecutionResult {
         return when (callee) {
-            is LuaClosure -> executeReturned(callee.prototype, arguments, callee.upvalues)
-            is LuaNativeFunction -> callNative(callee, arguments)
+            is LuaClosure -> executeFrame(callee.prototype, arguments, callee.upvalues)
+            is LuaNativeFunction -> LuaExecutionResult.Returned(callNative(callee, arguments))
             is LuaTable -> {
                 val call = callee.metatableRawGet(CALL_KEY)
                 when (call) {
-                    is LuaClosure -> executeReturned(call.prototype, listOf(callee) + arguments, call.upvalues)
-                    is LuaNativeFunction -> callNative(call, listOf(callee) + arguments)
+                    is LuaClosure -> executeFrame(call.prototype, listOf(callee) + arguments, call.upvalues)
+                    is LuaNativeFunction -> LuaExecutionResult.Returned(callNative(call, listOf(callee) + arguments))
                     else -> throw LuaVmException("attempt to call table")
                 }
             }
