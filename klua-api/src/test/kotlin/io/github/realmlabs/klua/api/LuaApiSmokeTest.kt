@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.api
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 import kotlin.test.assertSame
 
 class LuaApiSmokeTest {
@@ -198,6 +199,42 @@ class LuaApiSmokeTest {
                 "\tapi-trace.lua:2\n" +
                 "\tapi-trace.lua:5\n" +
                 "\tapi-trace.lua:7",
+            error.traceback,
+        )
+    }
+
+    @Test
+    fun `facade coroutine runtime errors expose lua call frames`() {
+        val lua = Lua.create()
+        val function = lua.load(
+            """
+            return function()
+                local function inner()
+                    return "x" + 1
+                end
+                return inner()
+            end
+            """.trimIndent(),
+            "api-coroutine-trace.lua",
+        ).eval().get(1) as LuaCoroutineFunction
+
+        val error = assertIs<LuaCoroutineResult.RuntimeError>(function.createCoroutine().resume(emptyList()))
+
+        assertEquals("attempt to perform arithmetic on string", error.message)
+        assertEquals("api-coroutine-trace.lua", error.sourceName)
+        assertEquals(3, error.line)
+        assertEquals(
+            listOf(
+                LuaStackFrame("api-coroutine-trace.lua", 3),
+                LuaStackFrame("api-coroutine-trace.lua", 5),
+            ),
+            error.luaFrames,
+        )
+        assertEquals(
+            "attempt to perform arithmetic on string\n" +
+                "stack traceback:\n" +
+                "\tapi-coroutine-trace.lua:3\n" +
+                "\tapi-coroutine-trace.lua:5",
             error.traceback,
         )
     }

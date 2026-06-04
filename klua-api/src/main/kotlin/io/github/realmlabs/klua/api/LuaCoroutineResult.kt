@@ -11,5 +11,11 @@ sealed interface LuaCoroutineResult {
 
     data class RuntimeError(
         val message: String,
-    ) : LuaCoroutineResult
+        val sourceName: String? = null,
+        val line: Int? = null,
+        val cause: Throwable? = null,
+        val luaFrames: List<LuaStackFrame> = emptyList(),
+    ) : LuaCoroutineResult {
+        val traceback: String = formatLuaTraceback(message, luaFrames)
+    }
 }

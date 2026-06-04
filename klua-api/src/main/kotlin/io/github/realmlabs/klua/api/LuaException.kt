@@ -25,7 +25,7 @@ data class LuaStackFrame(
     val line: Int,
 )
 
-private fun formatLuaTraceback(message: String, frames: List<LuaStackFrame>): String {
+internal fun formatLuaTraceback(message: String, frames: List<LuaStackFrame>): String {
     return buildString {
         append(message)
         append("\nstack traceback:")

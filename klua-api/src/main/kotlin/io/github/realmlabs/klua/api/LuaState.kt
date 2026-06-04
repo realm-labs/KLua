@@ -953,7 +953,13 @@ class LuaState private constructor(
                 is KLuaCoreCoroutineExecution.Yielded -> LuaCoroutineResult.Yielded(
                     result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
                 )
-                is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(result.message)
+                is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(
+                    result.message,
+                    sourceName = result.sourceName,
+                    line = result.line,
+                    cause = result.cause,
+                    luaFrames = result.luaFrames.toApiStackFrames(),
+                )
             }
         }
     }
