@@ -16,6 +16,7 @@ internal object LuaCoroutineLibrary {
         setFunctionField(state, "running") { coroutineRunning(runtime) }
         setFunctionField(state, "status", ::coroutineStatus)
         setFunctionField(state, "wrap") { context -> coroutineWrap(context, runtime) }
+        setFunctionField(state, "yield") { coroutineYield(runtime) }
         state.setGlobal("coroutine")
         return state
     }
@@ -77,6 +78,13 @@ internal object LuaCoroutineLibrary {
         } else {
             LuaReturn.of(running, false)
         }
+    }
+
+    private fun coroutineYield(runtime: CoroutineRuntime): LuaReturn {
+        if (runtime.running == null) {
+            throw LuaRuntimeException("attempt to yield from outside a coroutine")
+        }
+        throw LuaRuntimeException("attempt to yield across a non-yieldable boundary")
     }
 
     private fun coroutineStatus(context: LuaCallContext): LuaReturn {

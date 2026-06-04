@@ -1578,7 +1578,8 @@ class LuaStdlibTest {
             state.load(
                 """
                 return type(coroutine), type(coroutine.create), type(coroutine.resume),
-                    type(coroutine.running), type(coroutine.status), type(coroutine.wrap)
+                    type(coroutine.running), type(coroutine.status), type(coroutine.wrap),
+                    type(coroutine.yield)
                 """.trimIndent(),
                 "open-libs-coroutine.lua",
             ),
@@ -1591,6 +1592,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
         assertEquals("function", state.toString(6))
+        assertEquals("function", state.toString(7))
     }
 
     @Test
@@ -1728,6 +1730,35 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertTrue(state.isNil(6))
         assertTrue(state.toBoolean(7))
+    }
+
+    @Test
+    fun `coroutine yield reports non yieldable contexts`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outsideOk, outsideMessage = pcall(coroutine.yield, "outside")
+                local co = coroutine.create(function()
+                    return coroutine.yield("inside")
+                end)
+                local insideOk, insideMessage = coroutine.resume(co)
+                return outsideOk, outsideMessage, insideOk, insideMessage, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-yield-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield from outside a coroutine", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(4))
+        assertEquals("dead", state.toString(5))
     }
 
     @Test
