@@ -112,6 +112,13 @@ class KLuaCoreRuntimeCoroutineTest {
         assertEquals("attempt to perform arithmetic on string", error.message)
         assertEquals("core-coroutine-error-line.lua", error.sourceName)
         assertEquals(3, error.line)
+        assertEquals(listOf(KLuaCoreStackFrame("core-coroutine-error-line.lua", 3)), error.luaFrames)
+        assertEquals(
+            "attempt to perform arithmetic on string\n" +
+                "stack traceback:\n" +
+                "\tcore-coroutine-error-line.lua:3",
+            error.traceback,
+        )
     }
 
     @Test
