@@ -1179,6 +1179,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns support backreferences`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, last, word = string.find("go go stop", "(%a+)%s+%1")
+                local matched = string.match("go go stop", "(%a+)%s+%1")
+                local replaced, count = string.gsub("go go stop", "(%a+)%s+%1", "%1")
+                return first, last, word, matched, replaced, count
+                """.trimIndent(),
+                "string-pattern-backreferences.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(5L, state.toInteger(2))
+        assertEquals("go", state.toString(3))
+        assertEquals("go", state.toString(4))
+        assertEquals("go stop", state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

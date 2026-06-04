@@ -82,6 +82,14 @@ internal class LuaStringPattern private constructor(
                     captures + (token.index to text.substring(startIndex, textIndex)),
                 )
             }
+            is Token.BackReference -> {
+                val capture = captures[token.index] ?: return null
+                if (!text.startsWith(capture, textIndex)) {
+                    null
+                } else {
+                    matchEnd(text, textIndex + capture.length, patternTokens, tokenIndex + 1, captureStarts, captures)
+                }
+            }
             is Token.Repetition -> matchRepetition(text, textIndex, patternTokens, tokenIndex, token, captureStarts, captures)
             else -> {
                 if (textIndex >= text.length || !token.matches(text[textIndex])) {
@@ -178,12 +186,18 @@ internal class LuaStringPattern private constructor(
                             throw LuaRuntimeException("string patterns are not supported")
                         }
                         val next = pattern[index + 1]
-                        val token = percentToken(next)
-                        if (token == null) {
-                            throw LuaRuntimeException("string patterns are not supported")
+                        if (next in '1'..'9') {
+                            tokens += Token.BackReference(next.digitToInt() - 1)
+                            hasPatternToken = true
+                            index += 2
+                        } else {
+                            val token = percentToken(next)
+                            if (token == null) {
+                                throw LuaRuntimeException("string patterns are not supported")
+                            }
+                            index = addToken(tokens, token, pattern, index + 2)
+                            hasPatternToken = true
                         }
-                        index = addToken(tokens, token, pattern, index + 2)
-                        hasPatternToken = true
                     }
                     '[' -> {
                         val (token, nextIndex) = bracketClassToken(pattern, index)
@@ -348,6 +362,12 @@ private sealed interface Token {
     }
 
     data class CaptureEnd(
+        val index: Int,
+    ) : Token {
+        override fun matches(char: Char): Boolean = false
+    }
+
+    data class BackReference(
         val index: Int,
     ) : Token {
         override fun matches(char: Char): Boolean = false
