@@ -1407,6 +1407,55 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub accepts function and table replacements`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local swapped, swappedCount = string.gsub("a1 b22", "(%a+)(%d+)", function(letters, digits)
+                    return digits .. letters
+                end)
+                local wrapped, wrappedCount = string.gsub("ab", "%a", function(match)
+                    return "[" .. match .. "]"
+                end)
+                local kept, keptCount = string.gsub("a b", "%a", function(match)
+                    if match == "a" then
+                        return false
+                    end
+                    return "B"
+                end)
+                local mapped, mappedCount = string.gsub("hello world unknown", "%a+", {
+                    hello = "hi",
+                    world = "earth",
+                })
+                local numbered, numberedCount = string.gsub("one two", "%a+", {
+                    one = 1,
+                    two = false,
+                })
+                return swapped, swappedCount, wrapped, wrappedCount, kept, keptCount,
+                    mapped, mappedCount, numbered, numberedCount
+                """.trimIndent(),
+                "string-gsub-replacement-types.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1a 22b", state.toString(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("[a][b]", state.toString(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals("a B", state.toString(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals("hi earth unknown", state.toString(7))
+        assertEquals(3L, state.toInteger(8))
+        assertEquals("1 two", state.toString(9))
+        assertEquals(2L, state.toInteger(10))
+    }
+
+    @Test
     fun `string gsub reports unsupported patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

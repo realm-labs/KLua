@@ -9,6 +9,7 @@ import java.util.Locale
 
 internal object LuaStringLibrary {
     private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcqs"
+    private val GSUB_REPLACEMENT_TYPES = setOf("string", "function", "table")
 
     fun open(state: LuaState): LuaState {
         state.newTable()
@@ -67,7 +68,10 @@ internal object LuaStringLibrary {
     private fun stringGsub(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "string.gsub")
         val pattern = requiredString(context, 2, "string.gsub")
-        val replacement = requiredString(context, 3, "string.gsub")
+        val replacementType = context.typeName(3)
+        if (replacementType !in GSUB_REPLACEMENT_TYPES) {
+            throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/function/table expected)")
+        }
         val limit = if (context.isNone(4) || context.isNil(4)) {
             Long.MAX_VALUE
         } else {
@@ -90,13 +94,9 @@ internal object LuaStringLibrary {
                 break
             }
             result.append(text, cursor, match.startIndex)
+            val wholeMatch = text.substring(match.startIndex, match.endIndex)
             result.append(
-                expandReplacement(
-                    replacement,
-                    text.substring(match.startIndex, match.endIndex),
-                    match.captures,
-                    "string.gsub",
-                ),
+                replacementForMatch(context, replacementType, wholeMatch, match.captures),
             )
             cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
                 result.append(text[match.endIndex])
@@ -112,6 +112,45 @@ internal object LuaStringLibrary {
             result.append(text, cursor, text.length)
         }
         return LuaReturn.of(result.toString(), replacements)
+    }
+
+    private fun replacementForMatch(
+        context: LuaCallContext,
+        replacementType: String,
+        wholeMatch: String,
+        captures: List<String>,
+    ): String {
+        return when (replacementType) {
+            "string" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures, "string.gsub")
+            "function" -> {
+                val result = context.call(3, replacementArguments(wholeMatch, captures)).get(1)
+                replacementValueToString(result, wholeMatch)
+            }
+            "table" -> {
+                val result = context.getTableValue(3, replacementArguments(wholeMatch, captures).first())
+                replacementValueToString(result, wholeMatch)
+            }
+            else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/function/table expected)")
+        }
+    }
+
+    private fun replacementArguments(wholeMatch: String, captures: List<String>): List<String> {
+        return captures.ifEmpty { listOf(wholeMatch) }
+    }
+
+    private fun replacementValueToString(value: Any?, wholeMatch: String): String {
+        return when (value) {
+            null -> wholeMatch
+            false -> wholeMatch
+            is Byte -> value.toString()
+            is Short -> value.toString()
+            is Int -> value.toString()
+            is Long -> value.toString()
+            is Float -> value.toString()
+            is Double -> value.toString()
+            is CharSequence -> value.toString()
+            else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (invalid replacement value)")
+        }
     }
 
     private fun expandReplacement(
