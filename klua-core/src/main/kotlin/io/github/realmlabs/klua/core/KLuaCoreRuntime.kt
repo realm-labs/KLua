@@ -93,6 +93,10 @@ public class KLuaCoreGlobals internal constructor(
         return true
     }
 
+    public fun setGlobalTable(name: String) {
+        table.rawSet(LuaString(name), table)
+    }
+
     public fun setFunction(name: String, function: KLuaCoreFunction) {
         table.rawSet(
             LuaString(name),

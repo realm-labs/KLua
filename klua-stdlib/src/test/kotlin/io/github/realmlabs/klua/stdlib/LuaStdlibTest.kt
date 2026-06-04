@@ -60,6 +60,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openBase installs global environment table`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                answer = 42
+                _G.created = "ok"
+                return _G == _G._G, _G.answer, created, _G.type == type
+                """.trimIndent(),
+                "global-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(42L, state.toInteger(2))
+        assertEquals("ok", state.toString(3))
+        assertTrue(state.toBoolean(4))
+    }
+
+    @Test
     fun `type and tostring report missing argument errors`() {
         val typeState = LuaState.create()
         LuaStdlib.openBase(typeState)

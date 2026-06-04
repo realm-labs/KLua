@@ -70,6 +70,11 @@ class LuaState private constructor(
         setNativeGlobal(name, LuaStackValue.NativeFunctionValue(function))
     }
 
+    fun installGlobalTable(name: String) {
+        globals.fields[LuaStackValue.StringValue(name)] = globals
+        coreGlobals.setGlobalTable(name)
+    }
+
     fun <T : Any> registerType(type: Class<T>, configure: Consumer<LuaUserDataType<T>>) {
         val userDataType = LuaUserDataType<T>(
             registerMethod = { name, method ->

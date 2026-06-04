@@ -32,6 +32,7 @@ public object LuaStdlib {
 
     @JvmStatic
     public fun openBase(state: LuaState, output: Consumer<String>): LuaState {
+        state.installGlobalTable("_G")
         state.pushString(luaVersionName(state.config.version))
         state.setGlobal("_VERSION")
         state.register("assert", ::assert)
