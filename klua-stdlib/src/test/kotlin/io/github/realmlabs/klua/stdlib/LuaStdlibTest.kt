@@ -127,6 +127,7 @@ class LuaStdlibTest {
                 """
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
+                    type(debug.getupvalue),
                     debug.traceback("boom"), type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
                 "debug-openlibs.lua",
@@ -138,11 +139,12 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(2))
         assertEquals("function", state.toString(3))
         assertEquals("function", state.toString(4))
-        assertTrue(state.toString(5)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(6))
-        assertEquals("Lua", state.toString(7))
-        assertEquals("debug-openlibs.lua", state.toString(8))
-        assertEquals(1L, state.toInteger(9))
+        assertEquals("function", state.toString(5))
+        assertTrue(state.toString(6)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(7))
+        assertEquals("Lua", state.toString(8))
+        assertEquals("debug-openlibs.lua", state.toString(9))
+        assertEquals(1L, state.toInteger(10))
     }
 
     @Test
@@ -246,6 +248,38 @@ class LuaStdlibTest {
         assertEquals(12L, state.toInteger(2))
         assertEquals("text", state.toString(3))
         assertEquals("ok", state.toString(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `debug getupvalue returns lua closure upvalue names and values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local secret = "ok"
+                local count = 42
+                local function capture()
+                    return secret, count
+                end
+
+                local n1, v1 = debug.getupvalue(capture, 1)
+                local n2, v2 = debug.getupvalue(capture, 2)
+                local missing = debug.getupvalue(capture, 99)
+                return n1, v1, n2, v2, missing
+                """.trimIndent(),
+                "debug-getupvalue.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("secret", state.toString(1))
+        assertEquals("ok", state.toString(2))
+        assertEquals("count", state.toString(3))
+        assertEquals(42L, state.toInteger(4))
         assertTrue(state.isNil(5))
     }
 

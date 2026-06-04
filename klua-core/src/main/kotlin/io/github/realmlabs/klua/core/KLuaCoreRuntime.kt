@@ -114,6 +114,21 @@ public object KLuaCoreRuntime {
             functionValue.yieldable = yieldable
         }
     }
+
+    public fun getUpvalue(
+        function: KLuaCoreValue.FunctionValue,
+        index: Int,
+        globals: KLuaCoreGlobals,
+    ): KLuaCoreUpvalue? {
+        if (index <= 0) {
+            return null
+        }
+        val closure = function.sourceFunction as? LuaClosure ?: return null
+        val zeroIndex = index - 1
+        val name = closure.prototype.upvalueNames.getOrNull(zeroIndex) ?: return null
+        val upvalue = closure.upvalues.getOrNull(zeroIndex) ?: return null
+        return KLuaCoreUpvalue(name, toPublicValue(upvalue.value, globals))
+    }
 }
 
 public class KLuaCoreChunk internal constructor(
@@ -323,6 +338,11 @@ public data class KLuaCoreStackFrame(
 )
 
 public data class KLuaCoreLocalVariable(
+    public val name: String,
+    public val value: KLuaCoreValue,
+)
+
+public data class KLuaCoreUpvalue(
     public val name: String,
     public val value: KLuaCoreValue,
 )

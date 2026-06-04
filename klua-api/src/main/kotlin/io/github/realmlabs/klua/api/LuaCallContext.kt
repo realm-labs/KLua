@@ -24,6 +24,8 @@ interface LuaCallContext {
 
     fun load(source: String, chunkName: String): LuaReturn
 
+    fun getUpvalue(index: Int, upvalueIndex: Int): LuaReturn? = null
+
     fun getTable(index: Int): Any?
 
     fun getTableValue(index: Int, key: Any?): Any?

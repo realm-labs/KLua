@@ -10,6 +10,7 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_traceback") { context -> LuaReturn.of(traceback(context)) }
         state.register("klua_debug_getinfo") { context -> getInfo(context) }
         state.register("klua_debug_getlocal") { context -> getLocal(context) }
+        state.register("klua_debug_getupvalue") { context -> getUpvalue(context) }
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
         return state
     }
@@ -69,6 +70,14 @@ internal object LuaDebugLibrary {
         return LuaReturn.of(local.name, local.value)
     }
 
+    private fun getUpvalue(context: LuaCallContext): LuaReturn {
+        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+        if (index <= 0) {
+            return LuaReturn.of(null)
+        }
+        return context.getUpvalue(1, index) ?: LuaReturn.of(null)
+    }
+
     private const val DEBUG_SOURCE: String = """
         debug = debug or {}
 
@@ -92,6 +101,10 @@ internal object LuaDebugLibrary {
 
         function debug.getlocal(threadOrLevel, index)
             return klua_debug_getlocal(threadOrLevel, index)
+        end
+
+        function debug.getupvalue(func, index)
+            return klua_debug_getupvalue(func, index)
         end
     """
 }
