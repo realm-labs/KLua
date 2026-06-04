@@ -1189,7 +1189,14 @@ class LuaState private constructor(
 }
 
 private fun List<KLuaCoreStackFrame>.toApiStackFrames(): List<LuaStackFrame> {
-    return map { frame -> LuaStackFrame(frame.sourceName, frame.line) }
+    return map { frame ->
+        LuaStackFrame(
+            frame.sourceName,
+            frame.line,
+            frame.lineDefined,
+            frame.lastLineDefined,
+        )
+    }
 }
 
 class LuaYieldException internal constructor(

@@ -23,6 +23,8 @@ class LuaRuntimeException(
 data class LuaStackFrame(
     val sourceName: String,
     val line: Int,
+    val lineDefined: Int = 0,
+    val lastLineDefined: Int = 0,
 )
 
 internal fun formatLuaTraceback(message: String, frames: List<LuaStackFrame>): String {

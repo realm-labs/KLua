@@ -191,7 +191,8 @@ class LuaStdlibTest {
                     local here = debug.getinfo(1)
                     local caller = debug.getinfo(2)
                     local missing = debug.getinfo(99)
-                    return here.source, here.short_src, here.currentline, here.what, caller.currentline, missing
+                    return here.source, here.short_src, here.currentline, here.what,
+                        here.linedefined, here.lastlinedefined, caller.currentline, missing
                 end
 
                 local function branch()
@@ -209,8 +210,10 @@ class LuaStdlibTest {
         assertEquals("debug-getinfo.lua", state.toString(2))
         assertEquals(2L, state.toInteger(3))
         assertEquals("Lua", state.toString(4))
-        assertEquals(9L, state.toInteger(5))
-        assertTrue(state.isNil(6))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(7L, state.toInteger(6))
+        assertEquals(10L, state.toInteger(7))
+        assertTrue(state.isNil(8))
     }
 
     @Test

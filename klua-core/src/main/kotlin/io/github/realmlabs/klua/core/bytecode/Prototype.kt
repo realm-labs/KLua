@@ -17,6 +17,8 @@ internal data class Prototype(
     val numParams: Int = 0,
     val isVararg: Boolean = false,
     val sourceId: String = sourceName,
+    val lineDefined: Int = 0,
+    val lastLineDefined: Int = 0,
     val validBreakpointLines: IntArray = validBreakpointLines(lineInfo),
 ) {
     override fun equals(other: Any?): Boolean {
@@ -33,6 +35,8 @@ internal data class Prototype(
             upvalueNames.contentEquals(other.upvalueNames) &&
             localVars.contentEquals(other.localVars) &&
             lineInfo.contentEquals(other.lineInfo) &&
+            lineDefined == other.lineDefined &&
+            lastLineDefined == other.lastLineDefined &&
             validBreakpointLines.contentEquals(other.validBreakpointLines) &&
             maxStackSize == other.maxStackSize &&
             numParams == other.numParams &&
@@ -50,6 +54,8 @@ internal data class Prototype(
         result = 31 * result + upvalueNames.contentHashCode()
         result = 31 * result + localVars.contentHashCode()
         result = 31 * result + lineInfo.contentHashCode()
+        result = 31 * result + lineDefined
+        result = 31 * result + lastLineDefined
         result = 31 * result + validBreakpointLines.contentHashCode()
         result = 31 * result + maxStackSize
         result = 31 * result + numParams

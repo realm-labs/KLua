@@ -697,6 +697,8 @@ internal class Compiler private constructor(
             maxStackSize = compiler.maxRegister.coerceAtLeast(1),
             numParams = expression.parameters.size,
             isVararg = expression.isVararg,
+            lineDefined = expression.range.start.line,
+            lastLineDefined = expression.range.end.line,
         )
     }
 

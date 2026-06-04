@@ -316,6 +316,8 @@ public sealed interface KLuaCoreExecution {
 public data class KLuaCoreStackFrame(
     public val sourceName: String,
     public val line: Int,
+    public val lineDefined: Int = 0,
+    public val lastLineDefined: Int = 0,
 )
 
 public fun interface KLuaCoreContinuation {
@@ -580,7 +582,14 @@ private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> 
 }
 
 private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(): List<KLuaCoreStackFrame> {
-    return map { frame -> KLuaCoreStackFrame(frame.sourceName, frame.line) }
+    return map { frame ->
+        KLuaCoreStackFrame(
+            frame.sourceName,
+            frame.line,
+            frame.lineDefined,
+            frame.lastLineDefined,
+        )
+    }
 }
 
 private fun formatCoreTraceback(message: String, frames: List<KLuaCoreStackFrame>): String {

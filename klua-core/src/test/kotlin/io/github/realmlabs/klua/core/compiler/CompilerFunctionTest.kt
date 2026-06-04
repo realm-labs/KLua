@@ -24,6 +24,8 @@ class CompilerFunctionTest {
         val function = prototype.nested.single()
         assertEquals(2, function.numParams)
         assertEquals(false, function.isVararg)
+        assertEquals(1, function.lineDefined)
+        assertEquals(1, function.lastLineDefined)
         assertEquals(4, function.maxStackSize)
         assertEquals(
             """
@@ -60,6 +62,8 @@ class CompilerFunctionTest {
             Disassembler.disassemble(prototype),
         )
         assertEquals(1, prototype.nested.single().numParams)
+        assertEquals(1, prototype.nested.single().lineDefined)
+        assertEquals(3, prototype.nested.single().lastLineDefined)
     }
 
     @Test

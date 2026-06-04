@@ -48,8 +48,8 @@ internal object LuaDebugLibrary {
                 "source" to frame.sourceName,
                 "short_src" to frame.sourceName,
                 "currentline" to frame.line.toLong(),
-                "linedefined" to -1L,
-                "lastlinedefined" to -1L,
+                "linedefined" to frame.lineDefined.toLong(),
+                "lastlinedefined" to frame.lastLineDefined.toLong(),
                 "namewhat" to "",
             ),
         )

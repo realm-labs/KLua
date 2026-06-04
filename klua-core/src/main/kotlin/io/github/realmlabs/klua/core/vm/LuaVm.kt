@@ -335,7 +335,12 @@ internal class LuaVm(
             if (line <= 0) {
                 null
             } else {
-                LuaNativeStackFrame(frame.prototype.sourceName, line)
+                LuaNativeStackFrame(
+                    frame.prototype.sourceName,
+                    line,
+                    frame.prototype.lineDefined,
+                    frame.prototype.lastLineDefined,
+                )
             }
         }
     }

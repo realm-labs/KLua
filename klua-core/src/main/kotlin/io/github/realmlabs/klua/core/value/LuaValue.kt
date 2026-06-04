@@ -75,6 +75,8 @@ internal data class LuaNativeCallContext(
 internal data class LuaNativeStackFrame(
     val sourceName: String,
     val line: Int,
+    val lineDefined: Int,
+    val lastLineDefined: Int,
 )
 
 internal class LuaUpvalue(
