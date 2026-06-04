@@ -150,12 +150,36 @@ public class KLuaCoreGlobals internal constructor(
     }
 
     internal fun userDataType(value: Any): LuaUserDataType? {
-        val methods = userDataTypes.entries.firstOrNull { (type, _) -> type.isInstance(value) }?.value.orEmpty()
-        val properties = userDataProperties.entries.firstOrNull { (type, _) -> type.isInstance(value) }?.value.orEmpty()
+        val methods = linkedMapOf<String, LuaNativeFunction>()
+        for ((_, registeredMethods) in applicableUserDataEntries(userDataTypes, value)) {
+            methods.putAll(registeredMethods)
+        }
+        val properties = linkedMapOf<String, LuaUserDataProperty>()
+        for ((_, registeredProperties) in applicableUserDataEntries(userDataProperties, value)) {
+            properties.putAll(registeredProperties)
+        }
         if (methods.isEmpty() && properties.isEmpty()) {
             return null
         }
         return LuaUserDataType(methods.toMap(), properties.toMap())
+    }
+
+    private fun <T> applicableUserDataEntries(
+        registrations: Map<Class<*>, T>,
+        value: Any,
+    ): List<Map.Entry<Class<*>, T>> {
+        return registrations.entries
+            .filter { (type, _) -> type.isInstance(value) }
+            .sortedWith { left, right -> compareUserDataSpecificity(left.key, right.key) }
+    }
+
+    private fun compareUserDataSpecificity(left: Class<*>, right: Class<*>): Int {
+        return when {
+            left == right -> 0
+            left.isAssignableFrom(right) -> -1
+            right.isAssignableFrom(left) -> 1
+            else -> 0
+        }
     }
 }
 

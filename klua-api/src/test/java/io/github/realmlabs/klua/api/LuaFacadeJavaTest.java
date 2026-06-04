@@ -60,6 +60,27 @@ class LuaFacadeJavaTest {
     }
 
     @Test
+    void registeredUserDataTypesMergeAssignableMethods() {
+        Lua lua = Lua.create();
+        Player player = new Player(7);
+
+        lua.globals().set("player", player);
+        lua.registerType(Named.class, type ->
+                type.method("getName", (receiver, context) -> LuaReturn.of(receiver.getName()))
+        );
+        lua.registerType(Player.class, type ->
+                type.method("getLevel", (receiver, context) -> LuaReturn.of(receiver.getLevel()))
+        );
+
+        LuaReturn result = lua.load("""
+                return player:getName() == "player", player:getLevel() == 7
+                """).eval();
+
+        assertEquals(true, result.getBoolean(1));
+        assertEquals(true, result.getBoolean(2));
+    }
+
+    @Test
     void evalThrowsStructuredErrors() {
         Lua lua = Lua.create();
 
@@ -76,11 +97,20 @@ class LuaFacadeJavaTest {
         assertThrows(LuaRuntimeException.class, () -> result.getLong(2));
     }
 
-    private static final class Player {
+    private interface Named {
+        String getName();
+    }
+
+    private static final class Player implements Named {
         private long level;
 
         private Player(long level) {
             this.level = level;
+        }
+
+        @Override
+        public String getName() {
+            return "player";
         }
 
         private long getLevel() {
