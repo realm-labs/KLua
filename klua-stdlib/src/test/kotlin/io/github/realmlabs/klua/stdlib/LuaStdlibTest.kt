@@ -2341,8 +2341,10 @@ class LuaStdlibTest {
                 local values = {"a", "b", "c", "d"}
                 local middle = table.remove(values, 2)
                 local last = table.remove(values)
-                local missing = table.remove(values, 10)
-                return middle, last, missing, values[1], values[2], values[3], #values
+                local trailing = table.remove(values, #values + 1)
+                local empty = {}
+                local emptyRemoved = table.remove(empty, 0)
+                return middle, last, trailing, emptyRemoved, values[1], values[2], values[3], #values
                 """.trimIndent(),
                 "table-remove.lua",
             ),
@@ -2352,10 +2354,11 @@ class LuaStdlibTest {
         assertEquals("b", state.toString(1))
         assertEquals("d", state.toString(2))
         assertTrue(state.isNil(3))
-        assertEquals("a", state.toString(4))
-        assertEquals("c", state.toString(5))
-        assertTrue(state.isNil(6))
-        assertEquals(2L, state.toInteger(7))
+        assertTrue(state.isNil(4))
+        assertEquals("a", state.toString(5))
+        assertEquals("c", state.toString(6))
+        assertTrue(state.isNil(7))
+        assertEquals(2L, state.toInteger(8))
     }
 
     @Test
@@ -2368,6 +2371,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'table.remove' (table expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `table remove reports position argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return table.remove({"a"}, 3)""", "table-remove-position-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'table.remove' (position out of bounds)", state.toString(-1))
     }
 
     @Test

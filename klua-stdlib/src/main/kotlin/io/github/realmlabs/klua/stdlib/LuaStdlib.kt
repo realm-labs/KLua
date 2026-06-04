@@ -462,7 +462,13 @@ public object LuaStdlib {
         } else {
             requiredInteger(context, 2, "table.remove")
         }
-        if (position < 1L || position > length) {
+        val validPosition = position in 1L..length ||
+            position == length + 1L ||
+            (length == 0L && position == 0L)
+        if (!validPosition) {
+            throw LuaRuntimeException("bad argument #2 to 'table.remove' (position out of bounds)")
+        }
+        if (position > length || position == 0L) {
             return LuaReturn.of(null)
         }
 
