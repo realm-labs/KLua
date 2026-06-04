@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.api;
 import org.junit.jupiter.api.Test;
 
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -332,6 +333,39 @@ class LuaStateNativeFunctionJavaTest {
         assertEquals("first", state.toString(1));
         assertEquals("second", state.toString(2));
         assertTrue(state.isNil(3));
+    }
+
+    @Test
+    void nativeFunctionCanCallLuaFunctionArguments() {
+        LuaState state = LuaState.create();
+
+        state.pushFunction(context -> {
+            LuaReturn returned = context.call(1, List.of("x", 2L));
+
+            assertEquals("x2", returned.get(1));
+            assertEquals(false, returned.get(2));
+            assertEquals(3L, returned.get(3));
+
+            return LuaReturn.of(returned.get(1), returned.get(2), returned.get(3));
+        });
+        state.setGlobal("invoke");
+
+        assertEquals(
+                LuaStatus.OK,
+                state.load(
+                        """
+                        return invoke(function(prefix, number)
+                            return prefix .. number, false, 3
+                        end)
+                        """,
+                        "native-call-lua-function.lua"
+                )
+        );
+        assertEquals(LuaStatus.OK, state.pcall(0, -1));
+
+        assertEquals("x2", state.toString(1));
+        assertFalse(state.toBoolean(2));
+        assertEquals(3L, state.toInteger(3));
     }
 
     @Test

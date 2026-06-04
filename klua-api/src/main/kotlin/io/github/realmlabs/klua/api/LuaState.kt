@@ -489,7 +489,7 @@ class LuaState private constructor(
             is KLuaCoreValue.FunctionValue -> LuaStackValue.NativeFunctionValue { context ->
                 val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
                 when (val result = function.call(arguments)) {
-                    is KLuaCoreCallResult.Success -> LuaReturn.ofValues(result.values.map { it.toStackValue() })
+                    is KLuaCoreCallResult.Success -> LuaReturn.ofValues(result.values.map { it.toStackValue().toPublicCallReturnValue() })
                     is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
                 }
             }
@@ -602,6 +602,15 @@ class LuaState private constructor(
             is LuaStackValue.NativeFunctionValue -> function
             is LuaStackValue.UserDataValue -> value
             else -> throw IllegalArgumentException("cannot pass ${stackTypeName(this)} as host value")
+        }
+    }
+
+    private fun LuaStackValue.toPublicCallReturnValue(): Any? {
+        return when (this) {
+            is LuaStackValue.TableValue,
+            is LuaStackValue.NativeFunctionValue,
+            -> this
+            else -> toAnyValue()
         }
     }
 
