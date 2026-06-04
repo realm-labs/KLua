@@ -2881,6 +2881,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 len returns zero for empty ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return utf8.len("abc", 4), utf8.len("abc", 3, 2), utf8.len("", 1, 0)""",
+                "utf8-len-empty-ranges.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+    }
+
+    @Test
+    fun `utf8 len reports range position errors`() {
+        val startState = LuaState.create()
+        LuaStdlib.openUtf8(startState)
+
+        assertEquals(LuaStatus.OK, startState.load("""return utf8.len("", 2)""", "utf8-len-start-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, startState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(startState.getLastError())
+        assertEquals("bad argument #2 to 'utf8.len' (position out of range)", startState.toString(-1))
+
+        val endState = LuaState.create()
+        LuaStdlib.openUtf8(endState)
+
+        assertEquals(LuaStatus.OK, endState.load("""return utf8.len("abc", 1, 4)""", "utf8-len-end-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, endState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(endState.getLastError())
+        assertEquals("bad argument #3 to 'utf8.len' (position out of range)", endState.toString(-1))
+    }
+
+    @Test
     fun `utf8 offset returns codepoint positions`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)

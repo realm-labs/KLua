@@ -60,15 +60,12 @@ internal object LuaUtf8Library {
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
         val codePoints = requiredString(context, 1, "utf8.len").codePoints().toArray()
-        if (codePoints.isEmpty()) {
-            return LuaReturn.of(0L)
-        }
-        val start = normalizedPosition(context, 2, 1L, codePoints.size, "utf8.len")
-        val end = normalizedPosition(context, 3, -1L, codePoints.size, "utf8.len")
+        val start = normalizedLenStart(context, 2, 1L, codePoints.size, "utf8.len")
+        val end = normalizedLenEnd(context, 3, -1L, codePoints.size, "utf8.len")
         if (start > end) {
             return LuaReturn.of(0L)
         }
-        return LuaReturn.of((end - start + 1).toLong())
+        return LuaReturn.of(end - start + 1L)
     }
 
     private fun utf8Offset(context: LuaCallContext): LuaReturn {
@@ -134,6 +131,44 @@ internal object LuaUtf8Library {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
         }
         return normalized.toInt()
+    }
+
+    private fun normalizedLenStart(
+        context: LuaCallContext,
+        index: Int,
+        defaultValue: Long,
+        length: Int,
+        functionName: String,
+    ): Long {
+        val position = if (context.isNone(index) || context.isNil(index)) {
+            defaultValue
+        } else {
+            requiredInteger(context, index, functionName)
+        }
+        val normalized = if (position < 0L) length + position + 1L else position
+        if (normalized < 1L || normalized > length.toLong() + 1L) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+        }
+        return normalized
+    }
+
+    private fun normalizedLenEnd(
+        context: LuaCallContext,
+        index: Int,
+        defaultValue: Long,
+        length: Int,
+        functionName: String,
+    ): Long {
+        val position = if (context.isNone(index) || context.isNil(index)) {
+            defaultValue
+        } else {
+            requiredInteger(context, index, functionName)
+        }
+        val normalized = if (position < 0L) length + position + 1L else position
+        if (normalized < 0L || normalized > length.toLong()) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+        }
+        return normalized
     }
 
     private fun normalizedOffsetPosition(
