@@ -1206,6 +1206,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns support balanced matches`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, last = string.find("a (b (c) d) e", "%b()")
+                local matched = string.match("a (b (c) d) e", "%b()")
+                local replaced, count = string.gsub("a (b) c (d)", "%b()", "x")
+                local iterator = string.gmatch("[a] [b]", "%b[]")
+                local missing = string.match("(abc", "%b()")
+                local quoted = string.match("'a' b", "%b''")
+                return first, last, matched, replaced, count, iterator(), iterator(), iterator(), missing, quoted
+                """.trimIndent(),
+                "string-pattern-balanced.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals(11L, state.toInteger(2))
+        assertEquals("(b (c) d)", state.toString(3))
+        assertEquals("a x c x", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals("[a]", state.toString(6))
+        assertEquals("[b]", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertTrue(state.isNil(9))
+        assertEquals("'a'", state.toString(10))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

@@ -90,6 +90,10 @@ internal class LuaStringPattern private constructor(
                     matchEnd(text, textIndex + capture.length, patternTokens, tokenIndex + 1, captureStarts, captures)
                 }
             }
+            is Token.Balanced -> {
+                val endIndex = matchBalanced(text, textIndex, token.open, token.close) ?: return null
+                matchEnd(text, endIndex, patternTokens, tokenIndex + 1, captureStarts, captures)
+            }
             is Token.Repetition -> matchRepetition(text, textIndex, patternTokens, tokenIndex, token, captureStarts, captures)
             else -> {
                 if (textIndex >= text.length || !token.matches(text[textIndex])) {
@@ -134,6 +138,28 @@ internal class LuaStringPattern private constructor(
             if (matchEnd != null) {
                 return matchEnd
             }
+        }
+        return null
+    }
+
+    private fun matchBalanced(text: String, textIndex: Int, open: Char, close: Char): Int? {
+        if (textIndex >= text.length || text[textIndex] != open) {
+            return null
+        }
+
+        var depth = 1
+        var index = textIndex + 1
+        while (index < text.length) {
+            val char = text[index]
+            if (char == close) {
+                depth--
+                if (depth == 0) {
+                    return index + 1
+                }
+            } else if (char == open) {
+                depth++
+            }
+            index++
         }
         return null
     }
@@ -190,6 +216,13 @@ internal class LuaStringPattern private constructor(
                             tokens += Token.BackReference(next.digitToInt() - 1)
                             hasPatternToken = true
                             index += 2
+                        } else if (next == 'b') {
+                            if (index + 3 >= pattern.length) {
+                                throw LuaRuntimeException("string patterns are not supported")
+                            }
+                            tokens += Token.Balanced(pattern[index + 2], pattern[index + 3])
+                            hasPatternToken = true
+                            index += 4
                         } else {
                             val token = percentToken(next)
                             if (token == null) {
@@ -369,6 +402,13 @@ private sealed interface Token {
 
     data class BackReference(
         val index: Int,
+    ) : Token {
+        override fun matches(char: Char): Boolean = false
+    }
+
+    data class Balanced(
+        val open: Char,
+        val close: Char,
     ) : Token {
         override fun matches(char: Char): Boolean = false
     }
