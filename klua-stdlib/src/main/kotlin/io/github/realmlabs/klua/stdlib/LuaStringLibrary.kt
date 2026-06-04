@@ -80,9 +80,6 @@ internal object LuaStringLibrary {
         } else {
             requiredInteger(context, 4, "string.gsub")
         }
-        if (pattern.isEmpty()) {
-            throw LuaRuntimeException("empty patterns are not supported")
-        }
         if (limit <= 0L) {
             return LuaReturn.of(text, 0L)
         }
@@ -218,9 +215,6 @@ internal object LuaStringLibrary {
             1L
         } else {
             requiredInteger(context, 3, "string.gmatch")
-        }
-        if (pattern.isEmpty()) {
-            throw LuaRuntimeException("empty patterns are not supported")
         }
         val compiledPattern = LuaStringPattern.compile(pattern)
         var cursor = text.normalizeSearchStart(start) - 1

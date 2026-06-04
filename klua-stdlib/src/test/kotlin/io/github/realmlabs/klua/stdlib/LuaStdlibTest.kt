@@ -2116,6 +2116,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub supports empty patterns`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local replaced, count = string.gsub("abc", "", "-")
+                local empty, emptyCount = string.gsub("", "", "-")
+                local limited, limitedCount = string.gsub("abc", "", "-", 2)
+                return replaced, count, empty, emptyCount, limited, limitedCount
+                """.trimIndent(),
+                "string-gsub-empty-pattern.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("-a-b-c-", state.toString(1))
+        assertEquals(4L, state.toInteger(2))
+        assertEquals("-", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals("-a-bc", state.toString(5))
+        assertEquals(2L, state.toInteger(6))
+    }
+
+    @Test
     fun `string gsub expands replacement percents`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -2326,6 +2353,33 @@ class LuaStdlibTest {
         assertTrue(state.isNil(5))
         assertEquals("one", state.toString(6))
         assertTrue(state.isNil(7))
+    }
+
+    @Test
+    fun `string gmatch supports empty patterns`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator = string.gmatch("ab", "")
+                local empty = string.gmatch("", "")
+                return iterator(), iterator(), iterator(), iterator(),
+                    empty(), empty()
+                """.trimIndent(),
+                "string-gmatch-empty-pattern.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("", state.toString(1))
+        assertEquals("", state.toString(2))
+        assertEquals("", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals("", state.toString(5))
+        assertTrue(state.isNil(6))
     }
 
     @Test
