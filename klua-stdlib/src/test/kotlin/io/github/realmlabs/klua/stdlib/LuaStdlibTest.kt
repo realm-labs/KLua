@@ -1773,6 +1773,85 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `nested coroutines restore running coroutine after inner resume`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outer
+                outer = coroutine.create(function()
+                    local beforeRunning = coroutine.running()
+                    local inner
+                    inner = coroutine.create(function()
+                        local innerRunning = coroutine.running()
+                        coroutine.yield(innerRunning == inner, coroutine.status(outer))
+                        return coroutine.running() == inner, coroutine.status(outer)
+                    end)
+                    local firstOk, innerMatched, outerStatusAtYield = coroutine.resume(inner)
+                    local afterInnerYield = coroutine.running() == outer
+                    local secondOk, innerReturned, outerStatusAtReturn = coroutine.resume(inner)
+                    local afterInnerReturn = coroutine.running() == outer
+                    local resumeValue = coroutine.yield(
+                        beforeRunning == outer,
+                        firstOk,
+                        innerMatched,
+                        outerStatusAtYield,
+                        afterInnerYield,
+                        secondOk,
+                        innerReturned,
+                        outerStatusAtReturn,
+                        afterInnerReturn,
+                        coroutine.status(inner)
+                    )
+                    return resumeValue
+                end)
+
+                local yieldedOk,
+                    yieldedBeforeRunning,
+                    yieldedFirstOk,
+                    yieldedInnerMatched,
+                    yieldedOuterStatusAtYield,
+                    yieldedAfterInnerYield,
+                    yieldedSecondOk,
+                    yieldedInnerReturned,
+                    yieldedOuterStatusAtReturn,
+                    yieldedAfterInnerReturn,
+                    yieldedInnerStatus = coroutine.resume(outer)
+                local outerStatus = coroutine.status(outer)
+                local returnedOk, returnedValue = coroutine.resume(outer, "done")
+                return yieldedOk, yieldedBeforeRunning, yieldedFirstOk,
+                    yieldedInnerMatched, yieldedOuterStatusAtYield,
+                    yieldedAfterInnerYield, yieldedSecondOk, yieldedInnerReturned,
+                    yieldedOuterStatusAtReturn, yieldedAfterInnerReturn,
+                    yieldedInnerStatus, outerStatus, returnedOk, returnedValue,
+                    coroutine.status(outer)
+                """.trimIndent(),
+                "coroutine-nested.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("running", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("running", state.toString(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals("dead", state.toString(11))
+        assertEquals("suspended", state.toString(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("done", state.toString(14))
+        assertEquals("dead", state.toString(15))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)
