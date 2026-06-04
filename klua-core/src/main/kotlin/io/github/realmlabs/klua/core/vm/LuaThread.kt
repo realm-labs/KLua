@@ -46,6 +46,10 @@ internal class LuaThread {
         frames.removeAt(frames.lastIndex)
     }
 
+    fun clearFrames() {
+        frames.clear()
+    }
+
     fun <T> runNativeCall(block: () -> T): T {
         nativeCallDepth += 1
         return try {

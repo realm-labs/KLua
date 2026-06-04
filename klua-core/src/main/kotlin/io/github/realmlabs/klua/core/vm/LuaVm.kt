@@ -32,8 +32,15 @@ internal class LuaVm(
         return executeReturned(prototype, arguments, emptyList())
     }
 
+    internal val activeCallDepth: Int
+        get() = thread.callDepth
+
     internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return returnedValues(callValue(callee, arguments))
+    }
+
+    internal fun executeYieldable(prototype: Prototype, arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
+        return executeFrame(prototype, arguments, emptyList())
     }
 
     private fun executeReturned(
@@ -47,7 +54,10 @@ internal class LuaVm(
     private fun returnedValues(result: LuaExecutionResult): List<LuaValue> {
         return when (result) {
             is LuaExecutionResult.Returned -> result.values
-            is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield from outside a coroutine")
+            is LuaExecutionResult.Yielded -> {
+                thread.clearFrames()
+                throw LuaVmException("attempt to yield from outside a coroutine")
+            }
         }
     }
 
@@ -58,6 +68,7 @@ internal class LuaVm(
     ): LuaExecutionResult {
         val frame = thread.pushCall(prototype, arguments, upvalues)
         val stack = frame.stack
+        var yielded = false
         try {
             while (frame.pc < prototype.code.size) {
                 val instruction = prototype.code[frame.pc++]
@@ -130,6 +141,7 @@ internal class LuaVm(
                     Opcode.CALL -> {
                         val result = call(stack, frame, instruction)
                         if (result != null) {
+                            yielded = true
                             return result
                         }
                     }
@@ -143,7 +155,9 @@ internal class LuaVm(
 
             throw LuaVmException("prototype completed without RETURN")
         } finally {
-            thread.popFrame(frame)
+            if (!yielded) {
+                thread.popFrame(frame)
+            }
         }
     }
 

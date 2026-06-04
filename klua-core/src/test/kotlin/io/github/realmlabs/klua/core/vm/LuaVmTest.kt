@@ -313,6 +313,50 @@ class LuaVmTest {
     }
 
     @Test
+    fun `preserves active frames for yielded lua calls`() {
+        val globals = LuaTable()
+        globals.rawSet(
+            LuaString("yield"),
+            LuaNativeFunction { arguments ->
+                throw LuaYieldSignal(arguments)
+            },
+        )
+        val vm = LuaVm(globals)
+
+        val result = vm.executeYieldable(
+            Compiler.compile(
+                """
+                local function nested(value)
+                    return yield(value)
+                end
+                return nested(42)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(LuaExecutionResult.Yielded(listOf(LuaInteger(42))), result)
+        assertEquals(2, vm.activeCallDepth)
+    }
+
+    @Test
+    fun `clears yielded frames when top level execution rejects yield`() {
+        val globals = LuaTable()
+        globals.rawSet(
+            LuaString("yield"),
+            LuaNativeFunction { arguments ->
+                throw LuaYieldSignal(arguments)
+            },
+        )
+        val vm = LuaVm(globals)
+
+        assertFailsWith<LuaVmException> {
+            vm.execute(Compiler.compile("return yield(42)"))
+        }
+
+        assertEquals(0, vm.activeCallDepth)
+    }
+
+    @Test
     fun `executes equality and comparison expressions`() {
         val result = LuaVm().execute(
             Compiler.compile("""return 1 == 1.0, 2 ~= 3, 2 < 3, 3 <= 3, 4 > 3, 4 >= 5, "a" < "b""""),

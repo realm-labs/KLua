@@ -107,6 +107,19 @@ class LuaThreadTest {
         assertFalse(thread.inNativeCall)
     }
 
+    @Test
+    fun `clears active call frames`() {
+        val thread = LuaThread()
+
+        thread.pushCall(prototype("outer"), emptyList())
+        thread.pushCall(prototype("inner"), emptyList())
+
+        thread.clearFrames()
+
+        assertNull(thread.currentFrame)
+        assertEquals(0, thread.callDepth)
+    }
+
     private fun prototype(
         sourceName: String,
         maxStackSize: Int = 1,
