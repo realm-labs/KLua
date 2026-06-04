@@ -123,8 +123,22 @@ internal class Lexer(
             '"' -> '"'
             '\'' -> '\''
             '\n' -> '\n'
+            in '0'..'9' -> readDecimalEscape(start, escaped)
             else -> escaped
         }
+    }
+
+    private fun readDecimalEscape(start: SourcePosition, firstDigit: Char): Char {
+        var value = firstDigit.digitToInt()
+        repeat(2) {
+            if (!isAtEnd() && peek() in '0'..'9') {
+                value = value * 10 + advance().digitToInt()
+            }
+        }
+        if (value > 255) {
+            throw errorAt(start, "escape sequence out of range")
+        }
+        return value.toChar()
     }
 
     private fun symbol(start: SourcePosition, char: Char): Token {

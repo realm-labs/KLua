@@ -771,9 +771,16 @@ public object LuaStdlib {
             when (char) {
                 '\\' -> result.append("\\\\")
                 '"' -> result.append("\\\"")
+                '\u0007' -> result.append("\\a")
+                '\b' -> result.append("\\b")
+                '\u000C' -> result.append("\\f")
                 '\n' -> result.append("\\n")
                 '\r' -> result.append("\\r")
                 '\t' -> result.append("\\t")
+                '\u000B' -> result.append("\\v")
+                in '\u0000'..'\u001F',
+                '\u007F',
+                -> result.append("\\").append(char.code.toString().padStart(3, '0'))
                 else -> result.append(char)
             }
         }

@@ -66,11 +66,21 @@ class LexerTest {
 
     @Test
     fun `tokenizes quoted strings and simple escapes`() {
-        val tokens = Lexer(""" "line\none" 'tab\tvalue' """).tokenize()
+        val tokens = Lexer(""" "line\none" 'tab\tvalue' "\000\007\255" """).tokenize()
 
-        assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
         assertEquals("line\none", tokens[0].literal)
         assertEquals("tab\tvalue", tokens[1].literal)
+        assertEquals("\u0000\u0007\u00FF", tokens[2].literal)
+    }
+
+    @Test
+    fun `reports decimal escape range errors`() {
+        val error = assertFailsWith<LexerException> {
+            Lexer("return \"\\256\"", "escape.lua").tokenize()
+        }
+
+        assertEquals("escape.lua:1:8: escape sequence out of range", error.message)
     }
 
     @Test

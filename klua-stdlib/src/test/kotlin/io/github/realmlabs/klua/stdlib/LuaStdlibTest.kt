@@ -1037,11 +1037,20 @@ class LuaStdlibTest {
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return string.format("%q %q %q %q", nil, true, false, 42)""", "string-format-quote.lua"),
+            state.load(
+                """
+                return string.format("%q %q %q %q", nil, true, false, 42),
+                    string.format("%q", string.char(7, 8, 12, 11)),
+                    string.format("%q", "a" .. string.char(0, 31, 127) .. "b")
+                """.trimIndent(),
+                "string-format-quote.lua",
+            ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals("nil true false 42", state.toString(1))
+        assertEquals("\"\\a\\b\\f\\v\"", state.toString(2))
+        assertEquals("\"a\\000\\031\\127b\"", state.toString(3))
     }
 
     @Test
