@@ -287,6 +287,32 @@ class LuaVmTest {
     }
 
     @Test
+    fun `propagates native yield signals through lua calls`() {
+        val globals = LuaTable()
+        globals.rawSet(
+            LuaString("yield"),
+            LuaNativeFunction { arguments ->
+                throw LuaYieldSignal(arguments)
+            },
+        )
+
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm(globals).execute(
+                Compiler.compile(
+                    """
+                    local function nested(value)
+                        return yield(value)
+                    end
+                    return nested(42)
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("attempt to yield from outside a coroutine", error.message)
+    }
+
+    @Test
     fun `executes equality and comparison expressions`() {
         val result = LuaVm().execute(
             Compiler.compile("""return 1 == 1.0, 2 ~= 3, 2 < 3, 3 <= 3, 4 > 3, 4 >= 5, "a" < "b""""),

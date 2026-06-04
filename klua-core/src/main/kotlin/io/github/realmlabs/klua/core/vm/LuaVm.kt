@@ -187,12 +187,12 @@ internal class LuaVm(
     private fun callValue(callee: LuaValue, arguments: List<LuaValue>): LuaExecutionResult {
         return when (callee) {
             is LuaClosure -> executeFrame(callee.prototype, arguments, callee.upvalues)
-            is LuaNativeFunction -> LuaExecutionResult.Returned(callNative(callee, arguments))
+            is LuaNativeFunction -> callNativeResult(callee, arguments)
             is LuaTable -> {
                 val call = callee.metatableRawGet(CALL_KEY)
                 when (call) {
                     is LuaClosure -> executeFrame(call.prototype, listOf(callee) + arguments, call.upvalues)
-                    is LuaNativeFunction -> LuaExecutionResult.Returned(callNative(call, listOf(callee) + arguments))
+                    is LuaNativeFunction -> callNativeResult(call, listOf(callee) + arguments)
                     else -> throw LuaVmException("attempt to call table")
                 }
             }
@@ -201,8 +201,18 @@ internal class LuaVm(
     }
 
     private fun callNative(function: LuaNativeFunction, arguments: List<LuaValue>): List<LuaValue> {
-        return thread.runNativeCall {
-            function.function(arguments)
+        return returnedValues(callNativeResult(function, arguments))
+    }
+
+    private fun callNativeResult(function: LuaNativeFunction, arguments: List<LuaValue>): LuaExecutionResult {
+        return try {
+            LuaExecutionResult.Returned(
+                thread.runNativeCall {
+                    function.function(arguments)
+                },
+            )
+        } catch (yield: LuaYieldSignal) {
+            LuaExecutionResult.Yielded(yield.values)
         }
     }
 
