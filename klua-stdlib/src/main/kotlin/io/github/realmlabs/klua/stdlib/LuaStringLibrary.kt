@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -15,6 +16,7 @@ internal object LuaStringLibrary {
         setFunctionField(state, "char", ::stringChar)
         setFunctionField(state, "find", ::stringFind)
         setFunctionField(state, "format", ::stringFormat)
+        setFunctionField(state, "gmatch", ::stringGmatch)
         setFunctionField(state, "gsub", ::stringGsub)
         setFunctionField(state, "len", ::stringLen)
         setFunctionField(state, "lower", ::stringLower)
@@ -24,31 +26,6 @@ internal object LuaStringLibrary {
         setFunctionField(state, "sub", ::stringSub)
         setFunctionField(state, "upper", ::stringUpper)
         state.setGlobal("string")
-        installLuaSource(
-            state,
-            """
-            string.gmatch = function(text, pattern)
-                local init = 1
-                local length = string.len(text)
-                return function()
-                    if init > length + 1 then
-                        return nil
-                    end
-                    local first, last = string.find(text, pattern, init)
-                    if first == nil then
-                        return nil
-                    end
-                    if last < first then
-                        init = first + 1
-                    else
-                        init = last + 1
-                    end
-                    return string.sub(text, first, last)
-                end
-            end
-            """.trimIndent(),
-            "stdlib-string-gmatch.lua",
-        )
         return state
     }
 
@@ -190,6 +167,38 @@ internal object LuaStringLibrary {
             return LuaReturn.of(null)
         }
         return LuaReturn.ofValues(listOf(match.startIndex + 1L, match.endIndex.toLong()) + match.captures)
+    }
+
+    private fun stringGmatch(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "string.gmatch")
+        val pattern = requiredString(context, 2, "string.gmatch")
+        if (pattern.isEmpty()) {
+            throw LuaRuntimeException("empty patterns are not supported")
+        }
+        val compiledPattern = LuaStringPattern.compile(pattern)
+        var cursor = 0
+        val iterator = LuaFunction { _ ->
+            if (cursor > text.length) {
+                LuaReturn.of(null)
+            } else {
+                val match = compiledPattern.find(text, cursor)
+                if (match == null) {
+                    LuaReturn.of(null)
+                } else {
+                    cursor = if (match.startIndex == match.endIndex) {
+                        match.endIndex + 1
+                    } else {
+                        match.endIndex
+                    }
+                    if (match.captures.isNotEmpty()) {
+                        LuaReturn.ofValues(match.captures)
+                    } else {
+                        LuaReturn.of(text.substring(match.startIndex, match.endIndex))
+                    }
+                }
+            }
+        }
+        return LuaReturn.of(iterator)
     }
 
     private fun stringFormat(context: LuaCallContext): LuaReturn {

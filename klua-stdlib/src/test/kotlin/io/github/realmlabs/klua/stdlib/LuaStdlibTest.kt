@@ -1391,6 +1391,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gmatch returns captures`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator = string.gmatch("a1 b22", "(%a+)(%d+)")
+                local firstLetters, firstDigits = iterator()
+                local secondLetters, secondDigits = iterator()
+                local done = iterator()
+                return firstLetters, firstDigits, secondLetters, secondDigits, done
+                """.trimIndent(),
+                "string-gmatch-captures.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("1", state.toString(2))
+        assertEquals("b", state.toString(3))
+        assertEquals("22", state.toString(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
     fun `string gmatch reports unsupported patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
