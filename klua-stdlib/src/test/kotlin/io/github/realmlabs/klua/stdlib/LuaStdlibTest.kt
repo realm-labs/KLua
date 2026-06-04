@@ -1595,10 +1595,13 @@ class LuaStdlibTest {
                 local vowelStart, vowelEnd = string.find("cat", "[aeiou]")
                 local rangeStart, rangeEnd = string.find("x5", "[0-9]")
                 local negatedStart, negatedEnd = string.find("abc", "[^a]")
+                local literalCaretStart, literalCaretEnd = string.find("a^b", "a^")
+                local literalDollarStart, literalDollarEnd = string.find("a${'$'}b", "${'$'}b")
                 return firstStart, firstEnd, secondStart, secondEnd, lastStart, lastEnd,
                     dotStart, dotEnd, patternStart, patternEnd, digitStart, digitEnd,
                     literalDotStart, literalDotEnd, anchorStart, anchorEnd, endStart, endEnd,
                     vowelStart, vowelEnd, rangeStart, rangeEnd, negatedStart, negatedEnd,
+                    literalCaretStart, literalCaretEnd, literalDollarStart, literalDollarEnd,
                     string.find("hello", "xyz"), string.find("abc", "^b")
                 """.trimIndent(),
                 "string-find.lua",
@@ -1630,8 +1633,12 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(22))
         assertEquals(2L, state.toInteger(23))
         assertEquals(2L, state.toInteger(24))
-        assertTrue(state.isNil(25))
-        assertTrue(state.isNil(26))
+        assertEquals(1L, state.toInteger(25))
+        assertEquals(2L, state.toInteger(26))
+        assertEquals(2L, state.toInteger(27))
+        assertEquals(3L, state.toInteger(28))
+        assertTrue(state.isNil(29))
+        assertTrue(state.isNil(30))
     }
 
     @Test
@@ -1667,7 +1674,7 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.find("abc", "a^")""", "string-find-pattern.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return string.find("abc", "a]")""", "string-find-pattern.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
@@ -2586,7 +2593,7 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", "a^", "x")""", "string-gsub-pattern.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", "a]", "x")""", "string-gsub-pattern.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
@@ -2757,7 +2764,7 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local iterator = string.gmatch("abc", "a^")
+                local iterator = string.gmatch("abc", "a]")
                 return iterator()
                 """.trimIndent(),
                 "string-gmatch-pattern.lua",
@@ -3016,7 +3023,7 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.match("abc", "a^")""", "string-match-pattern.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return string.match("abc", "a]")""", "string-match-pattern.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())

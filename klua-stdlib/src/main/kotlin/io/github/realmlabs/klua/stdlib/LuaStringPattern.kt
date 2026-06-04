@@ -257,8 +257,6 @@ internal class LuaStringPattern private constructor(
                         index = addToken(tokens, token, pattern, nextIndex)
                         hasPatternToken = true
                     }
-                    '^',
-                    '$',
                     in UNSUPPORTED_MAGIC,
                     -> throw LuaRuntimeException("string patterns are not supported")
                     else -> {
@@ -449,7 +447,7 @@ private sealed interface Token {
     }
 }
 
-private const val UNSUPPORTED_MAGIC = "^$]*+-?"
+private const val UNSUPPORTED_MAGIC = "]*+-?"
 private const val ESCAPABLE_LITERAL = "^$()%.[]*+-?"
 
 private fun Char.isAsciiPunctuation(): Boolean {
