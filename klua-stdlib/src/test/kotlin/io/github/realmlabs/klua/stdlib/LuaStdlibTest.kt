@@ -548,6 +548,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage controls and reports collector state`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local running = collectgarbage("isrunning")
+                collectgarbage("stop")
+                local stopped = collectgarbage("isrunning")
+                collectgarbage("restart")
+                local restarted = collectgarbage("isrunning")
+                local countType = type(collectgarbage("count"))
+                local stepDone = collectgarbage("step")
+                local previousMode = collectgarbage("generational")
+                local restoredMode = collectgarbage("incremental")
+                return running, stopped, restarted, countType, stepDone, previousMode, restoredMode
+                """.trimIndent(),
+                "collectgarbage.lua",
+            ),
+        )
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertFalse(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("number", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("incremental", state.toString(6))
+        assertEquals("generational", state.toString(7))
+    }
+
+    @Test
+    fun `collectgarbage reports invalid option errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return collectgarbage("bad")""", "collectgarbage-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'collectgarbage' (invalid option 'bad')", state.toString(-1))
+    }
+
+    @Test
     fun `next iterates raw table entries`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

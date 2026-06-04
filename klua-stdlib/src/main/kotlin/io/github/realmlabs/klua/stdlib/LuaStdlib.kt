@@ -36,6 +36,14 @@ public object LuaStdlib {
         state.pushString(luaVersionName(state.config.version))
         state.setGlobal("_VERSION")
         state.register("assert", ::assert)
+        var garbageCollectorRunning = true
+        var garbageCollectorMode = "incremental"
+        state.register("collectgarbage") { context ->
+            val result = collectgarbage(context, garbageCollectorRunning, garbageCollectorMode)
+            garbageCollectorRunning = result.running
+            garbageCollectorMode = result.mode
+            result.returnValue
+        }
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
         state.register("ipairs", ::ipairs)
@@ -71,6 +79,12 @@ public object LuaStdlib {
             LuaVersion.LUAJIT_21 -> "LuaJIT 2.1"
         }
     }
+
+    private data class GarbageCollectorResult(
+        val running: Boolean,
+        val mode: String,
+        val returnValue: LuaReturn,
+    )
 
     @JvmStatic
     public fun openMath(state: LuaState): LuaState {
@@ -110,6 +124,31 @@ public object LuaStdlib {
 
     private fun error(context: LuaCallContext): LuaReturn {
         throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
+    }
+
+    private fun collectgarbage(context: LuaCallContext, running: Boolean, mode: String): GarbageCollectorResult {
+        return when (val option = context.toString(1) ?: "collect") {
+            "collect" -> {
+                System.gc()
+                GarbageCollectorResult(running, mode, LuaReturn.none())
+            }
+            "stop" -> GarbageCollectorResult(false, mode, LuaReturn.none())
+            "restart" -> GarbageCollectorResult(true, mode, LuaReturn.none())
+            "count" -> GarbageCollectorResult(running, mode, LuaReturn.of(usedMemoryKilobytes()))
+            "step" -> {
+                System.gc()
+                GarbageCollectorResult(running, mode, LuaReturn.of(true))
+            }
+            "isrunning" -> GarbageCollectorResult(running, mode, LuaReturn.of(running))
+            "incremental" -> GarbageCollectorResult(running, "incremental", LuaReturn.of(mode))
+            "generational" -> GarbageCollectorResult(running, "generational", LuaReturn.of(mode))
+            else -> throw LuaRuntimeException("bad argument #1 to 'collectgarbage' (invalid option '$option')")
+        }
+    }
+
+    private fun usedMemoryKilobytes(): Double {
+        val runtime = Runtime.getRuntime()
+        return (runtime.totalMemory() - runtime.freeMemory()).toDouble() / 1024.0
     }
 
     private fun getmetatable(context: LuaCallContext): LuaReturn {
