@@ -32,6 +32,10 @@ internal class Lexer(
             return longString(start, equals)
         }
 
+        if (peek() == '.' && peekNext().isDigit()) {
+            return leadingDotNumber(start)
+        }
+
         val char = advance()
         return when {
             char.isIdentifierStart() -> identifier(start)
@@ -89,6 +93,29 @@ internal class Lexer(
         } else {
             token(TokenKind.INTEGER, text, start, text.toLong())
         }
+    }
+
+    private fun leadingDotNumber(start: SourcePosition): Token {
+        advance()
+        while (peek().isDigit()) {
+            advance()
+        }
+
+        if (peek() == 'e' || peek() == 'E') {
+            advance()
+            if (peek() == '+' || peek() == '-') {
+                advance()
+            }
+            if (!peek().isDigit()) {
+                throw errorAt(position(), "expected exponent digits")
+            }
+            while (peek().isDigit()) {
+                advance()
+            }
+        }
+
+        val text = source.substring(start.offset, offset)
+        return token(TokenKind.FLOAT, text, start, text.toDouble())
     }
 
     private fun hexadecimalNumber(start: SourcePosition): Token {

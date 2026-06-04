@@ -131,6 +131,13 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes leading dot numeric literals`() {
+        val result = LuaVm().execute(Compiler.compile("return .5, -.25"))
+
+        assertEquals(listOf(LuaFloat(0.5), LuaFloat(-0.25)), result)
+    }
+
+    @Test
     fun `executes local declaration and local return`() {
         val result = LuaVm().execute(
             Compiler.compile(

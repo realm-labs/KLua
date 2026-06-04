@@ -65,6 +65,22 @@ class LexerTest {
     }
 
     @Test
+    fun `tokenizes leading dot float numbers`() {
+        val tokens = Lexer(".5 .25e2").tokenize()
+
+        assertEquals(
+            listOf(
+                TokenKind.FLOAT,
+                TokenKind.FLOAT,
+                TokenKind.EOF,
+            ),
+            tokens.map { it.kind },
+        )
+        assertEquals(0.5, tokens[0].literal)
+        assertEquals(25.0, tokens[1].literal)
+    }
+
+    @Test
     fun `tokenizes hexadecimal integer and float numbers`() {
         val tokens = Lexer("0xff 0X10 0x1.8p1 0x0.1E").tokenize()
 
