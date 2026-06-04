@@ -2427,6 +2427,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine close reports normal coroutine`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outer
+                outer = coroutine.create(function()
+                    local inner = coroutine.create(function()
+                        return coroutine.close(outer)
+                    end)
+                    return coroutine.resume(inner)
+                end)
+                local outerOk, innerOk, closeOk, closeMessage = coroutine.resume(outer)
+                return outerOk, innerOk, closeOk, closeMessage, coroutine.status(outer)
+                """.trimIndent(),
+                "coroutine-close-normal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("cannot close normal coroutine", state.toString(4))
+        assertEquals("dead", state.toString(5))
+    }
+
+    @Test
     fun `coroutine isyieldable reports current and explicit coroutine states`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
