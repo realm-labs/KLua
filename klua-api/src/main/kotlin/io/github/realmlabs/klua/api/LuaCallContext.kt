@@ -17,6 +17,8 @@ interface LuaCallContext {
 
     fun call(function: Any?, arguments: List<Any?>): LuaReturn
 
+    fun yield(values: List<Any?>): Nothing
+
     fun load(source: String, chunkName: String): LuaReturn
 
     fun getTable(index: Int): Any?

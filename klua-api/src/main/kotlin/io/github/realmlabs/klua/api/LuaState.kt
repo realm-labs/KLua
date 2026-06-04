@@ -444,6 +444,10 @@ class LuaState private constructor(
             KLuaCoreCallResult.Success(
                 result.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
             )
+        } catch (yield: LuaYieldException) {
+            KLuaCoreCallResult.Yielded(
+                yield.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
+            )
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -459,6 +463,8 @@ class LuaState private constructor(
         return try {
             val result = method.call(receiver, DefaultLuaCallContext(arguments))
             KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
+        } catch (yield: LuaYieldException) {
+            KLuaCoreCallResult.Yielded(yield.values.map { it.toCoreReturnValue() })
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -473,6 +479,8 @@ class LuaState private constructor(
         return try {
             val result = getter.get(receiver)
             KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
+        } catch (yield: LuaYieldException) {
+            KLuaCoreCallResult.Yielded(yield.values.map { it.toCoreReturnValue() })
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -488,6 +496,8 @@ class LuaState private constructor(
         return try {
             setter.set(receiver, value.toAnyValue())
             KLuaCoreCallResult.Success(emptyList())
+        } catch (yield: LuaYieldException) {
+            KLuaCoreCallResult.Yielded(yield.values.map { it.toCoreReturnValue() })
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -853,6 +863,10 @@ class LuaState private constructor(
             return callFunction(nativeFunction, arguments)
         }
 
+        override fun yield(values: List<Any?>): Nothing {
+            throw LuaYieldException(values)
+        }
+
         override fun load(source: String, chunkName: String): LuaReturn {
             return loadLuaFunction(source, chunkName)
         }
@@ -1029,3 +1043,7 @@ class LuaState private constructor(
         ) : LuaStackValue
     }
 }
+
+private class LuaYieldException(
+    val values: List<Any?>,
+) : RuntimeException(null, null, false, false)
