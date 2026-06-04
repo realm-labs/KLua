@@ -144,7 +144,7 @@ Current implemented areas:
 - Multi-module Gradle project with Kotlin/JVM 17 modules and tests.
 - Lexer and parser for current supported Lua syntax.
 - AST model, compiler, internal bytecode, prototype model, constant pool, and disassembler.
-- Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, and basic userdata bindings.
+- Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and initial internal thread/yield result plumbing.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
 - Partial `klua-stdlib` support with base, math, string, table, utf8, package, and initial coroutine library installers covered by focused Lua-source tests.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
@@ -155,7 +155,7 @@ Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
-- Coroutine runtime yield/resume continuation semantics; `coroutine.yield` currently reports outside-coroutine and non-yieldable-boundary errors but does not suspend.
+- Coroutine runtime yield/resume continuation semantics; the core VM can propagate internal yielded call results, but `coroutine.yield` currently reports outside-coroutine and non-yieldable-boundary errors instead of suspending.
 - Error handling, tracebacks, and debug metadata.
 - Debug hooks and source-level debugger.
 - DAP adapter and command-line/debug tooling.
