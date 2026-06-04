@@ -212,7 +212,7 @@ internal class LuaVm(
             frame.pendingCallResultBase = base
             frame.pendingCallExpectedResults = expectedResults
             frame.pendingCallContinuation = results.continuation
-            return results
+            return LuaExecutionResult.Yielded(results.values)
         }
         val returnedValues = (results as LuaExecutionResult.Returned).values
         applyCallResults(stack, frame, base, expectedResults, returnedValues)
@@ -238,7 +238,7 @@ internal class LuaVm(
                     frame.pendingCallResultBase = base
                     frame.pendingCallExpectedResults = expectedResults
                     frame.pendingCallContinuation = continued.continuation
-                    return continued
+                    return LuaExecutionResult.Yielded(continued.values)
                 }
             }
         }

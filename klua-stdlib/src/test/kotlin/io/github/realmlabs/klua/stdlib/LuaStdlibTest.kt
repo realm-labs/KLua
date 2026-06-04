@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.api.LuaConfig
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaStatus
 import io.github.realmlabs.klua.api.LuaVersion
+import io.github.realmlabs.klua.api.LuaYieldableFunction
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.function.Consumer
@@ -1995,6 +1996,40 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("attempt to yield across a non-yieldable boundary", state.toString(2))
         assertEquals("dead", state.toString(3))
+    }
+
+    @Test
+    fun `coroutine resume supports explicitly yieldable host function bodies`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostYield",
+            LuaYieldableFunction { context ->
+                context.yield((1..context.argumentCount).map { index -> context.get(index) })
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(hostYield)
+                local firstOk, yielded = coroutine.resume(co, "host")
+                local statusAfterYield = coroutine.status(co)
+                local secondOk, returned = coroutine.resume(co, "done")
+                return firstOk, yielded, statusAfterYield, secondOk, returned, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-yieldable-host.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("host", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("done", state.toString(5))
+        assertEquals("dead", state.toString(6))
     }
 
     @Test

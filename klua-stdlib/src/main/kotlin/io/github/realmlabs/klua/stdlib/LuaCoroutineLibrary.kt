@@ -9,7 +9,10 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
+import io.github.realmlabs.klua.api.continueWith
+import io.github.realmlabs.klua.api.withContinuation
 
 internal object LuaCoroutineLibrary {
     fun open(state: LuaState): LuaState {
@@ -79,10 +82,20 @@ internal object LuaCoroutineLibrary {
                         LuaReturn.of(false, result.message)
                     }
                 }
+            } else if (coroutine.pendingYield != null) {
+                resumeHostYieldableCoroutine(coroutine, coroutine.pendingYield, arguments)
             } else {
-                val result = context.call(coroutine.function, arguments)
-                coroutine.status = CoroutineStatus.DEAD
-                LuaReturn.ofValues(listOf(true) + result.values)
+                try {
+                    val result = context.call(coroutine.function, arguments)
+                    coroutine.status = CoroutineStatus.DEAD
+                    LuaReturn.ofValues(listOf(true) + result.values)
+                } catch (yield: LuaYieldException) {
+                    if (coroutine.function !is LuaYieldableFunction) {
+                        coroutine.status = CoroutineStatus.DEAD
+                        return LuaReturn.of(false, "attempt to yield across a non-yieldable boundary")
+                    }
+                    suspendHostYieldableCoroutine(coroutine, yield)
+                }
             }
         } catch (exception: LuaException) {
             coroutine.status = CoroutineStatus.DEAD
@@ -93,6 +106,30 @@ internal object LuaCoroutineLibrary {
         } finally {
             runtime.running = previousRunning
         }
+    }
+
+    private fun resumeHostYieldableCoroutine(
+        coroutine: LuaCoroutine,
+        yield: LuaYieldException?,
+        arguments: List<Any?>,
+    ): LuaReturn {
+        require(yield != null) { "host coroutine has no pending yield" }
+        coroutine.pendingYield = null
+        return try {
+            val result = yield.continueWith(arguments)
+            coroutine.status = CoroutineStatus.DEAD
+            LuaReturn.ofValues(listOf(true) + result.values)
+        } catch (nextYield: LuaYieldException) {
+            suspendHostYieldableCoroutine(coroutine, nextYield)
+        }
+    }
+
+    private fun suspendHostYieldableCoroutine(coroutine: LuaCoroutine, yield: LuaYieldException): LuaReturn {
+        coroutine.pendingYield = yield.withContinuation { arguments ->
+            yield.continueWith(arguments)
+        }
+        coroutine.status = CoroutineStatus.SUSPENDED
+        return LuaReturn.ofValues(listOf(true) + yield.values)
     }
 
     private fun coroutineRunning(runtime: CoroutineRuntime): LuaReturn {
@@ -193,6 +230,7 @@ internal object LuaCoroutineLibrary {
         val function: LuaFunction,
         val handle: LuaCoroutineHandle? = null,
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
+        var pendingYield: LuaYieldException? = null,
     )
 
     private enum class CoroutineStatus {

@@ -82,4 +82,25 @@ class KLuaCoreRuntimeCoroutineTest {
             coroutine.resume(listOf(KLuaCoreValue.StringValue("done"))),
         )
     }
+
+    @Test
+    fun `core coroutine runner resumes top level yieldable native functions`() {
+        val globals = KLuaCoreGlobals.create()
+        val function = KLuaCoreRuntime.createFunctionValue(
+            function = { arguments -> KLuaCoreCallResult.Yielded(arguments) },
+            yieldable = true,
+        )
+        globals.set("host", function)
+        val coroutineFunction = assertIs<KLuaCoreValue.FunctionValue>(globals.get("host"))
+        val coroutine = assertNotNull(KLuaCoreRuntime.createCoroutine(coroutineFunction, globals))
+
+        assertEquals(
+            KLuaCoreCoroutineExecution.Yielded(listOf(KLuaCoreValue.StringValue("host"))),
+            coroutine.resume(listOf(KLuaCoreValue.StringValue("host"))),
+        )
+        assertEquals(
+            KLuaCoreCoroutineExecution.Returned(listOf(KLuaCoreValue.StringValue("done"))),
+            coroutine.resume(listOf(KLuaCoreValue.StringValue("done"))),
+        )
+    }
 }

@@ -20,6 +20,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
+import io.github.realmlabs.klua.core.vm.LuaYieldContinuation
 import io.github.realmlabs.klua.core.vm.LuaYieldSignal
 import io.github.realmlabs.klua.core.vm.LuaYieldSignalContinuation
 import java.util.IdentityHashMap
@@ -285,6 +286,7 @@ public class KLuaCoreCoroutine internal constructor(
 ) {
     private val vm = LuaVm(globals.table)
     private var started = false
+    private var pendingContinuation: LuaYieldContinuation? = null
 
     public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCoroutineExecution {
         val luaArguments = arguments.map { value ->
@@ -292,19 +294,38 @@ public class KLuaCoreCoroutine internal constructor(
                 ?: return KLuaCoreCoroutineExecution.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
         }
         return try {
-            when (val result = if (started) vm.resumeYieldable(luaArguments) else vm.callYieldable(function, luaArguments)) {
-                is LuaExecutionResult.Returned -> KLuaCoreCoroutineExecution.Returned(
-                    result.values.map { value -> toPublicValue(value, globals) },
-                )
-                is LuaExecutionResult.Yielded -> KLuaCoreCoroutineExecution.Yielded(
-                    result.values.map { value -> toPublicValue(value, globals) },
-                )
+            val continuation = pendingContinuation
+            pendingContinuation = null
+            val result = when {
+                continuation != null -> continuation.resume(luaArguments)
+                started -> vm.resumeYieldable(luaArguments)
+                else -> vm.callYieldable(function, luaArguments)
+            }
+            result.toCoroutineExecution(globals).also {
+                if (result is LuaExecutionResult.Yielded) {
+                    pendingContinuation = result.continuation ?: if (vm.currentFrame == null) {
+                        LuaYieldContinuation { resumedArguments -> LuaExecutionResult.Returned(resumedArguments) }
+                    } else {
+                        null
+                    }
+                }
             }
         } catch (error: LuaVmException) {
             KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error")
         } finally {
             started = true
         }
+    }
+}
+
+private fun LuaExecutionResult.toCoroutineExecution(globals: KLuaCoreGlobals): KLuaCoreCoroutineExecution {
+    return when (this) {
+        is LuaExecutionResult.Returned -> KLuaCoreCoroutineExecution.Returned(
+            values.map { value -> toPublicValue(value, globals) },
+        )
+        is LuaExecutionResult.Yielded -> KLuaCoreCoroutineExecution.Yielded(
+            values.map { value -> toPublicValue(value, globals) },
+        )
     }
 }
 
