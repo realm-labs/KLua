@@ -96,12 +96,20 @@ public object LuaStdlib {
             """
             string.gmatch = function(text, pattern)
                 local init = 1
+                local length = string.len(text)
                 return function()
+                    if init > length + 1 then
+                        return nil
+                    end
                     local first, last = string.find(text, pattern, init)
                     if first == nil then
                         return nil
                     end
-                    init = last + 1
+                    if last < first then
+                        init = first + 1
+                    else
+                        init = last + 1
+                    end
                     return string.sub(text, first, last)
                 end
             end
@@ -418,10 +426,19 @@ public object LuaStdlib {
             }
             result.append(text, cursor, match.startIndex)
             result.append(replacement)
-            cursor = match.endIndex
+            cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
+                result.append(text[match.endIndex])
+                match.endIndex + 1
+            } else if (match.startIndex == match.endIndex) {
+                match.endIndex + 1
+            } else {
+                match.endIndex
+            }
             replacements++
         }
-        result.append(text, cursor, text.length)
+        if (cursor <= text.length) {
+            result.append(text, cursor, text.length)
+        }
         return LuaReturn.of(result.toString(), replacements)
     }
 
