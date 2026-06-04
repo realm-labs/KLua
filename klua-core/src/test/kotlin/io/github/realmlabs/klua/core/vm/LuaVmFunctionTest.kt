@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.compiler.Compiler
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -51,6 +52,29 @@ class LuaVmFunctionTest {
         )
 
         assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `executes shorthand function call arguments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function echo(value)
+                    return value
+                end
+                local function field(value)
+                    return value.name
+                end
+                local module = {prefix = "prefix"}
+                function module:label(value)
+                    return self.prefix .. ":" .. value
+                end
+                return echo "ok", field {name = "table"}, module:label "value"
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaString("ok"), LuaString("table"), LuaString("prefix:value")), result)
     }
 
     @Test

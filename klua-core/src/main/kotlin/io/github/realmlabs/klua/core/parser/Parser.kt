@@ -329,17 +329,12 @@ internal class Parser private constructor(
 
         while (true) {
             when {
-                match(TokenKind.LEFT_PAREN) -> {
-                    val arguments = if (check(TokenKind.RIGHT_PAREN)) {
-                        emptyList()
-                    } else {
-                        expressionList()
-                    }
-                    val end = consume(TokenKind.RIGHT_PAREN, "expected ')' after function arguments")
+                isCallArgumentStart() -> {
+                    val callArguments = callArguments("function")
                     expression = CallExpression(
                         callee = expression,
-                        arguments = arguments,
-                        range = SourceRange(expression.range.start, end.range.end),
+                        arguments = callArguments.arguments,
+                        range = SourceRange(expression.range.start, callArguments.end.end),
                     )
                 }
                 match(TokenKind.LEFT_BRACKET) -> {
@@ -361,23 +356,42 @@ internal class Parser private constructor(
                 }
                 match(TokenKind.COLON) -> {
                     val name = consume(TokenKind.IDENTIFIER, "expected method name after ':'")
-                    consume(TokenKind.LEFT_PAREN, "expected '(' after method name")
-                    val arguments = if (check(TokenKind.RIGHT_PAREN)) {
-                        emptyList()
-                    } else {
-                        expressionList()
-                    }
-                    val end = consume(TokenKind.RIGHT_PAREN, "expected ')' after method arguments")
+                    val callArguments = callArguments("method")
                     expression = MethodCallExpression(
                         receiver = expression,
                         methodName = name.literal as String,
-                        arguments = arguments,
-                        range = SourceRange(expression.range.start, end.range.end),
+                        arguments = callArguments.arguments,
+                        range = SourceRange(expression.range.start, callArguments.end.end),
                     )
                 }
                 else -> return expression
             }
         }
+    }
+
+    private fun isCallArgumentStart(): Boolean {
+        return check(TokenKind.LEFT_PAREN) || check(TokenKind.LEFT_BRACE) || check(TokenKind.STRING)
+    }
+
+    private fun callArguments(callKind: String): CallArguments {
+        if (match(TokenKind.LEFT_PAREN)) {
+            val arguments = if (check(TokenKind.RIGHT_PAREN)) {
+                emptyList()
+            } else {
+                expressionList()
+            }
+            val end = consume(TokenKind.RIGHT_PAREN, "expected ')' after $callKind arguments")
+            return CallArguments(arguments, end.range)
+        }
+        if (match(TokenKind.LEFT_BRACE)) {
+            val table = tableExpression(previous())
+            return CallArguments(listOf(table), table.range)
+        }
+        if (match(TokenKind.STRING)) {
+            val token = previous()
+            return CallArguments(listOf(StringExpression(token.literal as String, token.range)), token.range)
+        }
+        throw errorAt(peek(), "expected $callKind arguments")
     }
 
     private fun primary(): Expression {
@@ -564,6 +578,11 @@ internal class Parser private constructor(
         val operator: BinaryOperator,
         val precedence: Int,
         val rightAssociative: Boolean = false,
+    )
+
+    private data class CallArguments(
+        val arguments: List<Expression>,
+        val end: SourceRange,
     )
 
     companion object {

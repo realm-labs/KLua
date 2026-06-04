@@ -355,6 +355,25 @@ class ParserTest {
     }
 
     @Test
+    fun `parses shorthand function call arguments`() {
+        val chunk = Parser.parse("return echo \"ok\", name {value = \"table\"}, player:setName \"Ada\"")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+
+        val stringCall = assertIs<CallExpression>(statement.values[0])
+        assertEquals("echo", assertIs<VariableExpression>(stringCall.callee).name)
+        assertEquals("ok", assertIs<StringExpression>(stringCall.arguments.single()).value)
+
+        val tableCall = assertIs<CallExpression>(statement.values[1])
+        assertEquals("name", assertIs<VariableExpression>(tableCall.callee).name)
+        assertIs<TableExpression>(tableCall.arguments.single())
+
+        val methodCall = assertIs<MethodCallExpression>(statement.values[2])
+        assertEquals("player", assertIs<VariableExpression>(methodCall.receiver).name)
+        assertEquals("setName", methodCall.methodName)
+        assertEquals("Ada", assertIs<StringExpression>(methodCall.arguments.single()).value)
+    }
+
+    @Test
     fun `parses function call statements`() {
         val chunk = Parser.parse("tick(1)")
         val statement = assertIs<CallStatement>(chunk.statements.single())
