@@ -1852,6 +1852,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine yield resumes across nested lua frames`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function bounce(seed)
+                    local resumed = coroutine.yield("first", seed)
+                    return coroutine.yield("second", resumed)
+                end
+
+                local co = coroutine.create(function(seed)
+                    local final = bounce(seed)
+                    return "done", final
+                end)
+
+                local firstOk, firstMarker, firstSeed = coroutine.resume(co, "seed")
+                local firstStatus = coroutine.status(co)
+                local secondOk, secondMarker, secondResume = coroutine.resume(co, "resume-one")
+                local secondStatus = coroutine.status(co)
+                local finalOk, doneMarker, finalResume = coroutine.resume(co, "resume-two")
+                return firstOk, firstMarker, firstSeed, firstStatus,
+                    secondOk, secondMarker, secondResume, secondStatus,
+                    finalOk, doneMarker, finalResume, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-multiple-yield.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("first", state.toString(2))
+        assertEquals("seed", state.toString(3))
+        assertEquals("suspended", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("second", state.toString(6))
+        assertEquals("resume-one", state.toString(7))
+        assertEquals("suspended", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("done", state.toString(10))
+        assertEquals("resume-two", state.toString(11))
+        assertEquals("dead", state.toString(12))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)
