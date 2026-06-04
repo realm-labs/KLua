@@ -1011,6 +1011,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns support optional items`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local shortStart, shortEnd = string.find("ac", "ab?c")
+                local longStart, longEnd = string.find("abc", "ab?c")
+                local replaced, count = string.gsub("color colour", "colou?r", "x")
+                local iterator = string.gmatch("ab ac abc", "ab?c")
+                return shortStart, shortEnd, longStart, longEnd,
+                    string.match("color", "colou?r"),
+                    string.match("colour", "colou?r"),
+                    replaced, count,
+                    iterator(), iterator(), iterator()
+                """.trimIndent(),
+                "string-pattern-optional.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals("color", state.toString(5))
+        assertEquals("colour", state.toString(6))
+        assertEquals("x x", state.toString(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals("ac", state.toString(9))
+        assertEquals("abc", state.toString(10))
+        assertTrue(state.isNil(11))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

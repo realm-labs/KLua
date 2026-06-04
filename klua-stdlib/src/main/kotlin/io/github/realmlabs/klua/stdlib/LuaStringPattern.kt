@@ -28,11 +28,11 @@ internal class LuaStringPattern private constructor(
     }
 
     private fun findPattern(text: String, startIndex: Int, patternTokens: List<Token>): LuaPatternMatch? {
-        val lastStart = text.length - patternTokens.size
         var index = if (startAnchored) 0 else startIndex
-        while (index <= lastStart) {
-            if (index >= startIndex && matchesAt(text, index, patternTokens)) {
-                return LuaPatternMatch(index, index + patternTokens.size)
+        while (index <= text.length) {
+            val endIndex = matchEnd(text, index, patternTokens, tokenIndex = 0)
+            if (index >= startIndex && endIndex != null) {
+                return LuaPatternMatch(index, endIndex)
             }
             if (startAnchored) {
                 return null
@@ -42,16 +42,34 @@ internal class LuaStringPattern private constructor(
         return null
     }
 
-    private fun matchesAt(text: String, startIndex: Int, patternTokens: List<Token>): Boolean {
-        if (endAnchored && startIndex + patternTokens.size != text.length) {
-            return false
+    private fun matchEnd(
+        text: String,
+        textIndex: Int,
+        patternTokens: List<Token>,
+        tokenIndex: Int,
+    ): Int? {
+        if (tokenIndex >= patternTokens.size) {
+            return if (!endAnchored || textIndex == text.length) textIndex else null
         }
-        for (offset in patternTokens.indices) {
-            if (!patternTokens[offset].matches(text[startIndex + offset])) {
-                return false
+
+        return when (val token = patternTokens[tokenIndex]) {
+            is Token.Optional -> {
+                if (textIndex < text.length && token.token.matches(text[textIndex])) {
+                    val consumed = matchEnd(text, textIndex + 1, patternTokens, tokenIndex + 1)
+                    if (consumed != null) {
+                        return consumed
+                    }
+                }
+                matchEnd(text, textIndex, patternTokens, tokenIndex + 1)
+            }
+            else -> {
+                if (textIndex >= text.length || !token.matches(text[textIndex])) {
+                    null
+                } else {
+                    matchEnd(text, textIndex + 1, patternTokens, tokenIndex + 1)
+                }
             }
         }
-        return true
     }
 
     internal companion object {
@@ -76,9 +94,8 @@ internal class LuaStringPattern private constructor(
             while (index < pattern.length) {
                 when (val char = pattern[index]) {
                     '.' -> {
-                        tokens += Token.AnyChar
+                        index = addToken(tokens, Token.AnyChar, pattern, index + 1)
                         hasPatternToken = true
-                        index++
                     }
                     '%' -> {
                         if (index + 1 >= pattern.length) {
@@ -89,27 +106,36 @@ internal class LuaStringPattern private constructor(
                         if (token == null) {
                             throw LuaRuntimeException("string patterns are not supported")
                         }
-                        tokens += token
+                        index = addToken(tokens, token, pattern, index + 2)
                         hasPatternToken = true
-                        index += 2
                     }
                     '[' -> {
                         val (token, nextIndex) = bracketClassToken(pattern, index)
-                        tokens += token
+                        index = addToken(tokens, token, pattern, nextIndex)
                         hasPatternToken = true
-                        index = nextIndex
                     }
                     '^',
                     '$',
                     in UNSUPPORTED_MAGIC,
                     -> throw LuaRuntimeException("string patterns are not supported")
                     else -> {
-                        tokens += Token.Literal(char)
-                        index++
+                        if (index + 1 < pattern.length && pattern[index + 1] == '?') {
+                            hasPatternToken = true
+                        }
+                        index = addToken(tokens, Token.Literal(char), pattern, index + 1)
                     }
                 }
             }
             return if (hasPatternToken) tokens else null
+        }
+
+        private fun addToken(tokens: MutableList<Token>, token: Token, pattern: String, nextIndex: Int): Int {
+            if (nextIndex < pattern.length && pattern[nextIndex] == '?') {
+                tokens += Token.Optional(token)
+                return nextIndex + 1
+            }
+            tokens += token
+            return nextIndex
         }
 
         private fun bracketClassToken(pattern: String, startIndex: Int): Pair<Token, Int> {
@@ -218,6 +244,12 @@ private sealed interface Token {
             val contains = ranges.any { range -> char in range } || tokens.any { token -> token.matches(char) }
             return if (negated) !contains else contains
         }
+    }
+
+    data class Optional(
+        val token: Token,
+    ) : Token {
+        override fun matches(char: Char): Boolean = token.matches(char)
     }
 }
 
