@@ -400,9 +400,6 @@ public object LuaStdlib {
         } else {
             requiredInteger(context, 4, "string.gsub")
         }
-        if (pattern.hasLuaPatternMagic()) {
-            throw LuaRuntimeException("string patterns are not supported")
-        }
         if (pattern.isEmpty()) {
             throw LuaRuntimeException("empty patterns are not supported")
         }
@@ -413,14 +410,15 @@ public object LuaStdlib {
         val result = StringBuilder()
         var cursor = 0
         var replacements = 0L
+        val compiledPattern = LuaStringPattern.compile(pattern)
         while (replacements < limit) {
-            val foundIndex = text.indexOf(pattern, cursor)
-            if (foundIndex < 0) {
+            val match = compiledPattern.find(text, cursor)
+            if (match == null) {
                 break
             }
-            result.append(text, cursor, foundIndex)
+            result.append(text, cursor, match.startIndex)
             result.append(replacement)
-            cursor = foundIndex + pattern.length
+            cursor = match.endIndex
             replacements++
         }
         result.append(text, cursor, text.length)
@@ -436,16 +434,16 @@ public object LuaStdlib {
             requiredInteger(context, 3, "string.find")
         }
         val plain = context.toBoolean(4)
-        if (!plain && pattern.hasLuaPatternMagic()) {
-            throw LuaRuntimeException("string patterns are not supported")
-        }
-
         val startIndex = text.normalizeSearchStart(start) - 1
-        val foundIndex = text.indexOf(pattern, startIndex)
-        if (foundIndex < 0) {
+        val match = if (plain) {
+            LuaStringPattern.literal(pattern).find(text, startIndex)
+        } else {
+            LuaStringPattern.compile(pattern).find(text, startIndex)
+        }
+        if (match == null) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(foundIndex + 1L, foundIndex + pattern.length.toLong())
+        return LuaReturn.of(match.startIndex + 1L, match.endIndex.toLong())
     }
 
     private fun stringFormat(context: LuaCallContext): LuaReturn {
@@ -499,16 +497,12 @@ public object LuaStdlib {
         } else {
             requiredInteger(context, 3, "string.match")
         }
-        if (pattern.hasLuaPatternMagic()) {
-            throw LuaRuntimeException("string patterns are not supported")
-        }
-
         val startIndex = text.normalizeSearchStart(start) - 1
-        val foundIndex = text.indexOf(pattern, startIndex)
-        if (foundIndex < 0) {
+        val match = LuaStringPattern.compile(pattern).find(text, startIndex)
+        if (match == null) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(text.substring(foundIndex, foundIndex + pattern.length))
+        return LuaReturn.of(text.substring(match.startIndex, match.endIndex))
     }
 
     private fun stringRep(context: LuaCallContext): LuaReturn {
@@ -866,10 +860,6 @@ public object LuaStdlib {
             else -> length + index + 1L
         }
         return normalized.coerceIn(1L, length + 1L).toInt()
-    }
-
-    private fun String.hasLuaPatternMagic(): Boolean {
-        return any { char -> char in "^$()%.[]*+-?" }
     }
 
 }
