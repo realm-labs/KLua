@@ -6,6 +6,10 @@ import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.util.Random
 import kotlin.math.absoluteValue
+import kotlin.math.acos
+import kotlin.math.asin
+import kotlin.math.atan
+import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.cos
 import kotlin.math.exp
@@ -21,6 +25,9 @@ internal object LuaMathLibrary {
     fun open(state: LuaState): LuaState {
         state.newTable()
         setFunctionField(state, "abs", ::mathAbs)
+        setFunctionField(state, "acos", ::mathAcos)
+        setFunctionField(state, "asin", ::mathAsin)
+        setFunctionField(state, "atan", ::mathAtan)
         setFunctionField(state, "ceil", ::mathCeil)
         setFunctionField(state, "cos", ::mathCos)
         setFunctionField(state, "deg", ::mathDeg)
@@ -49,6 +56,22 @@ internal object LuaMathLibrary {
             return LuaReturn.of(integer.absoluteValue)
         }
         return LuaReturn.of(requiredNumber(context, 1, "math.abs").absoluteValue)
+    }
+
+    private fun mathAcos(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(acos(requiredNumber(context, 1, "math.acos")))
+    }
+
+    private fun mathAsin(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(asin(requiredNumber(context, 1, "math.asin")))
+    }
+
+    private fun mathAtan(context: LuaCallContext): LuaReturn {
+        val y = requiredNumber(context, 1, "math.atan")
+        if (context.argumentCount < 2) {
+            return LuaReturn.of(atan(y))
+        }
+        return LuaReturn.of(atan2(y, requiredNumber(context, 2, "math.atan")))
     }
 
     private fun mathCeil(context: LuaCallContext): LuaReturn {
