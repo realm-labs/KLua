@@ -2950,6 +2950,55 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 len counts byte ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "A" .. utf8.char(128512) .. "Z"
+                return utf8.len(text, 1, 6),
+                    utf8.len(text, 2, 5),
+                    utf8.len(text, 2, 6),
+                    utf8.len(text, 6, 6),
+                    utf8.len(text, 3, 2)
+                """.trimIndent(),
+                "utf8-len-byte-ranges.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+    }
+
+    @Test
+    fun `utf8 len reports continuation byte starts`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "A" .. utf8.char(128512) .. "Z"
+                return utf8.len(text, 4, 6)
+                """.trimIndent(),
+                "utf8-len-continuation.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertEquals(4L, state.toInteger(2))
+    }
+
+    @Test
     fun `utf8 len reports range position errors`() {
         val startState = LuaState.create()
         LuaStdlib.openUtf8(startState)

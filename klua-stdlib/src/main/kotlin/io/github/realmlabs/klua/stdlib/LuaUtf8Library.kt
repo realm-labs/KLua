@@ -61,12 +61,17 @@ internal object LuaUtf8Library {
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
         val codePoints = requiredString(context, 1, "utf8.len").codePoints().toArray()
-        val start = normalizedLenStart(context, 2, 1L, codePoints.size, "utf8.len")
-        val end = normalizedLenEnd(context, 3, -1L, codePoints.size, "utf8.len")
+        val byteOffsets = utf8ByteOffsets(codePoints)
+        val byteLength = utf8ByteLength(codePoints)
+        val start = normalizedLenStart(context, 2, 1L, byteLength, "utf8.len")
+        val end = normalizedLenEnd(context, 3, -1L, byteLength, "utf8.len")
         if (start > end) {
             return LuaReturn.of(0L)
         }
-        return LuaReturn.of(end - start + 1L)
+        if (!isUtf8StartBytePosition(byteOffsets, start)) {
+            return LuaReturn.of(null, start)
+        }
+        return LuaReturn.of(byteOffsets.count { byteOffset -> byteOffset in start..end }.toLong())
     }
 
     private fun utf8Offset(context: LuaCallContext): LuaReturn {
@@ -156,7 +161,7 @@ internal object LuaUtf8Library {
         context: LuaCallContext,
         index: Int,
         defaultValue: Long,
-        length: Int,
+        length: Long,
         functionName: String,
     ): Long {
         val position = if (context.isNone(index) || context.isNil(index)) {
@@ -165,7 +170,7 @@ internal object LuaUtf8Library {
             requiredInteger(context, index, functionName)
         }
         val normalized = if (position < 0L) length + position + 1L else position
-        if (normalized < 1L || normalized > length.toLong() + 1L) {
+        if (normalized < 1L || normalized > length + 1L) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
         }
         return normalized
@@ -175,7 +180,7 @@ internal object LuaUtf8Library {
         context: LuaCallContext,
         index: Int,
         defaultValue: Long,
-        length: Int,
+        length: Long,
         functionName: String,
     ): Long {
         val position = if (context.isNone(index) || context.isNil(index)) {
@@ -184,7 +189,7 @@ internal object LuaUtf8Library {
             requiredInteger(context, index, functionName)
         }
         val normalized = if (position < 0L) length + position + 1L else position
-        if (normalized < 0L || normalized > length.toLong()) {
+        if (normalized < 0L || normalized > length) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
         }
         return normalized
@@ -234,6 +239,10 @@ internal object LuaUtf8Library {
             }
         }
         return null
+    }
+
+    private fun isUtf8StartBytePosition(byteOffsets: List<Long>, bytePosition: Long): Boolean {
+        return byteOffsets.any { byteOffset -> byteOffset == bytePosition }
     }
 
     private fun normalizedOffsetPosition(
