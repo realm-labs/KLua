@@ -463,6 +463,24 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes do block with scoped locals`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local x = 1
+                do
+                    local x = 2
+                    x = x + 1
+                end
+                return x
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
     fun `executes while loop`() {
         val result = LuaVm().execute(
             Compiler.compile(

@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.CallExpression
 import io.github.realmlabs.klua.core.ast.CallStatement
 import io.github.realmlabs.klua.core.ast.Chunk
+import io.github.realmlabs.klua.core.ast.DoStatement
 import io.github.realmlabs.klua.core.ast.ElseIfBranch
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
@@ -71,6 +72,7 @@ internal class Parser private constructor(
             match(TokenKind.LOCAL) -> localStatement(previous())
             match(TokenKind.RETURN) -> returnStatement(previous())
             match(TokenKind.BREAK) -> breakStatement(previous())
+            match(TokenKind.DO) -> doStatement(previous())
             match(TokenKind.IF) -> ifStatement(previous())
             match(TokenKind.WHILE) -> whileStatement(previous())
             match(TokenKind.REPEAT) -> repeatStatement(previous())
@@ -172,6 +174,12 @@ internal class Parser private constructor(
             return BreakStatement(SourceRange(start.range.start, previous().range.end))
         }
         return BreakStatement(start.range)
+    }
+
+    private fun doStatement(start: Token): DoStatement {
+        val block = parseBlock(setOf(TokenKind.END))
+        val end = consume(TokenKind.END, "expected 'end' after do block")
+        return DoStatement(block, SourceRange(start.range.start, end.range.end))
     }
 
     private fun ifStatement(start: Token): IfStatement {

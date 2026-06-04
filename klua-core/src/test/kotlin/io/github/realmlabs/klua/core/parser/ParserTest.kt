@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.core.ast.BooleanExpression
 import io.github.realmlabs.klua.core.ast.CallExpression
 import io.github.realmlabs.klua.core.ast.CallStatement
 import io.github.realmlabs.klua.core.ast.BreakStatement
+import io.github.realmlabs.klua.core.ast.DoStatement
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
@@ -93,6 +94,21 @@ class ParserTest {
 
         val thenReturn = assertIs<ReturnStatement>(statement.thenBlock.single())
         assertEquals("high", assertIs<StringExpression>(thenReturn.values.single()).value)
+    }
+
+    @Test
+    fun `parses do block`() {
+        val chunk = Parser.parse(
+            """
+            do
+                local x = 1
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<DoStatement>(chunk.statements.single())
+        val local = assertIs<LocalStatement>(statement.block.single())
+        assertEquals(listOf("x"), local.names)
     }
 
     @Test

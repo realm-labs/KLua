@@ -8,6 +8,7 @@ import io.github.realmlabs.klua.core.ast.BreakStatement
 import io.github.realmlabs.klua.core.ast.CallExpression
 import io.github.realmlabs.klua.core.ast.CallStatement
 import io.github.realmlabs.klua.core.ast.Chunk
+import io.github.realmlabs.klua.core.ast.DoStatement
 import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
@@ -95,6 +96,7 @@ internal class Compiler private constructor(
                 is LocalStatement -> compileLocal(statement)
                 is AssignmentStatement -> compileAssignment(statement)
                 is CallStatement -> compileCallStatement(statement)
+                is DoStatement -> compileScopedBlock(statement.block)
                 is IfStatement -> compileIf(statement)
                 is WhileStatement -> compileWhile(statement)
                 is RepeatStatement -> compileRepeat(statement)
