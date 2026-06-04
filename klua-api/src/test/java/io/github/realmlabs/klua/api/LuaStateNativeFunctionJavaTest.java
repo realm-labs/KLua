@@ -189,9 +189,10 @@ class LuaStateNativeFunctionJavaTest {
     @Test
     void nativeFunctionErrorsFromLuaSourceBecomeRuntimeErrors() {
         LuaState state = LuaState.create();
+        IllegalStateException failure = new IllegalStateException("host failure");
 
         state.register("fail", context -> {
-            throw new IllegalStateException("host failure");
+            throw failure;
         });
 
         assertEquals(LuaStatus.OK, state.load("return fail()", "native-error.lua"));
@@ -199,6 +200,10 @@ class LuaStateNativeFunctionJavaTest {
 
         assertEquals(1, state.getTop());
         assertTrue(state.getLastError() instanceof LuaRuntimeException);
+        LuaRuntimeException error = (LuaRuntimeException) state.getLastError();
+        assertSame(failure, error.getCause());
+        assertEquals("native-error.lua", error.getSourceName());
+        assertEquals(1, error.getLine());
         assertEquals("host failure", state.toString(-1));
     }
 

@@ -69,7 +69,7 @@ public object KLuaCoreRuntime {
                 toPublicValue(value, globals)
             })
         } catch (error: LuaVmException) {
-            KLuaCoreExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line)
+            KLuaCoreExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line, error.rootCause())
         }
     }
 
@@ -249,6 +249,7 @@ public sealed interface KLuaCoreCallResult {
 
     public data class RuntimeError(
         public val message: String,
+        public val cause: Throwable? = null,
     ) : KLuaCoreCallResult
 }
 
@@ -275,6 +276,7 @@ public sealed interface KLuaCoreExecution {
         public val message: String,
         public val sourceName: String? = null,
         public val line: Int? = null,
+        public val cause: Throwable? = null,
     ) : KLuaCoreExecution
 }
 
@@ -321,7 +323,7 @@ public class KLuaCoreCoroutine internal constructor(
             }
         } catch (error: LuaVmException) {
             dead = true
-            KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line)
+            KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line, error.rootCause())
         } finally {
             started = true
         }
@@ -352,6 +354,7 @@ public sealed interface KLuaCoreCoroutineExecution {
         public val message: String,
         public val sourceName: String? = null,
         public val line: Int? = null,
+        public val cause: Throwable? = null,
     ) : KLuaCoreCoroutineExecution
 }
 
@@ -512,6 +515,14 @@ private fun LuaValue.publicTypeName(): String {
     }
 }
 
+private fun LuaVmException.rootCause(): Throwable? {
+    var cause = cause ?: return null
+    while (cause is LuaVmException && cause.cause != null) {
+        cause = cause.cause!!
+    }
+    return cause
+}
+
 private fun callCoreFunction(
     function: KLuaCoreFunction,
     arguments: List<LuaValue>,
@@ -531,14 +542,14 @@ private fun callCoreFunction(
                 syncPublicTablesToLua(arguments, publicArguments, globals)
                 throw result.toLuaYieldSignal(arguments, publicArguments, globals)
             }
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
         }
     } catch (error: LuaVmException) {
         throw error
     } catch (yield: LuaYieldSignal) {
         throw yield
     } catch (error: RuntimeException) {
-        throw LuaVmException(error.message ?: error::class.java.simpleName)
+        throw LuaVmException(error.message ?: error::class.java.simpleName, cause = error)
     }
 }
 
@@ -571,7 +582,7 @@ private fun continuePublicYield(
                 ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
         }
         is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldSignal(arguments, publicArguments, globals)
-        is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+        is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
     }
 }
 
@@ -665,14 +676,14 @@ private fun <T : Any> callCoreUserDataMethod(
                     LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
                 },
             )
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
         }
     } catch (error: LuaVmException) {
         throw error
     } catch (yield: LuaYieldSignal) {
         throw yield
     } catch (error: RuntimeException) {
-        throw LuaVmException(error.message ?: error::class.java.simpleName)
+        throw LuaVmException(error.message ?: error::class.java.simpleName, cause = error)
     }
 }
 
@@ -696,14 +707,14 @@ private fun <T : Any> callCoreUserDataGetter(
                     LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
                 },
             )
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
         }
     } catch (error: LuaVmException) {
         throw error
     } catch (yield: LuaYieldSignal) {
         throw yield
     } catch (error: RuntimeException) {
-        throw LuaVmException(error.message ?: error::class.java.simpleName)
+        throw LuaVmException(error.message ?: error::class.java.simpleName, cause = error)
     }
 }
 
@@ -725,14 +736,14 @@ private fun <T : Any> callCoreUserDataSetter(
                     LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
                 },
             )
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
         }
     } catch (error: LuaVmException) {
         throw error
     } catch (yield: LuaYieldSignal) {
         throw yield
     } catch (error: RuntimeException) {
-        throw LuaVmException(error.message ?: error::class.java.simpleName)
+        throw LuaVmException(error.message ?: error::class.java.simpleName, cause = error)
     }
 }
 
@@ -749,7 +760,7 @@ private fun callPublicLuaFunction(
         val vm = LuaVm(globals.table)
         vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
-        KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error")
+        KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error", error.rootCause())
     }
 }
 
@@ -769,7 +780,7 @@ private fun LuaExecutionResult.toCoreCallResult(
                 try {
                     vm.resumeYieldable(luaArguments).toCoreCallResult(vm, globals)
                 } catch (error: LuaVmException) {
-                    KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error")
+                    KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error", error.rootCause())
                 }
             },
         )

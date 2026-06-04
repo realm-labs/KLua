@@ -130,7 +130,12 @@ class LuaState private constructor(
                 LuaStatus.SYNTAX_ERROR
             }
             is KLuaCoreExecution.RuntimeError -> {
-                lastError = LuaRuntimeException(result.message, sourceName = result.sourceName, line = result.line)
+                lastError = LuaRuntimeException(
+                    result.message,
+                    result.cause,
+                    sourceName = result.sourceName,
+                    line = result.line,
+                )
                 removeCallFrame(functionIndex)
                 stack += LuaStackValue.StringValue(result.message)
                 LuaStatus.RUNTIME_ERROR
@@ -180,6 +185,7 @@ class LuaState private constructor(
                         is KLuaCoreExecution.SyntaxError -> throw LuaSyntaxException(result.message)
                         is KLuaCoreExecution.RuntimeError -> throw LuaRuntimeException(
                             result.message,
+                            result.cause,
                             sourceName = result.sourceName,
                             line = result.line,
                         )
@@ -460,7 +466,7 @@ class LuaState private constructor(
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
         }
     }
 
@@ -477,7 +483,7 @@ class LuaState private constructor(
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
         }
     }
 
@@ -493,7 +499,7 @@ class LuaState private constructor(
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
         }
     }
 
@@ -510,7 +516,7 @@ class LuaState private constructor(
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
         }
     }
 
@@ -713,7 +719,7 @@ class LuaState private constructor(
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
         }
     }
 
