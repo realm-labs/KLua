@@ -425,6 +425,52 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug call and return hooks run for lua frames`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local events = {}
+                local function hook(event, line)
+                    if event == "call" or event == "return" then
+                        events[#events + 1] = event
+                    end
+                end
+
+                local function leaf()
+                    return 42
+                end
+
+                debug.sethook(hook, "cr", 0)
+                local result = leaf()
+                debug.sethook()
+
+                local calls = 0
+                local returns = 0
+                for i = 1, #events do
+                    if events[i] == "call" then
+                        calls = calls + 1
+                    elseif events[i] == "return" then
+                        returns = returns + 1
+                    end
+                end
+
+                return result, calls, returns
+                """.trimIndent(),
+                "debug-sethook-call-return.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertTrue((state.toInteger(2) ?: 0L) >= 2L)
+        assertTrue((state.toInteger(3) ?: 0L) >= 2L)
+    }
+
+    @Test
     fun `package searchpath returns first readable template match`() {
         val root = Files.createTempDirectory("klua-searchpath")
         Files.createDirectories(root.resolve("alpha"))

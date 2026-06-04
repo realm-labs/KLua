@@ -101,6 +101,7 @@ internal class LuaVm(
         val stack = frame.stack
         var yielded = false
         try {
+            dispatchDebugCall()
             while (frame.pc < frame.prototype.code.size) {
                 val pc = frame.pc
                 val instruction = frame.prototype.code[frame.pc++]
@@ -191,7 +192,9 @@ internal class LuaVm(
                         Opcode.RETURN -> {
                             val base = register(frame, Instruction.a(instruction))
                             val count = returnCount(frame, base, Instruction.b(instruction))
-                            return LuaExecutionResult.Returned(stack.slice(base, count))
+                            val values = stack.slice(base, count)
+                            dispatchDebugReturn()
+                            return LuaExecutionResult.Returned(values)
                         }
                     }
                 } catch (error: LuaVmException) {
@@ -395,10 +398,26 @@ internal class LuaVm(
         }
         debugHook = DebugHookState(
             function,
-            mask.filter { event -> event == 'l' },
+            mask.filter { event -> event == 'c' || event == 'r' || event == 'l' },
             count.coerceAtLeast(0),
         )
         return true
+    }
+
+    private fun dispatchDebugCall() {
+        val hook = debugHook ?: return
+        if (!hook.hasCallHook || runningDebugHook) {
+            return
+        }
+        callDebugHook(hook.function, "call", LuaNil)
+    }
+
+    private fun dispatchDebugReturn() {
+        val hook = debugHook ?: return
+        if (!hook.hasReturnHook || runningDebugHook) {
+            return
+        }
+        callDebugHook(hook.function, "return", LuaNil)
     }
 
     private fun dispatchDebugHooks(frame: CallFrame, pc: Int) {
@@ -1068,6 +1087,12 @@ private data class DebugHookState(
     val count: Int,
     var remainingCount: Int = count,
 ) {
+    val hasCallHook: Boolean
+        get() = 'c' in mask
+
+    val hasReturnHook: Boolean
+        get() = 'r' in mask
+
     val hasLineHook: Boolean
         get() = 'l' in mask
 
