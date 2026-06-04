@@ -94,7 +94,8 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return type(package), type(package.searchpath), package.path, package.config
+                return type(package), type(package.searchpath), package.path, package.config,
+                    type(package.loaded), type(package.preload), type(require)
                 """.trimIndent(),
                 "package-openlibs.lua",
             ),
@@ -105,6 +106,9 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(2))
         assertEquals("?.lua;?/init.lua", state.toString(3))
         assertTrue(state.toString(4)?.contains(";\n?") == true)
+        assertEquals("table", state.toString(5))
+        assertEquals("table", state.toString(6))
+        assertEquals("function", state.toString(7))
     }
 
     @Test
@@ -155,6 +159,71 @@ class LuaStdlibTest {
         val message = state.toString(2) ?: ""
         assertTrue(message.contains("no file '${root}/alpha/beta.lua'"))
         assertTrue(message.contains("no file '${root}/alpha/beta/init.lua'"))
+    }
+
+    @Test
+    fun `require loads preload modules once and caches their return value`() {
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local calls = 0
+                package.preload.demo = function(name)
+                    calls = calls + 1
+                    return { name = name, calls = calls }
+                end
+
+                local first = require("demo")
+                local second = require("demo")
+                return first.name, first.calls, first == second, package.loaded.demo == first
+                """.trimIndent(),
+                "require-preload-cache.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("demo", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+    }
+
+    @Test
+    fun `require caches true when preload module returns nil`() {
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.preload.empty = function() end
+                return require("empty"), package.loaded.empty
+                """.trimIndent(),
+                "require-preload-nil.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+    }
+
+    @Test
+    fun `require reports missing preload modules`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return require("missing")""", "require-missing.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        val message = state.toString(-1) ?: ""
+        assertTrue(message.contains("module 'missing' not found"))
+        assertTrue(message.contains("no field package.preload['missing']"))
     }
 
     @Test

@@ -18,8 +18,13 @@ internal object LuaPackageLibrary {
         state.setField(-2, "path")
         state.pushString("$directorySeparator\n;\n?\n!\n-\n")
         state.setField(-2, "config")
+        state.newTable()
+        state.setField(-2, "loaded")
+        state.newTable()
+        state.setField(-2, "preload")
         setFunctionField(state, "searchpath", ::searchpath)
         state.setGlobal("package")
+        installLuaSource(state, REQUIRE_SOURCE, "stdlib-package.lua")
         return state
     }
 
@@ -64,4 +69,31 @@ internal object LuaPackageLibrary {
         state.pushFunction(function)
         state.setField(-2, name)
     }
+
+    private const val REQUIRE_SOURCE: String = """
+        function require(name)
+            local loaded = package.loaded
+            local value = loaded[name]
+            if value ~= nil and value ~= false then
+                return value
+            end
+
+            local loader = package.preload[name]
+            if loader == nil then
+                error("module '" .. name .. "' not found:" ..
+                    "\n\tno field package.preload['" .. name .. "']")
+            end
+
+            local result = loader(name)
+            if result ~= nil then
+                loaded[name] = result
+            end
+            value = loaded[name]
+            if value == nil then
+                value = true
+                loaded[name] = value
+            end
+            return value
+        end
+    """
 }
