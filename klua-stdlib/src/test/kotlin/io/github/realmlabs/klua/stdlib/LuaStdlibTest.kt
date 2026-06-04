@@ -98,6 +98,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `assert preserves table arguments when condition is truthy`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = {name = "kept"}
+                local returned = assert(value)
+                return returned == value, returned.name
+                """.trimIndent(),
+                "assert-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("kept", state.toString(2))
+    }
+
+    @Test
     fun `assert raises runtime error when condition is false`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -232,6 +254,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `select preserves table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = {name = "selected"}
+                local returned = select(2, "skip", value)
+                return returned == value, returned.name
+                """.trimIndent(),
+                "select-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("selected", state.toString(2))
+    }
+
+    @Test
     fun `select rejects out of range indexes`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -282,6 +326,34 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(3))
         assertEquals("b", state.toString(4))
         assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `next preserves table keys and values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local key = {}
+                local value = {name = "entry"}
+                local values = {}
+                rawset(values, key, value)
+                local foundKey, foundValue = next(values)
+                local done = next(values, foundKey)
+                return foundKey == key, foundValue == value, foundValue.name, done
+                """.trimIndent(),
+                "next-table-entries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("entry", state.toString(3))
+        assertTrue(state.isNil(4))
     }
 
     @Test
@@ -378,6 +450,32 @@ class LuaStdlibTest {
         assertEquals("klua", state.toString(1))
         assertEquals("b", state.toString(2))
         assertTrue(state.isNil(3))
+    }
+
+    @Test
+    fun `rawget and rawset preserve table keys and values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local key = {}
+                local value = {name = "stored"}
+                local values = {}
+                local returned = rawset(values, key, value)
+                local found = rawget(values, key)
+                return returned == values, found == value, found.name
+                """.trimIndent(),
+                "rawget-rawset-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("stored", state.toString(3))
     }
 
     @Test

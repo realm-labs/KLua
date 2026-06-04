@@ -123,7 +123,7 @@ public object LuaStdlib {
         if (!context.toBoolean(1)) {
             throw LuaRuntimeException(context.toString(2) ?: "assertion failed!")
         }
-        return LuaReturn.ofValues((1..context.argumentCount).map { index -> context.get(index) })
+        return LuaReturn.ofValues((1..context.argumentCount).map { index -> argumentValue(context, index) })
     }
 
     private fun error(context: LuaCallContext): LuaReturn {
@@ -144,7 +144,7 @@ public object LuaStdlib {
         val key = if (context.isNone(2) || context.isNil(2)) {
             null
         } else {
-            context.get(2)
+            argumentValue(context, 2)
         }
         return LuaReturn.ofValues(context.nextTableEntry(1, key) ?: listOf(null))
     }
@@ -189,7 +189,7 @@ public object LuaStdlib {
         if (context.isNone(2) || context.isNil(2)) {
             throw LuaRuntimeException("table index is nil")
         }
-        return LuaReturn.of(context.getTableValue(1, context.get(2)))
+        return LuaReturn.of(context.getTableValue(1, argumentValue(context, 2)))
     }
 
     private fun rawset(context: LuaCallContext): LuaReturn {
@@ -199,7 +199,7 @@ public object LuaStdlib {
         if (context.isNone(2) || context.isNil(2)) {
             throw LuaRuntimeException("table index is nil")
         }
-        context.setTableValue(1, context.get(2), context.get(3))
+        context.setTableValue(1, argumentValue(context, 2), argumentValue(context, 3))
         return LuaReturn.of(context.getTable(1))
     }
 
@@ -218,7 +218,7 @@ public object LuaStdlib {
         if (start < 2L || start > context.argumentCount.toLong()) {
             throw LuaRuntimeException("bad argument #1 to 'select' (index out of range)")
         }
-        return LuaReturn.ofValues((start.toInt()..context.argumentCount).map { argument -> context.get(argument) })
+        return LuaReturn.ofValues((start.toInt()..context.argumentCount).map { argument -> argumentValue(context, argument) })
     }
 
     private fun setmetatable(context: LuaCallContext): LuaReturn {
@@ -243,7 +243,7 @@ public object LuaStdlib {
     }
 
     private fun tonumber(context: LuaCallContext): LuaReturn {
-        val value = context.get(1) ?: return LuaReturn.of(null)
+        val value = argumentValue(context, 1) ?: return LuaReturn.of(null)
         if (!context.isNone(2) && !context.isNil(2)) {
             val base = context.toInteger(2)
                 ?: throw LuaRuntimeException("bad argument #2 to 'tonumber' (number expected)")
