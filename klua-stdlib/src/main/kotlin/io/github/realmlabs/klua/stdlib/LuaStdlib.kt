@@ -626,7 +626,29 @@ public object LuaStdlib {
 
     private fun parseNumber(text: String): Number? {
         val trimmed = text.trim()
-        return trimmed.toLongOrNull() ?: trimmed.toDoubleOrNull()
+        return parseHexInteger(trimmed) ?: trimmed.toLongOrNull() ?: trimmed.toDoubleOrNull()
+    }
+
+    private fun parseHexInteger(text: String): Long? {
+        val sign = when {
+            text.startsWith("-") -> -1
+            text.startsWith("+") -> 1
+            else -> 1
+        }
+        val digitsStart = if (text.startsWith("-") || text.startsWith("+")) 1 else 0
+        if (!text.regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)) {
+            return null
+        }
+        val digits = text.substring(digitsStart + 2)
+        if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
+            return null
+        }
+        val parsed = digits.toULongOrNull(16) ?: return null
+        return when {
+            sign < 0 && parsed <= Long.MIN_VALUE.toULong() -> -parsed.toLong()
+            sign > 0 && parsed <= Long.MAX_VALUE.toULong() -> parsed.toLong()
+            else -> null
+        }
     }
 
     private fun standardOutput(): Consumer<String> {

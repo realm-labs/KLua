@@ -79,6 +79,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber converts hexadecimal integer strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return tonumber("0x10"),
+                    tonumber("+0Xff"),
+                    tonumber("-0x10"),
+                    tonumber("-0x8000000000000000"),
+                    tonumber("0x"),
+                    tonumber("0x10000000000000000")
+                """.trimIndent(),
+                "tonumber-hex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(16L, state.toInteger(1))
+        assertEquals(255L, state.toInteger(2))
+        assertEquals(-16L, state.toInteger(3))
+        assertEquals(Long.MIN_VALUE, state.toInteger(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `tonumber converts strings with explicit base`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
