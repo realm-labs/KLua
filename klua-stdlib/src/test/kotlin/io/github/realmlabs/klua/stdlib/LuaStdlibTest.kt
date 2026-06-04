@@ -1576,7 +1576,10 @@ class LuaStdlibTest {
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return type(coroutine), type(coroutine.create), type(coroutine.resume), type(coroutine.status)""",
+                """
+                return type(coroutine), type(coroutine.create), type(coroutine.resume),
+                    type(coroutine.status), type(coroutine.wrap)
+                """.trimIndent(),
                 "open-libs-coroutine.lua",
             ),
         )
@@ -1586,6 +1589,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(2))
         assertEquals("function", state.toString(3))
         assertEquals("function", state.toString(4))
+        assertEquals("function", state.toString(5))
     }
 
     @Test
@@ -1651,6 +1655,44 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("boom", state.toString(2))
         assertEquals("dead", state.toString(3))
+    }
+
+    @Test
+    fun `coroutine wrap resumes non yielding functions and raises failures`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local payload = {name = "wrapped"}
+                local wrapped = coroutine.wrap(function(left, right, value)
+                    return left + right, value == payload, value.name
+                end)
+                local sum, samePayload, payloadName = wrapped(20, 22, payload)
+                local deadOk, deadMessage = pcall(wrapped)
+
+                local failing = coroutine.wrap(function()
+                    error("boom")
+                end)
+                local failOk, failMessage = pcall(failing)
+                return sum, samePayload, payloadName,
+                    deadOk, deadMessage, failOk, failMessage
+                """.trimIndent(),
+                "coroutine-wrap.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("wrapped", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("cannot resume dead coroutine", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("boom", state.toString(7))
     }
 
     @Test

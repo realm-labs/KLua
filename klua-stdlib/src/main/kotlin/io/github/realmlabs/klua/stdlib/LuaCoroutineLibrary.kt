@@ -13,6 +13,7 @@ internal object LuaCoroutineLibrary {
         setFunctionField(state, "create", ::coroutineCreate)
         setFunctionField(state, "resume", ::coroutineResume)
         setFunctionField(state, "status", ::coroutineStatus)
+        setFunctionField(state, "wrap", ::coroutineWrap)
         state.setGlobal("coroutine")
         return state
     }
@@ -28,6 +29,18 @@ internal object LuaCoroutineLibrary {
 
     private fun coroutineResume(context: LuaCallContext): LuaReturn {
         val coroutine = requiredCoroutine(context, 1, "coroutine.resume")
+        return resumeCoroutine(
+            context,
+            coroutine,
+            (2..context.argumentCount).map { index -> argumentValue(context, index) },
+        )
+    }
+
+    private fun resumeCoroutine(
+        context: LuaCallContext,
+        coroutine: LuaCoroutine,
+        arguments: List<Any?>,
+    ): LuaReturn {
         if (coroutine.status == CoroutineStatus.DEAD) {
             return LuaReturn.of(false, "cannot resume dead coroutine")
         }
@@ -37,7 +50,6 @@ internal object LuaCoroutineLibrary {
 
         coroutine.status = CoroutineStatus.RUNNING
         return try {
-            val arguments = (2..context.argumentCount).map { index -> argumentValue(context, index) }
             val result = context.call(coroutine.function, arguments)
             coroutine.status = CoroutineStatus.DEAD
             LuaReturn.ofValues(listOf(true) + result.values)
@@ -59,6 +71,24 @@ internal object LuaCoroutineLibrary {
                 CoroutineStatus.DEAD -> "dead"
             },
         )
+    }
+
+    private fun coroutineWrap(context: LuaCallContext): LuaReturn {
+        val created = coroutineCreate(context).getUserData(1, LuaCoroutine::class.java)
+        val wrapper = LuaFunction { wrapperContext ->
+            val result = resumeCoroutine(
+                wrapperContext,
+                created,
+                (1..wrapperContext.argumentCount).map { index ->
+                    argumentValue(wrapperContext, index)
+                },
+            )
+            if (result.get(1) != true) {
+                throw LuaRuntimeException(result.get(2)?.toString() ?: "cannot resume coroutine")
+            }
+            LuaReturn.ofValues(result.values.drop(1))
+        }
+        return LuaReturn.of(wrapper)
     }
 
     private fun requiredCoroutine(
