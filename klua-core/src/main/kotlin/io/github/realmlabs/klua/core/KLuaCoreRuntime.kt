@@ -10,7 +10,9 @@ import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaNativeCallContext
 import io.github.realmlabs.klua.core.value.LuaNativeFunction
+import io.github.realmlabs.klua.core.value.LuaNativeStackFrame
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaUserData
@@ -97,6 +99,18 @@ public object KLuaCoreRuntime {
         yieldable: Boolean = false,
     ): KLuaCoreValue.FunctionValue {
         return KLuaCoreValue.FunctionValue(function).also { functionValue ->
+            functionValue.yieldable = yieldable
+        }
+    }
+
+    public fun createContextFunctionValue(
+        function: KLuaCoreContextFunction,
+        yieldable: Boolean = false,
+    ): KLuaCoreValue.FunctionValue {
+        return KLuaCoreValue.FunctionValue { arguments ->
+            function.call(KLuaCoreCallContext(arguments, emptyList()))
+        }.also { functionValue ->
+            functionValue.contextFunction = function
             functionValue.yieldable = yieldable
         }
     }
@@ -231,6 +245,15 @@ private fun LuaUserDataProperty.mergeWith(moreSpecific: LuaUserDataProperty): Lu
 public fun interface KLuaCoreFunction {
     public fun call(arguments: List<KLuaCoreValue>): KLuaCoreCallResult
 }
+
+public fun interface KLuaCoreContextFunction {
+    public fun call(context: KLuaCoreCallContext): KLuaCoreCallResult
+}
+
+public data class KLuaCoreCallContext(
+    public val arguments: List<KLuaCoreValue>,
+    public val luaFrames: List<KLuaCoreStackFrame>,
+)
 
 public fun interface KLuaCoreUserDataMethod<T : Any> {
     public fun call(receiver: T, arguments: List<KLuaCoreValue>): KLuaCoreCallResult
@@ -405,6 +428,7 @@ public sealed interface KLuaCoreValue {
         public val function: KLuaCoreFunction,
     ) : KLuaCoreValue {
         internal var sourceFunction: LuaValue? = null
+        internal var contextFunction: KLuaCoreContextFunction? = null
         internal var yieldable: Boolean = false
     }
 
@@ -453,9 +477,13 @@ private fun KLuaCoreValue.toLuaValueOrNull(
         is KLuaCoreValue.IntegerValue -> LuaInteger(value)
         is KLuaCoreValue.NumberValue -> LuaFloat(value)
         is KLuaCoreValue.StringValue -> LuaString(value)
-        is KLuaCoreValue.FunctionValue -> LuaNativeFunction { arguments ->
-            callCoreFunction(function, arguments, globals)
-        }.copy(yieldable = yieldable)
+        is KLuaCoreValue.FunctionValue -> LuaNativeFunction(
+            yieldable = yieldable,
+            function = { arguments -> callCoreFunction(function, arguments, globals) },
+            contextualFunction = contextFunction?.let { function ->
+                { context -> callCoreContextFunction(function, context, globals) }
+            },
+        )
         is KLuaCoreValue.TableValue -> {
             val cached = tableCache[this]
             if (cached != null) {
@@ -551,6 +579,10 @@ private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> 
     return map { frame -> KLuaCoreStackFrame(frame.sourceName, frame.line) }
 }
 
+private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(): List<KLuaCoreStackFrame> {
+    return map { frame -> KLuaCoreStackFrame(frame.sourceName, frame.line) }
+}
+
 private fun formatCoreTraceback(message: String, frames: List<KLuaCoreStackFrame>): String {
     return buildString {
         append(message)
@@ -569,10 +601,30 @@ private fun callCoreFunction(
     arguments: List<LuaValue>,
     globals: KLuaCoreGlobals,
 ): List<LuaValue> {
+    return callCoreFunction(arguments, globals) { publicArguments ->
+        function.call(publicArguments)
+    }
+}
+
+private fun callCoreContextFunction(
+    function: KLuaCoreContextFunction,
+    context: LuaNativeCallContext,
+    globals: KLuaCoreGlobals,
+): List<LuaValue> {
+    return callCoreFunction(context.arguments, globals) { publicArguments ->
+        function.call(KLuaCoreCallContext(publicArguments, context.luaFrames.toCoreStackFramesFromNative()))
+    }
+}
+
+private fun callCoreFunction(
+    arguments: List<LuaValue>,
+    globals: KLuaCoreGlobals,
+    call: (List<KLuaCoreValue>) -> KLuaCoreCallResult,
+): List<LuaValue> {
     val tableCache = IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
     val publicArguments = arguments.map { value -> toPublicValue(value, globals, tableCache) }
     return try {
-        when (val result = function.call(publicArguments)) {
+        when (val result = call(publicArguments)) {
             is KLuaCoreCallResult.Success -> {
                 syncPublicTablesToLua(arguments, publicArguments, globals)
                 result.values.map { value ->

@@ -443,8 +443,8 @@ class LuaState private constructor(
     private fun setNativeGlobal(name: String, function: LuaStackValue.NativeFunctionValue) {
         coreGlobals.set(
             name,
-            KLuaCoreRuntime.createFunctionValue(
-                function = { arguments -> callHostFunction(function.function, arguments) },
+            KLuaCoreRuntime.createContextFunctionValue(
+                function = { context -> callHostFunction(function.function, context.arguments, context.luaFrames) },
                 yieldable = function.function is LuaYieldableFunction,
             ),
         )
@@ -455,11 +455,12 @@ class LuaState private constructor(
     private fun callHostFunction(
         function: LuaFunction,
         arguments: List<KLuaCoreValue>,
+        luaFrames: List<KLuaCoreStackFrame> = emptyList(),
     ): KLuaCoreCallResult {
         val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
         val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
         return try {
-            val result = function.call(DefaultLuaCallContext(stackArguments))
+            val result = function.call(DefaultLuaCallContext(stackArguments, luaFrames.toApiStackFrames()))
             syncStackArgumentsToCore(arguments, stackArguments)
             KLuaCoreCallResult.Success(
                 result.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
@@ -649,8 +650,8 @@ class LuaState private constructor(
     }
 
     private fun LuaFunction.toCoreFunctionValue(): KLuaCoreValue.FunctionValue {
-        return KLuaCoreRuntime.createFunctionValue(
-            function = { arguments -> callHostFunction(this, arguments) },
+        return KLuaCoreRuntime.createContextFunctionValue(
+            function = { context -> callHostFunction(this, context.arguments, context.luaFrames) },
             yieldable = this is LuaYieldableFunction,
         )
     }
@@ -959,6 +960,7 @@ class LuaState private constructor(
 
     private inner class DefaultLuaCallContext(
         private val arguments: List<LuaStackValue>,
+        override val luaFrames: List<LuaStackFrame> = emptyList(),
     ) : LuaCallContext {
         override val argumentCount: Int = arguments.size
 
@@ -1007,7 +1009,7 @@ class LuaState private constructor(
         }
 
         private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {
-            return function.function.call(DefaultLuaCallContext(arguments.map { argument -> argument.toStackValue() }))
+            return function.function.call(DefaultLuaCallContext(arguments.map { argument -> argument.toStackValue() }, luaFrames))
         }
 
         override fun getTable(index: Int): Any? {

@@ -3,6 +3,9 @@ package io.github.realmlabs.klua.api
 interface LuaCallContext {
     val argumentCount: Int
 
+    val luaFrames: List<LuaStackFrame>
+        get() = emptyList()
+
     fun isNil(index: Int): Boolean
 
     fun isNone(index: Int): Boolean

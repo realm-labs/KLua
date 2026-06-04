@@ -1,11 +1,41 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaReturn
+import io.github.realmlabs.klua.api.LuaStackFrame
 
 internal object LuaDebugLibrary {
     fun open(state: LuaState): LuaState {
+        state.register("klua_debug_traceback") { context -> LuaReturn.of(traceback(context)) }
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
         return state
+    }
+
+    private fun traceback(context: LuaCallContext): String {
+        val message = if (context.isNil(1) || context.isNone(1)) {
+            null
+        } else {
+            context.toString(1)
+        }
+        val level = context.toInteger(2)?.toInt()?.coerceAtLeast(0) ?: 1
+        return formatTraceback(message, context.luaFrames.drop(level))
+    }
+
+    private fun formatTraceback(message: String?, frames: List<LuaStackFrame>): String {
+        return buildString {
+            if (message != null) {
+                append(message)
+                append('\n')
+            }
+            append("stack traceback:")
+            for (frame in frames) {
+                append("\n\t")
+                append(frame.sourceName)
+                append(':')
+                append(frame.line)
+            }
+        }
     }
 
     private const val DEBUG_SOURCE: String = """
@@ -20,9 +50,9 @@ internal object LuaDebugLibrary {
 
         function debug.traceback(message, level)
             if message == nil then
-                return "stack traceback:"
+                return klua_debug_traceback(nil, level)
             end
-            return klua_debug_tostring(message) .. "\nstack traceback:"
+            return klua_debug_traceback(klua_debug_tostring(message), level)
         end
 
         function debug.getinfo(threadOrLevel, what)

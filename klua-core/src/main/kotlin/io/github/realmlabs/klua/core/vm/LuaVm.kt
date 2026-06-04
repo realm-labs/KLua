@@ -14,7 +14,9 @@ import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaMetatableException
+import io.github.realmlabs.klua.core.value.LuaNativeCallContext
 import io.github.realmlabs.klua.core.value.LuaTableKeyException
+import io.github.realmlabs.klua.core.value.LuaNativeStackFrame
 import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
@@ -303,7 +305,7 @@ internal class LuaVm(
         return try {
             LuaExecutionResult.Returned(
                 thread.runNativeCall {
-                    function.function(arguments)
+                    function.call(nativeCallContext(arguments))
                 },
             )
         } catch (yield: LuaYieldSignal) {
@@ -321,6 +323,21 @@ internal class LuaVm(
                 LuaYieldContinuation { arguments -> continueNativeYield(function, continuation, arguments) }
             },
         )
+    }
+
+    private fun nativeCallContext(arguments: List<LuaValue>): LuaNativeCallContext {
+        return LuaNativeCallContext(arguments, luaStackFrames())
+    }
+
+    private fun luaStackFrames(): List<LuaNativeStackFrame> {
+        return thread.stackFrames().mapNotNull { frame ->
+            val line = frame.lineForPc((frame.pc - 1).coerceAtLeast(0))
+            if (line <= 0) {
+                null
+            } else {
+                LuaNativeStackFrame(frame.prototype.sourceName, line)
+            }
+        }
     }
 
     private fun continueNativeYield(

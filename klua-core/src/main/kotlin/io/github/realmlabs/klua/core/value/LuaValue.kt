@@ -49,10 +49,33 @@ internal data class LuaClosure(
     val upvalues: List<LuaUpvalue> = emptyList(),
 ) : LuaValue
 
-internal data class LuaNativeFunction(
+internal class LuaNativeFunction(
     val yieldable: Boolean = false,
-    val function: (List<LuaValue>) -> List<LuaValue>,
-) : LuaValue
+    private val contextualFunction: ((LuaNativeCallContext) -> List<LuaValue>)? = null,
+    private val function: (List<LuaValue>) -> List<LuaValue>,
+) : LuaValue {
+    fun call(context: LuaNativeCallContext): List<LuaValue> {
+        return contextualFunction?.invoke(context) ?: function(context.arguments)
+    }
+
+    fun withYieldable(yieldable: Boolean): LuaNativeFunction {
+        return LuaNativeFunction(yieldable, contextualFunction, function)
+    }
+
+    fun copy(yieldable: Boolean = this.yieldable): LuaNativeFunction {
+        return withYieldable(yieldable)
+    }
+}
+
+internal data class LuaNativeCallContext(
+    val arguments: List<LuaValue>,
+    val luaFrames: List<LuaNativeStackFrame>,
+)
+
+internal data class LuaNativeStackFrame(
+    val sourceName: String,
+    val line: Int,
+)
 
 internal class LuaUpvalue(
     var value: LuaValue,

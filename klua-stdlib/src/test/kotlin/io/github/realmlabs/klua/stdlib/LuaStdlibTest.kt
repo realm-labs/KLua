@@ -145,6 +145,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug traceback includes lua stack frames`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    return debug.traceback("boom")
+                end
+
+                local function branch()
+                    return leaf()
+                end
+
+                return branch()
+                """.trimIndent(),
+                "debug-traceback.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            "boom\n" +
+                "stack traceback:\n" +
+                "\tdebug-traceback.lua:2\n" +
+                "\tdebug-traceback.lua:6\n" +
+                "\tdebug-traceback.lua:9",
+            state.toString(1),
+        )
+    }
+
+    @Test
     fun `package searchpath returns first readable template match`() {
         val root = Files.createTempDirectory("klua-searchpath")
         Files.createDirectories(root.resolve("alpha"))

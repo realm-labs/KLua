@@ -46,6 +46,10 @@ internal class LuaThread {
         frames.removeAt(frames.lastIndex)
     }
 
+    fun stackFrames(): List<CallFrame> {
+        return frames.asReversed().toList()
+    }
+
     fun clearFrames() {
         frames.clear()
     }
