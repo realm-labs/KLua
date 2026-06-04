@@ -262,6 +262,7 @@ public object LuaStdlib {
     }
 
     private fun tonumber(context: LuaCallContext): LuaReturn {
+        requireAnyArgument(context, "tonumber")
         val value = argumentValue(context, 1) ?: return LuaReturn.of(null)
         if (!context.isNone(2) && !context.isNil(2)) {
             val base = context.toInteger(2)
@@ -271,7 +272,7 @@ public object LuaStdlib {
             }
             return when (value) {
                 is CharSequence -> LuaReturn.of(value.toString().trim().toLongOrNull(base.toInt()))
-                else -> LuaReturn.of(null)
+                else -> throw LuaRuntimeException("bad argument #1 to 'tonumber' (string expected)")
             }
         }
         return when (value) {
@@ -287,10 +288,12 @@ public object LuaStdlib {
     }
 
     private fun tostring(context: LuaCallContext): LuaReturn {
+        requireAnyArgument(context, "tostring")
         return LuaReturn.of(toLuaString(context, 1))
     }
 
     private fun type(context: LuaCallContext): LuaReturn {
+        requireAnyArgument(context, "type")
         return LuaReturn.of(context.typeName(1))
     }
 
@@ -523,6 +526,12 @@ public object LuaStdlib {
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+    }
+
+    private fun requireAnyArgument(context: LuaCallContext, functionName: String) {
+        if (context.isNone(1)) {
+            throw LuaRuntimeException("bad argument #1 to '$functionName' (value expected)")
+        }
     }
 
     private fun toLuaString(context: LuaCallContext, index: Int): String {

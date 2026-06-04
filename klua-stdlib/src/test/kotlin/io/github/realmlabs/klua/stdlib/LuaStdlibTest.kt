@@ -41,6 +41,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `type and tostring report missing argument errors`() {
+        val typeState = LuaState.create()
+        LuaStdlib.openBase(typeState)
+
+        assertEquals(LuaStatus.OK, typeState.load("""return type()""", "type-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, typeState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(typeState.getLastError())
+        assertEquals("bad argument #1 to 'type' (value expected)", typeState.toString(-1))
+
+        val tostringState = LuaState.create()
+        LuaStdlib.openBase(tostringState)
+
+        assertEquals(LuaStatus.OK, tostringState.load("""return tostring()""", "tostring-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, tostringState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(tostringState.getLastError())
+        assertEquals("bad argument #1 to 'tostring' (value expected)", tostringState.toString(-1))
+    }
+
+    @Test
     fun `tonumber converts numbers and decimal strings`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -71,6 +92,27 @@ class LuaStdlibTest {
         assertEquals(255L, state.toInteger(1))
         assertEquals(-5L, state.toInteger(2))
         assertTrue(state.isNil(3))
+    }
+
+    @Test
+    fun `tonumber reports missing and base conversion argument errors`() {
+        val missingState = LuaState.create()
+        LuaStdlib.openBase(missingState)
+
+        assertEquals(LuaStatus.OK, missingState.load("""return tonumber()""", "tonumber-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, missingState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(missingState.getLastError())
+        assertEquals("bad argument #1 to 'tonumber' (value expected)", missingState.toString(-1))
+
+        val baseState = LuaState.create()
+        LuaStdlib.openBase(baseState)
+
+        assertEquals(LuaStatus.OK, baseState.load("""return tonumber(10, 16)""", "tonumber-base-string-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, baseState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(baseState.getLastError())
+        assertEquals("bad argument #1 to 'tonumber' (string expected)", baseState.toString(-1))
     }
 
     @Test
