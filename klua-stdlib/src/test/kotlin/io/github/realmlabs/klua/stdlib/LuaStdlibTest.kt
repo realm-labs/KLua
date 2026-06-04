@@ -1085,6 +1085,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns support minimal repetitions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local greedyStart, greedyEnd = string.find("a123b456b", "a.*b")
+                local minimalStart, minimalEnd = string.find("a123b456b", "a.-b")
+                local replaced, count = string.gsub("a1b a22b", "a.-b", "x")
+                local iterator = string.gmatch("a1b a22b", "a.-b")
+                return greedyStart, greedyEnd, minimalStart, minimalEnd,
+                    string.match("a123b456b", "a.*b"),
+                    string.match("a123b456b", "a.-b"),
+                    replaced, count,
+                    iterator(), iterator(), iterator()
+                """.trimIndent(),
+                "string-pattern-minimal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(9L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(5L, state.toInteger(4))
+        assertEquals("a123b456b", state.toString(5))
+        assertEquals("a123b", state.toString(6))
+        assertEquals("x x", state.toString(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals("a1b", state.toString(9))
+        assertEquals("a22b", state.toString(10))
+        assertTrue(state.isNil(11))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

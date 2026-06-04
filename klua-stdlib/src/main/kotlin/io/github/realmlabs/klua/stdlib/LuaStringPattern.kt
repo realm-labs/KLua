@@ -85,13 +85,16 @@ internal class LuaStringPattern private constructor(
             return null
         }
 
-        var candidateEnd = endIndex
-        while (candidateEnd >= minimumEnd) {
+        val candidateEnds = if (repetition.greedy) {
+            endIndex downTo minimumEnd
+        } else {
+            minimumEnd..endIndex
+        }
+        for (candidateEnd in candidateEnds) {
             val matchEnd = matchEnd(text, candidateEnd, patternTokens, tokenIndex + 1)
             if (matchEnd != null) {
                 return matchEnd
             }
-            candidateEnd--
         }
         return null
     }
@@ -143,7 +146,7 @@ internal class LuaStringPattern private constructor(
                     in UNSUPPORTED_MAGIC,
                     -> throw LuaRuntimeException("string patterns are not supported")
                     else -> {
-                        if (index + 1 < pattern.length && pattern[index + 1] in "?*+") {
+                        if (index + 1 < pattern.length && pattern[index + 1] in "?*+-") {
                             hasPatternToken = true
                         }
                         index = addToken(tokens, Token.Literal(char), pattern, index + 1)
@@ -157,15 +160,19 @@ internal class LuaStringPattern private constructor(
             if (nextIndex < pattern.length) {
                 when (pattern[nextIndex]) {
                     '?' -> {
-                        tokens += Token.Repetition(token, minimum = 0, maximum = 1)
+                        tokens += Token.Repetition(token, minimum = 0, maximum = 1, greedy = true)
                         return nextIndex + 1
                     }
                     '*' -> {
-                        tokens += Token.Repetition(token, minimum = 0, maximum = null)
+                        tokens += Token.Repetition(token, minimum = 0, maximum = null, greedy = true)
                         return nextIndex + 1
                     }
                     '+' -> {
-                        tokens += Token.Repetition(token, minimum = 1, maximum = null)
+                        tokens += Token.Repetition(token, minimum = 1, maximum = null, greedy = true)
+                        return nextIndex + 1
+                    }
+                    '-' -> {
+                        tokens += Token.Repetition(token, minimum = 0, maximum = null, greedy = false)
                         return nextIndex + 1
                     }
                 }
@@ -286,6 +293,7 @@ private sealed interface Token {
         val token: Token,
         val minimum: Int,
         val maximum: Int?,
+        val greedy: Boolean,
     ) : Token {
         override fun matches(char: Char): Boolean = token.matches(char)
     }
