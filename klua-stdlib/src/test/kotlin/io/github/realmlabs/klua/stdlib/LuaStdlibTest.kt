@@ -2846,11 +2846,58 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return utf8.codepoint("abc", 2, 3)""", "utf8-codepoint-range.lua"))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "A" .. utf8.char(128512) .. "Z"
+                local a, b = utf8.codepoint("abc", 2, 3)
+                local c, d = utf8.codepoint(text, 2, 6)
+                local e = utf8.codepoint(text, 6, 6)
+                return a, b, c, d, e
+                """.trimIndent(),
+                "utf8-codepoint-range.lua",
+            ),
+        )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(98L, state.toInteger(1))
         assertEquals(99L, state.toInteger(2))
+        assertEquals(128512L, state.toInteger(3))
+        assertEquals(90L, state.toInteger(4))
+        assertEquals(90L, state.toInteger(5))
+    }
+
+    @Test
+    fun `utf8 codepoint returns no values for empty byte ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.codepoint("abc", 4, 3)""", "utf8-codepoint-empty.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `utf8 codepoint rejects continuation byte starts`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "A" .. utf8.char(128512) .. "Z"
+                return utf8.codepoint(text, 4, 6)
+                """.trimIndent(),
+                "utf8-codepoint-continuation-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("invalid UTF-8 code", state.toString(-1))
     }
 
     @Test

@@ -36,12 +36,21 @@ internal object LuaUtf8Library {
 
     private fun utf8Codepoint(context: LuaCallContext): LuaReturn {
         val codePoints = requiredString(context, 1, "utf8.codepoint").codePoints().toArray()
-        val start = normalizedPosition(context, 2, 1L, codePoints.size, "utf8.codepoint")
-        val end = normalizedPosition(context, 3, start.toLong(), codePoints.size, "utf8.codepoint")
+        val byteOffsets = utf8ByteOffsets(codePoints)
+        val byteLength = utf8ByteLength(codePoints)
+        val start = normalizedCodepointStart(context, 2, 1L, byteLength, "utf8.codepoint")
+        val end = normalizedCodepointEnd(context, 3, start, byteLength, "utf8.codepoint")
         if (start > end) {
             return LuaReturn.none()
         }
-        return LuaReturn.ofValues((start..end).map { index -> codePoints[index - 1].toLong() })
+        if (!isUtf8StartBytePosition(byteOffsets, start)) {
+            throw LuaRuntimeException("invalid UTF-8 code")
+        }
+        return LuaReturn.ofValues(
+            byteOffsets.mapIndexedNotNull { index, byteOffset ->
+                if (byteOffset in start..end) codePoints[index].toLong() else null
+            },
+        )
     }
 
     private fun utf8Codes(context: LuaCallContext): LuaReturn {
@@ -138,23 +147,42 @@ internal object LuaUtf8Library {
         return codePoint
     }
 
-    private fun normalizedPosition(
+    private fun normalizedCodepointStart(
         context: LuaCallContext,
         index: Int,
         defaultValue: Long,
-        length: Int,
+        length: Long,
         functionName: String,
-    ): Int {
+    ): Long {
         val position = if (context.isNone(index) || context.isNil(index)) {
             defaultValue
         } else {
             requiredInteger(context, index, functionName)
         }
         val normalized = if (position < 0L) length + position + 1L else position
-        if (normalized < 1L || normalized > length.toLong()) {
+        if (normalized < 1L) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
         }
-        return normalized.toInt()
+        return normalized
+    }
+
+    private fun normalizedCodepointEnd(
+        context: LuaCallContext,
+        index: Int,
+        defaultValue: Long,
+        length: Long,
+        functionName: String,
+    ): Long {
+        val position = if (context.isNone(index) || context.isNil(index)) {
+            defaultValue
+        } else {
+            requiredInteger(context, index, functionName)
+        }
+        val normalized = if (position < 0L) length + position + 1L else position
+        if (normalized < 0L || normalized > length) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+        }
+        return normalized
     }
 
     private fun normalizedLenStart(
