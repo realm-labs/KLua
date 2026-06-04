@@ -355,6 +355,47 @@ class CompilerTest {
     }
 
     @Test
+    fun `rejects reassignment to const local`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local x <const> = 1
+                x = 2
+                """.trimIndent(),
+                "const-local.lua",
+            )
+        }
+
+        assertEquals("const-local.lua:2:1: attempt to assign to const local 'x'", error.message)
+    }
+
+    @Test
+    fun `rejects reassignment to captured const local`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local x <const> = 1
+                local function set()
+                    x = 2
+                end
+                """.trimIndent(),
+                "captured-const-local.lua",
+            )
+        }
+
+        assertEquals("captured-const-local.lua:3:5: attempt to assign to const local 'x'", error.message)
+    }
+
+    @Test
+    fun `rejects to be closed locals until close semantics exist`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("""local resource <close> = {}""", "close-local.lua")
+        }
+
+        assertEquals("close-local.lua:1:1: to-be-closed local variables are not supported", error.message)
+    }
+
+    @Test
     fun `stages multi assignment before writing targets`() {
         val prototype = Compiler.compile(
             """

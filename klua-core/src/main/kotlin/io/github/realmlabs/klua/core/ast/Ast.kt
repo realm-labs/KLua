@@ -13,9 +13,16 @@ internal sealed interface Statement {
 
 internal data class LocalStatement(
     val names: List<String>,
+    val attributes: List<LocalAttribute> = List(names.size) { LocalAttribute.NONE },
     val values: List<Expression>,
     override val range: SourceRange,
 ) : Statement
+
+internal enum class LocalAttribute {
+    NONE,
+    CONST,
+    CLOSE,
+}
 
 internal data class LocalFunctionStatement(
     val name: String,

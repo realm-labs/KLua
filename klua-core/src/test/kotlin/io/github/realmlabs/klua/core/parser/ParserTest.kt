@@ -19,6 +19,7 @@ import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.KeyedTableEntry
 import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
+import io.github.realmlabs.klua.core.ast.LocalAttribute
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.MethodCallExpression
@@ -70,6 +71,15 @@ class ParserTest {
         val returnStatement = assertIs<ReturnStatement>(chunk.statements[1])
         val returned = assertIs<VariableExpression>(returnStatement.values.single())
         assertEquals("x", returned.name)
+    }
+
+    @Test
+    fun `parses local variable attributes`() {
+        val chunk = Parser.parse("local x <const>, y <close>, z = 1, 2, 3")
+
+        val local = assertIs<LocalStatement>(chunk.statements.single())
+        assertEquals(listOf("x", "y", "z"), local.names)
+        assertEquals(listOf(LocalAttribute.CONST, LocalAttribute.CLOSE, LocalAttribute.NONE), local.attributes)
     }
 
     @Test

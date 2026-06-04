@@ -21,6 +21,7 @@ import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.KeyedTableEntry
 import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
+import io.github.realmlabs.klua.core.ast.LocalAttribute
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.MethodCallExpression
@@ -56,11 +57,13 @@ internal class Compiler private constructor(
     private val isVarargFunction: Boolean = false,
     private val parentLocalResolver: ((String) -> Int?)? = null,
     private val parentUpvalueResolver: ((String) -> Int?)? = null,
+    private val parentConstResolver: ((String) -> Boolean)? = null,
 ) {
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
     private val nested = mutableListOf<Prototype>()
     private val locals = linkedMapOf<String, Int>()
+    private val localAttributes = linkedMapOf<String, LocalAttribute>()
     private val upvalues = mutableListOf<UpvalueDescriptor>()
     private val upvalueIndexes = linkedMapOf<String, Int>()
     private val loopBreaks = mutableListOf<MutableList<Int>>()
@@ -121,16 +124,20 @@ internal class Compiler private constructor(
 
     private fun compileScopedBlock(statements: List<Statement>) {
         val savedLocals = LinkedHashMap(locals)
+        val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
         compileStatements(statements)
         locals.clear()
         locals.putAll(savedLocals)
+        localAttributes.clear()
+        localAttributes.putAll(savedLocalAttributes)
         nextLocalRegister = savedNextLocalRegister
     }
 
     private fun compileNumericFor(statement: NumericForStatement) {
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
+        val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
         val baseRegister = nextLocalRegister
         nextLocalRegister += 3
@@ -144,7 +151,7 @@ internal class Compiler private constructor(
             compileExpression(statement.step, baseRegister + 2)
         }
 
-        locals[statement.name] = baseRegister
+        registerLocal(statement.name, baseRegister, LocalAttribute.NONE)
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.FOR_TEST, baseRegister), statement.range.start.line)
         val loopStart = writer.size
@@ -158,12 +165,15 @@ internal class Compiler private constructor(
 
         locals.clear()
         locals.putAll(savedLocals)
+        localAttributes.clear()
+        localAttributes.putAll(savedLocalAttributes)
         nextLocalRegister = savedNextLocalRegister
     }
 
     private fun compileGenericFor(statement: GenericForStatement) {
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
+        val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
         val iteratorBase = nextLocalRegister
         val valueBase = iteratorBase + 3
@@ -174,7 +184,7 @@ internal class Compiler private constructor(
         compileIteratorValues(statement.values, iteratorBase, statement.range.start.line)
 
         for ((index, name) in statement.names.withIndex()) {
-            locals[name] = valueBase + index
+            registerLocal(name, valueBase + index, LocalAttribute.NONE)
         }
 
         val loopStart = writer.size
@@ -197,6 +207,8 @@ internal class Compiler private constructor(
 
         locals.clear()
         locals.putAll(savedLocals)
+        localAttributes.clear()
+        localAttributes.putAll(savedLocalAttributes)
         nextLocalRegister = savedNextLocalRegister
     }
 
@@ -226,6 +238,10 @@ internal class Compiler private constructor(
     }
 
     private fun compileLocal(statement: LocalStatement) {
+        if (statement.attributes.any { attribute -> attribute == LocalAttribute.CLOSE }) {
+            throw unsupported(statement, "to-be-closed local variables are not supported")
+        }
+
         val slots = statement.names.map { name ->
             val slot = nextLocalRegister++
             maxRegister = maxRegister.coerceAtLeast(slot + 1)
@@ -235,23 +251,17 @@ internal class Compiler private constructor(
         val onlyValue = statement.values.singleOrNull()
         if (onlyValue is VarargExpression) {
             compileVarargExpression(onlyValue, slots.first(), slots.size)
-            for ((index, name) in statement.names.withIndex()) {
-                locals[name] = slots[index]
-            }
+            registerLocalDeclarations(statement, slots)
             return
         }
         if (onlyValue is CallExpression) {
             compileCallExpression(onlyValue, slots.first(), slots.size)
-            for ((index, name) in statement.names.withIndex()) {
-                locals[name] = slots[index]
-            }
+            registerLocalDeclarations(statement, slots)
             return
         }
         if (onlyValue is MethodCallExpression) {
             compileMethodCallExpression(onlyValue, slots.first(), slots.size)
-            for ((index, name) in statement.names.withIndex()) {
-                locals[name] = slots[index]
-            }
+            registerLocalDeclarations(statement, slots)
             return
         }
 
@@ -264,15 +274,24 @@ internal class Compiler private constructor(
             }
         }
 
+        registerLocalDeclarations(statement, slots)
+    }
+
+    private fun registerLocalDeclarations(statement: LocalStatement, slots: List<Int>) {
         for ((index, name) in statement.names.withIndex()) {
-            locals[name] = slots[index]
+            registerLocal(name, slots[index], statement.attributes[index])
         }
+    }
+
+    private fun registerLocal(name: String, slot: Int, attribute: LocalAttribute) {
+        locals[name] = slot
+        localAttributes[name] = attribute
     }
 
     private fun compileLocalFunction(statement: LocalFunctionStatement) {
         val slot = nextLocalRegister++
         maxRegister = maxRegister.coerceAtLeast(slot + 1)
-        locals[statement.name] = slot
+        registerLocal(statement.name, slot, LocalAttribute.NONE)
         compileFunctionExpression(statement.function, slot)
     }
 
@@ -325,8 +344,14 @@ internal class Compiler private constructor(
                 is LocalAssignmentTarget -> {
                     val targetSlot = locals[target.name]
                     if (targetSlot != null) {
+                        if (localAttributes[target.name] == LocalAttribute.CONST) {
+                            throw CompilerException(target.range.start, "attempt to assign to const local '${target.name}'")
+                        }
                         writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueBase + index), statement.range.start.line)
                     } else {
+                        if (parentConstResolver?.invoke(target.name) == true) {
+                            throw CompilerException(target.range.start, "attempt to assign to const local '${target.name}'")
+                        }
                         val upvalue = resolveUpvalue(target.name)
                         if (upvalue != null) {
                             if (upvalue > 255) {
@@ -417,6 +442,7 @@ internal class Compiler private constructor(
     private fun compileRepeat(statement: RepeatStatement) {
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
+        val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
         val loopStart = writer.size
 
@@ -432,6 +458,8 @@ internal class Compiler private constructor(
 
         locals.clear()
         locals.putAll(savedLocals)
+        localAttributes.clear()
+        localAttributes.putAll(savedLocalAttributes)
         nextLocalRegister = savedNextLocalRegister
     }
 
@@ -654,11 +682,12 @@ internal class Compiler private constructor(
             isVarargFunction = expression.isVararg,
             parentLocalResolver = { name -> locals[name] },
             parentUpvalueResolver = { name -> resolveUpvalue(name) },
+            parentConstResolver = { name -> isConstBinding(name) },
         )
         for (parameter in expression.parameters) {
             val slot = compiler.nextLocalRegister++
             compiler.maxRegister = compiler.maxRegister.coerceAtLeast(slot + 1)
-            compiler.locals[parameter] = slot
+            compiler.registerLocal(parameter, slot, LocalAttribute.NONE)
         }
         if (expression.body.isEmpty()) {
             compiler.emitImplicitReturn(expression.range.start.line)
@@ -711,6 +740,13 @@ internal class Compiler private constructor(
         upvalues += descriptor
         upvalueIndexes[name] = index
         return index
+    }
+
+    private fun isConstBinding(name: String): Boolean {
+        if (locals.containsKey(name)) {
+            return localAttributes[name] == LocalAttribute.CONST
+        }
+        return parentConstResolver?.invoke(name) == true
     }
 
     private fun resolveParentLocal(name: String): UpvalueDescriptor? {

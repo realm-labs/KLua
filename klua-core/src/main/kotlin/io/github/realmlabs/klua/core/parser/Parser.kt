@@ -22,6 +22,7 @@ import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.KeyedTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
+import io.github.realmlabs.klua.core.ast.LocalAttribute
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
 import io.github.realmlabs.klua.core.ast.LocalStatement
 import io.github.realmlabs.klua.core.ast.MethodCallExpression
@@ -91,14 +92,30 @@ internal class Parser private constructor(
         }
 
         val names = mutableListOf<String>()
+        val attributes = mutableListOf<LocalAttribute>()
         do {
             val name = consume(TokenKind.IDENTIFIER, "expected local variable name")
             names += name.literal as String
+            attributes += localAttribute()
         } while (match(TokenKind.COMMA))
 
         val values = if (match(TokenKind.ASSIGN)) expressionList() else emptyList()
         val end = values.lastOrNull()?.range?.end ?: previous().range.end
-        return LocalStatement(names, values, SourceRange(start.range.start, end))
+        return LocalStatement(names, attributes, values, SourceRange(start.range.start, end))
+    }
+
+    private fun localAttribute(): LocalAttribute {
+        if (!match(TokenKind.LESS)) {
+            return LocalAttribute.NONE
+        }
+
+        val attribute = consume(TokenKind.IDENTIFIER, "expected local attribute name")
+        consume(TokenKind.GREATER, "expected '>' after local attribute")
+        return when (attribute.literal as String) {
+            "const" -> LocalAttribute.CONST
+            "close" -> LocalAttribute.CLOSE
+            else -> throw errorAt(attribute, "unknown local attribute")
+        }
     }
 
     private fun localFunctionStatement(localStart: Token, functionStart: Token): LocalFunctionStatement {
