@@ -507,6 +507,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pcall can yield and resume inside coroutine`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local ok, returned = pcall(function()
+                        local first = coroutine.yield("pause")
+                        local second = coroutine.yield(first .. " again")
+                        return second
+                    end)
+                    return ok, returned
+                end)
+                local firstOk, yielded = coroutine.resume(co)
+                local statusAfterYield = coroutine.status(co)
+                local secondOk, yieldedAgain = coroutine.resume(co, "middle")
+                local statusAfterSecondYield = coroutine.status(co)
+                local thirdOk, protectedOk, returned = coroutine.resume(co, "done")
+                return firstOk, yielded, statusAfterYield, secondOk, yieldedAgain, statusAfterSecondYield,
+                    thirdOk, protectedOk, returned, coroutine.status(co)
+                """.trimIndent(),
+                "pcall-yield.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(true, state.toBoolean(1), "first resume failed: ${state.toString(2)}")
+        assertEquals("pause", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("middle again", state.toString(5))
+        assertEquals("suspended", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("done", state.toString(9))
+        assertEquals("dead", state.toString(10))
+    }
+
+    @Test
     fun `pcall protects non callable arguments`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -561,6 +603,42 @@ class LuaStdlibTest {
         assertEquals("done!", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("handled:boom", state.toString(4))
+    }
+
+    @Test
+    fun `xpcall can yield and resume inside coroutine`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local ok, returned = xpcall(function()
+                        return coroutine.yield("xpause")
+                    end, function(message)
+                        return "handled:" .. message
+                    end)
+                    return ok, returned
+                end)
+                local firstOk, yielded = coroutine.resume(co)
+                local statusAfterYield = coroutine.status(co)
+                local secondOk, protectedOk, returned = coroutine.resume(co, "xdone")
+                return firstOk, yielded, statusAfterYield, secondOk, protectedOk, returned, coroutine.status(co)
+                """.trimIndent(),
+                "xpcall-yield.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(true, state.toBoolean(1), "first resume failed: ${state.toString(2)}")
+        assertEquals("xpause", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("xdone", state.toString(6))
+        assertEquals("dead", state.toString(7))
     }
 
     @Test

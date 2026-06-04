@@ -9,5 +9,10 @@ internal sealed interface LuaExecutionResult {
 
     data class Yielded(
         val values: List<LuaValue>,
+        val continuation: LuaYieldContinuation? = null,
     ) : LuaExecutionResult
+}
+
+internal fun interface LuaYieldContinuation {
+    fun resume(arguments: List<LuaValue>): LuaExecutionResult
 }

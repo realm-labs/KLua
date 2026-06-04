@@ -21,6 +21,7 @@ import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
 import io.github.realmlabs.klua.core.vm.LuaYieldSignal
+import io.github.realmlabs.klua.core.vm.LuaYieldSignalContinuation
 import java.util.IdentityHashMap
 
 public object KLuaCoreRuntime {
@@ -242,6 +243,7 @@ public sealed interface KLuaCoreCallResult {
 
     public data class Yielded(
         public val values: List<KLuaCoreValue>,
+        public val continuation: KLuaCoreContinuation? = null,
     ) : KLuaCoreCallResult
 
     public data class RuntimeError(
@@ -271,6 +273,10 @@ public sealed interface KLuaCoreExecution {
     public data class RuntimeError(
         public val message: String,
     ) : KLuaCoreExecution
+}
+
+public fun interface KLuaCoreContinuation {
+    public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCallResult
 }
 
 public class KLuaCoreCoroutine internal constructor(
@@ -450,8 +456,9 @@ private fun toPublicValue(
             callPublicLuaFunction(value, arguments, globals)
         }.also { functionValue ->
             functionValue.sourceFunction = value
-            if (value is LuaNativeFunction) {
-                functionValue.yieldable = value.yieldable
+            functionValue.yieldable = when (value) {
+                is LuaClosure -> true
+                is LuaNativeFunction -> value.yieldable
             }
         }
     }
@@ -489,11 +496,7 @@ private fun callCoreFunction(
             }
             is KLuaCoreCallResult.Yielded -> {
                 syncPublicTablesToLua(arguments, publicArguments, globals)
-                throw LuaYieldSignal(
-                    result.values.map { value ->
-                        value.toLuaReturnValue(arguments, publicArguments, globals)
-                    },
-                )
+                throw result.toLuaYieldSignal(arguments, publicArguments, globals)
             }
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
@@ -503,6 +506,39 @@ private fun callCoreFunction(
         throw yield
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
+    }
+}
+
+private fun KLuaCoreCallResult.Yielded.toLuaYieldSignal(
+    luaArguments: List<LuaValue>,
+    publicArguments: List<KLuaCoreValue>,
+    globals: KLuaCoreGlobals,
+): LuaYieldSignal {
+    return LuaYieldSignal(
+        values.map { value ->
+            value.toLuaReturnValue(luaArguments, publicArguments, globals)
+        },
+        continuation?.let { continuation ->
+            LuaYieldSignalContinuation { arguments ->
+                continuePublicYield(continuation, arguments, globals)
+            }
+        },
+    )
+}
+
+private fun continuePublicYield(
+    continuation: KLuaCoreContinuation,
+    arguments: List<LuaValue>,
+    globals: KLuaCoreGlobals,
+): List<LuaValue> {
+    val publicArguments = arguments.map { value -> toPublicValue(value, globals) }
+    return when (val result = continuation.resume(publicArguments)) {
+        is KLuaCoreCallResult.Success -> result.values.map { value ->
+            value.toLuaValueOrNull(globals)
+                ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
+        }
+        is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldSignal(arguments, publicArguments, globals)
+        is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
     }
 }
 
@@ -592,6 +628,9 @@ private fun <T : Any> callCoreUserDataMethod(
                     value.toLuaValueOrNull(globals)
                         ?: throw LuaVmException("cannot yield ${value.publicTypeName()} as Lua value")
                 },
+                result.continuation?.let { continuation ->
+                    LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
+                },
             )
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
@@ -620,6 +659,9 @@ private fun <T : Any> callCoreUserDataGetter(
                     value.toLuaValueOrNull(globals)
                         ?: throw LuaVmException("cannot yield ${value.publicTypeName()} as Lua value")
                 },
+                result.continuation?.let { continuation ->
+                    LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
+                },
             )
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
@@ -646,6 +688,9 @@ private fun <T : Any> callCoreUserDataSetter(
                     yieldedValue.toLuaValueOrNull(globals)
                         ?: throw LuaVmException("cannot yield ${yieldedValue.publicTypeName()} as Lua value")
                 },
+                result.continuation?.let { continuation ->
+                    LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
+                },
             )
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
@@ -668,10 +713,32 @@ private fun callPublicLuaFunction(
             ?: return KLuaCoreCallResult.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
     }
     return try {
-        KLuaCoreCallResult.Success(
-            LuaVm(globals.table).call(function, luaArguments).map { value -> toPublicValue(value, globals) },
-        )
+        val vm = LuaVm(globals.table)
+        vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
         KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error")
+    }
+}
+
+private fun LuaExecutionResult.toCoreCallResult(
+    vm: LuaVm,
+    globals: KLuaCoreGlobals,
+): KLuaCoreCallResult {
+    return when (this) {
+        is LuaExecutionResult.Returned -> KLuaCoreCallResult.Success(values.map { value -> toPublicValue(value, globals) })
+        is LuaExecutionResult.Yielded -> KLuaCoreCallResult.Yielded(
+            values.map { value -> toPublicValue(value, globals) },
+            KLuaCoreContinuation { arguments ->
+                val luaArguments = arguments.map { value ->
+                    value.toLuaValueOrNull(globals)
+                        ?: return@KLuaCoreContinuation KLuaCoreCallResult.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
+                }
+                try {
+                    vm.resumeYieldable(luaArguments).toCoreCallResult(vm, globals)
+                } catch (error: LuaVmException) {
+                    KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error")
+                }
+            },
+        )
     }
 }

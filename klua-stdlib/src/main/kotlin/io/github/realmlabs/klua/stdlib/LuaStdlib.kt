@@ -7,6 +7,10 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaVersion
+import io.github.realmlabs.klua.api.LuaYieldException
+import io.github.realmlabs.klua.api.LuaYieldableFunction
+import io.github.realmlabs.klua.api.continueWith
+import io.github.realmlabs.klua.api.withContinuation
 import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -57,7 +61,7 @@ public object LuaStdlib {
         state.register("loadfile", ::loadfile)
         state.register("next", ::next)
         state.register("pairs", ::pairs)
-        state.register("pcall", ::pcall)
+        registerYieldable(state, "pcall", ::pcall)
         state.register("print") { context -> print(context, output) }
         state.register("rawequal", ::rawequal)
         state.register("rawget", ::rawget)
@@ -73,8 +77,12 @@ public object LuaStdlib {
             warningsEnabled = warn(context, output, warningsEnabled)
             LuaReturn.none()
         }
-        state.register("xpcall", ::xpcall)
+        registerYieldable(state, "xpcall", ::xpcall)
         return state
+    }
+
+    private fun registerYieldable(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
+        state.register(name, LuaYieldableFunction { context -> function(context) })
     }
 
     private fun luaVersionName(version: LuaVersion): String {
@@ -446,6 +454,30 @@ public object LuaStdlib {
         return try {
             val result = context.call(functionIndex, (firstArgumentIndex..context.argumentCount).map { index -> argumentValue(context, index) })
             LuaReturn.ofValues(listOf(true) + result.values)
+        } catch (yield: LuaYieldException) {
+            throw yield.withContinuation { arguments ->
+                protectedCallResume(context, yield, handlerIndex, arguments)
+            }
+        } catch (exception: LuaException) {
+            protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
+        } catch (exception: RuntimeException) {
+            protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
+        }
+    }
+
+    private fun protectedCallResume(
+        context: LuaCallContext,
+        yield: LuaYieldException,
+        handlerIndex: Int?,
+        arguments: List<Any?>,
+    ): LuaReturn {
+        return try {
+            val result = yield.continueWith(arguments)
+            LuaReturn.ofValues(listOf(true) + result.values)
+        } catch (nextYield: LuaYieldException) {
+            throw nextYield.withContinuation { nextArguments ->
+                protectedCallResume(context, nextYield, handlerIndex, nextArguments)
+            }
         } catch (exception: LuaException) {
             protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
         } catch (exception: RuntimeException) {

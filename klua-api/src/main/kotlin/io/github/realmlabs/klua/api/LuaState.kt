@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.api
 
 import io.github.realmlabs.klua.core.KLuaCoreChunk
 import io.github.realmlabs.klua.core.KLuaCoreCallResult
+import io.github.realmlabs.klua.core.KLuaCoreContinuation
 import io.github.realmlabs.klua.core.KLuaCoreCoroutine
 import io.github.realmlabs.klua.core.KLuaCoreCoroutineExecution
 import io.github.realmlabs.klua.core.KLuaCoreExecution
@@ -427,9 +428,13 @@ class LuaState private constructor(
     }
 
     private fun setNativeGlobal(name: String, function: LuaStackValue.NativeFunctionValue) {
-        coreGlobals.setFunction(name) { arguments ->
-            callHostFunction(function.function, arguments)
-        }
+        coreGlobals.set(
+            name,
+            KLuaCoreRuntime.createFunctionValue(
+                function = { arguments -> callHostFunction(function.function, arguments) },
+                yieldable = function.function is LuaYieldableFunction,
+            ),
+        )
         coreBackedNativeGlobals += name
         globals.fields[LuaStackValue.StringValue(name)] = function
     }
@@ -447,9 +452,7 @@ class LuaState private constructor(
                 result.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
             )
         } catch (yield: LuaYieldException) {
-            KLuaCoreCallResult.Yielded(
-                yield.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
-            )
+            yield.toCoreYieldResult(stackArguments, arguments)
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -466,7 +469,7 @@ class LuaState private constructor(
             val result = method.call(receiver, DefaultLuaCallContext(arguments))
             KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
         } catch (yield: LuaYieldException) {
-            KLuaCoreCallResult.Yielded(yield.values.map { it.toCoreReturnValue() })
+            yield.toCoreYieldResult()
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -482,7 +485,7 @@ class LuaState private constructor(
             val result = getter.get(receiver)
             KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
         } catch (yield: LuaYieldException) {
-            KLuaCoreCallResult.Yielded(yield.values.map { it.toCoreReturnValue() })
+            yield.toCoreYieldResult()
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -499,7 +502,7 @@ class LuaState private constructor(
             setter.set(receiver, value.toAnyValue())
             KLuaCoreCallResult.Success(emptyList())
         } catch (yield: LuaYieldException) {
-            KLuaCoreCallResult.Yielded(yield.values.map { it.toCoreReturnValue() })
+            yield.toCoreYieldResult()
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {
@@ -570,7 +573,28 @@ class LuaState private constructor(
             is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
                 result.values.map { it.toStackValue().toPublicCallReturnValue() },
             )
-            is KLuaCoreCallResult.Yielded -> throw LuaRuntimeException("attempt to yield from outside a coroutine")
+            is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldException()
+            is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
+        }
+    }
+
+    private fun KLuaCoreCallResult.Yielded.toLuaYieldException(): LuaYieldException {
+        return LuaYieldException(
+            values.map { it.toStackValue().toPublicCallReturnValue() },
+            continuation?.let { continuation ->
+                { arguments -> continueCoreYield(continuation, arguments) }
+            },
+        )
+    }
+
+    private fun continueCoreYield(continuation: KLuaCoreContinuation, arguments: List<Any?>): LuaReturn {
+        val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+        val coreArguments = arguments.map { argument -> argument.toStackValue().toCoreValue(tableCache) }
+        return when (val result = continuation.resume(coreArguments)) {
+            is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
+                result.values.map { it.toStackValue().toPublicCallReturnValue() },
+            )
+            is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldException()
             is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
         }
     }
@@ -635,6 +659,58 @@ class LuaState private constructor(
             return stackTable.toCoreTableValue(tableCache)
         }
         return toCoreReturnValue()
+    }
+
+    private fun LuaYieldException.toCoreYieldResult(): KLuaCoreCallResult.Yielded {
+        return KLuaCoreCallResult.Yielded(
+            values.map { it.toCoreReturnValue() },
+            KLuaCoreContinuation { arguments ->
+                val publicArguments = arguments.map { value -> value.toStackValue().toPublicCallReturnValue() }
+                continueYieldAsCore(publicArguments)
+            },
+        )
+    }
+
+    private fun LuaYieldException.toCoreYieldResult(
+        stackArguments: List<LuaStackValue>,
+        coreArguments: List<KLuaCoreValue>,
+    ): KLuaCoreCallResult.Yielded {
+        return KLuaCoreCallResult.Yielded(
+            values.map { value -> value.toCoreReturnValue(stackArguments, coreArguments) },
+            KLuaCoreContinuation { arguments ->
+                val publicArguments = arguments.map { value -> value.toStackValue().toPublicCallReturnValue() }
+                continueYieldAsCore(publicArguments, stackArguments, coreArguments)
+            },
+        )
+    }
+
+    private fun LuaYieldException.continueYieldAsCore(
+        arguments: List<Any?>,
+        stackArguments: List<LuaStackValue>? = null,
+        coreArguments: List<KLuaCoreValue>? = null,
+    ): KLuaCoreCallResult {
+        return try {
+            val result = continueWith(arguments)
+            KLuaCoreCallResult.Success(
+                result.values.map { value ->
+                    if (stackArguments != null && coreArguments != null) {
+                        value.toCoreReturnValue(stackArguments, coreArguments)
+                    } else {
+                        value.toCoreReturnValue()
+                    }
+                },
+            )
+        } catch (yield: LuaYieldException) {
+            if (stackArguments != null && coreArguments != null) {
+                yield.toCoreYieldResult(stackArguments, coreArguments)
+            } else {
+                yield.toCoreYieldResult()
+            }
+        } catch (exception: LuaException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        } catch (exception: RuntimeException) {
+            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+        }
     }
 
     private fun Map<*, *>.toStackTableValue(): LuaStackValue.TableValue {
@@ -1091,6 +1167,15 @@ class LuaState private constructor(
     }
 }
 
-private class LuaYieldException(
+class LuaYieldException internal constructor(
     val values: List<Any?>,
+    internal val continuation: ((List<Any?>) -> LuaReturn)? = null,
 ) : RuntimeException(null, null, false, false)
+
+fun LuaYieldException.withContinuation(continuation: (List<Any?>) -> LuaReturn): LuaYieldException {
+    return LuaYieldException(values, continuation)
+}
+
+fun LuaYieldException.continueWith(arguments: List<Any?>): LuaReturn {
+    return continuation?.invoke(arguments) ?: LuaReturn.ofValues(arguments)
+}

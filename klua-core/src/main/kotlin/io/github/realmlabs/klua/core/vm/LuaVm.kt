@@ -52,13 +52,13 @@ internal class LuaVm(
 
     internal fun resumeYieldable(arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
         var frame = thread.currentFrame ?: throw LuaVmException("cannot resume a coroutine that is not suspended")
-        applyPendingCallResults(frame, arguments)
+        applyPendingCallResults(frame, arguments)?.let { return it }
         while (true) {
             when (val result = runFrameAndPopOnCompletion(frame)) {
                 is LuaExecutionResult.Yielded -> return result
                 is LuaExecutionResult.Returned -> {
                     frame = thread.currentFrame ?: return result
-                    applyPendingCallResults(frame, result.values)
+                    applyPendingCallResults(frame, result.values)?.let { return it }
                 }
             }
         }
@@ -211,6 +211,7 @@ internal class LuaVm(
         if (results is LuaExecutionResult.Yielded) {
             frame.pendingCallResultBase = base
             frame.pendingCallExpectedResults = expectedResults
+            frame.pendingCallContinuation = results.continuation
             return results
         }
         val returnedValues = (results as LuaExecutionResult.Returned).values
@@ -218,15 +219,31 @@ internal class LuaVm(
         return null
     }
 
-    private fun applyPendingCallResults(frame: CallFrame, results: List<LuaValue>) {
+    private fun applyPendingCallResults(frame: CallFrame, results: List<LuaValue>): LuaExecutionResult.Yielded? {
         val base = frame.pendingCallResultBase
         val expectedResults = frame.pendingCallExpectedResults
+        val continuation = frame.pendingCallContinuation
         if (base < 0 || expectedResults < 0) {
             throw LuaVmException("suspended frame has no pending call")
         }
         frame.pendingCallResultBase = -1
         frame.pendingCallExpectedResults = -1
-        applyCallResults(frame.stack, frame, base, expectedResults, results)
+        frame.pendingCallContinuation = null
+        val returnedValues = if (continuation == null) {
+            results
+        } else {
+            when (val continued = continuation.resume(results)) {
+                is LuaExecutionResult.Returned -> continued.values
+                is LuaExecutionResult.Yielded -> {
+                    frame.pendingCallResultBase = base
+                    frame.pendingCallExpectedResults = expectedResults
+                    frame.pendingCallContinuation = continued.continuation
+                    return continued
+                }
+            }
+        }
+        applyCallResults(frame.stack, frame, base, expectedResults, returnedValues)
+        return null
     }
 
     private fun applyCallResults(
@@ -277,7 +294,35 @@ internal class LuaVm(
             if (!function.yieldable) {
                 throw LuaVmException("attempt to yield across a non-yieldable boundary")
             }
-            LuaExecutionResult.Yielded(yield.values)
+            nativeYieldResult(function, yield)
+        }
+    }
+
+    private fun nativeYieldResult(function: LuaNativeFunction, yield: LuaYieldSignal): LuaExecutionResult.Yielded {
+        return LuaExecutionResult.Yielded(
+            yield.values,
+            yield.continuation?.let { continuation ->
+                LuaYieldContinuation { arguments -> continueNativeYield(function, continuation, arguments) }
+            },
+        )
+    }
+
+    private fun continueNativeYield(
+        function: LuaNativeFunction,
+        continuation: LuaYieldSignalContinuation,
+        arguments: List<LuaValue>,
+    ): LuaExecutionResult {
+        return try {
+            LuaExecutionResult.Returned(
+                thread.runNativeCall {
+                    continuation.resume(arguments)
+                },
+            )
+        } catch (yield: LuaYieldSignal) {
+            if (!function.yieldable) {
+                throw LuaVmException("attempt to yield across a non-yieldable boundary")
+            }
+            nativeYieldResult(function, yield)
         }
     }
 
