@@ -158,16 +158,22 @@ internal class LuaVm(
     private fun callValue(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return when (callee) {
             is LuaClosure -> execute(callee.prototype, arguments, callee.upvalues)
-            is LuaNativeFunction -> callee.function(arguments)
+            is LuaNativeFunction -> callNative(callee, arguments)
             is LuaTable -> {
                 val call = callee.metatableRawGet(CALL_KEY)
                 when (call) {
                     is LuaClosure -> execute(call.prototype, listOf(callee) + arguments, call.upvalues)
-                    is LuaNativeFunction -> call.function(listOf(callee) + arguments)
+                    is LuaNativeFunction -> callNative(call, listOf(callee) + arguments)
                     else -> throw LuaVmException("attempt to call table")
                 }
             }
             else -> throw LuaVmException("attempt to call ${typeName(callee)}")
+        }
+    }
+
+    private fun callNative(function: LuaNativeFunction, arguments: List<LuaValue>): List<LuaValue> {
+        return thread.runNativeCall {
+            function.function(arguments)
         }
     }
 
@@ -271,7 +277,7 @@ internal class LuaVm(
                 if (key is LuaString) {
                     val property = receiver.type?.property(key.value)
                     if (property?.getter != null) {
-                        property.getter.function(listOf(receiver)).firstOrNull() ?: LuaNil
+                        callNative(property.getter, listOf(receiver)).firstOrNull() ?: LuaNil
                     } else {
                         receiver.type?.method(key.value) ?: LuaNil
                     }
@@ -308,7 +314,7 @@ internal class LuaVm(
                 }
                 val setter = receiver.type?.property(key.value)?.setter
                     ?: throw LuaVmException("attempt to set userdata field '${key.value}'")
-                setter.function(listOf(receiver, value))
+                callNative(setter, listOf(receiver, value))
             }
             else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
         }

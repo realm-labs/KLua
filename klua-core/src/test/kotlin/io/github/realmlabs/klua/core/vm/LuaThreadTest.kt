@@ -8,8 +8,10 @@ import io.github.realmlabs.klua.core.value.LuaValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertFalse
 import kotlin.test.assertNull
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class LuaThreadTest {
     @Test
@@ -73,6 +75,36 @@ class LuaThreadTest {
         assertEquals(LuaInteger(10), frame.stack.get(0))
         assertEquals(LuaNil, frame.stack.get(1))
         assertEquals(emptyList(), frame.varargs)
+    }
+
+    @Test
+    fun `tracks nested native call boundaries`() {
+        val thread = LuaThread()
+
+        assertFalse(thread.inNativeCall)
+
+        thread.runNativeCall {
+            assertTrue(thread.inNativeCall)
+            thread.runNativeCall {
+                assertTrue(thread.inNativeCall)
+            }
+            assertTrue(thread.inNativeCall)
+        }
+
+        assertFalse(thread.inNativeCall)
+    }
+
+    @Test
+    fun `unwinds native call boundary after failure`() {
+        val thread = LuaThread()
+
+        assertFailsWith<IllegalStateException> {
+            thread.runNativeCall {
+                throw IllegalStateException("boom")
+            }
+        }
+
+        assertFalse(thread.inNativeCall)
     }
 
     private fun prototype(

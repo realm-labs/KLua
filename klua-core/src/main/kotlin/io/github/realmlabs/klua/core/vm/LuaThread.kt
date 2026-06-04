@@ -7,12 +7,16 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaThread {
     private val frames = mutableListOf<CallFrame>()
+    private var nativeCallDepth = 0
 
     val currentFrame: CallFrame?
         get() = frames.lastOrNull()
 
     val callDepth: Int
         get() = frames.size
+
+    val inNativeCall: Boolean
+        get() = nativeCallDepth > 0
 
     fun pushCall(
         prototype: Prototype,
@@ -40,5 +44,14 @@ internal class LuaThread {
     fun popFrame(frame: CallFrame) {
         require(frames.lastOrNull() === frame) { "call frame stack is out of sync" }
         frames.removeAt(frames.lastIndex)
+    }
+
+    fun <T> runNativeCall(block: () -> T): T {
+        nativeCallDepth += 1
+        return try {
+            block()
+        } finally {
+            nativeCallDepth -= 1
+        }
     }
 }
