@@ -93,6 +93,12 @@ internal class LuaStringPattern private constructor(
                         hasPatternToken = true
                         index += 2
                     }
+                    '[' -> {
+                        val (token, nextIndex) = bracketClassToken(pattern, index)
+                        tokens += token
+                        hasPatternToken = true
+                        index = nextIndex
+                    }
                     '^',
                     '$',
                     in UNSUPPORTED_MAGIC,
@@ -104,6 +110,43 @@ internal class LuaStringPattern private constructor(
                 }
             }
             return if (hasPatternToken) tokens else null
+        }
+
+        private fun bracketClassToken(pattern: String, startIndex: Int): Pair<Token, Int> {
+            var index = startIndex + 1
+            var negated = false
+            if (index < pattern.length && pattern[index] == '^') {
+                negated = true
+                index++
+            }
+
+            val ranges = mutableListOf<CharRange>()
+            while (index < pattern.length) {
+                val start = pattern[index]
+                if (start == ']') {
+                    if (ranges.isEmpty()) {
+                        throw LuaRuntimeException("string patterns are not supported")
+                    }
+                    return Token.CharSet(ranges, negated) to index + 1
+                }
+                if (start == '%') {
+                    throw LuaRuntimeException("string patterns are not supported")
+                }
+
+                index++
+                if (index + 1 < pattern.length && pattern[index] == '-' && pattern[index + 1] != ']') {
+                    val end = pattern[index + 1]
+                    if (end == '%' || start > end) {
+                        throw LuaRuntimeException("string patterns are not supported")
+                    }
+                    ranges += start..end
+                    index += 2
+                } else {
+                    ranges += start..start
+                }
+            }
+
+            throw LuaRuntimeException("string patterns are not supported")
         }
 
         private fun percentToken(char: Char): Token? {
@@ -141,7 +184,17 @@ private sealed interface Token {
     ) : Token {
         override fun matches(char: Char): Boolean = predicate(char)
     }
+
+    data class CharSet(
+        val ranges: List<CharRange>,
+        val negated: Boolean,
+    ) : Token {
+        override fun matches(char: Char): Boolean {
+            val contains = ranges.any { range -> char in range }
+            return if (negated) !contains else contains
+        }
+    }
 }
 
-private const val UNSUPPORTED_MAGIC = "^$()[]*+-?"
+private const val UNSUPPORTED_MAGIC = "^$()]*+-?"
 private const val ESCAPABLE_LITERAL = "^$()%.[]*+-?"

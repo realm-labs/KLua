@@ -779,9 +779,13 @@ class LuaStdlibTest {
                 local literalDotStart, literalDotEnd = string.find("a.b", "%.")
                 local anchorStart, anchorEnd = string.find("abc", "^a")
                 local endStart, endEnd = string.find("abc", "c$")
+                local vowelStart, vowelEnd = string.find("cat", "[aeiou]")
+                local rangeStart, rangeEnd = string.find("x5", "[0-9]")
+                local negatedStart, negatedEnd = string.find("abc", "[^a]")
                 return firstStart, firstEnd, secondStart, secondEnd, lastStart, lastEnd,
                     dotStart, dotEnd, patternStart, patternEnd, digitStart, digitEnd,
                     literalDotStart, literalDotEnd, anchorStart, anchorEnd, endStart, endEnd,
+                    vowelStart, vowelEnd, rangeStart, rangeEnd, negatedStart, negatedEnd,
                     string.find("hello", "xyz"), string.find("abc", "^b")
                 """.trimIndent(),
                 "string-find.lua",
@@ -807,8 +811,14 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(16))
         assertEquals(3L, state.toInteger(17))
         assertEquals(3L, state.toInteger(18))
-        assertTrue(state.isNil(19))
-        assertTrue(state.isNil(20))
+        assertEquals(2L, state.toInteger(19))
+        assertEquals(2L, state.toInteger(20))
+        assertEquals(2L, state.toInteger(21))
+        assertEquals(2L, state.toInteger(22))
+        assertEquals(2L, state.toInteger(23))
+        assertEquals(2L, state.toInteger(24))
+        assertTrue(state.isNil(25))
+        assertTrue(state.isNil(26))
     }
 
     @Test
@@ -896,8 +906,9 @@ class LuaStdlibTest {
                 local unchanged, unchangedCount = string.gsub("banana", "an", "ON", 0)
                 local wildcard, wildcardCount = string.gsub("abc", ".", "x", 2)
                 local digits, digitsCount = string.gsub("a1b2", "%d", "x")
+                local bracketDigits, bracketDigitsCount = string.gsub("a1b2", "[0-9]", "x")
                 return all, allCount, one, oneCount, none, noneCount, unchanged, unchangedCount,
-                    wildcard, wildcardCount, digits, digitsCount
+                    wildcard, wildcardCount, digits, digitsCount, bracketDigits, bracketDigitsCount
                 """.trimIndent(),
                 "string-gsub.lua",
             ),
@@ -916,6 +927,8 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(10))
         assertEquals("axbx", state.toString(11))
         assertEquals(2L, state.toInteger(12))
+        assertEquals("axbx", state.toString(13))
+        assertEquals(2L, state.toInteger(14))
     }
 
     @Test
@@ -923,7 +936,7 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", "[a]", "x")""", "string-gsub-pattern.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", "(a)", "x")""", "string-gsub-pattern.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
@@ -951,6 +964,10 @@ class LuaStdlibTest {
                 local letterFirst = letters()
                 local letterSecond = letters()
                 local letterDone = letters()
+                local bracketLetters = string.gmatch("a1b2", "[a-z]")
+                local bracketFirst = bracketLetters()
+                local bracketSecond = bracketLetters()
+                local bracketDone = bracketLetters()
                 local collector = string.gmatch("xx-xx", "xx")
                 local collected = ""
                 while true do
@@ -961,7 +978,7 @@ class LuaStdlibTest {
                     collected = collected .. match
                 end
                 return first, second, done, wildcardFirst, wildcardSecond, wildcardDone,
-                    letterFirst, letterSecond, letterDone, collected
+                    letterFirst, letterSecond, letterDone, bracketFirst, bracketSecond, bracketDone, collected
                 """.trimIndent(),
                 "string-gmatch.lua",
             ),
@@ -977,7 +994,10 @@ class LuaStdlibTest {
         assertEquals("a", state.toString(7))
         assertEquals("b", state.toString(8))
         assertTrue(state.isNil(9))
-        assertEquals("xxxx", state.toString(10))
+        assertEquals("a", state.toString(10))
+        assertEquals("b", state.toString(11))
+        assertTrue(state.isNil(12))
+        assertEquals("xxxx", state.toString(13))
     }
 
     @Test
@@ -989,7 +1009,7 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local iterator = string.gmatch("abc", "[a]")
+                local iterator = string.gmatch("abc", "(a)")
                 return iterator()
                 """.trimIndent(),
                 "string-gmatch-pattern.lua",
@@ -1144,6 +1164,9 @@ class LuaStdlibTest {
                     string.match("a1", "%a%d"),
                     string.match("abc", "^a"),
                     string.match("abc", "c$"),
+                    string.match("cat", "[aeiou]"),
+                    string.match("x5", "[0-9]"),
+                    string.match("abc", "[^a]"),
                     string.match("hello", "xyz")
                 """.trimIndent(),
                 "string-match.lua",
@@ -1158,7 +1181,10 @@ class LuaStdlibTest {
         assertEquals("a1", state.toString(5))
         assertEquals("a", state.toString(6))
         assertEquals("c", state.toString(7))
-        assertTrue(state.isNil(8))
+        assertEquals("a", state.toString(8))
+        assertEquals("5", state.toString(9))
+        assertEquals("b", state.toString(10))
+        assertTrue(state.isNil(11))
     }
 
     @Test
@@ -1166,7 +1192,7 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.match("abc", "[a]")""", "string-match-pattern.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return string.match("abc", "(a)")""", "string-match-pattern.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
