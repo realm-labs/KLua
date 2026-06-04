@@ -2109,6 +2109,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 charpattern matches utf8 characters`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator = string.gmatch("A" .. utf8.char(233) .. "Z", utf8.charpattern)
+                return iterator(), iterator(), iterator(), iterator()
+                """.trimIndent(),
+                "utf8-charpattern.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("A", state.toString(1))
+        assertEquals("é", state.toString(2))
+        assertEquals("Z", state.toString(3))
+        assertTrue(state.isNil(4))
+    }
+
+    @Test
     fun `utf8 codes reports string argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
