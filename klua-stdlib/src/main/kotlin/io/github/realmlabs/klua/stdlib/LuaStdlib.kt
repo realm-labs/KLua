@@ -70,32 +70,9 @@ public object LuaStdlib {
         setFunctionField(state, "move", ::tableMove)
         setFunctionField(state, "pack", ::tablePack)
         setFunctionField(state, "remove", ::tableRemove)
+        setFunctionField(state, "sort", ::tableSort)
         setFunctionField(state, "unpack", ::tableUnpack)
         state.setGlobal("table")
-        installLuaSource(
-            state,
-            """
-            table.sort = function(values, comparator)
-                local length = #values
-                local function before(left, right)
-                    if comparator == nil then
-                        return left < right
-                    end
-                    return comparator(left, right)
-                end
-                for index = 2, length do
-                    local value = values[index]
-                    local cursor = index - 1
-                    while cursor >= 1 and before(value, values[cursor]) do
-                        values[cursor + 1] = values[cursor]
-                        cursor = cursor - 1
-                    end
-                    values[cursor + 1] = value
-                end
-            end
-            """.trimIndent(),
-            "stdlib-table-sort.lua",
-        )
         return state
     }
 
@@ -479,6 +456,95 @@ public object LuaStdlib {
         }
         context.setTableValue(1, length, null)
         return LuaReturn.of(removed)
+    }
+
+    private fun tableSort(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'table.sort' (table expected)")
+        }
+        val hasComparator = !(context.isNone(2) || context.isNil(2))
+        if (hasComparator && context.typeName(2) != "function") {
+            throw LuaRuntimeException("bad argument #2 to 'table.sort' (function expected)")
+        }
+
+        val length = context.tableLength(1) ?: 0L
+        val values = mutableListOf<Any?>()
+        var index = 1L
+        while (index <= length) {
+            values += context.getTableValue(1, index)
+            index++
+        }
+
+        for (currentIndex in 1 until values.size) {
+            val value = values[currentIndex]
+            var cursor = currentIndex - 1
+            while (cursor >= 0 && tableSortBefore(context, value, values[cursor], hasComparator)) {
+                values[cursor + 1] = values[cursor]
+                cursor--
+            }
+            values[cursor + 1] = value
+        }
+
+        for (valueIndex in values.indices) {
+            context.setTableValue(1, valueIndex.toLong() + 1L, values[valueIndex])
+        }
+        return LuaReturn.none()
+    }
+
+    private fun tableSortBefore(
+        context: LuaCallContext,
+        left: Any?,
+        right: Any?,
+        hasComparator: Boolean,
+    ): Boolean {
+        if (!hasComparator) {
+            return compareTableSortValues(left, right) < 0
+        }
+
+        val leftBeforeRight = context.call(2, listOf(left, right)).get(1).isLuaTruthy()
+        if (leftBeforeRight && context.call(2, listOf(right, left)).get(1).isLuaTruthy()) {
+            throw LuaRuntimeException("invalid order function for sorting")
+        }
+        return leftBeforeRight
+    }
+
+    private fun compareTableSortValues(left: Any?, right: Any?): Int {
+        val leftNumber = left.asLuaNumber()
+        val rightNumber = right.asLuaNumber()
+        if (leftNumber != null && rightNumber != null) {
+            return leftNumber.compareTo(rightNumber)
+        }
+        if (left is CharSequence && right is CharSequence) {
+            return left.toString().compareTo(right.toString())
+        }
+        throw LuaRuntimeException("attempt to compare ${tableSortTypeName(left)} with ${tableSortTypeName(right)}")
+    }
+
+    private fun Any?.asLuaNumber(): Double? {
+        return when (this) {
+            is Byte -> toDouble()
+            is Short -> toDouble()
+            is Int -> toDouble()
+            is Long -> toDouble()
+            is Float -> toDouble()
+            is Double -> this
+            else -> null
+        }
+    }
+
+    private fun Any?.isLuaTruthy(): Boolean {
+        return this != null && this != false
+    }
+
+    private fun tableSortTypeName(value: Any?): String {
+        return when (value) {
+            null -> "nil"
+            is Boolean -> "boolean"
+            is Number -> "number"
+            is CharSequence -> "string"
+            is LuaFunction -> "function"
+            else -> "table"
+        }
     }
 
     private fun tableUnpack(context: LuaCallContext): LuaReturn {

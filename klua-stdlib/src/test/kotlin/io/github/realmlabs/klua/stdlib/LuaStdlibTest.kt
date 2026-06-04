@@ -3288,6 +3288,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort reports argument errors`() {
+        val tableState = LuaState.create()
+        LuaStdlib.openTable(tableState)
+
+        assertEquals(LuaStatus.OK, tableState.load("""return table.sort("not-table")""", "table-sort-table-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, tableState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(tableState.getLastError())
+        assertEquals("bad argument #1 to 'table.sort' (table expected)", tableState.toString(-1))
+
+        val comparatorState = LuaState.create()
+        LuaStdlib.openTable(comparatorState)
+
+        assertEquals(LuaStatus.OK, comparatorState.load("""return table.sort({1}, true)""", "table-sort-comparator-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, comparatorState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(comparatorState.getLastError())
+        assertEquals("bad argument #2 to 'table.sort' (function expected)", comparatorState.toString(-1))
+    }
+
+    @Test
+    fun `table sort rejects invalid comparator order`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return table.sort({1, 2}, function(a, b) return true end)""",
+                "table-sort-invalid-order-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("invalid order function for sorting", state.toString(-1))
+    }
+
+    @Test
     fun `table unpack returns list values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
