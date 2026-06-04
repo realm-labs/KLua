@@ -1916,21 +1916,24 @@ class LuaStdlibTest {
                 end)
                 local ok, sameThread, coroutineIsMain = coroutine.resume(co)
                 local afterThread, afterIsMain = coroutine.running()
-                return mainThread, mainIsMain, ok, sameThread, coroutineIsMain,
-                    afterThread, afterIsMain
+                return mainThread ~= nil, mainIsMain, ok, sameThread, coroutineIsMain,
+                    afterThread == mainThread, afterIsMain, coroutine.status(mainThread),
+                    coroutine.isyieldable(mainThread)
                 """.trimIndent(),
                 "coroutine-running.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertTrue(state.isNil(1))
+        assertTrue(state.toBoolean(1))
         assertTrue(state.toBoolean(2))
         assertTrue(state.toBoolean(3))
         assertTrue(state.toBoolean(4))
         assertFalse(state.toBoolean(5))
-        assertTrue(state.isNil(6))
+        assertTrue(state.toBoolean(6))
         assertTrue(state.toBoolean(7))
+        assertEquals("running", state.toString(8))
+        assertFalse(state.toBoolean(9))
     }
 
     @Test

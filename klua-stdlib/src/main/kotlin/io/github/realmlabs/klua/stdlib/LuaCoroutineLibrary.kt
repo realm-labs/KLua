@@ -135,7 +135,7 @@ internal object LuaCoroutineLibrary {
     private fun coroutineRunning(runtime: CoroutineRuntime): LuaReturn {
         val running = runtime.running
         return if (running == null) {
-            LuaReturn.of(null, true)
+            LuaReturn.of(runtime.main, true)
         } else {
             LuaReturn.of(running, false)
         }
@@ -162,7 +162,7 @@ internal object LuaCoroutineLibrary {
             return LuaReturn.of(runtime.running != null)
         }
         val coroutine = requiredCoroutine(context, 1, "coroutine.isyieldable")
-        return LuaReturn.of(coroutine.status != CoroutineStatus.DEAD)
+        return LuaReturn.of(!coroutine.isMain && coroutine.status != CoroutineStatus.DEAD)
     }
 
     private fun coroutineStatus(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
@@ -170,7 +170,7 @@ internal object LuaCoroutineLibrary {
         return LuaReturn.of(
             when (coroutine.status) {
                 CoroutineStatus.SUSPENDED -> "suspended"
-                CoroutineStatus.RUNNING -> if (runtime.running == coroutine) "running" else "normal"
+                CoroutineStatus.RUNNING -> if (coroutine.isMain || runtime.running == coroutine) "running" else "normal"
                 CoroutineStatus.DEAD -> "dead"
             },
         )
@@ -223,6 +223,11 @@ internal object LuaCoroutineLibrary {
     }
 
     private class CoroutineRuntime {
+        val main: LuaCoroutine = LuaCoroutine(
+            function = LuaFunction { LuaReturn.of() },
+            status = CoroutineStatus.RUNNING,
+            isMain = true,
+        )
         var running: LuaCoroutine? = null
     }
 
@@ -231,6 +236,7 @@ internal object LuaCoroutineLibrary {
         val handle: LuaCoroutineHandle? = null,
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
         var pendingYield: LuaYieldException? = null,
+        val isMain: Boolean = false,
     )
 
     private enum class CoroutineStatus {
