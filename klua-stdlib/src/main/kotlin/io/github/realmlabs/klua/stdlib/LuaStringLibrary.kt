@@ -375,7 +375,10 @@ internal object LuaStringLibrary {
         conversion: Char,
     ): String {
         return when (conversion) {
-            's' -> specifier.formatWith(toLuaString(context, index))
+            's' -> {
+                validateStringFormatSpecifier(specifier)
+                specifier.formatWith(toLuaString(context, index))
+            }
             'd',
             'i',
             'o',
@@ -416,6 +419,13 @@ internal object LuaStringLibrary {
             dropLast(1) + 'd'
         } else {
             this
+        }
+    }
+
+    private fun validateStringFormatSpecifier(specifier: String) {
+        val parsed = parseFormatSpecifier(specifier)
+        if (parsed.flags.any { flag -> flag != '-' }) {
+            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
         }
     }
 

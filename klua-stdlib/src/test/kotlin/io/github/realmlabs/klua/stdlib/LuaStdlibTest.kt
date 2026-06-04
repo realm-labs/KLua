@@ -1977,6 +1977,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format applies valid string modifiers`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%5s|%-5s|%.2s|%5.2s", "ab", "ab", "abcd", "abcd")""",
+                "string-format-string-modifiers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("   ab|ab   |ab|   ab", state.toString(1))
+    }
+
+    @Test
     fun `string format quotes primitive literals`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -2101,6 +2118,27 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(laterMissingState.getLastError())
         assertEquals("bad argument #3 to 'string.format' (no value)", laterMissingState.toString(-1))
+    }
+
+    @Test
+    fun `string format rejects invalid string modifiers`() {
+        val plusState = LuaState.create()
+        LuaStdlib.openString(plusState)
+
+        assertEquals(LuaStatus.OK, plusState.load("""return string.format("%+s", "x")""", "string-format-string-plus-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(plusState.getLastError())
+        assertEquals("invalid option '%+s' to 'string.format'", plusState.toString(-1))
+
+        val zeroState = LuaState.create()
+        LuaStdlib.openString(zeroState)
+
+        assertEquals(LuaStatus.OK, zeroState.load("""return string.format("%05s", "x")""", "string-format-string-zero-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, zeroState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(zeroState.getLastError())
+        assertEquals("invalid option '%05s' to 'string.format'", zeroState.toString(-1))
     }
 
     @Test
