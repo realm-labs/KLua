@@ -820,6 +820,60 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load honors text chunk mode`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local textChunk = load("return 42", "text.lua", "t")
+                local defaultChunk = load("return 24", "default.lua", nil)
+                local binaryChunk, message = load("return 12", "binary.lua", "b")
+                return textChunk(), defaultChunk(), binaryChunk, message
+                """.trimIndent(),
+                "load-mode.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(24L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+        assertEquals("attempt to load a text chunk (mode is 'b')", state.toString(4))
+    }
+
+    @Test
+    fun `loadfile honors text chunk mode`() {
+        val file = Files.createTempFile("klua-loadfile-mode", ".lua")
+        try {
+            Files.writeString(file, "return 42")
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local textChunk = loadfile("${file.luaPath()}", "t")
+                    local binaryChunk, message = loadfile("${file.luaPath()}", "b")
+                    return textChunk(), binaryChunk, message
+                    """.trimIndent(),
+                    "loadfile-mode.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+            assertEquals(42L, state.toInteger(1))
+            assertTrue(state.isNil(2))
+            assertEquals("attempt to load a text chunk (mode is 'b')", state.toString(3))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
     fun `loadfile compiles files with shared globals and arguments`() {
         val file = Files.createTempFile("klua-loadfile", ".lua")
         try {

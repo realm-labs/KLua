@@ -178,11 +178,19 @@ public object LuaStdlib {
         } else {
             requiredString(context, 2, "load")
         }
+        val mode = optionalString(context, 3, "bt", "load")
+        if ('t' !in mode) {
+            return LuaReturn.of(null, textChunkModeError(mode))
+        }
         return context.load(source, chunkName)
     }
 
     private fun loadfile(context: LuaCallContext): LuaReturn {
         val filename = requiredString(context, 1, "loadfile")
+        val mode = optionalString(context, 2, "bt", "loadfile")
+        if ('t' !in mode) {
+            return LuaReturn.of(null, textChunkModeError(mode))
+        }
         val source = try {
             Files.readString(Path.of(filename))
         } catch (error: IOException) {
@@ -709,6 +717,23 @@ public object LuaStdlib {
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
         return context.toString(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+    }
+
+    private fun optionalString(
+        context: LuaCallContext,
+        index: Int,
+        default: String,
+        functionName: String,
+    ): String {
+        return if (context.isNone(index) || context.isNil(index)) {
+            default
+        } else {
+            requiredString(context, index, functionName)
+        }
+    }
+
+    private fun textChunkModeError(mode: String): String {
+        return "attempt to load a text chunk (mode is '$mode')"
     }
 
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
