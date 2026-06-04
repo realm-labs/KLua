@@ -5,6 +5,12 @@ import io.github.realmlabs.klua.api.LuaRuntimeException
 internal data class LuaPatternMatch(
     val startIndex: Int,
     val endIndex: Int,
+    val captures: List<String> = emptyList(),
+)
+
+private data class PatternResult(
+    val endIndex: Int,
+    val captures: Map<Int, String>,
 )
 
 internal class LuaStringPattern private constructor(
@@ -30,9 +36,10 @@ internal class LuaStringPattern private constructor(
     private fun findPattern(text: String, startIndex: Int, patternTokens: List<Token>): LuaPatternMatch? {
         var index = if (startAnchored) 0 else startIndex
         while (index <= text.length) {
-            val endIndex = matchEnd(text, index, patternTokens, tokenIndex = 0)
-            if (index >= startIndex && endIndex != null) {
-                return LuaPatternMatch(index, endIndex)
+            val result = matchEnd(text, index, patternTokens, tokenIndex = 0, captureStarts = emptyMap(), captures = emptyMap())
+            if (index >= startIndex && result != null) {
+                val captures = result.captures.toSortedMap().values.toList()
+                return LuaPatternMatch(index, result.endIndex, captures)
             }
             if (startAnchored) {
                 return null
@@ -47,18 +54,40 @@ internal class LuaStringPattern private constructor(
         textIndex: Int,
         patternTokens: List<Token>,
         tokenIndex: Int,
-    ): Int? {
+        captureStarts: Map<Int, Int>,
+        captures: Map<Int, String>,
+    ): PatternResult? {
         if (tokenIndex >= patternTokens.size) {
-            return if (!endAnchored || textIndex == text.length) textIndex else null
+            return if (!endAnchored || textIndex == text.length) PatternResult(textIndex, captures) else null
         }
 
         return when (val token = patternTokens[tokenIndex]) {
-            is Token.Repetition -> matchRepetition(text, textIndex, patternTokens, tokenIndex, token)
+            is Token.CaptureStart -> matchEnd(
+                text,
+                textIndex,
+                patternTokens,
+                tokenIndex + 1,
+                captureStarts + (token.index to textIndex),
+                captures,
+            )
+            is Token.CaptureEnd -> {
+                val startIndex = captureStarts[token.index]
+                    ?: throw LuaRuntimeException("string patterns are not supported")
+                matchEnd(
+                    text,
+                    textIndex,
+                    patternTokens,
+                    tokenIndex + 1,
+                    captureStarts,
+                    captures + (token.index to text.substring(startIndex, textIndex)),
+                )
+            }
+            is Token.Repetition -> matchRepetition(text, textIndex, patternTokens, tokenIndex, token, captureStarts, captures)
             else -> {
                 if (textIndex >= text.length || !token.matches(text[textIndex])) {
                     null
                 } else {
-                    matchEnd(text, textIndex + 1, patternTokens, tokenIndex + 1)
+                    matchEnd(text, textIndex + 1, patternTokens, tokenIndex + 1, captureStarts, captures)
                 }
             }
         }
@@ -70,7 +99,9 @@ internal class LuaStringPattern private constructor(
         patternTokens: List<Token>,
         tokenIndex: Int,
         repetition: Token.Repetition,
-    ): Int? {
+        captureStarts: Map<Int, Int>,
+        captures: Map<Int, String>,
+    ): PatternResult? {
         var endIndex = textIndex
         while (
             endIndex < text.length &&
@@ -91,7 +122,7 @@ internal class LuaStringPattern private constructor(
             minimumEnd..endIndex
         }
         for (candidateEnd in candidateEnds) {
-            val matchEnd = matchEnd(text, candidateEnd, patternTokens, tokenIndex + 1)
+            val matchEnd = matchEnd(text, candidateEnd, patternTokens, tokenIndex + 1, captureStarts, captures)
             if (matchEnd != null) {
                 return matchEnd
             }
@@ -116,10 +147,28 @@ internal class LuaStringPattern private constructor(
 
         private fun tokenize(pattern: String): List<Token>? {
             val tokens = mutableListOf<Token>()
+            val captureStack = mutableListOf<Int>()
+            var captureCount = 0
             var index = 0
             var hasPatternToken = false
             while (index < pattern.length) {
                 when (val char = pattern[index]) {
+                    '(' -> {
+                        tokens += Token.CaptureStart(captureCount)
+                        captureStack += captureCount
+                        captureCount++
+                        hasPatternToken = true
+                        index++
+                    }
+                    ')' -> {
+                        if (captureStack.isEmpty()) {
+                            throw LuaRuntimeException("string patterns are not supported")
+                        }
+                        val captureIndex = captureStack.removeAt(captureStack.lastIndex)
+                        tokens += Token.CaptureEnd(captureIndex)
+                        hasPatternToken = true
+                        index++
+                    }
                     '.' -> {
                         index = addToken(tokens, Token.AnyChar, pattern, index + 1)
                         hasPatternToken = true
@@ -152,6 +201,9 @@ internal class LuaStringPattern private constructor(
                         index = addToken(tokens, Token.Literal(char), pattern, index + 1)
                     }
                 }
+            }
+            if (captureStack.isNotEmpty()) {
+                throw LuaRuntimeException("string patterns are not supported")
             }
             return if (hasPatternToken) tokens else null
         }
@@ -289,6 +341,18 @@ private sealed interface Token {
         }
     }
 
+    data class CaptureStart(
+        val index: Int,
+    ) : Token {
+        override fun matches(char: Char): Boolean = false
+    }
+
+    data class CaptureEnd(
+        val index: Int,
+    ) : Token {
+        override fun matches(char: Char): Boolean = false
+    }
+
     data class Repetition(
         val token: Token,
         val minimum: Int,
@@ -299,7 +363,7 @@ private sealed interface Token {
     }
 }
 
-private const val UNSUPPORTED_MAGIC = "^$()]*+-?"
+private const val UNSUPPORTED_MAGIC = "^$]*+-?"
 private const val ESCAPABLE_LITERAL = "^$()%.[]*+-?"
 
 private fun Char.isAsciiPunctuation(): Boolean {

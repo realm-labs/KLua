@@ -113,7 +113,14 @@ internal object LuaStringLibrary {
                 break
             }
             result.append(text, cursor, match.startIndex)
-            result.append(expandReplacement(replacement, text.substring(match.startIndex, match.endIndex), "string.gsub"))
+            result.append(
+                expandReplacement(
+                    replacement,
+                    text.substring(match.startIndex, match.endIndex),
+                    match.captures,
+                    "string.gsub",
+                ),
+            )
             cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
                 result.append(text[match.endIndex])
                 match.endIndex + 1
@@ -130,7 +137,12 @@ internal object LuaStringLibrary {
         return LuaReturn.of(result.toString(), replacements)
     }
 
-    private fun expandReplacement(replacement: String, wholeMatch: String, functionName: String): String {
+    private fun expandReplacement(
+        replacement: String,
+        wholeMatch: String,
+        captures: List<String>,
+        functionName: String,
+    ): String {
         val result = StringBuilder()
         var index = 0
         while (index < replacement.length) {
@@ -146,6 +158,12 @@ internal object LuaStringLibrary {
             when (val next = replacement[index + 1]) {
                 '%' -> result.append('%')
                 '0' -> result.append(wholeMatch)
+                in '1'..'9' -> {
+                    val captureIndex = next.digitToInt()
+                    val capture = captures.getOrNull(captureIndex - 1)
+                        ?: throw LuaRuntimeException("bad argument #3 to '$functionName' (invalid capture index %$next)")
+                    result.append(capture)
+                }
                 else -> throw LuaRuntimeException("bad argument #3 to '$functionName' (invalid capture index %$next)")
             }
             index += 2
@@ -171,7 +189,7 @@ internal object LuaStringLibrary {
         if (match == null) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(match.startIndex + 1L, match.endIndex.toLong())
+        return LuaReturn.ofValues(listOf(match.startIndex + 1L, match.endIndex.toLong()) + match.captures)
     }
 
     private fun stringFormat(context: LuaCallContext): LuaReturn {
@@ -229,6 +247,9 @@ internal object LuaStringLibrary {
         val match = LuaStringPattern.compile(pattern).find(text, startIndex)
         if (match == null) {
             return LuaReturn.of(null)
+        }
+        if (match.captures.isNotEmpty()) {
+            return LuaReturn.ofValues(match.captures)
         }
         return LuaReturn.of(text.substring(match.startIndex, match.endIndex))
     }
