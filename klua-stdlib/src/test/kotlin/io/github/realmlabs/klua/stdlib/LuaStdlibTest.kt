@@ -127,7 +127,7 @@ class LuaStdlibTest {
                 """
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
-                    type(debug.getupvalue), type(debug.setupvalue),
+                    type(debug.setlocal), type(debug.getupvalue), type(debug.setupvalue),
                     debug.traceback("boom"), type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
                 "debug-openlibs.lua",
@@ -141,11 +141,12 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
         assertEquals("function", state.toString(6))
-        assertTrue(state.toString(7)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(8))
-        assertEquals("Lua", state.toString(9))
-        assertEquals("debug-openlibs.lua", state.toString(10))
-        assertEquals(1L, state.toInteger(11))
+        assertEquals("function", state.toString(7))
+        assertTrue(state.toString(8)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(9))
+        assertEquals("Lua", state.toString(10))
+        assertEquals("debug-openlibs.lua", state.toString(11))
+        assertEquals(1L, state.toInteger(12))
     }
 
     @Test
@@ -250,6 +251,38 @@ class LuaStdlibTest {
         assertEquals("text", state.toString(3))
         assertEquals("ok", state.toString(4))
         assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `debug setlocal mutates active lua locals`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    local number = 12
+                    local text = "old"
+                    local n1 = debug.setlocal(1, 1, 99)
+                    local n2 = debug.setlocal(1, 2, "new")
+                    local missing = debug.setlocal(1, 99, "ignored")
+                    return n1, n2, missing, number, text
+                end
+
+                return leaf()
+                """.trimIndent(),
+                "debug-setlocal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("number", state.toString(1))
+        assertEquals("text", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals(99L, state.toInteger(4))
+        assertEquals("new", state.toString(5))
     }
 
     @Test

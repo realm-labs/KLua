@@ -327,11 +327,16 @@ internal class LuaVm(
     }
 
     private fun nativeCallContext(arguments: List<LuaValue>): LuaNativeCallContext {
-        return LuaNativeCallContext(arguments, luaStackFrames())
+        val frames = thread.stackFrames()
+        return LuaNativeCallContext(
+            arguments,
+            luaStackFrames(frames),
+            setLocalValue = { level, index, value -> setLocal(frames, level, index, value) },
+        )
     }
 
-    private fun luaStackFrames(): List<LuaNativeStackFrame> {
-        return thread.stackFrames().mapNotNull { frame ->
+    private fun luaStackFrames(frames: List<CallFrame>): List<LuaNativeStackFrame> {
+        return frames.mapNotNull { frame ->
             val pc = (frame.pc - 1).coerceAtLeast(0)
             val line = frame.lineForPc(pc)
             if (line <= 0) {
@@ -346,6 +351,20 @@ internal class LuaVm(
                 )
             }
         }
+    }
+
+    private fun setLocal(frames: List<CallFrame>, level: Int, index: Int, value: LuaValue): String? {
+        if (level < 0 || index <= 0) {
+            return null
+        }
+        val frame = frames.drop(level).firstOrNull() ?: return null
+        val pc = (frame.pc - 1).coerceAtLeast(0)
+        val local = frame.prototype.localVars
+            .filter { info -> info.startPc <= pc && pc < info.endPc }
+            .getOrNull(index - 1)
+            ?: return null
+        frame.stack.set(register(frame, local.slot), value)
+        return local.name
     }
 
     private fun activeLocals(frame: CallFrame, pc: Int): List<LuaNativeLocalVariable> {

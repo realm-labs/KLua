@@ -464,6 +464,9 @@ class LuaState private constructor(
                         context.arguments,
                         context.luaFrames,
                         nativeFrameName = name,
+                        setLocal = { level, index, value ->
+                            context.setLocal(level, index, value.toCoreReturnValue())
+                        },
                     )
                 },
                 yieldable = function.function is LuaYieldableFunction,
@@ -478,11 +481,12 @@ class LuaState private constructor(
         arguments: List<KLuaCoreValue>,
         luaFrames: List<KLuaCoreStackFrame> = emptyList(),
         nativeFrameName: String? = null,
+        setLocal: ((level: Int, index: Int, value: Any?) -> String?)? = null,
     ): KLuaCoreCallResult {
         val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
         val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
         return try {
-            val result = function.call(DefaultLuaCallContext(stackArguments, toApiStackFrames(luaFrames)))
+            val result = function.call(DefaultLuaCallContext(stackArguments, toApiStackFrames(luaFrames), setLocal))
             syncStackArgumentsToCore(arguments, stackArguments)
             KLuaCoreCallResult.Success(
                 result.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
@@ -704,7 +708,16 @@ class LuaState private constructor(
 
     private fun LuaFunction.toCoreFunctionValue(): KLuaCoreValue.FunctionValue {
         return KLuaCoreRuntime.createContextFunctionValue(
-            function = { context -> callHostFunction(this, context.arguments, context.luaFrames) },
+            function = { context ->
+                callHostFunction(
+                    this,
+                    context.arguments,
+                    context.luaFrames,
+                    setLocal = { level, index, value ->
+                        context.setLocal(level, index, value.toCoreReturnValue())
+                    },
+                )
+            },
             yieldable = this is LuaYieldableFunction,
         )
     }
@@ -1037,6 +1050,7 @@ class LuaState private constructor(
     private inner class DefaultLuaCallContext(
         private val arguments: List<LuaStackValue>,
         override val luaFrames: List<LuaStackFrame> = emptyList(),
+        private val setLocalValue: ((level: Int, index: Int, value: Any?) -> String?)? = null,
     ) : LuaCallContext {
         override val argumentCount: Int = arguments.size
 
@@ -1105,8 +1119,18 @@ class LuaState private constructor(
             )
         }
 
+        override fun setLocal(level: Int, index: Int, value: Any?): String? {
+            return setLocalValue?.invoke(level, index, value)
+        }
+
         private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {
-            return function.function.call(DefaultLuaCallContext(arguments.map { argument -> argument.toStackValue() }, luaFrames))
+            return function.function.call(
+                DefaultLuaCallContext(
+                    arguments.map { argument -> argument.toStackValue() },
+                    luaFrames,
+                    setLocalValue,
+                ),
+            )
         }
 
         override fun getTable(index: Int): Any? {

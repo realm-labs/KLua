@@ -70,7 +70,12 @@ internal class LuaNativeFunction(
 internal data class LuaNativeCallContext(
     val arguments: List<LuaValue>,
     val luaFrames: List<LuaNativeStackFrame>,
-)
+    private val setLocalValue: (level: Int, index: Int, value: LuaValue) -> String? = { _, _, _ -> null },
+) {
+    fun setLocal(level: Int, index: Int, value: LuaValue): String? {
+        return setLocalValue(level, index, value)
+    }
+}
 
 internal data class LuaNativeStackFrame(
     val sourceName: String,

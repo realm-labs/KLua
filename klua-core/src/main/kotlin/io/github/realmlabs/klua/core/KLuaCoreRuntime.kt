@@ -282,10 +282,15 @@ public fun interface KLuaCoreContextFunction {
     public fun call(context: KLuaCoreCallContext): KLuaCoreCallResult
 }
 
-public data class KLuaCoreCallContext(
+public class KLuaCoreCallContext(
     public val arguments: List<KLuaCoreValue>,
     public val luaFrames: List<KLuaCoreStackFrame>,
-)
+    private val setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String? = { _, _, _ -> null },
+) {
+    public fun setLocal(level: Int, index: Int, value: KLuaCoreValue): String? {
+        return setLocalValue(level, index, value)
+    }
+}
 
 public fun interface KLuaCoreUserDataMethod<T : Any> {
     public fun call(receiver: T, arguments: List<KLuaCoreValue>): KLuaCoreCallResult
@@ -673,7 +678,17 @@ private fun callCoreContextFunction(
     globals: KLuaCoreGlobals,
 ): List<LuaValue> {
     return callCoreFunction(context.arguments, globals) { publicArguments ->
-        function.call(KLuaCoreCallContext(publicArguments, context.luaFrames.toCoreStackFramesFromNative(globals)))
+        function.call(
+            KLuaCoreCallContext(
+                publicArguments,
+                context.luaFrames.toCoreStackFramesFromNative(globals),
+                setLocalValue = { level, index, value ->
+                    value.toLuaValueOrNull(globals)?.let { luaValue ->
+                        context.setLocal(level, index, luaValue)
+                    }
+                },
+            ),
+        )
     }
 }
 
