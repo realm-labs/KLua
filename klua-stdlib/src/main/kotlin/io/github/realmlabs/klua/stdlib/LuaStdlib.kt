@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaException
+import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -33,7 +34,9 @@ public object LuaStdlib {
         state.register("assert", ::assert)
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
+        state.register("ipairs", ::ipairs)
         state.register("next", ::next)
+        state.register("pairs", ::pairs)
         state.register("pcall", ::pcall)
         state.register("print") { context -> print(context, output) }
         state.register("rawequal", ::rawequal)
@@ -46,25 +49,6 @@ public object LuaStdlib {
         state.register("tostring", ::tostring)
         state.register("type", ::type)
         state.register("xpcall", ::xpcall)
-        installLuaSource(
-            state,
-            """
-            pairs = function(tableValue)
-                return next, tableValue, nil
-            end
-            ipairs = function(tableValue)
-                return function(state, index)
-                    local nextIndex = index + 1
-                    local value = rawget(state, nextIndex)
-                    if value == nil then
-                        return nil
-                    end
-                    return nextIndex, value
-                end, tableValue, 0
-            end
-            """.trimIndent(),
-            "stdlib-base-iterators.lua",
-        )
         return state
     }
 
@@ -138,6 +122,25 @@ public object LuaStdlib {
         return LuaReturn.of(context.getMetatable(1))
     }
 
+    private fun ipairs(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'ipairs' (table expected)")
+        }
+        val iterator = LuaFunction { iteratorContext ->
+            if (!iteratorContext.isTable(1)) {
+                throw LuaRuntimeException("bad argument #1 to 'ipairs iterator' (table expected)")
+            }
+            val nextIndex = (iteratorContext.toInteger(2) ?: 0L) + 1L
+            val value = iteratorContext.getTableValue(1, nextIndex)
+            if (value == null) {
+                LuaReturn.of(null)
+            } else {
+                LuaReturn.of(nextIndex, value)
+            }
+        }
+        return LuaReturn.ofValues(listOf(iterator, context.getTable(1), 0L))
+    }
+
     private fun next(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'next' (table expected)")
@@ -148,6 +151,13 @@ public object LuaStdlib {
             argumentValue(context, 2)
         }
         return LuaReturn.ofValues(context.nextTableEntry(1, key) ?: listOf(null))
+    }
+
+    private fun pairs(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'pairs' (table expected)")
+        }
+        return LuaReturn.ofValues(listOf(LuaFunction(::next), context.getTable(1), null))
     }
 
     private fun pcall(context: LuaCallContext): LuaReturn {

@@ -393,6 +393,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pairs and ipairs report table argument errors`() {
+        val pairState = LuaState.create()
+        LuaStdlib.openBase(pairState)
+
+        assertEquals(LuaStatus.OK, pairState.load("""return pairs("not-table")""", "pairs-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, pairState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(pairState.getLastError())
+        assertEquals("bad argument #1 to 'pairs' (table expected)", pairState.toString(-1))
+
+        val ipairsState = LuaState.create()
+        LuaStdlib.openBase(ipairsState)
+
+        assertEquals(LuaStatus.OK, ipairsState.load("""return ipairs("not-table")""", "ipairs-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, ipairsState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(ipairsState.getLastError())
+        assertEquals("bad argument #1 to 'ipairs' (table expected)", ipairsState.toString(-1))
+    }
+
+    @Test
     fun `next reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
