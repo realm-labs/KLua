@@ -875,6 +875,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math modf preserves integer subtype for integer parts`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local integerInput, integerFraction = math.modf(3)
+                local floatInteger, floatFraction = math.modf(3.75)
+                local negativeInteger, negativeFraction = math.modf(-3.75)
+                return integerInput, math.type(integerInput), integerFraction, math.type(integerFraction),
+                    floatInteger, math.type(floatInteger), floatFraction, math.type(floatFraction),
+                    negativeInteger, math.type(negativeInteger), negativeFraction, math.type(negativeFraction)
+                """.trimIndent(),
+                "math-modf-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("integer", state.toString(2))
+        assertEquals(0.0, state.toNumber(3) ?: error("missing integer fraction"), 1e-12)
+        assertEquals("float", state.toString(4))
+        assertEquals(3L, state.toInteger(5))
+        assertEquals("integer", state.toString(6))
+        assertEquals(0.75, state.toNumber(7) ?: error("missing float fraction"), 1e-12)
+        assertEquals("float", state.toString(8))
+        assertEquals(-3L, state.toInteger(9))
+        assertEquals("integer", state.toString(10))
+        assertEquals(-0.75, state.toNumber(11) ?: error("missing negative fraction"), 1e-12)
+        assertEquals("float", state.toString(12))
+    }
+
+    @Test
     fun `openMath installs numeric constants`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)

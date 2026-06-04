@@ -153,9 +153,14 @@ internal object LuaMathLibrary {
     }
 
     private fun mathModf(context: LuaCallContext): LuaReturn {
+        val integer = integerSubtype(context, 1)
+        if (integer != null) {
+            return LuaReturn.of(integer, 0.0)
+        }
         val value = requiredNumber(context, 1, "math.modf")
         val integerPart = if (value < 0) ceil(value) else floor(value)
-        return LuaReturn.of(integerPart, value - integerPart)
+        val fraction = if (value == integerPart) 0.0 else value - integerPart
+        return LuaReturn.of(numberToIntegerSubtype(integerPart) ?: integerPart, fraction)
     }
 
     private fun mathRad(context: LuaCallContext): LuaReturn {
@@ -262,6 +267,14 @@ internal object LuaMathLibrary {
             is Long -> value
             else -> null
         }
+    }
+
+    private fun numberToIntegerSubtype(value: Double): Long? {
+        if (!value.isFinite()) {
+            return null
+        }
+        val integer = value.toLong()
+        return if (integer.toDouble() == value) integer else null
     }
 
     private fun randomInteger(lower: Long, upper: Long): Long {
