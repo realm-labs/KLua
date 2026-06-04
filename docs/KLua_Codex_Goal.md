@@ -148,6 +148,7 @@ Current implemented areas:
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
 - Partial `klua-stdlib` support with base, math, string, table, and initial utf8 library installers covered by focused Lua-source tests.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
+- `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
 - Focused parser, compiler, VM, API, Kotlin helper, compatibility, and foundation tests.
 
 Remaining major gaps:
