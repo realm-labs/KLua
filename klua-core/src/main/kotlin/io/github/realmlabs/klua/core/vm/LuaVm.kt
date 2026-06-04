@@ -274,6 +274,9 @@ internal class LuaVm(
                 },
             )
         } catch (yield: LuaYieldSignal) {
+            if (!function.yieldable) {
+                throw LuaVmException("attempt to yield across a non-yieldable boundary")
+            }
             LuaExecutionResult.Yielded(yield.values)
         }
     }

@@ -82,6 +82,15 @@ public object KLuaCoreRuntime {
         val sourceFunction = function.sourceFunction ?: return null
         return KLuaCoreCoroutine(sourceFunction, globals)
     }
+
+    public fun createFunctionValue(
+        function: KLuaCoreFunction,
+        yieldable: Boolean = false,
+    ): KLuaCoreValue.FunctionValue {
+        return KLuaCoreValue.FunctionValue(function).also { functionValue ->
+            functionValue.yieldable = yieldable
+        }
+    }
 }
 
 public class KLuaCoreChunk internal constructor(
@@ -330,6 +339,7 @@ public sealed interface KLuaCoreValue {
         public val function: KLuaCoreFunction,
     ) : KLuaCoreValue {
         internal var sourceFunction: LuaValue? = null
+        internal var yieldable: Boolean = false
     }
 
     public data class TableValue(
@@ -379,7 +389,7 @@ private fun KLuaCoreValue.toLuaValueOrNull(
         is KLuaCoreValue.StringValue -> LuaString(value)
         is KLuaCoreValue.FunctionValue -> LuaNativeFunction { arguments ->
             callCoreFunction(function, arguments, globals)
-        }
+        }.copy(yieldable = yieldable)
         is KLuaCoreValue.TableValue -> {
             val cached = tableCache[this]
             if (cached != null) {
@@ -440,6 +450,9 @@ private fun toPublicValue(
             callPublicLuaFunction(value, arguments, globals)
         }.also { functionValue ->
             functionValue.sourceFunction = value
+            if (value is LuaNativeFunction) {
+                functionValue.yieldable = value.yieldable
+            }
         }
     }
 }

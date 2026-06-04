@@ -50,6 +50,7 @@ internal data class LuaClosure(
 ) : LuaValue
 
 internal data class LuaNativeFunction(
+    val yieldable: Boolean = false,
     val function: (List<LuaValue>) -> List<LuaValue>,
 ) : LuaValue
 

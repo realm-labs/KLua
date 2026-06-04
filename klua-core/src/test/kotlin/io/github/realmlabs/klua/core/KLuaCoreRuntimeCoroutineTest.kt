@@ -7,7 +7,7 @@ import kotlin.test.assertNotNull
 
 class KLuaCoreRuntimeCoroutineTest {
     @Test
-    fun `host functions can signal yielded values to the VM`() {
+    fun `ordinary host functions cannot yield across native boundary`() {
         val globals = KLuaCoreGlobals.create()
         globals.setFunction("yield") { arguments ->
             KLuaCoreCallResult.Yielded(arguments)
@@ -19,7 +19,7 @@ class KLuaCoreRuntimeCoroutineTest {
         val result = KLuaCoreRuntime.execute(chunk, emptyList(), globals)
 
         assertEquals(
-            KLuaCoreExecution.RuntimeError("attempt to yield from outside a coroutine"),
+            KLuaCoreExecution.RuntimeError("attempt to yield across a non-yieldable boundary"),
             result,
         )
     }
@@ -48,9 +48,13 @@ class KLuaCoreRuntimeCoroutineTest {
     @Test
     fun `core coroutine runner resumes yielded lua functions`() {
         val globals = KLuaCoreGlobals.create()
-        globals.setFunction("yield") { arguments ->
-            KLuaCoreCallResult.Yielded(arguments)
-        }
+        globals.set(
+            "yield",
+            KLuaCoreRuntime.createFunctionValue(
+                function = { arguments -> KLuaCoreCallResult.Yielded(arguments) },
+                yieldable = true,
+            ),
+        )
         val chunk = assertIs<KLuaCoreLoad.Success>(
             KLuaCoreRuntime.compile(
                 """

@@ -604,13 +604,18 @@ class LuaState private constructor(
             is Float -> KLuaCoreValue.NumberValue(toDouble())
             is Double -> KLuaCoreValue.NumberValue(this)
             is CharSequence -> KLuaCoreValue.StringValue(toString())
-            is LuaFunction -> KLuaCoreValue.FunctionValue { arguments ->
-                callHostFunction(this, arguments)
-            }
+            is LuaFunction -> toCoreFunctionValue()
             is Map<*, *> -> toCoreTableValue()
             is LuaStackValue -> toCoreValue()
             else -> KLuaCoreValue.UserDataValue(this)
         }
+    }
+
+    private fun LuaFunction.toCoreFunctionValue(): KLuaCoreValue.FunctionValue {
+        return KLuaCoreRuntime.createFunctionValue(
+            function = { arguments -> callHostFunction(this, arguments) },
+            yieldable = this is LuaYieldableFunction,
+        )
     }
 
     private fun LuaCallContext.argumentToCoreValue(index: Int): KLuaCoreValue {
@@ -690,9 +695,7 @@ class LuaState private constructor(
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")
-            is LuaStackValue.NativeFunctionValue -> coreFunction ?: KLuaCoreValue.FunctionValue { arguments ->
-                callHostFunction(function, arguments)
-            }
+            is LuaStackValue.NativeFunctionValue -> coreFunction ?: function.toCoreFunctionValue()
             is LuaStackValue.TableValue -> toCoreTableValue(tableCache)
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.UnsupportedValue -> KLuaCoreValue.UnsupportedValue(typeName)
@@ -730,9 +733,7 @@ class LuaState private constructor(
             is LuaStackValue.IntegerValue -> KLuaCoreValue.IntegerValue(value)
             is LuaStackValue.NumberValue -> KLuaCoreValue.NumberValue(value)
             is LuaStackValue.StringValue -> KLuaCoreValue.StringValue(value)
-            is LuaStackValue.NativeFunctionValue -> coreFunction ?: KLuaCoreValue.FunctionValue { arguments ->
-                callHostFunction(function, arguments)
-            }
+            is LuaStackValue.NativeFunctionValue -> coreFunction ?: function.toCoreFunctionValue()
             is LuaStackValue.TableValue -> toCoreTableValue(tableCache)
             is LuaStackValue.UserDataValue -> KLuaCoreValue.UserDataValue(value)
             is LuaStackValue.ChunkValue -> KLuaCoreValue.UnsupportedValue("function")

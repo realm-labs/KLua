@@ -140,7 +140,7 @@ class LuaApiSmokeTest {
     }
 
     @Test
-    fun `call context yield reaches core VM yield boundary`() {
+    fun `call context yield reports non yieldable host boundary`() {
         val state = LuaState.create()
         state.register("yield") { context ->
             context.yield((1..context.argumentCount).map { index -> context.get(index) })
@@ -149,7 +149,7 @@ class LuaApiSmokeTest {
         assertEquals(LuaStatus.OK, state.load("return yield(42)", "api-yield.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
-        assertEquals("attempt to yield from outside a coroutine", state.toString(-1))
+        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(-1))
     }
 
     @Test

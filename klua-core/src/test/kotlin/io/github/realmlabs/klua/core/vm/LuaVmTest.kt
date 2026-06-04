@@ -288,7 +288,7 @@ class LuaVmTest {
     }
 
     @Test
-    fun `propagates native yield signals through lua calls`() {
+    fun `rejects native yield signals from non yieldable lua calls`() {
         val globals = LuaTable()
         globals.rawSet(
             LuaString("yield"),
@@ -310,7 +310,7 @@ class LuaVmTest {
             )
         }
 
-        assertEquals("attempt to yield from outside a coroutine", error.message)
+        assertEquals("attempt to yield across a non-yieldable boundary", error.message)
     }
 
     @Test
@@ -320,7 +320,7 @@ class LuaVmTest {
             LuaString("yield"),
             LuaNativeFunction { arguments ->
                 throw LuaYieldSignal(arguments)
-            },
+            }.copy(yieldable = true),
         )
         val vm = LuaVm(globals)
 
@@ -346,7 +346,7 @@ class LuaVmTest {
             LuaString("yield"),
             LuaNativeFunction { arguments ->
                 throw LuaYieldSignal(arguments)
-            },
+            }.copy(yieldable = true),
         )
         val vm = LuaVm(globals)
 
@@ -374,7 +374,7 @@ class LuaVmTest {
             LuaString("yield"),
             LuaNativeFunction { arguments ->
                 throw LuaYieldSignal(arguments)
-            },
+            }.copy(yieldable = true),
         )
         val vm = LuaVm(globals)
 
@@ -403,7 +403,7 @@ class LuaVmTest {
             LuaString("yield"),
             LuaNativeFunction { arguments ->
                 throw LuaYieldSignal(arguments)
-            },
+            }.copy(yieldable = true),
         )
         val vm = LuaVm(globals)
 
@@ -432,7 +432,7 @@ class LuaVmTest {
             LuaString("yield"),
             LuaNativeFunction { arguments ->
                 throw LuaYieldSignal(arguments)
-            },
+            }.copy(yieldable = true),
         )
         val vm = LuaVm(globals)
 

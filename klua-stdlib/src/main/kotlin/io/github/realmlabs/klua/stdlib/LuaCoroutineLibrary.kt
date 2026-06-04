@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaYieldableFunction
 
 internal object LuaCoroutineLibrary {
     fun open(state: LuaState): LuaState {
@@ -19,7 +20,7 @@ internal object LuaCoroutineLibrary {
         setFunctionField(state, "running") { coroutineRunning(runtime) }
         setFunctionField(state, "status", ::coroutineStatus)
         setFunctionField(state, "wrap") { context -> coroutineWrap(context, runtime) }
-        setFunctionField(state, "yield") { context -> coroutineYield(context, runtime) }
+        setYieldableFunctionField(state, "yield") { context -> coroutineYield(context, runtime) }
         state.setGlobal("coroutine")
         return state
     }
@@ -157,6 +158,11 @@ internal object LuaCoroutineLibrary {
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
         state.pushFunction(function)
+        state.setField(-2, name)
+    }
+
+    private fun setYieldableFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
+        state.pushFunction(LuaYieldableFunction { context -> function(context) })
         state.setField(-2, name)
     }
 

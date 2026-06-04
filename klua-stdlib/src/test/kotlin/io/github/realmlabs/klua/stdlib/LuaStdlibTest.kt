@@ -1773,6 +1773,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine resume rejects plain host function yield`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        state.register("hostYield") { context ->
+            context.yield((1..context.argumentCount).map { index -> context.get(index) })
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    return hostYield("host")
+                end)
+                local ok, message = coroutine.resume(co)
+                return ok, message, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-host-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+    }
+
+    @Test
     fun `nested coroutines restore running coroutine after inner resume`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
