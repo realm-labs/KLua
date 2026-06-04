@@ -1756,6 +1756,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns support escaped punctuation literals`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local commaStart, commaEnd = string.find("a,b", "%,")
+                local bang = string.match("ok!", "%!")
+                local replaced, count = string.gsub("a/b/c", "%/", "|")
+                local iterator = string.gmatch("a,b;c", "%p")
+                return commaStart, commaEnd, bang, replaced, count, iterator(), iterator(), iterator()
+                """.trimIndent(),
+                "string-pattern-escaped-punctuation.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("!", state.toString(3))
+        assertEquals("a|b|c", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(",", state.toString(6))
+        assertEquals(";", state.toString(7))
+        assertTrue(state.isNil(8))
+    }
+
+    @Test
     fun `string patterns support optional items`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

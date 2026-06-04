@@ -382,8 +382,7 @@ internal class LuaStringPattern private constructor(
                 'X' -> Token.CharClass { value -> !(value.isDigit() || value in 'a'..'f' || value in 'A'..'F') }
                 'z' -> Token.CharClass { value -> value == '\u0000' }
                 'Z' -> Token.CharClass { value -> value != '\u0000' }
-                in ESCAPABLE_LITERAL -> Token.Literal(char)
-                else -> null
+                else -> if (!char.isLetterOrDigit()) Token.Literal(char) else null
             }
         }
     }
@@ -467,7 +466,6 @@ private sealed interface Token {
 }
 
 private const val UNSUPPORTED_MAGIC = "]*+-?"
-private const val ESCAPABLE_LITERAL = "^$()%.[]*+-?"
 
 private fun Char.isAsciiPunctuation(): Boolean {
     return this in '!'..'/' || this in ':'..'@' || this in '['..'`' || this in '{'..'~'
