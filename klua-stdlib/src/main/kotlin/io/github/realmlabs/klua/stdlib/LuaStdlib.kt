@@ -82,34 +82,11 @@ public object LuaStdlib {
         state.newTable()
         setFunctionField(state, "concat", ::tableConcat)
         setFunctionField(state, "insert", ::tableInsert)
+        setFunctionField(state, "move", ::tableMove)
         setFunctionField(state, "pack", ::tablePack)
         setFunctionField(state, "remove", ::tableRemove)
         setFunctionField(state, "unpack", ::tableUnpack)
         state.setGlobal("table")
-        installLuaSource(
-            state,
-            """
-            table.move = function(source, first, last, target, destination)
-                if destination == nil then
-                    destination = source
-                end
-                if first > last then
-                    return destination
-                end
-                if source == destination and target > first and target <= last then
-                    for offset = last - first, 0, -1 do
-                        destination[target + offset] = source[first + offset]
-                    end
-                else
-                    for offset = 0, last - first do
-                        destination[target + offset] = source[first + offset]
-                    end
-                end
-                return destination
-            end
-            """.trimIndent(),
-            "stdlib-table-move.lua",
-        )
         installLuaSource(
             state,
             """
@@ -411,9 +388,46 @@ public object LuaStdlib {
     private fun tablePack(context: LuaCallContext): LuaReturn {
         val table = linkedMapOf<Any, Any?>("n" to context.argumentCount.toLong())
         for (index in 1..context.argumentCount) {
-            table[index.toLong()] = context.get(index)
+            table[index.toLong()] = argumentValue(context, index)
         }
         return LuaReturn.of(table)
+    }
+
+    private fun tableMove(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'table.move' (table expected)")
+        }
+        val first = requiredInteger(context, 2, "table.move")
+        val last = requiredInteger(context, 3, "table.move")
+        val target = requiredInteger(context, 4, "table.move")
+        val destinationIndex = if (context.isNone(5) || context.isNil(5)) {
+            1
+        } else {
+            if (!context.isTable(5)) {
+                throw LuaRuntimeException("bad argument #5 to 'table.move' (table expected)")
+            }
+            5
+        }
+
+        if (first > last) {
+            return LuaReturn.of(context.getTable(destinationIndex))
+        }
+
+        val sameTable = context.getTable(1) === context.getTable(destinationIndex)
+        if (sameTable && target > first && target <= last) {
+            var offset = last - first
+            while (offset >= 0L) {
+                context.setTableValue(destinationIndex, target + offset, context.getTableValue(1, first + offset))
+                offset--
+            }
+        } else {
+            var offset = 0L
+            while (offset <= last - first) {
+                context.setTableValue(destinationIndex, target + offset, context.getTableValue(1, first + offset))
+                offset++
+            }
+        }
+        return LuaReturn.of(context.getTable(destinationIndex))
     }
 
     private fun tableRemove(context: LuaCallContext): LuaReturn {

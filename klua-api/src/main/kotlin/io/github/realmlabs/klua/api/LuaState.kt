@@ -827,7 +827,7 @@ class LuaState private constructor(
 
         override fun getTableValue(index: Int, key: Any?): Any? {
             val table = valueAt(index) as? LuaStackValue.TableValue ?: return null
-            return table.fields[key.toStackValue()]?.toAnyValue()
+            return table.fields[key.toStackValue()]?.toPublicCallReturnValue()
         }
 
         override fun setTableValue(index: Int, key: Any?, value: Any?) {
@@ -873,7 +873,7 @@ class LuaState private constructor(
                 currentIndex + 1
             }
             val entry = entries.getOrNull(nextIndex) ?: return null
-            return listOf(entry.key.toAnyValue(), entry.value.toAnyValue())
+            return listOf(entry.key.toPublicCallReturnValue(), entry.value.toPublicCallReturnValue())
         }
 
         override fun tableLength(index: Int): Long? {

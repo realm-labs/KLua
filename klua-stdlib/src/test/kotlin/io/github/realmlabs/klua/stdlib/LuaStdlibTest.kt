@@ -1899,6 +1899,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table pack and unpack preserve table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nested = {name = "inner"}
+                local packed = table.pack(nested)
+                local unpacked = table.unpack(packed, 1, packed.n)
+                return packed[1] == nested, unpacked == nested, unpacked.name
+                """.trimIndent(),
+                "table-pack-unpack-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("inner", state.toString(3))
+    }
+
+    @Test
     fun `table move copies ranges and returns destination table`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -1926,6 +1950,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move preserves table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nested = {name = "inner"}
+                local source = {nested}
+                local destination = {}
+                table.move(source, 1, 1, 1, destination)
+                return source[1] == nested, destination[1] == nested, destination[1].name
+                """.trimIndent(),
+                "table-move-table-values.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("inner", state.toString(3))
+    }
+
+    @Test
     fun `table move handles overlapping self moves`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -1948,6 +1997,18 @@ class LuaStdlibTest {
         assertEquals("b", state.toString(3))
         assertEquals("c", state.toString(4))
         assertTrue(state.toBoolean(5))
+    }
+
+    @Test
+    fun `table move reports argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return table.move({}, 1, 1, 1, "not-table")""", "table-move-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #5 to 'table.move' (table expected)", state.toString(-1))
     }
 
     @Test
