@@ -859,6 +859,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math type classifies integer and float numbers`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return math.type(1),
+                    math.type(1.5),
+                    math.type("1"),
+                    math.type(nil),
+                    math.type({})
+                """.trimIndent(),
+                "math-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("integer", state.toString(1))
+        assertEquals("float", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
     fun `math random supports ranges and deterministic seeds`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)

@@ -44,6 +44,7 @@ internal object LuaMathLibrary {
         setFunctionField(state, "sin", ::mathSin)
         setFunctionField(state, "sqrt", ::mathSqrt)
         setFunctionField(state, "tan", ::mathTan)
+        setFunctionField(state, "type", ::mathType)
         setFunctionField(state, "tointeger", ::mathToInteger)
         setFunctionField(state, "ult", ::mathUnsignedLessThan)
         setNumberField(state, "huge", Double.POSITIVE_INFINITY)
@@ -190,6 +191,23 @@ internal object LuaMathLibrary {
 
     private fun mathTan(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(tan(requiredNumber(context, 1, "math.tan")))
+    }
+
+    private fun mathType(context: LuaCallContext): LuaReturn {
+        if (context.typeName(1) != "number") {
+            return LuaReturn.of(null)
+        }
+        return when (context.get(1)) {
+            is Byte,
+            is Short,
+            is Int,
+            is Long,
+            -> LuaReturn.of("integer")
+            is Float,
+            is Double,
+            -> LuaReturn.of("float")
+            else -> LuaReturn.of(null)
+        }
     }
 
     private fun mathToInteger(context: LuaCallContext): LuaReturn {
