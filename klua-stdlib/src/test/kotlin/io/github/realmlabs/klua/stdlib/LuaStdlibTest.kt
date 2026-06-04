@@ -127,7 +127,7 @@ class LuaStdlibTest {
                 """
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
-                    type(debug.getupvalue),
+                    type(debug.getupvalue), type(debug.setupvalue),
                     debug.traceback("boom"), type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
                 "debug-openlibs.lua",
@@ -140,11 +140,12 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(3))
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
-        assertTrue(state.toString(6)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(7))
-        assertEquals("Lua", state.toString(8))
-        assertEquals("debug-openlibs.lua", state.toString(9))
-        assertEquals(1L, state.toInteger(10))
+        assertEquals("function", state.toString(6))
+        assertTrue(state.toString(7)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(8))
+        assertEquals("Lua", state.toString(9))
+        assertEquals("debug-openlibs.lua", state.toString(10))
+        assertEquals(1L, state.toInteger(11))
     }
 
     @Test
@@ -281,6 +282,39 @@ class LuaStdlibTest {
         assertEquals("count", state.toString(3))
         assertEquals(42L, state.toInteger(4))
         assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `debug setupvalue mutates lua closure upvalues`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local secret = "old"
+                local count = 1
+                local function capture()
+                    return secret, count
+                end
+
+                local n1 = debug.setupvalue(capture, 1, "new")
+                local n2 = debug.setupvalue(capture, 2, 99)
+                local missing = debug.setupvalue(capture, 99, "ignored")
+                local v1, v2 = capture()
+                return n1, n2, missing, v1, v2
+                """.trimIndent(),
+                "debug-setupvalue.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("secret", state.toString(1))
+        assertEquals("count", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("new", state.toString(4))
+        assertEquals(99L, state.toInteger(5))
     }
 
     @Test

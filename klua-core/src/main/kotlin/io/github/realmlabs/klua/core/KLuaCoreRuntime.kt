@@ -129,6 +129,23 @@ public object KLuaCoreRuntime {
         val upvalue = closure.upvalues.getOrNull(zeroIndex) ?: return null
         return KLuaCoreUpvalue(name, toPublicValue(upvalue.value, globals))
     }
+
+    public fun setUpvalue(
+        function: KLuaCoreValue.FunctionValue,
+        index: Int,
+        value: KLuaCoreValue,
+        globals: KLuaCoreGlobals,
+    ): String? {
+        if (index <= 0) {
+            return null
+        }
+        val closure = function.sourceFunction as? LuaClosure ?: return null
+        val zeroIndex = index - 1
+        val name = closure.prototype.upvalueNames.getOrNull(zeroIndex) ?: return null
+        val upvalue = closure.upvalues.getOrNull(zeroIndex) ?: return null
+        upvalue.value = value.toLuaValueOrNull(globals) ?: return null
+        return name
+    }
 }
 
 public class KLuaCoreChunk internal constructor(

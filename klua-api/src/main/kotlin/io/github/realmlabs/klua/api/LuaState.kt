@@ -1094,6 +1094,17 @@ class LuaState private constructor(
             )
         }
 
+        override fun setUpvalue(index: Int, upvalueIndex: Int, value: Any?): String? {
+            val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
+            val coreFunction = function.coreFunction ?: return null
+            return KLuaCoreRuntime.setUpvalue(
+                coreFunction,
+                upvalueIndex,
+                value.toCoreReturnValue(),
+                coreGlobals,
+            )
+        }
+
         private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {
             return function.function.call(DefaultLuaCallContext(arguments.map { argument -> argument.toStackValue() }, luaFrames))
         }
