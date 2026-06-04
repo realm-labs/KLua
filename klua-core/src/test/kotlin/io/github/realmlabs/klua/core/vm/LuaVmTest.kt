@@ -722,6 +722,36 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes generic for loop`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function iter(state, key)
+                    local next = key + 1
+                    if next > state.n then
+                        return nil
+                    end
+                    return next, state[next]
+                end
+                local function iterator()
+                    return iter, {n = 3, "a", "b", "c"}, 0
+                end
+                local text = ""
+                for index, value in iterator() do
+                    text = text .. index .. value
+                    if index == 2 then
+                        break
+                    end
+                end
+                return text
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaString("1a2b")), result)
+    }
+
+    @Test
     fun `rejects comparison between incompatible values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" < 1"""))

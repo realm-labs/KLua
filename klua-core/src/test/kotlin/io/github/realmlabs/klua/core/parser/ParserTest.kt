@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.core.ast.DoStatement
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
+import io.github.realmlabs.klua.core.ast.GenericForStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
@@ -178,6 +179,22 @@ class ParserTest {
         assertEquals(1L, assertIs<IntegerExpression>(statement.start).value)
         assertEquals(3L, assertIs<IntegerExpression>(statement.limit).value)
         assertEquals(1L, assertIs<IntegerExpression>(statement.step).value)
+        assertEquals(1, statement.block.size)
+    }
+
+    @Test
+    fun `parses generic for block`() {
+        val chunk = Parser.parse(
+            """
+            for key, value in pairs(values) do
+                seen = value
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<GenericForStatement>(chunk.statements.single())
+        assertEquals(listOf("key", "value"), statement.names)
+        assertIs<CallExpression>(statement.values.single())
         assertEquals(1, statement.block.size)
     }
 

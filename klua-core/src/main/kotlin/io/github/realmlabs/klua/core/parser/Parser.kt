@@ -15,6 +15,7 @@ import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
+import io.github.realmlabs.klua.core.ast.GenericForStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
@@ -255,9 +256,16 @@ internal class Parser private constructor(
         return RepeatStatement(block, condition, SourceRange(start.range.start, condition.range.end))
     }
 
-    private fun forStatement(start: Token): NumericForStatement {
+    private fun forStatement(start: Token): Statement {
         val name = consume(TokenKind.IDENTIFIER, "expected loop variable name")
-        consume(TokenKind.ASSIGN, "expected '=' after loop variable")
+        if (!match(TokenKind.ASSIGN)) {
+            return genericForStatement(start, name)
+        }
+
+        return numericForStatement(start, name)
+    }
+
+    private fun numericForStatement(start: Token, name: Token): NumericForStatement {
         val initial = expression()
         consume(TokenKind.COMMA, "expected ',' after for initial value")
         val limit = expression()
@@ -270,6 +278,26 @@ internal class Parser private constructor(
             start = initial,
             limit = limit,
             step = step,
+            block = block,
+            range = SourceRange(start.range.start, end.range.end),
+        )
+    }
+
+    private fun genericForStatement(start: Token, firstName: Token): GenericForStatement {
+        val names = mutableListOf(firstName.literal as String)
+        while (match(TokenKind.COMMA)) {
+            val name = consume(TokenKind.IDENTIFIER, "expected loop variable name")
+            names += name.literal as String
+        }
+
+        consume(TokenKind.IN, "expected '=' or 'in' after loop variable")
+        val values = expressionList()
+        consume(TokenKind.DO, "expected 'do' after for iterator values")
+        val block = parseBlock(setOf(TokenKind.END))
+        val end = consume(TokenKind.END, "expected 'end' after for statement")
+        return GenericForStatement(
+            names = names,
+            values = values,
             block = block,
             range = SourceRange(start.range.start, end.range.end),
         )

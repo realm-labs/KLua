@@ -98,6 +98,13 @@ internal data class NumericForStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class GenericForStatement(
+    val names: List<String>,
+    val values: List<Expression>,
+    val block: List<Statement>,
+    override val range: SourceRange,
+) : Statement
+
 internal data class ElseIfBranch(
     val condition: Expression,
     val block: List<Statement>,

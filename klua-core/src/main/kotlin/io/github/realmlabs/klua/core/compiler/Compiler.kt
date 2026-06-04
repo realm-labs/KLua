@@ -13,6 +13,7 @@ import io.github.realmlabs.klua.core.ast.Expression
 import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
+import io.github.realmlabs.klua.core.ast.GenericForStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
@@ -101,6 +102,7 @@ internal class Compiler private constructor(
                 is WhileStatement -> compileWhile(statement)
                 is RepeatStatement -> compileRepeat(statement)
                 is NumericForStatement -> compileNumericFor(statement)
+                is GenericForStatement -> compileGenericFor(statement)
                 is FunctionStatement -> compileFunctionStatement(statement)
                 is LocalFunctionStatement -> compileLocalFunction(statement)
                 is ReturnStatement -> compileReturn(statement)
@@ -157,6 +159,70 @@ internal class Compiler private constructor(
         locals.clear()
         locals.putAll(savedLocals)
         nextLocalRegister = savedNextLocalRegister
+    }
+
+    private fun compileGenericFor(statement: GenericForStatement) {
+        val breaks = pushLoopBreaks()
+        val savedLocals = LinkedHashMap(locals)
+        val savedNextLocalRegister = nextLocalRegister
+        val iteratorBase = nextLocalRegister
+        val valueBase = iteratorBase + 3
+        val valueSlots = maxOf(statement.names.size, 3)
+        nextLocalRegister += 3 + valueSlots
+        maxRegister = maxRegister.coerceAtLeast(nextLocalRegister)
+
+        compileIteratorValues(statement.values, iteratorBase, statement.range.start.line)
+
+        for ((index, name) in statement.names.withIndex()) {
+            locals[name] = valueBase + index
+        }
+
+        val loopStart = writer.size
+        writer.emit(Instruction.abc(Opcode.MOVE, valueBase, iteratorBase), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, valueBase + 1, iteratorBase + 1), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, valueBase + 2, iteratorBase + 2), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.CALL, valueBase, 2, statement.names.size), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, iteratorBase + 2, valueBase), statement.range.start.line)
+
+        val testIndex = writer.size
+        writer.emit(Instruction.abc(Opcode.TEST, valueBase), statement.range.start.line)
+
+        compileStatements(statement.block)
+
+        val backJump = writer.size
+        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        patchJump(backJump, loopStart)
+        patchTest(testIndex, writer.size)
+        patchLoopBreaks(breaks, writer.size)
+
+        locals.clear()
+        locals.putAll(savedLocals)
+        nextLocalRegister = savedNextLocalRegister
+    }
+
+    private fun compileIteratorValues(values: List<Expression>, baseRegister: Int, line: Int) {
+        val onlyValue = values.singleOrNull()
+        if (onlyValue is VarargExpression) {
+            compileVarargExpression(onlyValue, baseRegister, 3)
+            return
+        }
+        if (onlyValue is CallExpression) {
+            compileCallExpression(onlyValue, baseRegister, 3)
+            return
+        }
+        if (onlyValue is MethodCallExpression) {
+            compileMethodCallExpression(onlyValue, baseRegister, 3)
+            return
+        }
+
+        for (index in 0 until 3) {
+            val value = values.getOrNull(index)
+            if (value == null) {
+                writer.emit(Instruction.abc(Opcode.LOAD_NIL, baseRegister + index), line)
+            } else {
+                compileExpression(value, baseRegister + index)
+            }
+        }
     }
 
     private fun compileLocal(statement: LocalStatement) {
