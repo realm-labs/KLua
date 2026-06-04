@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.core.compiler
 
 import io.github.realmlabs.klua.core.bytecode.Disassembler
+import io.github.realmlabs.klua.core.bytecode.LocalVarInfo
 import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
@@ -45,6 +46,29 @@ class CompilerTest {
 
         assertEquals("breakpoints.lua", prototype.sourceId)
         assertContentEquals(intArrayOf(1, 2, 3), prototype.validBreakpointLines)
+    }
+
+    @Test
+    fun `compiles local variable debug metadata`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 1
+            do
+                local y = 2
+                x = y
+            end
+            return x
+            """.trimIndent(),
+            "locals.lua",
+        )
+
+        assertContentEquals(
+            arrayOf(
+                LocalVarInfo("x", slot = 0, startPc = 1, endPc = prototype.code.size),
+                LocalVarInfo("y", slot = 1, startPc = 2, endPc = 4),
+            ),
+            prototype.localVars,
+        )
     }
 
     @Test

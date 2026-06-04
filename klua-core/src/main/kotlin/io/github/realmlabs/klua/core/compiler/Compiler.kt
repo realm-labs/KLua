@@ -40,6 +40,7 @@ import io.github.realmlabs.klua.core.ast.VariableExpression
 import io.github.realmlabs.klua.core.ast.WhileStatement
 import io.github.realmlabs.klua.core.bytecode.BytecodeWriter
 import io.github.realmlabs.klua.core.bytecode.Instruction
+import io.github.realmlabs.klua.core.bytecode.LocalVarInfo
 import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
@@ -66,6 +67,7 @@ internal class Compiler private constructor(
     private val localAttributes = linkedMapOf<String, LocalAttribute>()
     private val upvalues = mutableListOf<UpvalueDescriptor>()
     private val upvalueIndexes = linkedMapOf<String, Int>()
+    private val localVars = mutableListOf<LocalVarBuilder>()
     private val loopBreaks = mutableListOf<MutableList<Int>>()
     private var nextLocalRegister = 0
     private var maxRegister = 0
@@ -88,6 +90,7 @@ internal class Compiler private constructor(
             constants = constants.toArray(),
             nested = nested.toTypedArray(),
             upvalues = upvalues.toTypedArray(),
+            localVars = localVarInfo(writer.size),
             lineInfo = writer.lineInfo(),
             maxStackSize = maxRegister.coerceAtLeast(1),
             isVararg = isVarargFunction,
@@ -127,11 +130,7 @@ internal class Compiler private constructor(
         val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
         compileStatements(statements)
-        locals.clear()
-        locals.putAll(savedLocals)
-        localAttributes.clear()
-        localAttributes.putAll(savedLocalAttributes)
-        nextLocalRegister = savedNextLocalRegister
+        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
 
     private fun compileNumericFor(statement: NumericForStatement) {
@@ -163,11 +162,7 @@ internal class Compiler private constructor(
         patchForTest(testIndex, writer.size)
         patchLoopBreaks(breaks, writer.size)
 
-        locals.clear()
-        locals.putAll(savedLocals)
-        localAttributes.clear()
-        localAttributes.putAll(savedLocalAttributes)
-        nextLocalRegister = savedNextLocalRegister
+        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
 
     private fun compileGenericFor(statement: GenericForStatement) {
@@ -205,11 +200,7 @@ internal class Compiler private constructor(
         patchTest(testIndex, writer.size)
         patchLoopBreaks(breaks, writer.size)
 
-        locals.clear()
-        locals.putAll(savedLocals)
-        localAttributes.clear()
-        localAttributes.putAll(savedLocalAttributes)
-        nextLocalRegister = savedNextLocalRegister
+        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
 
     private fun compileIteratorValues(values: List<Expression>, baseRegister: Int, line: Int) {
@@ -286,6 +277,7 @@ internal class Compiler private constructor(
     private fun registerLocal(name: String, slot: Int, attribute: LocalAttribute) {
         locals[name] = slot
         localAttributes[name] = attribute
+        localVars += LocalVarBuilder(name, slot, writer.size)
     }
 
     private fun compileLocalFunction(statement: LocalFunctionStatement) {
@@ -456,11 +448,7 @@ internal class Compiler private constructor(
         patchTest(testIndex, loopStart)
         patchLoopBreaks(breaks, writer.size)
 
-        locals.clear()
-        locals.putAll(savedLocals)
-        localAttributes.clear()
-        localAttributes.putAll(savedLocalAttributes)
-        nextLocalRegister = savedNextLocalRegister
+        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
 
     private fun compileBreak(statement: BreakStatement) {
@@ -704,6 +692,7 @@ internal class Compiler private constructor(
             constants = compiler.constants.toArray(),
             nested = compiler.nested.toTypedArray(),
             upvalues = compiler.upvalues.toTypedArray(),
+            localVars = compiler.localVarInfo(compiler.writer.size),
             lineInfo = compiler.writer.lineInfo(),
             maxStackSize = compiler.maxRegister.coerceAtLeast(1),
             numParams = expression.parameters.size,
@@ -965,6 +954,45 @@ internal class Compiler private constructor(
             patchJump(jump, targetIndex)
         }
     }
+
+    private fun restoreLocals(
+        savedLocals: LinkedHashMap<String, Int>,
+        savedLocalAttributes: LinkedHashMap<String, LocalAttribute>,
+        savedNextLocalRegister: Int,
+    ) {
+        closeInactiveLocals(savedLocals, writer.size)
+        locals.clear()
+        locals.putAll(savedLocals)
+        localAttributes.clear()
+        localAttributes.putAll(savedLocalAttributes)
+        nextLocalRegister = savedNextLocalRegister
+    }
+
+    private fun closeInactiveLocals(savedLocals: Map<String, Int>, endPc: Int) {
+        for (local in localVars) {
+            if (local.endPc == null && savedLocals[local.name] != local.slot) {
+                local.endPc = endPc
+            }
+        }
+    }
+
+    private fun localVarInfo(endPc: Int): Array<LocalVarInfo> {
+        return localVars.map { local ->
+            LocalVarInfo(
+                name = local.name,
+                slot = local.slot,
+                startPc = local.startPc,
+                endPc = local.endPc ?: endPc,
+            )
+        }.toTypedArray()
+    }
+
+    private data class LocalVarBuilder(
+        val name: String,
+        val slot: Int,
+        val startPc: Int,
+        var endPc: Int? = null,
+    )
 
     private fun unsupported(statement: Statement, message: String): CompilerException {
         return CompilerException(statement.range.start, message)

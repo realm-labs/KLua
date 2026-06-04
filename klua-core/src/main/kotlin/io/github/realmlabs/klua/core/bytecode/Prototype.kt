@@ -10,6 +10,7 @@ internal data class Prototype(
     val constants: Array<LuaValue>,
     val nested: Array<Prototype> = emptyArray(),
     val upvalues: Array<UpvalueDescriptor> = emptyArray(),
+    val localVars: Array<LocalVarInfo> = emptyArray(),
     val lineInfo: IntArray = IntArray(code.size),
     val maxStackSize: Int,
     val numParams: Int = 0,
@@ -28,6 +29,7 @@ internal data class Prototype(
             constants.contentEquals(other.constants) &&
             nested.contentEquals(other.nested) &&
             upvalues.contentEquals(other.upvalues) &&
+            localVars.contentEquals(other.localVars) &&
             lineInfo.contentEquals(other.lineInfo) &&
             validBreakpointLines.contentEquals(other.validBreakpointLines) &&
             maxStackSize == other.maxStackSize &&
@@ -43,6 +45,7 @@ internal data class Prototype(
         result = 31 * result + constants.contentHashCode()
         result = 31 * result + nested.contentHashCode()
         result = 31 * result + upvalues.contentHashCode()
+        result = 31 * result + localVars.contentHashCode()
         result = 31 * result + lineInfo.contentHashCode()
         result = 31 * result + validBreakpointLines.contentHashCode()
         result = 31 * result + maxStackSize
@@ -66,6 +69,13 @@ internal data class UpvalueDescriptor(
     val name: String,
     val source: UpvalueSource,
     val sourceIndex: Int,
+)
+
+internal data class LocalVarInfo(
+    val name: String,
+    val slot: Int,
+    val startPc: Int,
+    val endPc: Int,
 )
 
 internal enum class UpvalueSource {
