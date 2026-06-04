@@ -71,25 +71,43 @@ internal object LuaUtf8Library {
 
     private fun utf8Offset(context: LuaCallContext): LuaReturn {
         val codePoints = requiredString(context, 1, "utf8.offset").codePoints().toArray()
+        val byteOffsets = utf8ByteOffsets(codePoints)
+        val byteLength = utf8ByteLength(codePoints)
         val offset = requiredInteger(context, 2, "utf8.offset")
         val defaultPosition = if (offset < 0L) {
-            codePoints.size + 1L
+            byteLength + 1L
         } else {
             1L
         }
-        val position = normalizedOffsetPosition(context, 3, defaultPosition, codePoints.size, "utf8.offset")
-        val target = when {
-            offset > 0L -> position + offset - 1L
-            offset < 0L -> position + offset
-            else -> position
+        val position = normalizedOffsetPosition(context, 3, defaultPosition, byteLength, "utf8.offset")
+        val codePointIndex = codePointIndexAtOrContaining(byteOffsets, codePoints, position, byteLength)
+            ?: return LuaReturn.of(null)
+        if (offset == 0L) {
+            return LuaReturn.of(
+                if (codePointIndex == codePoints.size) {
+                    byteLength + 1L
+                } else {
+                    byteOffsets[codePointIndex]
+                },
+            )
         }
-        if (offset == 0L && target == codePoints.size + 1L) {
-            return LuaReturn.of(target)
+        if (codePointIndex < codePoints.size && position != byteOffsets[codePointIndex]) {
+            throw LuaRuntimeException("bad argument #3 to 'utf8.offset' (initial position is a continuation byte)")
         }
-        if (target < 1L || target > codePoints.size.toLong()) {
+        val targetIndex = when {
+            offset > 0L -> codePointIndex + offset - 1L
+            else -> codePointIndex + offset
+        }
+        if (targetIndex < 0L || targetIndex > codePoints.size.toLong()) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(target)
+        return LuaReturn.of(
+            if (targetIndex == codePoints.size.toLong()) {
+                byteLength + 1L
+            } else {
+                byteOffsets[targetIndex.toInt()]
+            },
+        )
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
@@ -191,11 +209,38 @@ internal object LuaUtf8Library {
         }
     }
 
+    private fun utf8ByteLength(codePoints: IntArray): Long {
+        var length = 0L
+        for (codePoint in codePoints) {
+            length += utf8ByteLength(codePoint).toLong()
+        }
+        return length
+    }
+
+    private fun codePointIndexAtOrContaining(
+        byteOffsets: List<Long>,
+        codePoints: IntArray,
+        bytePosition: Long,
+        byteLength: Long,
+    ): Int? {
+        if (bytePosition == byteLength + 1L) {
+            return codePoints.size
+        }
+        for (index in byteOffsets.indices) {
+            val start = byteOffsets[index]
+            val end = start + utf8ByteLength(codePoints[index]).toLong()
+            if (bytePosition in start until end) {
+                return index
+            }
+        }
+        return null
+    }
+
     private fun normalizedOffsetPosition(
         context: LuaCallContext,
         index: Int,
         defaultValue: Long,
-        length: Int,
+        length: Long,
         functionName: String,
     ): Long {
         val position = if (context.isNone(index) || context.isNil(index)) {
