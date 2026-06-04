@@ -52,6 +52,11 @@ public object LuaStdlib {
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
         state.register("type", ::type)
+        var warningsEnabled = false
+        state.register("warn") { context ->
+            warningsEnabled = warn(context, output, warningsEnabled)
+            LuaReturn.none()
+        }
         state.register("xpcall", ::xpcall)
         return state
     }
@@ -163,6 +168,26 @@ public object LuaStdlib {
     private fun print(context: LuaCallContext, output: Consumer<String>): LuaReturn {
         output.accept((1..context.argumentCount).joinToString("\t") { index -> toLuaString(context, index) })
         return LuaReturn.none()
+    }
+
+    private fun warn(context: LuaCallContext, output: Consumer<String>, warningsEnabled: Boolean): Boolean {
+        if (context.argumentCount == 0) {
+            return warningsEnabled
+        }
+
+        val parts = (1..context.argumentCount).map { index -> requiredString(context, index, "warn") }
+        if (parts.size == 1 && parts.single().startsWith("@")) {
+            return when (parts.single()) {
+                "@on" -> true
+                "@off" -> false
+                else -> warningsEnabled
+            }
+        }
+
+        if (warningsEnabled) {
+            output.accept("Lua warning: ${parts.joinToString("")}")
+        }
+        return warningsEnabled
     }
 
     private fun rawequal(context: LuaCallContext): LuaReturn {

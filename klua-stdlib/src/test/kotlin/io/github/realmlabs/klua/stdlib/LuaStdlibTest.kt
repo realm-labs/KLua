@@ -508,6 +508,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `warn writes configured output when enabled`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                warn("ignored")
+                warn("@on")
+                warn("count ", 42)
+                warn("@unknown")
+                warn("still on")
+                warn("@off")
+                warn("ignored too")
+                """.trimIndent(),
+                "warn.lua",
+            ),
+        )
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertEquals(listOf("Lua warning: count 42", "Lua warning: still on"), output)
+        assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `warn reports non string argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""warn("@on"); warn({})""", "warn-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'warn' (string expected)", state.toString(-1))
+    }
+
+    @Test
     fun `next iterates raw table entries`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
