@@ -71,9 +71,19 @@ internal data class LuaNativeCallContext(
     val arguments: List<LuaValue>,
     val luaFrames: List<LuaNativeStackFrame>,
     private val setLocalValue: (level: Int, index: Int, value: LuaValue) -> String? = { _, _, _ -> null },
+    private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
+    private val getDebugHookValue: () -> LuaNativeDebugHook? = { null },
 ) {
     fun setLocal(level: Int, index: Int, value: LuaValue): String? {
         return setLocalValue(level, index, value)
+    }
+
+    fun setDebugHook(index: Int, mask: String, count: Int): Boolean {
+        return setDebugHookValue(index, mask, count)
+    }
+
+    fun getDebugHook(): LuaNativeDebugHook? {
+        return getDebugHookValue()
     }
 }
 
@@ -88,6 +98,12 @@ internal data class LuaNativeStackFrame(
 internal data class LuaNativeLocalVariable(
     val name: String,
     val value: LuaValue,
+)
+
+internal data class LuaNativeDebugHook(
+    val function: LuaValue,
+    val mask: String,
+    val count: Int,
 )
 
 internal class LuaUpvalue(

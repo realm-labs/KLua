@@ -286,9 +286,19 @@ public class KLuaCoreCallContext(
     public val arguments: List<KLuaCoreValue>,
     public val luaFrames: List<KLuaCoreStackFrame>,
     private val setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String? = { _, _, _ -> null },
+    private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
+    private val getDebugHookValue: () -> KLuaCoreDebugHook? = { null },
 ) {
     public fun setLocal(level: Int, index: Int, value: KLuaCoreValue): String? {
         return setLocalValue(level, index, value)
+    }
+
+    public fun setDebugHook(index: Int, mask: String, count: Int): Boolean {
+        return setDebugHookValue(index, mask, count)
+    }
+
+    public fun getDebugHook(): KLuaCoreDebugHook? {
+        return getDebugHookValue()
     }
 }
 
@@ -367,6 +377,12 @@ public data class KLuaCoreLocalVariable(
 public data class KLuaCoreUpvalue(
     public val name: String,
     public val value: KLuaCoreValue,
+)
+
+public data class KLuaCoreDebugHook(
+    public val function: KLuaCoreValue,
+    public val mask: String,
+    public val count: Int,
 )
 
 public fun interface KLuaCoreContinuation {
@@ -528,7 +544,7 @@ private fun KLuaCoreValue.toLuaValueOrNull(
         is KLuaCoreValue.IntegerValue -> LuaInteger(value)
         is KLuaCoreValue.NumberValue -> LuaFloat(value)
         is KLuaCoreValue.StringValue -> LuaString(value)
-        is KLuaCoreValue.FunctionValue -> LuaNativeFunction(
+        is KLuaCoreValue.FunctionValue -> sourceFunction ?: LuaNativeFunction(
             yieldable = yieldable,
             function = { arguments -> callCoreFunction(function, arguments, globals) },
             contextualFunction = contextFunction?.let { function ->
@@ -685,6 +701,18 @@ private fun callCoreContextFunction(
                 setLocalValue = { level, index, value ->
                     value.toLuaValueOrNull(globals)?.let { luaValue ->
                         context.setLocal(level, index, luaValue)
+                    }
+                },
+                setDebugHookValue = { index, mask, count ->
+                    context.setDebugHook(index, mask, count)
+                },
+                getDebugHookValue = {
+                    context.getDebugHook()?.let { hook ->
+                        KLuaCoreDebugHook(
+                            toPublicValue(hook.function, globals),
+                            hook.mask,
+                            hook.count,
+                        )
                     }
                 },
             ),

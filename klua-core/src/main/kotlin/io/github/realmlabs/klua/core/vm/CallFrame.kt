@@ -15,6 +15,7 @@ internal data class CallFrame(
     var pendingCallResultBase: Int = -1,
     var pendingCallExpectedResults: Int = -1,
     var pendingCallContinuation: LuaYieldContinuation? = null,
+    var lastDebugHookLine: Int = -1,
     val base: Int = 0,
     val returnBase: Int = 0,
     val expectedResults: Int = -1,

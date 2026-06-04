@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.core.KLuaCoreCallResult
 import io.github.realmlabs.klua.core.KLuaCoreContinuation
 import io.github.realmlabs.klua.core.KLuaCoreCoroutine
 import io.github.realmlabs.klua.core.KLuaCoreCoroutineExecution
+import io.github.realmlabs.klua.core.KLuaCoreDebugHook
 import io.github.realmlabs.klua.core.KLuaCoreExecution
 import io.github.realmlabs.klua.core.KLuaCoreGlobals
 import io.github.realmlabs.klua.core.KLuaCoreLoad
@@ -467,6 +468,12 @@ class LuaState private constructor(
                         setLocal = { level, index, value ->
                             context.setLocal(level, index, value.toCoreReturnValue())
                         },
+                        setDebugHook = { index, mask, count ->
+                            context.setDebugHook(index, mask, count)
+                        },
+                        getDebugHook = {
+                            context.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
+                        },
                     )
                 },
                 yieldable = function.function is LuaYieldableFunction,
@@ -482,11 +489,21 @@ class LuaState private constructor(
         luaFrames: List<KLuaCoreStackFrame> = emptyList(),
         nativeFrameName: String? = null,
         setLocal: ((level: Int, index: Int, value: Any?) -> String?)? = null,
+        setDebugHook: ((index: Int, mask: String, count: Int) -> Boolean)? = null,
+        getDebugHook: (() -> LuaReturn)? = null,
     ): KLuaCoreCallResult {
         val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
         val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
         return try {
-            val result = function.call(DefaultLuaCallContext(stackArguments, toApiStackFrames(luaFrames), setLocal))
+            val result = function.call(
+                DefaultLuaCallContext(
+                    stackArguments,
+                    toApiStackFrames(luaFrames),
+                    setLocal,
+                    setDebugHook,
+                    getDebugHook,
+                ),
+            )
             syncStackArgumentsToCore(arguments, stackArguments)
             KLuaCoreCallResult.Success(
                 result.values.map { value -> value.toCoreReturnValue(stackArguments, arguments) },
@@ -716,6 +733,12 @@ class LuaState private constructor(
                     setLocal = { level, index, value ->
                         context.setLocal(level, index, value.toCoreReturnValue())
                     },
+                    setDebugHook = { index, mask, count ->
+                        context.setDebugHook(index, mask, count)
+                    },
+                    getDebugHook = {
+                        context.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
+                    },
                 )
             },
             yieldable = this is LuaYieldableFunction,
@@ -727,6 +750,10 @@ class LuaState private constructor(
             "table" -> getTable(index).toCoreReturnValue()
             else -> get(index).toCoreReturnValue()
         }
+    }
+
+    private fun KLuaCoreDebugHook.toLuaReturn(): LuaReturn {
+        return LuaReturn.of(function.toStackValue(), mask, count.toLong())
     }
 
     private fun Any?.toCoreReturnValue(
@@ -1051,6 +1078,8 @@ class LuaState private constructor(
         private val arguments: List<LuaStackValue>,
         override val luaFrames: List<LuaStackFrame> = emptyList(),
         private val setLocalValue: ((level: Int, index: Int, value: Any?) -> String?)? = null,
+        private val setDebugHookValue: ((index: Int, mask: String, count: Int) -> Boolean)? = null,
+        private val getDebugHookValue: (() -> LuaReturn)? = null,
     ) : LuaCallContext {
         override val argumentCount: Int = arguments.size
 
@@ -1123,12 +1152,22 @@ class LuaState private constructor(
             return setLocalValue?.invoke(level, index, value)
         }
 
+        override fun setDebugHook(index: Int, mask: String, count: Int): Boolean {
+            return setDebugHookValue?.invoke(index, mask, count) ?: false
+        }
+
+        override fun getDebugHook(): LuaReturn {
+            return getDebugHookValue?.invoke() ?: LuaReturn.of(null)
+        }
+
         private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {
             return function.function.call(
                 DefaultLuaCallContext(
                     arguments.map { argument -> argument.toStackValue() },
                     luaFrames,
                     setLocalValue,
+                    setDebugHookValue,
+                    getDebugHookValue,
                 ),
             )
         }

@@ -128,7 +128,8 @@ class LuaStdlibTest {
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
                     type(debug.setlocal), type(debug.getupvalue), type(debug.setupvalue),
-                    debug.traceback("boom"), type(info), info.what, info.source, info.currentline
+                    type(debug.sethook), type(debug.gethook), debug.traceback("boom"),
+                    type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
                 "debug-openlibs.lua",
             ),
@@ -142,11 +143,13 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(5))
         assertEquals("function", state.toString(6))
         assertEquals("function", state.toString(7))
-        assertTrue(state.toString(8)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(9))
-        assertEquals("Lua", state.toString(10))
-        assertEquals("debug-openlibs.lua", state.toString(11))
-        assertEquals(1L, state.toInteger(12))
+        assertEquals("function", state.toString(8))
+        assertEquals("function", state.toString(9))
+        assertTrue(state.toString(10)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(11))
+        assertEquals("Lua", state.toString(12))
+        assertEquals("debug-openlibs.lua", state.toString(13))
+        assertEquals(1L, state.toInteger(14))
     }
 
     @Test
@@ -348,6 +351,77 @@ class LuaStdlibTest {
         assertTrue(state.isNil(3))
         assertEquals("new", state.toString(4))
         assertEquals(99L, state.toInteger(5))
+    }
+
+    @Test
+    fun `debug sethook and gethook preserve line hook state`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local events = {}
+                local function hook(event, line)
+                    events[#events + 1] = event
+                    events[#events + 1] = line
+                end
+
+                debug.sethook(hook, "l", 0)
+                local installed, mask, count = debug.gethook()
+                local value = 1
+                value = value + 1
+                debug.sethook()
+                local after = value + 1
+
+                return installed == hook, mask, count, events[1], type(events[2]), #events, after
+                """.trimIndent(),
+                "debug-sethook-line.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("l", state.toString(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals("line", state.toString(4))
+        assertEquals("number", state.toString(5))
+        assertTrue((state.toInteger(6) ?: 0L) >= 2L)
+        assertEquals(3L, state.toInteger(7))
+    }
+
+    @Test
+    fun `debug count hook runs after configured instruction intervals`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local count = 0
+                debug.sethook(function(event, line)
+                    if event == "count" and line == nil then
+                        count = count + 1
+                    end
+                end, "", 2)
+
+                local total = 0
+                for i = 1, 5 do
+                    total = total + i
+                end
+                debug.sethook()
+
+                return count, total
+                """.trimIndent(),
+                "debug-sethook-count.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue((state.toInteger(1) ?: 0L) > 0L)
+        assertEquals(15L, state.toInteger(2))
     }
 
     @Test

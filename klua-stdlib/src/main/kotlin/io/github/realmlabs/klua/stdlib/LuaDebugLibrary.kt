@@ -13,6 +13,8 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_setlocal") { context -> setLocal(context) }
         state.register("klua_debug_getupvalue") { context -> getUpvalue(context) }
         state.register("klua_debug_setupvalue") { context -> setupUpvalue(context) }
+        state.register("klua_debug_sethook") { context -> setHook(context) }
+        state.register("klua_debug_gethook") { context -> context.getDebugHook() }
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
         return state
     }
@@ -97,6 +99,13 @@ internal object LuaDebugLibrary {
         return LuaReturn.of(context.setUpvalue(1, index, context.get(3)))
     }
 
+    private fun setHook(context: LuaCallContext): LuaReturn {
+        val mask = context.toString(2) ?: ""
+        val count = context.toInteger(3)?.toInt() ?: 0
+        context.setDebugHook(1, mask, count)
+        return LuaReturn.of()
+    }
+
     private const val DEBUG_SOURCE: String = """
         debug = debug or {}
 
@@ -132,6 +141,14 @@ internal object LuaDebugLibrary {
 
         function debug.setupvalue(func, index, value)
             return klua_debug_setupvalue(func, index, value)
+        end
+
+        function debug.sethook(hook, mask, count)
+            return klua_debug_sethook(hook, mask, count)
+        end
+
+        function debug.gethook()
+            return klua_debug_gethook()
         end
     """
 }

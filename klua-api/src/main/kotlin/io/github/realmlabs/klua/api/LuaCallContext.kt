@@ -30,6 +30,10 @@ interface LuaCallContext {
 
     fun setLocal(level: Int, index: Int, value: Any?): String? = null
 
+    fun setDebugHook(index: Int, mask: String, count: Int): Boolean = false
+
+    fun getDebugHook(): LuaReturn = LuaReturn.of(null)
+
     fun getTable(index: Int): Any?
 
     fun getTableValue(index: Int, key: Any?): Any?

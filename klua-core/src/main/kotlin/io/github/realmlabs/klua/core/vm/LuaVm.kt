@@ -16,6 +16,7 @@ import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaMetatableException
 import io.github.realmlabs.klua.core.value.LuaNativeCallContext
+import io.github.realmlabs.klua.core.value.LuaNativeDebugHook
 import io.github.realmlabs.klua.core.value.LuaTableKeyException
 import io.github.realmlabs.klua.core.value.LuaNativeStackFrame
 import io.github.realmlabs.klua.core.value.LuaUserData
@@ -26,6 +27,8 @@ internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
 ) {
     private val thread = LuaThread()
+    private var debugHook: DebugHookState? = null
+    private var runningDebugHook = false
 
     fun execute(prototype: Prototype): List<LuaValue> {
         return executeReturned(prototype, emptyList(), emptyList())
@@ -102,6 +105,7 @@ internal class LuaVm(
                 val pc = frame.pc
                 val instruction = frame.prototype.code[frame.pc++]
                 try {
+                    dispatchDebugHooks(frame, pc)
                     when (Instruction.opcode(instruction)) {
                         Opcode.LOAD_NIL -> stack.set(register(frame, Instruction.a(instruction)), LuaNil)
                         Opcode.LOAD_BOOL -> {
@@ -332,6 +336,8 @@ internal class LuaVm(
             arguments,
             luaStackFrames(frames),
             setLocalValue = { level, index, value -> setLocal(frames, level, index, value) },
+            setDebugHookValue = { index, mask, count -> setDebugHook(arguments, index, mask, count) },
+            getDebugHookValue = { debugHook?.toNativeHook() },
         )
     }
 
@@ -376,6 +382,54 @@ internal class LuaVm(
                     frame.stack.get(register(frame, local.slot)),
                 )
             }
+    }
+
+    private fun setDebugHook(arguments: List<LuaValue>, index: Int, mask: String, count: Int): Boolean {
+        val function = if (index <= 0) LuaNil else arguments.getOrElse(index - 1) { LuaNil }
+        if (function == LuaNil) {
+            debugHook = null
+            return true
+        }
+        if (function !is LuaClosure && function !is LuaNativeFunction) {
+            throw LuaVmException("bad argument #1 to 'debug.sethook' (function expected)")
+        }
+        debugHook = DebugHookState(
+            function,
+            mask.filter { event -> event == 'l' },
+            count.coerceAtLeast(0),
+        )
+        return true
+    }
+
+    private fun dispatchDebugHooks(frame: CallFrame, pc: Int) {
+        val hook = debugHook ?: return
+        if (runningDebugHook) {
+            return
+        }
+        val line = frame.lineForPc(pc)
+        if (hook.hasLineHook && line > 0 && line != frame.lastDebugHookLine) {
+            frame.lastDebugHookLine = line
+            callDebugHook(hook.function, "line", LuaInteger(line.toLong()))
+        }
+        if (hook.count > 0) {
+            hook.remainingCount -= 1
+            if (hook.remainingCount <= 0) {
+                hook.remainingCount = hook.count
+                callDebugHook(hook.function, "count", LuaNil)
+            }
+        }
+    }
+
+    private fun callDebugHook(function: LuaValue, event: String, line: LuaValue) {
+        runningDebugHook = true
+        try {
+            when (callValue(function, listOf(LuaString(event), line))) {
+                is LuaExecutionResult.Returned -> Unit
+                is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield from debug hook")
+            }
+        } finally {
+            runningDebugHook = false
+        }
     }
 
     private fun continueNativeYield(
@@ -1007,3 +1061,15 @@ private val DIV_KEY = LuaString("__div")
 private val IDIV_KEY = LuaString("__idiv")
 private val MOD_KEY = LuaString("__mod")
 private val POW_KEY = LuaString("__pow")
+
+private data class DebugHookState(
+    val function: LuaValue,
+    val mask: String,
+    val count: Int,
+    var remainingCount: Int = count,
+) {
+    val hasLineHook: Boolean
+        get() = 'l' in mask
+
+    fun toNativeHook(): LuaNativeDebugHook = LuaNativeDebugHook(function, mask, count)
+}
