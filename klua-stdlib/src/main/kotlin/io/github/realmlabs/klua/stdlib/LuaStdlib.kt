@@ -25,6 +25,7 @@ public object LuaStdlib {
         openString(state)
         openTable(state)
         openUtf8(state)
+        openPackage(state)
         return state
     }
 
@@ -119,6 +120,11 @@ public object LuaStdlib {
     @JvmStatic
     public fun openUtf8(state: LuaState): LuaState {
         return LuaUtf8Library.open(state)
+    }
+
+    @JvmStatic
+    public fun openPackage(state: LuaState): LuaState {
+        return LuaPackageLibrary.open(state)
     }
 
     private fun assert(context: LuaCallContext): LuaReturn {

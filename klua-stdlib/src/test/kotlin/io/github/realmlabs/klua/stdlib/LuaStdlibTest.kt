@@ -86,6 +86,78 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openLibs installs package table`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return type(package), type(package.searchpath), package.path, package.config
+                """.trimIndent(),
+                "package-openlibs.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals("function", state.toString(2))
+        assertEquals("?.lua;?/init.lua", state.toString(3))
+        assertTrue(state.toString(4)?.contains(";\n?") == true)
+    }
+
+    @Test
+    fun `package searchpath returns first readable template match`() {
+        val root = Files.createTempDirectory("klua-searchpath")
+        Files.createDirectories(root.resolve("alpha"))
+        val module = root.resolve("alpha").resolve("beta.lua")
+        Files.writeString(module, "return 42")
+        val template = "${root.luaPath()}/?.lua;${root.luaPath()}/?/init.lua"
+
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return package.searchpath("alpha.beta", "$template", ".", "/")
+                """.trimIndent(),
+                "package-searchpath-found.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("${root}/alpha/beta.lua", state.toString(1))
+    }
+
+    @Test
+    fun `package searchpath returns missing path diagnostics`() {
+        val root = Files.createTempDirectory("klua-searchpath-missing")
+        val template = "${root.luaPath()}/?.lua;${root.luaPath()}/?/init.lua"
+
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return package.searchpath("alpha.beta", "$template", ".", "/")
+                """.trimIndent(),
+                "package-searchpath-missing.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        val message = state.toString(2) ?: ""
+        assertTrue(message.contains("no file '${root}/alpha/beta.lua'"))
+        assertTrue(message.contains("no file '${root}/alpha/beta/init.lua'"))
+    }
+
+    @Test
     fun `type and tostring report missing argument errors`() {
         val typeState = LuaState.create()
         LuaStdlib.openBase(typeState)
