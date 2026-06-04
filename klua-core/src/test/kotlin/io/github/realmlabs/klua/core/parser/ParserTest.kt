@@ -312,6 +312,25 @@ class ParserTest {
     }
 
     @Test
+    fun `parses method function statements with self parameters`() {
+        val chunk = Parser.parse(
+            """
+            function module:add(value)
+                return self.total + value
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<AssignmentStatement>(chunk.statements.single())
+        val target = assertIs<IndexAssignmentTarget>(statement.targets.single()).index
+        assertEquals("module", assertIs<VariableExpression>(target.receiver).name)
+        assertEquals("add", assertIs<StringExpression>(target.key).value)
+
+        val function = assertIs<FunctionExpression>(statement.values.single())
+        assertEquals(listOf("self", "value"), function.parameters)
+    }
+
+    @Test
     fun `parses anonymous vararg function expressions`() {
         val chunk = Parser.parse("local f = function(first, ...) return ... end")
         val local = assertIs<LocalStatement>(chunk.statements.single())

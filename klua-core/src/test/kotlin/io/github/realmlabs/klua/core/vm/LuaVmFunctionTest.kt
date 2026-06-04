@@ -71,6 +71,23 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `executes method function declarations with self arguments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local module = {base = 40}
+                function module:add(value)
+                    return self.base + value
+                end
+                return module:add(2)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `executes local call initializers with multiple results`() {
         val result = LuaVm().execute(
             Compiler.compile(

@@ -122,7 +122,23 @@ internal class Parser private constructor(
                 range = SourceRange(target.range.start, field.range.end),
             )
         }
-        val function = functionBody(start)
+        val hasSelfParameter = if (match(TokenKind.COLON)) {
+            val method = consume(TokenKind.IDENTIFIER, "expected method name after ':'")
+            target = IndexExpression(
+                receiver = target,
+                key = StringExpression(method.literal as String, method.range),
+                range = SourceRange(target.range.start, method.range.end),
+            )
+            true
+        } else {
+            false
+        }
+        val parsedFunction = functionBody(start)
+        val function = if (hasSelfParameter) {
+            parsedFunction.copy(parameters = listOf("self") + parsedFunction.parameters)
+        } else {
+            parsedFunction
+        }
         if (target is IndexExpression) {
             return AssignmentStatement(
                 targets = listOf(IndexAssignmentTarget(target)),
