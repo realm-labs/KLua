@@ -626,7 +626,15 @@ public object LuaStdlib {
 
     private fun parseNumber(text: String): Number? {
         val trimmed = text.trim()
+        if (trimmed.isNamedFloatingPointLiteral()) {
+            return null
+        }
         return parseHexInteger(trimmed) ?: trimmed.toLongOrNull() ?: trimmed.toDoubleOrNull()
+    }
+
+    private fun String.isNamedFloatingPointLiteral(): Boolean {
+        val unsigned = trimStart('+', '-')
+        return unsigned.equals("nan", ignoreCase = true) || unsigned.equals("infinity", ignoreCase = true)
     }
 
     private fun parseHexInteger(text: String): Long? {

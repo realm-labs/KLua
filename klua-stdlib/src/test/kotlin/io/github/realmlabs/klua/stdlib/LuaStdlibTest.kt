@@ -68,14 +68,30 @@ class LuaStdlibTest {
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return tonumber("42"), tonumber("3.5"), tonumber("bad"), tonumber(7)""", "tonumber.lua"),
+            state.load(
+                """
+                return tonumber("42"),
+                    tonumber("3.5"),
+                    tonumber("0x1.8p1"),
+                    tonumber("bad"),
+                    tonumber("NaN"),
+                    tonumber("Infinity"),
+                    tonumber("-Infinity"),
+                    tonumber(7)
+                """.trimIndent(),
+                "tonumber.lua",
+            ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(42L, state.toInteger(1))
         assertEquals(3.5, state.toNumber(2))
-        assertTrue(state.isNil(3))
-        assertEquals(7L, state.toInteger(4))
+        assertEquals(3.0, state.toNumber(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+        assertEquals(7L, state.toInteger(8))
     }
 
     @Test
