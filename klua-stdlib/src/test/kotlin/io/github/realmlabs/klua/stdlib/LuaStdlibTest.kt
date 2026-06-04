@@ -1924,6 +1924,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns return position captures`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, last, before, after = string.find("abc", "()b()")
+                local matchBefore, matchAfter = string.match("abc", "()b()")
+                local iterator = string.gmatch("ab cd", "()%a+")
+                local firstWord = iterator()
+                local secondWord = iterator()
+                local replaced, count = string.gsub("ab", "()", function(position)
+                    return "[" .. position .. "]"
+                end)
+                local expanded, expandedCount = string.gsub("ab", "()", "%1")
+                return first, last, before, after, matchBefore, matchAfter,
+                    firstWord, secondWord, replaced, count, expanded, expandedCount
+                """.trimIndent(),
+                "string-pattern-position-captures.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(3L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(4L, state.toInteger(8))
+        assertEquals("[1]a[2]b[3]", state.toString(9))
+        assertEquals(3L, state.toInteger(10))
+        assertEquals("1a2b3", state.toString(11))
+        assertEquals(3L, state.toInteger(12))
+    }
+
+    @Test
     fun `string patterns support backreferences`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

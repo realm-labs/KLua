@@ -118,7 +118,7 @@ internal object LuaStringLibrary {
         context: LuaCallContext,
         replacementType: String,
         wholeMatch: String,
-        captures: List<String>,
+        captures: List<Any?>,
     ): String {
         return when (replacementType) {
             "number" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures, "string.gsub")
@@ -135,7 +135,7 @@ internal object LuaStringLibrary {
         }
     }
 
-    private fun replacementArguments(wholeMatch: String, captures: List<String>): List<String> {
+    private fun replacementArguments(wholeMatch: String, captures: List<Any?>): List<Any?> {
         return captures.ifEmpty { listOf(wholeMatch) }
     }
 
@@ -157,7 +157,7 @@ internal object LuaStringLibrary {
     private fun expandReplacement(
         replacement: String,
         wholeMatch: String,
-        captures: List<String>,
+        captures: List<Any?>,
         functionName: String,
     ): String {
         val result = StringBuilder()

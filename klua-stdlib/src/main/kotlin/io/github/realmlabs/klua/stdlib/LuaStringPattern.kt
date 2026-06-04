@@ -5,12 +5,12 @@ import io.github.realmlabs.klua.api.LuaRuntimeException
 internal data class LuaPatternMatch(
     val startIndex: Int,
     val endIndex: Int,
-    val captures: List<String> = emptyList(),
+    val captures: List<Any?> = emptyList(),
 )
 
 private data class PatternResult(
     val endIndex: Int,
-    val captures: Map<Int, String>,
+    val captures: Map<Int, Any?>,
 )
 
 internal class LuaStringPattern private constructor(
@@ -58,7 +58,7 @@ internal class LuaStringPattern private constructor(
         patternTokens: List<Token>,
         tokenIndex: Int,
         captureStarts: Map<Int, Int>,
-        captures: Map<Int, String>,
+        captures: Map<Int, Any?>,
     ): PatternResult? {
         if (tokenIndex >= patternTokens.size) {
             return if (!endAnchored || textIndex == text.length) PatternResult(textIndex, captures) else null
@@ -85,8 +85,16 @@ internal class LuaStringPattern private constructor(
                     captures + (token.index to text.substring(startIndex, textIndex)),
                 )
             }
+            is Token.PositionCapture -> matchEnd(
+                text,
+                textIndex,
+                patternTokens,
+                tokenIndex + 1,
+                captureStarts,
+                captures + (token.index to (textIndex + 1L)),
+            )
             is Token.BackReference -> {
-                val capture = captures[token.index] ?: return null
+                val capture = captures[token.index] as? String ?: return null
                 if (!text.startsWith(capture, textIndex)) {
                     null
                 } else {
@@ -124,7 +132,7 @@ internal class LuaStringPattern private constructor(
         tokenIndex: Int,
         repetition: Token.Repetition,
         captureStarts: Map<Int, Int>,
-        captures: Map<Int, String>,
+        captures: Map<Int, Any?>,
     ): PatternResult? {
         var endIndex = textIndex
         while (
@@ -200,11 +208,16 @@ internal class LuaStringPattern private constructor(
             while (index < pattern.length) {
                 when (val char = pattern[index]) {
                     '(' -> {
-                        tokens += Token.CaptureStart(captureCount)
-                        captureStack += captureCount
+                        if (index + 1 < pattern.length && pattern[index + 1] == ')') {
+                            tokens += Token.PositionCapture(captureCount)
+                            index += 2
+                        } else {
+                            tokens += Token.CaptureStart(captureCount)
+                            captureStack += captureCount
+                            index++
+                        }
                         captureCount++
                         hasPatternToken = true
-                        index++
                     }
                     ')' -> {
                         if (captureStack.isEmpty()) {
@@ -413,6 +426,12 @@ private sealed interface Token {
     }
 
     data class CaptureEnd(
+        val index: Int,
+    ) : Token {
+        override fun matches(char: Char): Boolean = false
+    }
+
+    data class PositionCapture(
         val index: Int,
     ) : Token {
         override fun matches(char: Char): Boolean = false
