@@ -239,6 +239,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pcall protects non callable arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return pcall(42)""", "pcall-non-callable.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("string", state.typeName(2))
+        assertTrue((state.toString(2) ?: "").isNotEmpty())
+    }
+
+    @Test
+    fun `pcall reports missing function argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return pcall()""", "pcall-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'pcall' (value expected)", state.toString(-1))
+    }
+
+    @Test
     fun `xpcall invokes error handlers`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -268,6 +293,43 @@ class LuaStdlibTest {
         assertEquals("done!", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("handled:boom", state.toString(4))
+    }
+
+    @Test
+    fun `xpcall protects non callable arguments with handler`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return xpcall(42, function(message)
+                    return "handled:" .. type(message)
+                end)
+                """.trimIndent(),
+                "xpcall-non-callable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("handled:string", state.toString(2))
+    }
+
+    @Test
+    fun `xpcall protects nil function arguments with handler`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return xpcall(nil, function(message) return message end)""", "xpcall-nil-function.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("argument 1 is nil", state.toString(2))
     }
 
     @Test

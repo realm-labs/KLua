@@ -161,9 +161,7 @@ public object LuaStdlib {
     }
 
     private fun pcall(context: LuaCallContext): LuaReturn {
-        if (context.typeName(1) != "function") {
-            throw LuaRuntimeException("bad argument #1 to 'pcall' (function expected)")
-        }
+        requireAnyArgument(context, "pcall")
         return protectedCall(context, functionIndex = 1, firstArgumentIndex = 2, handlerIndex = null)
     }
 
@@ -255,9 +253,7 @@ public object LuaStdlib {
     }
 
     private fun xpcall(context: LuaCallContext): LuaReturn {
-        if (context.typeName(1) != "function") {
-            throw LuaRuntimeException("bad argument #1 to 'xpcall' (function expected)")
-        }
+        requireAnyArgument(context, "xpcall")
         if (context.typeName(2) != "function") {
             throw LuaRuntimeException("bad argument #2 to 'xpcall' (function expected)")
         }
