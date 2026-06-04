@@ -845,6 +845,9 @@ public object LuaStdlib {
             "number",
             "string",
             -> context.toString(index) ?: context.typeName(index)
+            "thread" -> context.get(index)?.let { value ->
+                "thread: ${System.identityHashCode(value).toString(16)}"
+            } ?: "thread"
             "userdata" -> context.get(index)?.toString() ?: "userdata"
             else -> context.typeName(index)
         }

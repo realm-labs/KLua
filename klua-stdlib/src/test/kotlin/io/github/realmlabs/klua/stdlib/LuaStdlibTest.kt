@@ -1963,6 +1963,29 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring reports coroutine thread identity`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainThread = coroutine.running()
+                local co = coroutine.create(function() end)
+                return tostring(mainThread), tostring(co)
+                """.trimIndent(),
+                "coroutine-tostring.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toString(1)?.startsWith("thread: ") == true)
+        assertTrue(state.toString(2)?.startsWith("thread: ") == true)
+    }
+
+    @Test
     fun `coroutine yield suspends and resumes lua functions`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
