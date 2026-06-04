@@ -394,6 +394,7 @@ internal object LuaStringLibrary {
             'G',
             -> specifier.formatWith(requiredNumber(context, index, "string.format"))
             'c' -> {
+                validateCharacterFormatSpecifier(specifier)
                 val code = requiredInteger(context, index, "string.format")
                 if (code !in 0L..255L) {
                     throw LuaRuntimeException("bad argument #$index to 'string.format' (value out of range)")
@@ -419,6 +420,13 @@ internal object LuaStringLibrary {
             dropLast(1) + 'd'
         } else {
             this
+        }
+    }
+
+    private fun validateCharacterFormatSpecifier(specifier: String) {
+        val parsed = parseFormatSpecifier(specifier)
+        if (parsed.flags.any { flag -> flag != '-' } || parsed.precision != null) {
+            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
         }
     }
 

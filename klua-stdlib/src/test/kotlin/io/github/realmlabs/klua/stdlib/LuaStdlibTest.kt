@@ -2154,6 +2154,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format rejects invalid character modifiers`() {
+        val plusState = LuaState.create()
+        LuaStdlib.openString(plusState)
+
+        assertEquals(LuaStatus.OK, plusState.load("""return string.format("%+c", 65)""", "string-format-char-plus-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(plusState.getLastError())
+        assertEquals("invalid option '%+c' to 'string.format'", plusState.toString(-1))
+
+        val zeroState = LuaState.create()
+        LuaStdlib.openString(zeroState)
+
+        assertEquals(LuaStatus.OK, zeroState.load("""return string.format("%05c", 65)""", "string-format-char-zero-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, zeroState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(zeroState.getLastError())
+        assertEquals("invalid option '%05c' to 'string.format'", zeroState.toString(-1))
+
+        val precisionState = LuaState.create()
+        LuaStdlib.openString(precisionState)
+
+        assertEquals(LuaStatus.OK, precisionState.load("""return string.format("%.1c", 65)""", "string-format-char-precision-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, precisionState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(precisionState.getLastError())
+        assertEquals("invalid option '%.1c' to 'string.format'", precisionState.toString(-1))
+    }
+
+    @Test
     fun `string format rejects quote modifiers`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
