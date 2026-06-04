@@ -1283,6 +1283,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math min and max report missing argument errors`() {
+        val minState = LuaState.create()
+        LuaStdlib.openMath(minState)
+
+        assertEquals(LuaStatus.OK, minState.load("""return math.min()""", "math-min-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, minState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(minState.getLastError())
+        assertEquals("bad argument #1 to 'math.min' (value expected)", minState.toString(-1))
+
+        val maxState = LuaState.create()
+        LuaStdlib.openMath(maxState)
+
+        assertEquals(LuaStatus.OK, maxState.load("""return math.max()""", "math-max-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, maxState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(maxState.getLastError())
+        assertEquals("bad argument #1 to 'math.max' (value expected)", maxState.toString(-1))
+    }
+
+    @Test
     fun `math random supports ranges and deterministic seeds`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)

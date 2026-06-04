@@ -264,7 +264,7 @@ internal object LuaMathLibrary {
 
     private fun requireMathArguments(context: LuaCallContext, functionName: String) {
         if (context.argumentCount == 0) {
-            throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
+            throw LuaRuntimeException("bad argument #1 to '$functionName' (value expected)")
         }
     }
 
