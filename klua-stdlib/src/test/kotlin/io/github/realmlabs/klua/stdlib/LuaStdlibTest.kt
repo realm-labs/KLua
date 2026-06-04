@@ -575,6 +575,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pairs uses pairs metamethod`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, {
+                    __pairs = function()
+                        local emitted = false
+                        return function(_, _)
+                            if emitted then
+                                return nil
+                            end
+                            emitted = true
+                            return "custom", "value"
+                        end, {}, nil
+                    end,
+                })
+                local seenKey, seenValue
+                for key, value in pairs(target) do
+                    seenKey, seenValue = key, value
+                end
+                return seenKey, seenValue
+                """.trimIndent(),
+                "pairs-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("custom", state.toString(1))
+        assertEquals("value", state.toString(2))
+    }
+
+    @Test
     fun `pairs and ipairs report table argument errors`() {
         val pairState = LuaState.create()
         LuaStdlib.openBase(pairState)

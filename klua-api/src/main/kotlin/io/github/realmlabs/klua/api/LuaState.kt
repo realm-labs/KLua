@@ -818,6 +818,17 @@ class LuaState private constructor(
         override fun call(index: Int, arguments: List<Any?>): LuaReturn {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue
                 ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            return callFunction(function, arguments)
+        }
+
+        override fun call(function: Any?, arguments: List<Any?>): LuaReturn {
+            val stackFunction = function.toStackValue()
+            val nativeFunction = stackFunction as? LuaStackValue.NativeFunctionValue
+                ?: throw IllegalArgumentException("value is ${stackTypeName(stackFunction)}")
+            return callFunction(nativeFunction, arguments)
+        }
+
+        private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {
             return function.function.call(DefaultLuaCallContext(arguments.map { argument -> argument.toStackValue() }))
         }
 
