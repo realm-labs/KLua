@@ -14,18 +14,22 @@ internal data class Prototype(
     val maxStackSize: Int,
     val numParams: Int = 0,
     val isVararg: Boolean = false,
+    val sourceId: String = sourceName,
+    val validBreakpointLines: IntArray = validBreakpointLines(lineInfo),
 ) {
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Prototype) return false
 
         return sourceName == other.sourceName &&
+            sourceId == other.sourceId &&
             version == other.version &&
             code.contentEquals(other.code) &&
             constants.contentEquals(other.constants) &&
             nested.contentEquals(other.nested) &&
             upvalues.contentEquals(other.upvalues) &&
             lineInfo.contentEquals(other.lineInfo) &&
+            validBreakpointLines.contentEquals(other.validBreakpointLines) &&
             maxStackSize == other.maxStackSize &&
             numParams == other.numParams &&
             isVararg == other.isVararg
@@ -33,17 +37,29 @@ internal data class Prototype(
 
     override fun hashCode(): Int {
         var result = sourceName.hashCode()
+        result = 31 * result + sourceId.hashCode()
         result = 31 * result + version.hashCode()
         result = 31 * result + code.contentHashCode()
         result = 31 * result + constants.contentHashCode()
         result = 31 * result + nested.contentHashCode()
         result = 31 * result + upvalues.contentHashCode()
         result = 31 * result + lineInfo.contentHashCode()
+        result = 31 * result + validBreakpointLines.contentHashCode()
         result = 31 * result + maxStackSize
         result = 31 * result + numParams
         result = 31 * result + isVararg.hashCode()
         return result
     }
+}
+
+private fun validBreakpointLines(lineInfo: IntArray): IntArray {
+    return lineInfo
+        .asSequence()
+        .filter { line -> line > 0 }
+        .distinct()
+        .sorted()
+        .toList()
+        .toIntArray()
 }
 
 internal data class UpvalueDescriptor(

@@ -17,10 +17,12 @@ class CompilerTest {
         val prototype = Compiler.compile("return 42", "return-int.lua")
 
         assertEquals("return-int.lua", prototype.sourceName)
+        assertEquals("return-int.lua", prototype.sourceId)
         assertEquals(LuaSourceVersion.LUA_54, prototype.version)
         assertEquals(1, prototype.maxStackSize)
         assertEquals(0, prototype.constants.size)
         assertContentEquals(intArrayOf(1, 1), prototype.lineInfo)
+        assertContentEquals(intArrayOf(1), prototype.validBreakpointLines)
         assertEquals(
             """
             0000  [1]  LOAD_INT R0 42
@@ -28,6 +30,21 @@ class CompilerTest {
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
+    }
+
+    @Test
+    fun `compiles valid breakpoint line metadata`() {
+        val prototype = Compiler.compile(
+            """
+            local x = 1
+            local y = 2
+            return x + y
+            """.trimIndent(),
+            "breakpoints.lua",
+        )
+
+        assertEquals("breakpoints.lua", prototype.sourceId)
+        assertContentEquals(intArrayOf(1, 2, 3), prototype.validBreakpointLines)
     }
 
     @Test
