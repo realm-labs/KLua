@@ -9,7 +9,7 @@ import java.math.BigInteger
 import java.util.Locale
 
 internal object LuaStringLibrary {
-    private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcqs"
+    private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcpqs"
     private const val FORMAT_FLAGS = "-+ #0"
     private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
@@ -401,6 +401,7 @@ internal object LuaStringLibrary {
                 }
                 specifier.formatWith(code.toInt())
             }
+            'p' -> formatPointerValue(context, index, specifier)
             'q' -> {
                 if (specifier != "%q") {
                     throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
@@ -420,6 +421,49 @@ internal object LuaStringLibrary {
             dropLast(1) + 'd'
         } else {
             this
+        }
+    }
+
+    private fun formatPointerValue(
+        context: LuaCallContext,
+        index: Int,
+        specifier: String,
+    ): String {
+        val parsed = parseFormatSpecifier(specifier)
+        if (parsed.flags.any { flag -> flag != '-' } || parsed.precision != null) {
+            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+        }
+        val pointer = when (context.typeName(index)) {
+            "nil",
+            "boolean",
+            "number",
+            -> "(null)"
+            "table" -> context.getTable(index)?.pointerString() ?: "(null)"
+            "function",
+            "string",
+            "userdata",
+            -> context.get(index)?.pointerString() ?: "(null)"
+            else -> context.get(index)?.pointerString() ?: "(null)"
+        }
+        return applyFormatWidth(pointer, parsed)
+    }
+
+    private fun Any.pointerString(): String {
+        return "0x" + Integer.toUnsignedString(System.identityHashCode(this), 16)
+    }
+
+    private fun applyFormatWidth(
+        value: String,
+        parsed: FormatSpecifier,
+    ): String {
+        val width = parsed.width ?: return value
+        if (value.length >= width) {
+            return value
+        }
+        return if ('-' in parsed.flags) {
+            value.padEnd(width, ' ')
+        } else {
+            value.padStart(width, ' ')
         }
     }
 

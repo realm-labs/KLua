@@ -2184,6 +2184,64 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format renders pointer conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%p|%18p|%-18p|%p|%p|%p|%p", {}, {}, {}, nil, true, 12, "x")""",
+                "string-format-pointer.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        val parts = state.toString(1)?.split("|") ?: emptyList()
+        val pointerPattern = Regex("""0x[0-9a-f]+""")
+        assertEquals(7, parts.size)
+        assertTrue(pointerPattern.matches(parts[0]))
+        assertEquals(18, parts[1].length)
+        assertTrue(pointerPattern.matches(parts[1].trimStart()))
+        assertEquals(18, parts[2].length)
+        assertTrue(pointerPattern.matches(parts[2].trimEnd()))
+        assertEquals("(null)", parts[3])
+        assertEquals("(null)", parts[4])
+        assertEquals("(null)", parts[5])
+        assertTrue(pointerPattern.matches(parts[6]))
+    }
+
+    @Test
+    fun `string format rejects invalid pointer modifiers`() {
+        val plusState = LuaState.create()
+        LuaStdlib.openString(plusState)
+
+        assertEquals(LuaStatus.OK, plusState.load("""return string.format("%+p", {})""", "string-format-pointer-plus-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(plusState.getLastError())
+        assertEquals("invalid option '%+p' to 'string.format'", plusState.toString(-1))
+
+        val zeroState = LuaState.create()
+        LuaStdlib.openString(zeroState)
+
+        assertEquals(LuaStatus.OK, zeroState.load("""return string.format("%05p", {})""", "string-format-pointer-zero-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, zeroState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(zeroState.getLastError())
+        assertEquals("invalid option '%05p' to 'string.format'", zeroState.toString(-1))
+
+        val precisionState = LuaState.create()
+        LuaStdlib.openString(precisionState)
+
+        assertEquals(LuaStatus.OK, precisionState.load("""return string.format("%.1p", {})""", "string-format-pointer-precision-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, precisionState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(precisionState.getLastError())
+        assertEquals("invalid option '%.1p' to 'string.format'", precisionState.toString(-1))
+    }
+
+    @Test
     fun `string format rejects quote modifiers`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
