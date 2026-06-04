@@ -23,7 +23,7 @@ internal object LuaCoroutineLibrary {
         setFunctionField(state, "isyieldable") { context -> coroutineIsYieldable(context, runtime) }
         setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
         setFunctionField(state, "running") { coroutineRunning(runtime) }
-        setFunctionField(state, "status", ::coroutineStatus)
+        setFunctionField(state, "status") { context -> coroutineStatus(context, runtime) }
         setFunctionField(state, "wrap") { context -> coroutineWrap(context, runtime) }
         setYieldableFunctionField(state, "yield") { context -> coroutineYield(context, runtime) }
         state.setGlobal("coroutine")
@@ -165,12 +165,12 @@ internal object LuaCoroutineLibrary {
         return LuaReturn.of(coroutine.status != CoroutineStatus.DEAD)
     }
 
-    private fun coroutineStatus(context: LuaCallContext): LuaReturn {
+    private fun coroutineStatus(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
         val coroutine = requiredCoroutine(context, 1, "coroutine.status")
         return LuaReturn.of(
             when (coroutine.status) {
                 CoroutineStatus.SUSPENDED -> "suspended"
-                CoroutineStatus.RUNNING -> "running"
+                CoroutineStatus.RUNNING -> if (runtime.running == coroutine) "running" else "normal"
                 CoroutineStatus.DEAD -> "dead"
             },
         )
