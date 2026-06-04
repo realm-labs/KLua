@@ -1,13 +1,14 @@
 package io.github.realmlabs.klua.stdlib
 
-import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaStackFrame
+import io.github.realmlabs.klua.api.LuaState
 
 internal object LuaDebugLibrary {
     fun open(state: LuaState): LuaState {
         state.register("klua_debug_traceback") { context -> LuaReturn.of(traceback(context)) }
+        state.register("klua_debug_getinfo") { context -> getInfo(context) }
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
         return state
     }
@@ -38,6 +39,22 @@ internal object LuaDebugLibrary {
         }
     }
 
+    private fun getInfo(context: LuaCallContext): LuaReturn {
+        val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
+        val frame = context.luaFrames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
+        return LuaReturn.of(
+            mapOf(
+                "what" to "Lua",
+                "source" to frame.sourceName,
+                "short_src" to frame.sourceName,
+                "currentline" to frame.line.toLong(),
+                "linedefined" to -1L,
+                "lastlinedefined" to -1L,
+                "namewhat" to "",
+            ),
+        )
+    }
+
     private const val DEBUG_SOURCE: String = """
         debug = debug or {}
 
@@ -56,15 +73,7 @@ internal object LuaDebugLibrary {
         end
 
         function debug.getinfo(threadOrLevel, what)
-            return {
-                what = "Lua",
-                source = "=[KLua]",
-                short_src = "=[KLua]",
-                currentline = -1,
-                linedefined = -1,
-                lastlinedefined = -1,
-                namewhat = "",
-            }
+            return klua_debug_getinfo(threadOrLevel, what)
         end
     """
 }
