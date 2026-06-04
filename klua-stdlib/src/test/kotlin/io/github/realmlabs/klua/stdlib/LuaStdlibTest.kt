@@ -2264,6 +2264,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gmatch honors init argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local positive = string.gmatch("one two three", "%a+", 5)
+                local negative = string.gmatch("one two three", "%a+", -5)
+                local clamped = string.gmatch("one two", "%a+", 0)
+                local pastEnd = string.gmatch("one two", "%a+", 8)
+                return positive(), positive(), positive(),
+                    negative(), negative(),
+                    clamped(),
+                    pastEnd()
+                """.trimIndent(),
+                "string-gmatch-init.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("two", state.toString(1))
+        assertEquals("three", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("three", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertEquals("one", state.toString(6))
+        assertTrue(state.isNil(7))
+    }
+
+    @Test
     fun `string gmatch reports unsupported patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

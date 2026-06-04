@@ -214,11 +214,16 @@ internal object LuaStringLibrary {
     private fun stringGmatch(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "string.gmatch")
         val pattern = requiredString(context, 2, "string.gmatch")
+        val start = if (context.isNone(3) || context.isNil(3)) {
+            1L
+        } else {
+            requiredInteger(context, 3, "string.gmatch")
+        }
         if (pattern.isEmpty()) {
             throw LuaRuntimeException("empty patterns are not supported")
         }
         val compiledPattern = LuaStringPattern.compile(pattern)
-        var cursor = 0
+        var cursor = text.normalizeSearchStart(start) - 1
         val iterator = LuaFunction { _ ->
             if (cursor > text.length) {
                 LuaReturn.of(null)
