@@ -40,6 +40,51 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade registered userdata methods retain host identity`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+
+        lua.registerType(HostObject::class.java) { type ->
+            type.method("rename") { receiver, context ->
+                receiver.name = context.toString(1) ?: error("name expected")
+                LuaReturn.of(receiver)
+            }
+        }
+        lua.globals().set("host", host)
+        val result = lua.load("""return host:rename("renamed")""", "api-userdata-method.lua").eval()
+
+        assertSame(host, result.get(1))
+        assertEquals("renamed", host.name)
+    }
+
+    @Test
+    fun `facade registered userdata properties can be read and written`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+
+        lua.registerType(HostObject::class.java) { type ->
+            type.property(
+                "name",
+                getter = { receiver -> LuaReturn.of(receiver.name) },
+                setter = { receiver, value -> receiver.name = value as String },
+            )
+        }
+        lua.globals().set("host", host)
+        val result = lua.load(
+            """
+            local before = host.name
+            host.name = "renamed"
+            return before, host.name
+            """.trimIndent(),
+            "api-userdata-property.lua",
+        ).eval()
+
+        assertEquals("host", result.getString(1))
+        assertEquals("renamed", result.getString(2))
+        assertEquals("renamed", host.name)
+    }
+
+    @Test
     fun `facade throws structured runtime errors`() {
         val lua = Lua.create()
 
@@ -51,6 +96,6 @@ class LuaApiSmokeTest {
     }
 
     private data class HostObject(
-        val name: String,
+        var name: String,
     )
 }
