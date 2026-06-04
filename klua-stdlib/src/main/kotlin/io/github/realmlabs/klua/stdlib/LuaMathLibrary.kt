@@ -115,26 +115,30 @@ internal object LuaMathLibrary {
 
     private fun mathMax(context: LuaCallContext): LuaReturn {
         requireMathArguments(context, "math.max")
+        var maxInteger = integerSubtype(context, 1)
         var max = requiredNumber(context, 1, "math.max")
         for (index in 2..context.argumentCount) {
             val value = requiredNumber(context, index, "math.max")
             if (value > max) {
                 max = value
+                maxInteger = integerSubtype(context, index)
             }
         }
-        return LuaReturn.of(max)
+        return LuaReturn.of(maxInteger ?: max)
     }
 
     private fun mathMin(context: LuaCallContext): LuaReturn {
         requireMathArguments(context, "math.min")
+        var minInteger = integerSubtype(context, 1)
         var min = requiredNumber(context, 1, "math.min")
         for (index in 2..context.argumentCount) {
             val value = requiredNumber(context, index, "math.min")
             if (value < min) {
                 min = value
+                minInteger = integerSubtype(context, index)
             }
         }
-        return LuaReturn.of(min)
+        return LuaReturn.of(minInteger ?: min)
     }
 
     private fun mathModf(context: LuaCallContext): LuaReturn {
@@ -233,6 +237,19 @@ internal object LuaMathLibrary {
     private fun requireMathArguments(context: LuaCallContext, functionName: String) {
         if (context.argumentCount == 0) {
             throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
+        }
+    }
+
+    private fun integerSubtype(context: LuaCallContext, index: Int): Long? {
+        if (context.typeName(index) != "number") {
+            return null
+        }
+        return when (val value = context.get(index)) {
+            is Byte -> value.toLong()
+            is Short -> value.toLong()
+            is Int -> value.toLong()
+            is Long -> value
+            else -> null
         }
     }
 

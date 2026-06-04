@@ -907,6 +907,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math min and max preserve selected numeric subtype`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local maxInteger = math.max(2, 1.5)
+                local minFloat = math.min(2, 1.5)
+                local maxFloat = math.max(1, 2.0)
+                local minInteger = math.min(1, 2.0)
+                return maxInteger, math.type(maxInteger),
+                    minFloat, math.type(minFloat),
+                    maxFloat, math.type(maxFloat),
+                    minInteger, math.type(minInteger)
+                """.trimIndent(),
+                "math-min-max-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals("integer", state.toString(2))
+        assertEquals(1.5, state.toNumber(3) ?: error("missing min float"), 1e-12)
+        assertEquals("float", state.toString(4))
+        assertEquals(2.0, state.toNumber(5) ?: error("missing max float"), 1e-12)
+        assertEquals("float", state.toString(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals("integer", state.toString(8))
+    }
+
+    @Test
     fun `math random supports ranges and deterministic seeds`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
