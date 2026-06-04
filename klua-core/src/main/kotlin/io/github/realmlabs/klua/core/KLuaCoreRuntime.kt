@@ -19,6 +19,7 @@ import io.github.realmlabs.klua.core.value.LuaUserDataType
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
+import io.github.realmlabs.klua.core.vm.LuaYieldSignal
 import java.util.IdentityHashMap
 
 public object KLuaCoreRuntime {
@@ -217,6 +218,10 @@ public sealed interface KLuaCoreCallResult {
         public val values: List<KLuaCoreValue>,
     ) : KLuaCoreCallResult
 
+    public data class Yielded(
+        public val values: List<KLuaCoreValue>,
+    ) : KLuaCoreCallResult
+
     public data class RuntimeError(
         public val message: String,
     ) : KLuaCoreCallResult
@@ -409,10 +414,20 @@ private fun callCoreFunction(
                     value.toLuaReturnValue(arguments, publicArguments, globals)
                 }
             }
+            is KLuaCoreCallResult.Yielded -> {
+                syncPublicTablesToLua(arguments, publicArguments, globals)
+                throw LuaYieldSignal(
+                    result.values.map { value ->
+                        value.toLuaReturnValue(arguments, publicArguments, globals)
+                    },
+                )
+            }
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
     } catch (error: LuaVmException) {
         throw error
+    } catch (yield: LuaYieldSignal) {
+        throw yield
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
     }
@@ -499,10 +514,18 @@ private fun <T : Any> callCoreUserDataMethod(
                 value.toLuaValueOrNull(globals)
                     ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
             }
+            is KLuaCoreCallResult.Yielded -> throw LuaYieldSignal(
+                result.values.map { value ->
+                    value.toLuaValueOrNull(globals)
+                        ?: throw LuaVmException("cannot yield ${value.publicTypeName()} as Lua value")
+                },
+            )
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
     } catch (error: LuaVmException) {
         throw error
+    } catch (yield: LuaYieldSignal) {
+        throw yield
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
     }
@@ -519,10 +542,18 @@ private fun <T : Any> callCoreUserDataGetter(
                 value.toLuaValueOrNull(globals)
                     ?: throw LuaVmException("cannot return ${value.publicTypeName()} as Lua value")
             }
+            is KLuaCoreCallResult.Yielded -> throw LuaYieldSignal(
+                result.values.map { value ->
+                    value.toLuaValueOrNull(globals)
+                        ?: throw LuaVmException("cannot yield ${value.publicTypeName()} as Lua value")
+                },
+            )
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
     } catch (error: LuaVmException) {
         throw error
+    } catch (yield: LuaYieldSignal) {
+        throw yield
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
     }
@@ -537,10 +568,18 @@ private fun <T : Any> callCoreUserDataSetter(
     return try {
         when (val result = setter.set(receiver, toPublicValue(value, globals))) {
             is KLuaCoreCallResult.Success -> emptyList()
+            is KLuaCoreCallResult.Yielded -> throw LuaYieldSignal(
+                result.values.map { yieldedValue ->
+                    yieldedValue.toLuaValueOrNull(globals)
+                        ?: throw LuaVmException("cannot yield ${yieldedValue.publicTypeName()} as Lua value")
+                },
+            )
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message)
         }
     } catch (error: LuaVmException) {
         throw error
+    } catch (yield: LuaYieldSignal) {
+        throw yield
     } catch (error: RuntimeException) {
         throw LuaVmException(error.message ?: error::class.java.simpleName)
     }

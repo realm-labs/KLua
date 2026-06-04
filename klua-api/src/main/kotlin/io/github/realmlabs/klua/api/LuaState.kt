@@ -514,6 +514,7 @@ class LuaState private constructor(
                 val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
                 when (val result = function.call(arguments)) {
                     is KLuaCoreCallResult.Success -> LuaReturn.ofValues(result.values.map { it.toStackValue().toPublicCallReturnValue() })
+                    is KLuaCoreCallResult.Yielded -> throw LuaRuntimeException("attempt to yield from outside a coroutine")
                     is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
                 }
             }
