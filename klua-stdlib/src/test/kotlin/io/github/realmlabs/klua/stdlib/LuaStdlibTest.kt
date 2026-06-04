@@ -3139,7 +3139,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `utf8 len reports continuation byte starts`() {
+    fun `utf8 len reports invalid byte ranges`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
 
@@ -3148,15 +3148,19 @@ class LuaStdlibTest {
             state.load(
                 """
                 local text = "A" .. utf8.char(128512) .. "Z"
-                return utf8.len(text, 4, 6)
+                local continuationLength, continuationPosition = utf8.len(text, 4, 6)
+                local truncatedLength, truncatedPosition = utf8.len(text, 1, 4)
+                return continuationLength, continuationPosition, truncatedLength, truncatedPosition
                 """.trimIndent(),
-                "utf8-len-continuation.lua",
+                "utf8-len-invalid-ranges.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertTrue(state.isNil(1))
         assertEquals(4L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+        assertEquals(2L, state.toInteger(4))
     }
 
     @Test

@@ -80,6 +80,10 @@ internal object LuaUtf8Library {
         if (!isUtf8StartBytePosition(byteOffsets, start)) {
             return LuaReturn.of(null, start)
         }
+        val truncatedStart = truncatedCodePointStart(codePoints, byteOffsets, start, end)
+        if (truncatedStart != null) {
+            return LuaReturn.of(null, truncatedStart)
+        }
         return LuaReturn.of(byteOffsets.count { byteOffset -> byteOffset in start..end }.toLong())
     }
 
@@ -271,6 +275,25 @@ internal object LuaUtf8Library {
 
     private fun isUtf8StartBytePosition(byteOffsets: List<Long>, bytePosition: Long): Boolean {
         return byteOffsets.any { byteOffset -> byteOffset == bytePosition }
+    }
+
+    private fun truncatedCodePointStart(
+        codePoints: IntArray,
+        byteOffsets: List<Long>,
+        start: Long,
+        end: Long,
+    ): Long? {
+        for (index in codePoints.indices) {
+            val byteOffset = byteOffsets[index]
+            if (byteOffset !in start..end) {
+                continue
+            }
+            val byteEnd = byteOffset + utf8ByteLength(codePoints[index]).toLong() - 1L
+            if (byteEnd > end) {
+                return byteOffset
+            }
+        }
+        return null
     }
 
     private fun normalizedOffsetPosition(
