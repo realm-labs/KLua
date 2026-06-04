@@ -121,16 +121,26 @@ internal class LuaStringPattern private constructor(
             }
 
             val ranges = mutableListOf<CharRange>()
+            val tokens = mutableListOf<Token>()
             while (index < pattern.length) {
                 val start = pattern[index]
                 if (start == ']') {
-                    if (ranges.isEmpty()) {
+                    if (ranges.isEmpty() && tokens.isEmpty()) {
                         throw LuaRuntimeException("string patterns are not supported")
                     }
-                    return Token.CharSet(ranges, negated) to index + 1
+                    return Token.CharSet(ranges, tokens, negated) to index + 1
                 }
                 if (start == '%') {
-                    throw LuaRuntimeException("string patterns are not supported")
+                    if (index + 1 >= pattern.length) {
+                        throw LuaRuntimeException("string patterns are not supported")
+                    }
+                    val token = percentToken(pattern[index + 1])
+                    if (token == null) {
+                        throw LuaRuntimeException("string patterns are not supported")
+                    }
+                    tokens += token
+                    index += 2
+                    continue
                 }
 
                 index++
@@ -201,10 +211,11 @@ private sealed interface Token {
 
     data class CharSet(
         val ranges: List<CharRange>,
+        val tokens: List<Token>,
         val negated: Boolean,
     ) : Token {
         override fun matches(char: Char): Boolean {
-            val contains = ranges.any { range -> char in range }
+            val contains = ranges.any { range -> char in range } || tokens.any { token -> token.matches(char) }
             return if (negated) !contains else contains
         }
     }

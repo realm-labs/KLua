@@ -881,6 +881,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string bracket patterns support percent classes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.match("a5", "[%d]"),
+                    string.match("aF", "[A-F%d]"),
+                    string.match("a-", "[%-]"),
+                    string.match("a!", "[%p]"),
+                    string.match("5a", "[^%d]")
+                """.trimIndent(),
+                "string-bracket-percent-classes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("5", state.toString(1))
+        assertEquals("F", state.toString(2))
+        assertEquals("-", state.toString(3))
+        assertEquals("!", state.toString(4))
+        assertEquals("a", state.toString(5))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
