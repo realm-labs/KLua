@@ -2,6 +2,8 @@ package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
+import io.github.realmlabs.klua.core.value.LuaInteger
+import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -13,17 +15,15 @@ class LuaThreadTest {
     @Test
     fun `tracks active call frames in stack order`() {
         val thread = LuaThread()
-        val outer = callFrame("outer")
-        val inner = callFrame("inner")
 
         assertNull(thread.currentFrame)
         assertEquals(0, thread.callDepth)
 
-        thread.pushFrame(outer)
+        val outer = thread.pushCall(prototype("outer"), emptyList())
         assertSame(outer, thread.currentFrame)
         assertEquals(1, thread.callDepth)
 
-        thread.pushFrame(inner)
+        val inner = thread.pushCall(prototype("inner"), emptyList())
         assertSame(inner, thread.currentFrame)
         assertEquals(2, thread.callDepth)
 
@@ -39,27 +39,56 @@ class LuaThreadTest {
     @Test
     fun `rejects out of order frame pops`() {
         val thread = LuaThread()
-        val outer = callFrame("outer")
-        val inner = callFrame("inner")
-
-        thread.pushFrame(outer)
-        thread.pushFrame(inner)
+        val outer = thread.pushCall(prototype("outer"), emptyList())
+        thread.pushCall(prototype("inner"), emptyList())
 
         assertFailsWith<IllegalArgumentException> {
             thread.popFrame(outer)
         }
     }
 
-    private fun callFrame(sourceName: String): CallFrame {
-        return CallFrame(
-            prototype = Prototype(
-                sourceName = sourceName,
-                version = LuaSourceVersion.LUA_54,
-                code = IntArray(0),
-                constants = emptyArray<LuaValue>(),
-                maxStackSize = 1,
-            ),
-            stack = LuaStack(1),
+    @Test
+    fun `push call initializes parameters and varargs`() {
+        val thread = LuaThread()
+
+        val frame = thread.pushCall(
+            prototype("chunk", maxStackSize = 1, numParams = 2, isVararg = true),
+            listOf(LuaInteger(10), LuaInteger(20), LuaInteger(30)),
+        )
+
+        assertEquals(LuaInteger(10), frame.stack.get(0))
+        assertEquals(LuaInteger(20), frame.stack.get(1))
+        assertEquals(listOf(LuaInteger(30)), frame.varargs)
+    }
+
+    @Test
+    fun `push call fills missing fixed parameters with nil`() {
+        val thread = LuaThread()
+
+        val frame = thread.pushCall(
+            prototype("chunk", numParams = 2),
+            listOf(LuaInteger(10)),
+        )
+
+        assertEquals(LuaInteger(10), frame.stack.get(0))
+        assertEquals(LuaNil, frame.stack.get(1))
+        assertEquals(emptyList(), frame.varargs)
+    }
+
+    private fun prototype(
+        sourceName: String,
+        maxStackSize: Int = 1,
+        numParams: Int = 0,
+        isVararg: Boolean = false,
+    ): Prototype {
+        return Prototype(
+            sourceName = sourceName,
+            version = LuaSourceVersion.LUA_54,
+            code = IntArray(0),
+            constants = emptyArray<LuaValue>(),
+            maxStackSize = maxStackSize,
+            numParams = numParams,
+            isVararg = isVararg,
         )
     }
 }

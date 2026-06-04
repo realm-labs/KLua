@@ -37,17 +37,8 @@ internal class LuaVm(
     }
 
     private fun execute(prototype: Prototype, arguments: List<LuaValue>, upvalues: List<LuaUpvalue>): List<LuaValue> {
-        val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
-        for (index in 0 until prototype.numParams) {
-            stack.set(index, arguments.getOrElse(index) { LuaNil })
-        }
-        val varargs = if (prototype.isVararg) {
-            arguments.drop(prototype.numParams)
-        } else {
-            emptyList()
-        }
-        val frame = CallFrame(prototype, stack, varargs, upvalues)
-        thread.pushFrame(frame)
+        val frame = thread.pushCall(prototype, arguments, upvalues)
+        val stack = frame.stack
         try {
             while (frame.pc < prototype.code.size) {
                 val instruction = prototype.code[frame.pc++]
