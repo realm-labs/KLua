@@ -155,7 +155,7 @@ Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
-- Coroutine runtime yield/resume continuation semantics and non-yieldable call detection.
+- Coroutine runtime yield/resume continuation semantics; `coroutine.yield` currently reports outside-coroutine and non-yieldable-boundary errors but does not suspend.
 - Error handling, tracebacks, and debug metadata.
 - Debug hooks and source-level debugger.
 - DAP adapter and command-line/debug tooling.
@@ -181,7 +181,7 @@ This proof point should remain covered by tests while later milestones evolve th
 
 ## Next Implementation Focus
 
-Continue from the current milestone frontier rather than restarting the initial proof point. The active frontier is around M13 coroutine runtime work, especially yield/resume continuation semantics, while M11/M12 and earlier milestones still need conformance hardening as gaps are discovered.
+Continue from the current milestone frontier rather than restarting the initial proof point. The active frontier is around M13 coroutine runtime work, especially VM-managed yield/resume continuation semantics, while M11/M12 and earlier milestones still need conformance hardening as gaps are discovered.
 
 Follow milestone order unless a later task is strictly necessary to unblock an earlier one. Keep new work tied to named milestone behavior, focused tests, and a verification command.
 
