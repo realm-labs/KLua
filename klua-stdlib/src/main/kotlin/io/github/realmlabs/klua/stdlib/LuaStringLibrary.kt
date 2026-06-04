@@ -9,7 +9,7 @@ import java.math.BigInteger
 import java.util.Locale
 
 internal object LuaStringLibrary {
-    private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcpqs"
+    private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcaApqs"
     private const val FORMAT_FLAGS = "-+ #0"
     private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
@@ -392,6 +392,8 @@ internal object LuaStringLibrary {
             'E',
             'g',
             'G',
+            'a',
+            'A',
             -> {
                 validateFormatSize(specifier)
                 specifier.formatWith(requiredNumber(context, index, "string.format"))
