@@ -96,85 +96,99 @@ internal class LuaVm(
         var yielded = false
         try {
             while (frame.pc < frame.prototype.code.size) {
+                val pc = frame.pc
                 val instruction = frame.prototype.code[frame.pc++]
-                when (Instruction.opcode(instruction)) {
-                    Opcode.LOAD_NIL -> stack.set(register(frame, Instruction.a(instruction)), LuaNil)
-                    Opcode.LOAD_BOOL -> {
-                        stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(Instruction.b(instruction) != 0))
-                    }
-                    Opcode.LOAD_INT -> {
-                        stack.set(register(frame, Instruction.a(instruction)), LuaInteger(signedByte(Instruction.b(instruction)).toLong()))
-                    }
-                    Opcode.LOAD_FLOAT -> {
-                        val constant = constant(frame.prototype, Instruction.b(instruction))
-                        if (constant !is LuaFloat) {
-                            throw LuaVmException("LOAD_FLOAT expected float constant at K${Instruction.b(instruction)}")
+                try {
+                    when (Instruction.opcode(instruction)) {
+                        Opcode.LOAD_NIL -> stack.set(register(frame, Instruction.a(instruction)), LuaNil)
+                        Opcode.LOAD_BOOL -> {
+                            stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(Instruction.b(instruction) != 0))
                         }
-                        stack.set(register(frame, Instruction.a(instruction)), constant)
-                    }
-                    Opcode.LOAD_K -> stack.set(register(frame, Instruction.a(instruction)), constant(frame.prototype, Instruction.b(instruction)))
-                    Opcode.VARARG -> loadVarargs(stack, frame, instruction)
-                    Opcode.NEW_TABLE -> stack.set(register(frame, Instruction.a(instruction)), LuaTable())
-                    Opcode.GET_TABLE -> getTable(stack, frame, instruction)
-                    Opcode.SET_TABLE -> setTable(stack, frame, instruction)
-                    Opcode.GET_FIELD -> getField(stack, frame, instruction)
-                    Opcode.SET_FIELD -> setField(stack, frame, instruction)
-                    Opcode.GET_GLOBAL -> getGlobal(stack, frame, instruction)
-                    Opcode.SET_GLOBAL -> setGlobal(stack, frame, instruction)
-                    Opcode.CLOSURE -> createClosure(stack, frame, instruction)
-                    Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
-                    Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
-                    Opcode.CLOSE_UPVALUES -> stack.closeCapturesFrom(register(frame, Instruction.a(instruction)))
-                    Opcode.MOVE -> stack.copy(register(frame, Instruction.b(instruction)), register(frame, Instruction.a(instruction)))
-                    Opcode.ADD -> arithmetic(stack, frame, instruction, Arithmetic.ADD)
-                    Opcode.SUB -> arithmetic(stack, frame, instruction, Arithmetic.SUB)
-                    Opcode.MUL -> arithmetic(stack, frame, instruction, Arithmetic.MUL)
-                    Opcode.DIV -> arithmetic(stack, frame, instruction, Arithmetic.DIV)
-                    Opcode.IDIV -> arithmetic(stack, frame, instruction, Arithmetic.IDIV)
-                    Opcode.MOD -> arithmetic(stack, frame, instruction, Arithmetic.MOD)
-                    Opcode.POW -> arithmetic(stack, frame, instruction, Arithmetic.POW)
-                    Opcode.CONCAT -> concat(stack, frame, instruction)
-                    Opcode.BAND -> bitwise(stack, frame, instruction, Bitwise.AND)
-                    Opcode.BOR -> bitwise(stack, frame, instruction, Bitwise.OR)
-                    Opcode.BXOR -> bitwise(stack, frame, instruction, Bitwise.XOR)
-                    Opcode.SHL -> bitwise(stack, frame, instruction, Bitwise.SHIFT_LEFT)
-                    Opcode.SHR -> bitwise(stack, frame, instruction, Bitwise.SHIFT_RIGHT)
-                    Opcode.BNOT -> bitwiseNot(stack, frame, instruction)
-                    Opcode.LEN -> length(stack, frame, instruction)
-                    Opcode.UNM -> unaryMinus(stack, frame, instruction)
-                    Opcode.NOT -> logicalNot(stack, frame, instruction)
-                    Opcode.EQ -> compare(stack, frame, instruction, Comparison.EQ)
-                    Opcode.LT -> compare(stack, frame, instruction, Comparison.LT)
-                    Opcode.LE -> compare(stack, frame, instruction, Comparison.LE)
-                    Opcode.TEST -> {
-                        if (!isTruthy(stack.get(register(frame, Instruction.a(instruction))))) {
-                            frame.pc += signedByte(Instruction.b(instruction))
+                        Opcode.LOAD_INT -> {
+                            stack.set(
+                                register(frame, Instruction.a(instruction)),
+                                LuaInteger(signedByte(Instruction.b(instruction)).toLong()),
+                            )
+                        }
+                        Opcode.LOAD_FLOAT -> {
+                            val constant = constant(frame.prototype, Instruction.b(instruction))
+                            if (constant !is LuaFloat) {
+                                throw LuaVmException("LOAD_FLOAT expected float constant at K${Instruction.b(instruction)}")
+                            }
+                            stack.set(register(frame, Instruction.a(instruction)), constant)
+                        }
+                        Opcode.LOAD_K -> stack.set(
+                            register(frame, Instruction.a(instruction)),
+                            constant(frame.prototype, Instruction.b(instruction)),
+                        )
+                        Opcode.VARARG -> loadVarargs(stack, frame, instruction)
+                        Opcode.NEW_TABLE -> stack.set(register(frame, Instruction.a(instruction)), LuaTable())
+                        Opcode.GET_TABLE -> getTable(stack, frame, instruction)
+                        Opcode.SET_TABLE -> setTable(stack, frame, instruction)
+                        Opcode.GET_FIELD -> getField(stack, frame, instruction)
+                        Opcode.SET_FIELD -> setField(stack, frame, instruction)
+                        Opcode.GET_GLOBAL -> getGlobal(stack, frame, instruction)
+                        Opcode.SET_GLOBAL -> setGlobal(stack, frame, instruction)
+                        Opcode.CLOSURE -> createClosure(stack, frame, instruction)
+                        Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
+                        Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
+                        Opcode.CLOSE_UPVALUES -> stack.closeCapturesFrom(register(frame, Instruction.a(instruction)))
+                        Opcode.MOVE -> stack.copy(
+                            register(frame, Instruction.b(instruction)),
+                            register(frame, Instruction.a(instruction)),
+                        )
+                        Opcode.ADD -> arithmetic(stack, frame, instruction, Arithmetic.ADD)
+                        Opcode.SUB -> arithmetic(stack, frame, instruction, Arithmetic.SUB)
+                        Opcode.MUL -> arithmetic(stack, frame, instruction, Arithmetic.MUL)
+                        Opcode.DIV -> arithmetic(stack, frame, instruction, Arithmetic.DIV)
+                        Opcode.IDIV -> arithmetic(stack, frame, instruction, Arithmetic.IDIV)
+                        Opcode.MOD -> arithmetic(stack, frame, instruction, Arithmetic.MOD)
+                        Opcode.POW -> arithmetic(stack, frame, instruction, Arithmetic.POW)
+                        Opcode.CONCAT -> concat(stack, frame, instruction)
+                        Opcode.BAND -> bitwise(stack, frame, instruction, Bitwise.AND)
+                        Opcode.BOR -> bitwise(stack, frame, instruction, Bitwise.OR)
+                        Opcode.BXOR -> bitwise(stack, frame, instruction, Bitwise.XOR)
+                        Opcode.SHL -> bitwise(stack, frame, instruction, Bitwise.SHIFT_LEFT)
+                        Opcode.SHR -> bitwise(stack, frame, instruction, Bitwise.SHIFT_RIGHT)
+                        Opcode.BNOT -> bitwiseNot(stack, frame, instruction)
+                        Opcode.LEN -> length(stack, frame, instruction)
+                        Opcode.UNM -> unaryMinus(stack, frame, instruction)
+                        Opcode.NOT -> logicalNot(stack, frame, instruction)
+                        Opcode.EQ -> compare(stack, frame, instruction, Comparison.EQ)
+                        Opcode.LT -> compare(stack, frame, instruction, Comparison.LT)
+                        Opcode.LE -> compare(stack, frame, instruction, Comparison.LE)
+                        Opcode.TEST -> {
+                            if (!isTruthy(stack.get(register(frame, Instruction.a(instruction))))) {
+                                frame.pc += signedByte(Instruction.b(instruction))
+                            }
+                        }
+                        Opcode.JMP -> frame.pc += signedByte(Instruction.a(instruction))
+                        Opcode.FOR_TEST -> {
+                            if (!forLoopContinues(stack, frame, instruction)) {
+                                frame.pc += signedByte(Instruction.b(instruction))
+                            }
+                        }
+                        Opcode.FOR_LOOP -> {
+                            incrementForIndex(stack, frame, instruction)
+                            if (forLoopContinues(stack, frame, instruction)) {
+                                frame.pc += signedByte(Instruction.b(instruction))
+                            }
+                        }
+                        Opcode.CALL -> {
+                            val result = call(stack, frame, instruction)
+                            if (result != null) {
+                                yielded = true
+                                return result
+                            }
+                        }
+                        Opcode.RETURN -> {
+                            val base = register(frame, Instruction.a(instruction))
+                            val count = returnCount(frame, base, Instruction.b(instruction))
+                            return LuaExecutionResult.Returned(stack.slice(base, count))
                         }
                     }
-                    Opcode.JMP -> frame.pc += signedByte(Instruction.a(instruction))
-                    Opcode.FOR_TEST -> {
-                        if (!forLoopContinues(stack, frame, instruction)) {
-                            frame.pc += signedByte(Instruction.b(instruction))
-                        }
-                    }
-                    Opcode.FOR_LOOP -> {
-                        incrementForIndex(stack, frame, instruction)
-                        if (forLoopContinues(stack, frame, instruction)) {
-                            frame.pc += signedByte(Instruction.b(instruction))
-                        }
-                    }
-                    Opcode.CALL -> {
-                        val result = call(stack, frame, instruction)
-                        if (result != null) {
-                            yielded = true
-                            return result
-                        }
-                    }
-                    Opcode.RETURN -> {
-                        val base = register(frame, Instruction.a(instruction))
-                        val count = returnCount(frame, base, Instruction.b(instruction))
-                        return LuaExecutionResult.Returned(stack.slice(base, count))
-                    }
+                } catch (error: LuaVmException) {
+                    throw error.withLocation(frame.prototype.sourceName, frame.lineForPc(pc))
                 }
             }
 
@@ -187,6 +201,8 @@ internal class LuaVm(
     }
 
     private fun register(frame: CallFrame, offset: Int): Int = frame.base + offset
+
+    private fun CallFrame.lineForPc(pc: Int): Int = prototype.lineInfo.getOrElse(pc) { 0 }
 
     private fun constant(prototype: Prototype, index: Int): LuaValue {
         if (index !in prototype.constants.indices) {

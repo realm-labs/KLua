@@ -130,7 +130,7 @@ class LuaState private constructor(
                 LuaStatus.SYNTAX_ERROR
             }
             is KLuaCoreExecution.RuntimeError -> {
-                lastError = LuaRuntimeException(result.message)
+                lastError = LuaRuntimeException(result.message, sourceName = result.sourceName, line = result.line)
                 removeCallFrame(functionIndex)
                 stack += LuaStackValue.StringValue(result.message)
                 LuaStatus.RUNTIME_ERROR
@@ -178,7 +178,11 @@ class LuaState private constructor(
                             result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
                         )
                         is KLuaCoreExecution.SyntaxError -> throw LuaSyntaxException(result.message)
-                        is KLuaCoreExecution.RuntimeError -> throw LuaRuntimeException(result.message)
+                        is KLuaCoreExecution.RuntimeError -> throw LuaRuntimeException(
+                            result.message,
+                            sourceName = result.sourceName,
+                            line = result.line,
+                        )
                     }
                 }
                 LuaReturn.of(function)

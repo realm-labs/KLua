@@ -18,10 +18,10 @@ class KLuaCoreRuntimeCoroutineTest {
 
         val result = KLuaCoreRuntime.execute(chunk, emptyList(), globals)
 
-        assertEquals(
-            KLuaCoreExecution.RuntimeError("attempt to yield across a non-yieldable boundary"),
-            result,
-        )
+        val error = assertIs<KLuaCoreExecution.RuntimeError>(result)
+        assertEquals("attempt to yield across a non-yieldable boundary", error.message)
+        assertEquals("core-yield.lua", error.sourceName)
+        assertEquals(1, error.line)
     }
 
     @Test

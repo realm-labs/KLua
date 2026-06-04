@@ -161,6 +161,8 @@ class LuaApiSmokeTest {
         }
 
         assertEquals("attempt to perform arithmetic on string", error.message)
+        assertEquals("bad.lua", error.sourceName)
+        assertEquals(1, error.line)
     }
 
     private data class HostObject(

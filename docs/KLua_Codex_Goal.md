@@ -146,6 +146,7 @@ Current implemented areas:
 - AST model, compiler, internal bytecode, prototype model, constant pool, and disassembler.
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and internal thread/yield/resume/dead-state plumbing.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
+- Runtime errors preserve structured source-name and line metadata from VM bytecode positions through core execution results and API runtime exceptions.
 - Partial `klua-stdlib` support with base, math, string, table, utf8, package, and coroutine library installers covered by focused Lua-source tests, including Lua-backed coroutine yield/resume, protected `pcall`/`xpcall` yield continuation, wrap/close/isyieldable behavior, main/normal coroutine status and close reporting, coroutine thread type/string reporting, and host/native yield-boundary checks.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
@@ -181,7 +182,7 @@ This proof point should remain covered by tests while later milestones evolve th
 
 ## Next Implementation Focus
 
-Continue from the current milestone frontier rather than restarting the initial proof point. The active frontier is around M13 coroutine runtime work, especially VM-managed yield/resume continuation semantics, while M11/M12 and earlier milestones still need conformance hardening as gaps are discovered.
+Continue from the current milestone frontier rather than restarting the initial proof point. The active frontier spans remaining M13 coroutine hardening and the first M14 error/debug metadata work, while M11/M12 and earlier milestones still need conformance hardening as gaps are discovered.
 
 Follow milestone order unless a later task is strictly necessary to unblock an earlier one. Keep new work tied to named milestone behavior, focused tests, and a verification command.
 

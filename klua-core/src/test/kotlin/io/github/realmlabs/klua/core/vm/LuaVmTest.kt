@@ -980,6 +980,25 @@ class LuaVmTest {
     }
 
     @Test
+    fun `reports source line for runtime errors`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local x = 1
+                    return "x" + x
+                    """.trimIndent(),
+                    "runtime-line.lua",
+                ),
+            )
+        }
+
+        assertEquals("attempt to perform arithmetic on string", error.message)
+        assertEquals("runtime-line.lua", error.sourceName)
+        assertEquals(2, error.line)
+    }
+
+    @Test
     fun `rejects concatenation of non stringable values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" .. nil"""))

@@ -69,7 +69,7 @@ public object KLuaCoreRuntime {
                 toPublicValue(value, globals)
             })
         } catch (error: LuaVmException) {
-            KLuaCoreExecution.RuntimeError(error.message ?: "runtime error")
+            KLuaCoreExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line)
         }
     }
 
@@ -273,6 +273,8 @@ public sealed interface KLuaCoreExecution {
 
     public data class RuntimeError(
         public val message: String,
+        public val sourceName: String? = null,
+        public val line: Int? = null,
     ) : KLuaCoreExecution
 }
 
@@ -319,7 +321,7 @@ public class KLuaCoreCoroutine internal constructor(
             }
         } catch (error: LuaVmException) {
             dead = true
-            KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error")
+            KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line)
         } finally {
             started = true
         }
@@ -348,6 +350,8 @@ public sealed interface KLuaCoreCoroutineExecution {
 
     public data class RuntimeError(
         public val message: String,
+        public val sourceName: String? = null,
+        public val line: Int? = null,
     ) : KLuaCoreCoroutineExecution
 }
 

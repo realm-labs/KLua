@@ -13,4 +13,6 @@ class LuaSyntaxException(
 class LuaRuntimeException(
     message: String,
     cause: Throwable? = null,
+    val sourceName: String? = null,
+    val line: Int? = null,
 ) : LuaException(message, cause)
