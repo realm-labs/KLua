@@ -675,6 +675,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `rawget rejects nan keys`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawget({}, 0 / 0)""", "rawget-nan-key-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("table index is NaN", state.toString(-1))
+    }
+
+    @Test
     fun `rawset mutates table fields and returns table`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -755,6 +767,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("table index is nil", state.toString(-1))
+    }
+
+    @Test
+    fun `rawset rejects nan keys`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawset({}, 0 / 0, "value")""", "rawset-nan-key-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("table index is NaN", state.toString(-1))
     }
 
     @Test

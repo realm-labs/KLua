@@ -192,9 +192,7 @@ public object LuaStdlib {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'rawget' (table expected)")
         }
-        if (context.isNone(2) || context.isNil(2)) {
-            throw LuaRuntimeException("table index is nil")
-        }
+        requireTableKey(context, 2)
         return LuaReturn.of(context.getTableValue(1, argumentValue(context, 2)))
     }
 
@@ -210,9 +208,7 @@ public object LuaStdlib {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'rawset' (table expected)")
         }
-        if (context.isNone(2) || context.isNil(2)) {
-            throw LuaRuntimeException("table index is nil")
-        }
+        requireTableKey(context, 2)
         context.setTableValue(1, argumentValue(context, 2), argumentValue(context, 3))
         return LuaReturn.of(context.getTable(1))
     }
@@ -531,6 +527,15 @@ public object LuaStdlib {
     private fun requireAnyArgument(context: LuaCallContext, functionName: String) {
         if (context.isNone(1)) {
             throw LuaRuntimeException("bad argument #1 to '$functionName' (value expected)")
+        }
+    }
+
+    private fun requireTableKey(context: LuaCallContext, index: Int) {
+        if (context.isNone(index) || context.isNil(index)) {
+            throw LuaRuntimeException("table index is nil")
+        }
+        if (context.typeName(index) == "number" && context.toNumber(index)?.isNaN() == true) {
+            throw LuaRuntimeException("table index is NaN")
         }
     }
 
