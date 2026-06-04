@@ -1345,20 +1345,23 @@ class LuaStdlibTest {
                 local first = math.random()
                 local ranged = math.random(10)
                 local offset = math.random(5, 7)
+                local allBits = math.random(0)
                 math.randomseed(123)
                 return first == math.random(),
                     ranged == math.random(10),
                     offset == math.random(5, 7),
+                    allBits == math.random(0),
                     first >= 0 and first < 1,
                     ranged >= 1 and ranged <= 10,
-                    offset >= 5 and offset <= 7
+                    offset >= 5 and offset <= 7,
+                    math.type(allBits) == "integer"
                 """.trimIndent(),
                 "math-random.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        for (index in 1..6) {
+        for (index in 1..8) {
             assertTrue(state.toBoolean(index))
         }
     }

@@ -181,6 +181,9 @@ internal object LuaMathLibrary {
             0 -> LuaReturn.of(randomState.random.nextDouble())
             1 -> {
                 val upper = requiredInteger(context, 1, "math.random")
+                if (upper == 0L) {
+                    return LuaReturn.of(randomState.random.nextLong())
+                }
                 LuaReturn.of(randomInteger(randomState, 1L, upper))
             }
             2 -> {
