@@ -834,6 +834,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math fmod preserves integer subtype for integer operands`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local integerRemainder = math.fmod(7, 3)
+                local floatRemainder = math.fmod(7.0, 3)
+                local minIntegerRemainder = math.fmod(math.mininteger, -1)
+                return integerRemainder, math.type(integerRemainder),
+                    floatRemainder, math.type(floatRemainder),
+                    minIntegerRemainder, math.type(minIntegerRemainder)
+                """.trimIndent(),
+                "math-fmod-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("integer", state.toString(2))
+        assertEquals(1.0, state.toNumber(3) ?: error("missing float fmod result"), 1e-12)
+        assertEquals("float", state.toString(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals("integer", state.toString(6))
+    }
+
+    @Test
+    fun `math fmod reports zero integer divisor errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.fmod(1, 0)""", "math-fmod-zero-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'math.fmod' (zero)", state.toString(-1))
+    }
+
+    @Test
     fun `openMath installs numeric constants`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)

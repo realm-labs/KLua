@@ -100,6 +100,17 @@ internal object LuaMathLibrary {
     }
 
     private fun mathFmod(context: LuaCallContext): LuaReturn {
+        val integerDividend = integerSubtype(context, 1)
+        val integerDivisor = integerSubtype(context, 2)
+        if (integerDividend != null && integerDivisor != null) {
+            if (integerDivisor == 0L) {
+                throw LuaRuntimeException("bad argument #2 to 'math.fmod' (zero)")
+            }
+            if (integerDivisor == -1L) {
+                return LuaReturn.of(0L)
+            }
+            return LuaReturn.of(integerDividend % integerDivisor)
+        }
         val dividend = requiredNumber(context, 1, "math.fmod")
         val divisor = requiredNumber(context, 2, "math.fmod")
         return LuaReturn.of(dividend % divisor)
