@@ -147,7 +147,7 @@ Current implemented areas:
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, and basic userdata bindings.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
 - Partial `klua-stdlib` support with base, math, string, table, and initial utf8 library installers covered by focused Lua-source tests.
-- String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, and balanced matches.
+- String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
 - Focused parser, compiler, VM, API, Kotlin helper, compatibility, and foundation tests.
 
 Remaining major gaps:
