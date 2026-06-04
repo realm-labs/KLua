@@ -65,6 +65,26 @@ class LexerTest {
     }
 
     @Test
+    fun `tokenizes hexadecimal integer and float numbers`() {
+        val tokens = Lexer("0xff 0X10 0x1.8p1 0x0.1E").tokenize()
+
+        assertEquals(
+            listOf(
+                TokenKind.INTEGER,
+                TokenKind.INTEGER,
+                TokenKind.FLOAT,
+                TokenKind.FLOAT,
+                TokenKind.EOF,
+            ),
+            tokens.map { it.kind },
+        )
+        assertEquals(255L, tokens[0].literal)
+        assertEquals(16L, tokens[1].literal)
+        assertEquals(3.0, tokens[2].literal)
+        assertEquals(0.1171875, tokens[3].literal)
+    }
+
+    @Test
     fun `tokenizes quoted strings and simple escapes`() {
         val tokens = Lexer(""" "line\none" 'tab\tvalue' "\000\007\255" """).tokenize()
 

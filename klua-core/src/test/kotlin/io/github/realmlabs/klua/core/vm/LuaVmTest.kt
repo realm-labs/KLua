@@ -103,6 +103,13 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes hexadecimal numeric literals`() {
+        val result = LuaVm().execute(Compiler.compile("return 0xff, 0x1.8p1, 0x0.1E"))
+
+        assertEquals(listOf(LuaInteger(255), LuaFloat(3.0), LuaFloat(0.1171875)), result)
+    }
+
+    @Test
     fun `executes local declaration and local return`() {
         val result = LuaVm().execute(
             Compiler.compile(

@@ -52,6 +52,10 @@ internal class Lexer(
     }
 
     private fun number(start: SourcePosition): Token {
+        if (source[start.offset] == '0' && (peek() == 'x' || peek() == 'X')) {
+            return hexadecimalNumber(start)
+        }
+
         while (peek().isDigit()) {
             advance()
         }
@@ -85,6 +89,62 @@ internal class Lexer(
         } else {
             token(TokenKind.INTEGER, text, start, text.toLong())
         }
+    }
+
+    private fun hexadecimalNumber(start: SourcePosition): Token {
+        advance()
+        var digitCount = 0
+        while (peek().isHexDigit()) {
+            advance()
+            digitCount++
+        }
+
+        var isFloat = false
+        if (peek() == '.' && peekNext() != '.') {
+            isFloat = true
+            advance()
+            while (peek().isHexDigit()) {
+                advance()
+                digitCount++
+            }
+        }
+
+        if (digitCount == 0) {
+            throw errorAt(start, "malformed hexadecimal numeral")
+        }
+
+        if (peek() == 'p' || peek() == 'P') {
+            isFloat = true
+            advance()
+            if (peek() == '+' || peek() == '-') {
+                advance()
+            }
+            if (!peek().isDigit()) {
+                throw errorAt(position(), "expected exponent digits")
+            }
+            while (peek().isDigit()) {
+                advance()
+            }
+        }
+
+        val text = source.substring(start.offset, offset)
+        return if (isFloat) {
+            token(TokenKind.FLOAT, text, start, parseHexFloat(text))
+        } else {
+            val digits = text.substring(2)
+            val integer = digits.toULongOrNull(16)
+                ?: throw errorAt(start, "hexadecimal integer out of range")
+            token(TokenKind.INTEGER, text, start, integer.toLong())
+        }
+    }
+
+    private fun parseHexFloat(text: String): Double {
+        val parseable = if (text.indexOf('p', ignoreCase = true) < 0) {
+            "${text}p0"
+        } else {
+            text
+        }
+        return java.lang.Double.parseDouble(parseable)
     }
 
     private fun string(start: SourcePosition, quote: Char): Token {
@@ -346,6 +406,8 @@ internal class Lexer(
     private fun Char.isIdentifierPart(): Boolean = isIdentifierStart() || isDigit()
 
     private fun Char.isDigit(): Boolean = this in '0'..'9'
+
+    private fun Char.isHexDigit(): Boolean = isDigit() || this in 'A'..'F' || this in 'a'..'f'
 
     private companion object {
         val keywords = mapOf(
