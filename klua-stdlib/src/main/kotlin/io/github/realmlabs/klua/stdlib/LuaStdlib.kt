@@ -119,7 +119,8 @@ public object LuaStdlib {
         if (!context.isTable(1)) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(context.getMetatable(1))
+        val metatable = context.getMetatable(1) ?: return LuaReturn.of(null)
+        return LuaReturn.of(context.getTableField(metatable, "__metatable") ?: metatable)
     }
 
     private fun ipairs(context: LuaCallContext): LuaReturn {
@@ -243,6 +244,10 @@ public object LuaStdlib {
         }
         if (!context.isNone(2) && !context.isNil(2) && !context.isTable(2)) {
             throw LuaRuntimeException("bad argument #2 to 'setmetatable' (nil or table expected)")
+        }
+        val currentMetatable = context.getMetatable(1)
+        if (context.getTableField(currentMetatable, "__metatable") != null) {
+            throw LuaRuntimeException("cannot change a protected metatable")
         }
         context.setMetatable(1, context.getTable(2))
         return LuaReturn.of(context.getTable(1))

@@ -830,6 +830,11 @@ class LuaState private constructor(
             return table.fields[key.toStackValue()]?.toPublicCallReturnValue()
         }
 
+        override fun getTableField(table: Any?, key: Any?): Any? {
+            val tableValue = table as? LuaStackValue.TableValue ?: return null
+            return tableValue.fields[key.toStackValue()]?.toPublicCallReturnValue()
+        }
+
         override fun setTableValue(index: Int, key: Any?, value: Any?) {
             val table = valueAt(index) as? LuaStackValue.TableValue
                 ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")

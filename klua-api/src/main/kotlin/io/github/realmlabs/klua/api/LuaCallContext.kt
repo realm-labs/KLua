@@ -19,6 +19,8 @@ interface LuaCallContext {
 
     fun getTableValue(index: Int, key: Any?): Any?
 
+    fun getTableField(table: Any?, key: Any?): Any?
+
     fun setTableValue(index: Int, key: Any?, value: Any?)
 
     fun getMetatable(index: Int): Any?

@@ -808,6 +808,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `getmetatable and setmetatable honor protected metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local object = {}
+                local marker = {name = "locked"}
+                setmetatable(object, {
+                    __index = {name = "from-metatable"},
+                    __metatable = marker
+                })
+                local visible = getmetatable(object)
+                local ok, message = pcall(setmetatable, object, {})
+                return visible == marker, visible.name, object.name, ok, message
+                """.trimIndent(),
+                "protected-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("locked", state.toString(2))
+        assertEquals("from-metatable", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("cannot change a protected metatable", state.toString(5))
+    }
+
+    @Test
     fun `getmetatable returns nil for values without metatables`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
