@@ -176,29 +176,36 @@ internal class Lexer(
         return token(TokenKind.STRING, source.substring(start.offset, offset), start, literal)
     }
 
-    private fun readEscape(start: SourcePosition): Char {
+    private fun readEscape(start: SourcePosition): String {
         if (isAtEnd()) {
             throw errorAt(start, "unterminated escape sequence")
         }
 
         return when (val escaped = advance()) {
-            'a' -> '\u0007'
-            'b' -> '\b'
-            'f' -> '\u000C'
-            'n' -> '\n'
-            'r' -> '\r'
-            't' -> '\t'
-            'v' -> '\u000B'
-            '\\' -> '\\'
-            '"' -> '"'
-            '\'' -> '\''
-            '\n' -> '\n'
+            'a' -> "\u0007"
+            'b' -> "\b"
+            'f' -> "\u000C"
+            'n' -> "\n"
+            'r' -> "\r"
+            't' -> "\t"
+            'v' -> "\u000B"
+            'x' -> readHexEscape(start)
+            'z' -> {
+                while (peek().isWhitespace()) {
+                    advance()
+                }
+                ""
+            }
+            '\\' -> "\\"
+            '"' -> "\""
+            '\'' -> "'"
+            '\n' -> "\n"
             in '0'..'9' -> readDecimalEscape(start, escaped)
-            else -> escaped
+            else -> escaped.toString()
         }
     }
 
-    private fun readDecimalEscape(start: SourcePosition, firstDigit: Char): Char {
+    private fun readDecimalEscape(start: SourcePosition, firstDigit: Char): String {
         var value = firstDigit.digitToInt()
         repeat(2) {
             if (!isAtEnd() && peek() in '0'..'9') {
@@ -208,7 +215,21 @@ internal class Lexer(
         if (value > 255) {
             throw errorAt(start, "escape sequence out of range")
         }
-        return value.toChar()
+        return value.toChar().toString()
+    }
+
+    private fun readHexEscape(start: SourcePosition): String {
+        val high = readRequiredHexDigit(start)
+        val low = readRequiredHexDigit(start)
+        val value = high * 16 + low
+        return value.toChar().toString()
+    }
+
+    private fun readRequiredHexDigit(start: SourcePosition): Int {
+        if (isAtEnd() || !peek().isHexDigit()) {
+            throw errorAt(start, "expected two hexadecimal digits in escape sequence")
+        }
+        return advance().digitToInt(16)
     }
 
     private fun symbol(start: SourcePosition, char: Char): Token {

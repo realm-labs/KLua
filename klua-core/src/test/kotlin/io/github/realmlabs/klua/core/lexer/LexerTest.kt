@@ -95,6 +95,16 @@ class LexerTest {
     }
 
     @Test
+    fun `tokenizes hexadecimal and whitespace string escapes`() {
+        val tokens = Lexer(
+            "\"\\x41\\z \n\t B\"",
+        ).tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals("AB", tokens[0].literal)
+    }
+
+    @Test
     fun `tokenizes long bracket strings`() {
         val tokens = Lexer(
             """
@@ -116,6 +126,15 @@ class LexerTest {
         }
 
         assertEquals("escape.lua:1:8: escape sequence out of range", error.message)
+    }
+
+    @Test
+    fun `reports malformed hexadecimal escape errors`() {
+        val error = assertFailsWith<LexerException> {
+            Lexer("return \"\\x4\"", "hex-escape.lua").tokenize()
+        }
+
+        assertEquals("hex-escape.lua:1:8: expected two hexadecimal digits in escape sequence", error.message)
     }
 
     @Test

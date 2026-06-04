@@ -58,6 +58,20 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes hexadecimal and whitespace string escapes`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                return "\x41\z
+                    B"
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaString("AB")), result)
+    }
+
+    @Test
     fun `executes move opcode`() {
         val prototype = Prototype(
             sourceName = "move.lua",
