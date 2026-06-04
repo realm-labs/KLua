@@ -2236,6 +2236,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format omits alternate prefixes for zero integer values`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%#x|%#X|%#o|%#5x|%#05x|%-#5o", 0, 0, 0, 0, 0, 0)""",
+                "string-format-zero-alternate.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("0|0|0|    0|00000|0    ", state.toString(1))
+    }
+
+    @Test
     fun `string format rejects invalid integer flags`() {
         val hashState = LuaState.create()
         LuaStdlib.openString(hashState)

@@ -501,7 +501,12 @@ internal object LuaStringLibrary {
         validateIntegerFormatFlags(specifier, conversion, parsed)
         if (parsed.precision == null) {
             val formatValue = if (conversion == 'u') unsignedIntegerValue(value) else value
-            return specifier.javaIntegerSpecifier(conversion).formatWith(formatValue)
+            val javaSpecifier = if (value == 0L && '#' in parsed.flags && conversion in "oxX") {
+                specifier.withoutAlternateFormatFlag()
+            } else {
+                specifier
+            }
+            return javaSpecifier.javaIntegerSpecifier(conversion).formatWith(formatValue)
         }
 
         val unsigned = conversion == 'o' || conversion == 'u' || conversion == 'x' || conversion == 'X'
@@ -574,6 +579,11 @@ internal object LuaStringLibrary {
         if (parsed.flags.any { flag -> flag !in allowedFlags }) {
             throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
         }
+    }
+
+    private fun String.withoutAlternateFormatFlag(): String {
+        val hashIndex = indexOf('#')
+        return if (hashIndex >= 0) removeRange(hashIndex, hashIndex + 1) else this
     }
 
     private fun parseFormatSpecifier(specifier: String): FormatSpecifier {
