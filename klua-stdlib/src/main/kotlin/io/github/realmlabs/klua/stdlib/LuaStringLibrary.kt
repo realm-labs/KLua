@@ -606,6 +606,9 @@ internal object LuaStringLibrary {
         } else {
             null
         }
+        if (cursor != specifier.lastIndex) {
+            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+        }
         return FormatSpecifier(flags, width, precision)
     }
 

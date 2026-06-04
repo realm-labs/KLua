@@ -2219,6 +2219,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format rejects length modifiers`() {
+        val stringState = LuaState.create()
+        LuaStdlib.openString(stringState)
+
+        assertEquals(LuaStatus.OK, stringState.load("""return string.format("%ls", "x")""", "string-format-string-length-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, stringState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(stringState.getLastError())
+        assertEquals("invalid option '%ls' to 'string.format'", stringState.toString(-1))
+
+        val integerState = LuaState.create()
+        LuaStdlib.openString(integerState)
+
+        assertEquals(LuaStatus.OK, integerState.load("""return string.format("%Ld", 1)""", "string-format-integer-length-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, integerState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(integerState.getLastError())
+        assertEquals("invalid option '%Ld' to 'string.format'", integerState.toString(-1))
+
+        val hexState = LuaState.create()
+        LuaStdlib.openString(hexState)
+
+        assertEquals(LuaStatus.OK, hexState.load("""return string.format("%hhx", 1)""", "string-format-hex-length-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, hexState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(hexState.getLastError())
+        assertEquals("invalid option '%hhx' to 'string.format'", hexState.toString(-1))
+    }
+
+    @Test
     fun `string format reports char range errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
