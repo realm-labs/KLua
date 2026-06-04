@@ -272,7 +272,9 @@ public sealed interface KLuaCoreValue {
 
     public data class FunctionValue(
         public val function: KLuaCoreFunction,
-    ) : KLuaCoreValue
+    ) : KLuaCoreValue {
+        internal var sourceFunction: LuaValue? = null
+    }
 
     public data class TableValue(
         public val fields: MutableMap<KLuaCoreValue, KLuaCoreValue>,
@@ -380,6 +382,8 @@ private fun toPublicValue(
         is LuaNativeFunction,
         -> KLuaCoreValue.FunctionValue { arguments ->
             callPublicLuaFunction(value, arguments, globals)
+        }.also { functionValue ->
+            functionValue.sourceFunction = value
         }
     }
 }
