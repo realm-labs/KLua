@@ -1577,9 +1577,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return type(coroutine), type(coroutine.create), type(coroutine.resume),
-                    type(coroutine.running), type(coroutine.status), type(coroutine.wrap),
-                    type(coroutine.yield)
+                return type(coroutine), type(coroutine.close), type(coroutine.create),
+                    type(coroutine.resume), type(coroutine.running), type(coroutine.status),
+                    type(coroutine.wrap), type(coroutine.yield)
                 """.trimIndent(),
                 "open-libs-coroutine.lua",
             ),
@@ -1593,6 +1593,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(5))
         assertEquals("function", state.toString(6))
         assertEquals("function", state.toString(7))
+        assertEquals("function", state.toString(8))
     }
 
     @Test
@@ -1927,6 +1928,82 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine close marks suspended and dead coroutines dead`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local suspended = coroutine.create(function()
+                    coroutine.yield("pause")
+                    return "unreachable"
+                end)
+                local firstOk, yielded = coroutine.resume(suspended)
+                local beforeClose = coroutine.status(suspended)
+                local closeOk = coroutine.close(suspended)
+                local afterClose = coroutine.status(suspended)
+                local resumeOk, resumeMessage = coroutine.resume(suspended)
+
+                local dead = coroutine.create(function()
+                    return "done"
+                end)
+                local deadResumeOk = coroutine.resume(dead)
+                local deadBeforeClose = coroutine.status(dead)
+                local deadCloseOk = coroutine.close(dead)
+                local deadAfterClose = coroutine.status(dead)
+
+                return firstOk, yielded, beforeClose, closeOk, afterClose,
+                    resumeOk, resumeMessage, deadResumeOk, deadBeforeClose,
+                    deadCloseOk, deadAfterClose
+                """.trimIndent(),
+                "coroutine-close.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("dead", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("cannot resume dead coroutine", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("dead", state.toString(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals("dead", state.toString(11))
+    }
+
+    @Test
+    fun `coroutine close reports running coroutine`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co
+                co = coroutine.create(function()
+                    return coroutine.close(co)
+                end)
+                local ok, closeOk, message = coroutine.resume(co)
+                return ok, closeOk, message, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-close-running.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("cannot close running coroutine", state.toString(3))
+        assertEquals("dead", state.toString(4))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)
@@ -1957,6 +2034,17 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, statusState.pcall(0, -1))
         assertIs<LuaRuntimeException>(statusState.getLastError())
         assertEquals("bad argument #1 to 'coroutine.status' (thread expected)", statusState.toString(-1))
+
+        val closeState = LuaState.create()
+        LuaStdlib.openCoroutine(closeState)
+
+        assertEquals(
+            LuaStatus.OK,
+            closeState.load("""return coroutine.close("not-thread")""", "coroutine-close-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, closeState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(closeState.getLastError())
+        assertEquals("bad argument #1 to 'coroutine.close' (thread expected)", closeState.toString(-1))
 
         val wrapState = LuaState.create()
         LuaStdlib.openCoroutine(wrapState)
