@@ -20,4 +20,31 @@ class KLuaCoreRuntimeErrorTest {
         assertEquals("core-runtime-line.lua", error.sourceName)
         assertEquals(2, error.line)
     }
+
+    @Test
+    fun `runtime errors expose lua call frames`() {
+        val result = KLuaCoreRuntime.execute(
+            """
+            local function inner()
+                return "x" + 1
+            end
+            local function outer()
+                return inner()
+            end
+            return outer()
+            """.trimIndent(),
+            "core-trace.lua",
+        )
+
+        val error = assertIs<KLuaCoreExecution.RuntimeError>(result)
+        assertEquals("attempt to perform arithmetic on string", error.message)
+        assertEquals(
+            listOf(
+                KLuaCoreStackFrame("core-trace.lua", 2),
+                KLuaCoreStackFrame("core-trace.lua", 5),
+                KLuaCoreStackFrame("core-trace.lua", 7),
+            ),
+            error.luaFrames,
+        )
+    }
 }

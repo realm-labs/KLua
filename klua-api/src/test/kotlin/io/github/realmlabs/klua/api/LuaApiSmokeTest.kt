@@ -165,6 +165,35 @@ class LuaApiSmokeTest {
         assertEquals(1, error.line)
     }
 
+    @Test
+    fun `facade runtime errors expose lua call frames`() {
+        val lua = Lua.create()
+
+        val error = assertFailsWith<LuaRuntimeException> {
+            lua.load(
+                """
+                local function inner()
+                    return "x" + 1
+                end
+                local function outer()
+                    return inner()
+                end
+                return outer()
+                """.trimIndent(),
+                "api-trace.lua",
+            ).eval()
+        }
+
+        assertEquals(
+            listOf(
+                LuaStackFrame("api-trace.lua", 2),
+                LuaStackFrame("api-trace.lua", 5),
+                LuaStackFrame("api-trace.lua", 7),
+            ),
+            error.luaFrames,
+        )
+    }
+
     private data class HostObject(
         var name: String,
     )

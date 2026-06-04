@@ -15,4 +15,10 @@ class LuaRuntimeException(
     cause: Throwable? = null,
     val sourceName: String? = null,
     val line: Int? = null,
+    val luaFrames: List<LuaStackFrame> = emptyList(),
 ) : LuaException(message, cause)
+
+data class LuaStackFrame(
+    val sourceName: String,
+    val line: Int,
+)

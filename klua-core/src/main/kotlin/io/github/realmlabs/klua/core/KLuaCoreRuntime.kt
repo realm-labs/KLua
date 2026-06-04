@@ -20,6 +20,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
+import io.github.realmlabs.klua.core.vm.LuaVmStackFrame
 import io.github.realmlabs.klua.core.vm.LuaYieldContinuation
 import io.github.realmlabs.klua.core.vm.LuaYieldSignal
 import io.github.realmlabs.klua.core.vm.LuaYieldSignalContinuation
@@ -69,7 +70,13 @@ public object KLuaCoreRuntime {
                 toPublicValue(value, globals)
             })
         } catch (error: LuaVmException) {
-            KLuaCoreExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line, error.rootCause())
+            KLuaCoreExecution.RuntimeError(
+                error.message ?: "runtime error",
+                error.sourceName,
+                error.line,
+                error.rootCause(),
+                error.luaFrames.toCoreStackFrames(),
+            )
         }
     }
 
@@ -277,8 +284,14 @@ public sealed interface KLuaCoreExecution {
         public val sourceName: String? = null,
         public val line: Int? = null,
         public val cause: Throwable? = null,
+        public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
     ) : KLuaCoreExecution
 }
+
+public data class KLuaCoreStackFrame(
+    public val sourceName: String,
+    public val line: Int,
+)
 
 public fun interface KLuaCoreContinuation {
     public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCallResult
@@ -323,7 +336,13 @@ public class KLuaCoreCoroutine internal constructor(
             }
         } catch (error: LuaVmException) {
             dead = true
-            KLuaCoreCoroutineExecution.RuntimeError(error.message ?: "runtime error", error.sourceName, error.line, error.rootCause())
+            KLuaCoreCoroutineExecution.RuntimeError(
+                error.message ?: "runtime error",
+                error.sourceName,
+                error.line,
+                error.rootCause(),
+                error.luaFrames.toCoreStackFrames(),
+            )
         } finally {
             started = true
         }
@@ -355,6 +374,7 @@ public sealed interface KLuaCoreCoroutineExecution {
         public val sourceName: String? = null,
         public val line: Int? = null,
         public val cause: Throwable? = null,
+        public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
     ) : KLuaCoreCoroutineExecution
 }
 
@@ -521,6 +541,10 @@ private fun LuaVmException.rootCause(): Throwable? {
         cause = cause.cause!!
     }
     return cause
+}
+
+private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> {
+    return map { frame -> KLuaCoreStackFrame(frame.sourceName, frame.line) }
 }
 
 private fun callCoreFunction(

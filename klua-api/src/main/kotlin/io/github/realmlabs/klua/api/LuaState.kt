@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.core.KLuaCoreExecution
 import io.github.realmlabs.klua.core.KLuaCoreGlobals
 import io.github.realmlabs.klua.core.KLuaCoreLoad
 import io.github.realmlabs.klua.core.KLuaCoreRuntime
+import io.github.realmlabs.klua.core.KLuaCoreStackFrame
 import io.github.realmlabs.klua.core.KLuaCoreUserDataGetter
 import io.github.realmlabs.klua.core.KLuaCoreUserDataMethod
 import io.github.realmlabs.klua.core.KLuaCoreUserDataSetter
@@ -135,6 +136,7 @@ class LuaState private constructor(
                     result.cause,
                     sourceName = result.sourceName,
                     line = result.line,
+                    luaFrames = result.luaFrames.toApiStackFrames(),
                 )
                 removeCallFrame(functionIndex)
                 stack += LuaStackValue.StringValue(result.message)
@@ -188,6 +190,7 @@ class LuaState private constructor(
                             result.cause,
                             sourceName = result.sourceName,
                             line = result.line,
+                            luaFrames = result.luaFrames.toApiStackFrames(),
                         )
                     }
                 }
@@ -1175,6 +1178,10 @@ class LuaState private constructor(
             val typeName: String,
         ) : LuaStackValue
     }
+}
+
+private fun List<KLuaCoreStackFrame>.toApiStackFrames(): List<LuaStackFrame> {
+    return map { frame -> LuaStackFrame(frame.sourceName, frame.line) }
 }
 
 class LuaYieldException internal constructor(
