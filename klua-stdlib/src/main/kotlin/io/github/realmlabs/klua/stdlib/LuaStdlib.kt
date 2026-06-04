@@ -31,6 +31,7 @@ public object LuaStdlib {
         openUtf8(state)
         openCoroutine(state)
         openPackage(state)
+        openDebug(state)
         return state
     }
 
@@ -139,6 +140,11 @@ public object LuaStdlib {
     @JvmStatic
     public fun openPackage(state: LuaState): LuaState {
         return LuaPackageLibrary.open(state)
+    }
+
+    @JvmStatic
+    public fun openDebug(state: LuaState): LuaState {
+        return LuaDebugLibrary.open(state)
     }
 
     private fun assert(context: LuaCallContext): LuaReturn {

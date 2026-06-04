@@ -117,6 +117,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openLibs installs minimal debug library`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local info = debug.getinfo(1)
+                return type(debug), type(debug.traceback), type(debug.getinfo),
+                    debug.traceback("boom"), type(info), info.what, info.source, info.currentline
+                """.trimIndent(),
+                "debug-openlibs.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals("function", state.toString(2))
+        assertEquals("function", state.toString(3))
+        assertTrue(state.toString(4)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(5))
+        assertEquals("Lua", state.toString(6))
+        assertEquals("=[KLua]", state.toString(7))
+        assertEquals(-1L, state.toInteger(8))
+    }
+
+    @Test
     fun `package searchpath returns first readable template match`() {
         val root = Files.createTempDirectory("klua-searchpath")
         Files.createDirectories(root.resolve("alpha"))
