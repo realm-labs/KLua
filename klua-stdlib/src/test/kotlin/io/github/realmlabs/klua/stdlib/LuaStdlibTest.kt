@@ -2267,6 +2267,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine resume preserves nil holes in yield and return values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function packResume(...)
+                    return select("#", ...), ...
+                end
+
+                local co = coroutine.create(function()
+                    local first, second, third = coroutine.yield(nil, "middle", nil)
+                    return first, second, third
+                end)
+
+                local yieldCount, yieldOk, yieldFirst, yieldSecond, yieldThird = packResume(coroutine.resume(co))
+                local returnCount, returnOk, returnFirst, returnSecond, returnThird =
+                    packResume(coroutine.resume(co, nil, "done", nil))
+                return yieldCount, yieldOk, yieldFirst == nil, yieldSecond, yieldThird == nil,
+                    returnCount, returnOk, returnFirst == nil, returnSecond, returnThird == nil,
+                    coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-nil-holes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(4L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("middle", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals(4L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("done", state.toString(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals("dead", state.toString(11))
+    }
+
+    @Test
     fun `coroutine close marks suspended and dead coroutines dead`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
