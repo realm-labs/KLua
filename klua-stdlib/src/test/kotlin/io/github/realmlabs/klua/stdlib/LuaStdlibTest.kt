@@ -1796,6 +1796,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format handles integer precision edge cases`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%.0d|%#.0o|%#.4x|%#.4X", 0, 0, 255, 255)""",
+                "string-format-integer-precision-edges.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("|0|0x00ff|0X00FF", state.toString(1))
+    }
+
+    @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
