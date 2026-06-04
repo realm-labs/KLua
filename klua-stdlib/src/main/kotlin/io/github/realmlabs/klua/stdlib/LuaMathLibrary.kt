@@ -80,7 +80,12 @@ internal object LuaMathLibrary {
     }
 
     private fun mathCeil(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(ceil(requiredNumber(context, 1, "math.ceil")).toLong())
+        val integer = integerSubtype(context, 1)
+        if (integer != null) {
+            return LuaReturn.of(integer)
+        }
+        val rounded = ceil(requiredNumber(context, 1, "math.ceil"))
+        return LuaReturn.of(numberToIntegerSubtype(rounded) ?: rounded)
     }
 
     private fun mathCos(context: LuaCallContext): LuaReturn {
@@ -96,7 +101,12 @@ internal object LuaMathLibrary {
     }
 
     private fun mathFloor(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(floor(requiredNumber(context, 1, "math.floor")).toLong())
+        val integer = integerSubtype(context, 1)
+        if (integer != null) {
+            return LuaReturn.of(integer)
+        }
+        val rounded = floor(requiredNumber(context, 1, "math.floor"))
+        return LuaReturn.of(numberToIntegerSubtype(rounded) ?: rounded)
     }
 
     private fun mathFmod(context: LuaCallContext): LuaReturn {

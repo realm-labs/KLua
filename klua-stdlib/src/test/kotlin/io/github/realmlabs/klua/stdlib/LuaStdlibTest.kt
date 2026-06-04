@@ -749,6 +749,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math floor and ceil preserve numeric subtype by range`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local floorInteger = math.floor(3.9)
+                local ceilInteger = math.ceil(3.1)
+                local floorHuge = math.floor(1e20)
+                local ceilHuge = math.ceil(-1e20)
+                local ceilInfinity = math.ceil(math.huge)
+                return floorInteger, math.type(floorInteger),
+                    ceilInteger, math.type(ceilInteger),
+                    floorHuge, math.type(floorHuge),
+                    ceilHuge, math.type(ceilHuge),
+                    ceilInfinity, math.type(ceilInfinity)
+                """.trimIndent(),
+                "math-floor-ceil-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("integer", state.toString(2))
+        assertEquals(4L, state.toInteger(3))
+        assertEquals("integer", state.toString(4))
+        assertEquals(1e20, state.toNumber(5) ?: error("missing floor huge result"), 0.0)
+        assertEquals("float", state.toString(6))
+        assertEquals(-1e20, state.toNumber(7) ?: error("missing ceil huge result"), 0.0)
+        assertEquals("float", state.toString(8))
+        assertTrue((state.toNumber(9) ?: error("missing ceil infinity result")).isInfinite())
+        assertEquals("float", state.toString(10))
+    }
+
+    @Test
     fun `openMath installs trigonometric functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
