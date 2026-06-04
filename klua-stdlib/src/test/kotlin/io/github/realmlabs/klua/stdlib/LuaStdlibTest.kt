@@ -2862,11 +2862,12 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local iterator = utf8.codes("A" .. utf8.char(128512))
+                local iterator = utf8.codes("A" .. utf8.char(128512) .. "Z")
                 local firstIndex, firstCode = iterator()
                 local secondIndex, secondCode = iterator()
+                local thirdIndex, thirdCode = iterator()
                 local done = iterator()
-                return firstIndex, firstCode, secondIndex, secondCode, done
+                return firstIndex, firstCode, secondIndex, secondCode, thirdIndex, thirdCode, done
                 """.trimIndent(),
                 "utf8-codes.lua",
             ),
@@ -2877,7 +2878,9 @@ class LuaStdlibTest {
         assertEquals(65L, state.toInteger(2))
         assertEquals(2L, state.toInteger(3))
         assertEquals(128512L, state.toInteger(4))
-        assertTrue(state.isNil(5))
+        assertEquals(6L, state.toInteger(5))
+        assertEquals(90L, state.toInteger(6))
+        assertTrue(state.isNil(7))
     }
 
     @Test

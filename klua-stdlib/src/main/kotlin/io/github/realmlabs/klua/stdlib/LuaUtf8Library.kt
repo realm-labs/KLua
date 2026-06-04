@@ -46,13 +46,14 @@ internal object LuaUtf8Library {
 
     private fun utf8Codes(context: LuaCallContext): LuaReturn {
         val codePoints = requiredString(context, 1, "utf8.codes").codePoints().toArray()
+        val byteOffsets = utf8ByteOffsets(codePoints)
         var index = 0
         val iterator = LuaFunction {
             if (index >= codePoints.size) {
                 LuaReturn.of(null)
             } else {
                 index++
-                LuaReturn.of(index.toLong(), codePoints[index - 1].toLong())
+                LuaReturn.of(byteOffsets[index - 1], codePoints[index - 1].toLong())
             }
         }
         return LuaReturn.of(iterator)
@@ -169,6 +170,25 @@ internal object LuaUtf8Library {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
         }
         return normalized
+    }
+
+    private fun utf8ByteOffsets(codePoints: IntArray): List<Long> {
+        val offsets = mutableListOf<Long>()
+        var nextOffset = 1L
+        for (codePoint in codePoints) {
+            offsets += nextOffset
+            nextOffset += utf8ByteLength(codePoint).toLong()
+        }
+        return offsets
+    }
+
+    private fun utf8ByteLength(codePoint: Int): Int {
+        return when {
+            codePoint <= 0x7F -> 1
+            codePoint <= 0x7FF -> 2
+            codePoint <= 0xFFFF -> 3
+            else -> 4
+        }
     }
 
     private fun normalizedOffsetPosition(
