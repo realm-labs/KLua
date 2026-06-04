@@ -1738,6 +1738,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format renders unsigned integer conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%u|%021u", -1, -1)""",
+                "string-format-unsigned.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("18446744073709551615|018446744073709551615", state.toString(1))
+    }
+
+    @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

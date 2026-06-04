@@ -5,11 +5,13 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import java.math.BigInteger
 import java.util.Locale
 
 internal object LuaStringLibrary {
     private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcqs"
     private val GSUB_REPLACEMENT_TYPES = setOf("string", "function", "table")
+    private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
     fun open(state: LuaState): LuaState {
         state.newTable()
@@ -373,10 +375,12 @@ internal object LuaStringLibrary {
             'd',
             'i',
             'o',
-            'u',
             'x',
             'X',
             -> specifier.javaIntegerSpecifier(conversion).formatWith(requiredInteger(context, index, "string.format"))
+            'u' -> specifier.javaIntegerSpecifier(conversion).formatWith(
+                unsignedIntegerValue(requiredInteger(context, index, "string.format")),
+            )
             'f',
             'F',
             'e',
@@ -406,6 +410,11 @@ internal object LuaStringLibrary {
         } else {
             this
         }
+    }
+
+    private fun unsignedIntegerValue(value: Long): BigInteger {
+        val integer = BigInteger.valueOf(value)
+        return if (value < 0L) integer + UINT64_MODULUS else integer
     }
 
     private fun quoteString(value: String): String {
