@@ -9,11 +9,13 @@ import io.github.realmlabs.klua.api.LuaState
 
 internal object LuaCoroutineLibrary {
     fun open(state: LuaState): LuaState {
+        val runtime = CoroutineRuntime()
         state.newTable()
         setFunctionField(state, "create", ::coroutineCreate)
-        setFunctionField(state, "resume", ::coroutineResume)
+        setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
+        setFunctionField(state, "running") { coroutineRunning(runtime) }
         setFunctionField(state, "status", ::coroutineStatus)
-        setFunctionField(state, "wrap", ::coroutineWrap)
+        setFunctionField(state, "wrap") { context -> coroutineWrap(context, runtime) }
         state.setGlobal("coroutine")
         return state
     }
@@ -27,10 +29,11 @@ internal object LuaCoroutineLibrary {
         return LuaReturn.of(LuaCoroutine(function))
     }
 
-    private fun coroutineResume(context: LuaCallContext): LuaReturn {
+    private fun coroutineResume(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
         val coroutine = requiredCoroutine(context, 1, "coroutine.resume")
         return resumeCoroutine(
             context,
+            runtime,
             coroutine,
             (2..context.argumentCount).map { index -> argumentValue(context, index) },
         )
@@ -38,6 +41,7 @@ internal object LuaCoroutineLibrary {
 
     private fun resumeCoroutine(
         context: LuaCallContext,
+        runtime: CoroutineRuntime,
         coroutine: LuaCoroutine,
         arguments: List<Any?>,
     ): LuaReturn {
@@ -49,6 +53,8 @@ internal object LuaCoroutineLibrary {
         }
 
         coroutine.status = CoroutineStatus.RUNNING
+        val previousRunning = runtime.running
+        runtime.running = coroutine
         return try {
             val result = context.call(coroutine.function, arguments)
             coroutine.status = CoroutineStatus.DEAD
@@ -59,6 +65,17 @@ internal object LuaCoroutineLibrary {
         } catch (exception: RuntimeException) {
             coroutine.status = CoroutineStatus.DEAD
             LuaReturn.of(false, exception.message ?: exception::class.java.simpleName)
+        } finally {
+            runtime.running = previousRunning
+        }
+    }
+
+    private fun coroutineRunning(runtime: CoroutineRuntime): LuaReturn {
+        val running = runtime.running
+        return if (running == null) {
+            LuaReturn.of(null, true)
+        } else {
+            LuaReturn.of(running, false)
         }
     }
 
@@ -73,11 +90,12 @@ internal object LuaCoroutineLibrary {
         )
     }
 
-    private fun coroutineWrap(context: LuaCallContext): LuaReturn {
+    private fun coroutineWrap(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
         val created = coroutineCreate(context).getUserData(1, LuaCoroutine::class.java)
         val wrapper = LuaFunction { wrapperContext ->
             val result = resumeCoroutine(
                 wrapperContext,
+                runtime,
                 created,
                 (1..wrapperContext.argumentCount).map { index ->
                     argumentValue(wrapperContext, index)
@@ -111,6 +129,10 @@ internal object LuaCoroutineLibrary {
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
         state.pushFunction(function)
         state.setField(-2, name)
+    }
+
+    private class CoroutineRuntime {
+        var running: LuaCoroutine? = null
     }
 
     private class LuaCoroutine(

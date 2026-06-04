@@ -1578,7 +1578,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 return type(coroutine), type(coroutine.create), type(coroutine.resume),
-                    type(coroutine.status), type(coroutine.wrap)
+                    type(coroutine.running), type(coroutine.status), type(coroutine.wrap)
                 """.trimIndent(),
                 "open-libs-coroutine.lua",
             ),
@@ -1590,6 +1590,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(3))
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
+        assertEquals("function", state.toString(6))
     }
 
     @Test
@@ -1693,6 +1694,40 @@ class LuaStdlibTest {
         assertEquals("cannot resume dead coroutine", state.toString(5))
         assertFalse(state.toBoolean(6))
         assertEquals("boom", state.toString(7))
+    }
+
+    @Test
+    fun `coroutine running reports main and active coroutine contexts`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainThread, mainIsMain = coroutine.running()
+                local co
+                co = coroutine.create(function()
+                    local running, isMain = coroutine.running()
+                    return running == co, isMain
+                end)
+                local ok, sameThread, coroutineIsMain = coroutine.resume(co)
+                local afterThread, afterIsMain = coroutine.running()
+                return mainThread, mainIsMain, ok, sameThread, coroutineIsMain,
+                    afterThread, afterIsMain
+                """.trimIndent(),
+                "coroutine-running.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.toBoolean(7))
     }
 
     @Test
