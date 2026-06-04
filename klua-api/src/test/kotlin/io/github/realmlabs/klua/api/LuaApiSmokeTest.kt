@@ -192,6 +192,14 @@ class LuaApiSmokeTest {
             ),
             error.luaFrames,
         )
+        assertEquals(
+            "attempt to perform arithmetic on string\n" +
+                "stack traceback:\n" +
+                "\tapi-trace.lua:2\n" +
+                "\tapi-trace.lua:5\n" +
+                "\tapi-trace.lua:7",
+            error.traceback,
+        )
     }
 
     private data class HostObject(

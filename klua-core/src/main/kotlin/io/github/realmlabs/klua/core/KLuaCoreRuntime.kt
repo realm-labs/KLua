@@ -285,7 +285,9 @@ public sealed interface KLuaCoreExecution {
         public val line: Int? = null,
         public val cause: Throwable? = null,
         public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
-    ) : KLuaCoreExecution
+    ) : KLuaCoreExecution {
+        public val traceback: String = formatCoreTraceback(message, luaFrames)
+    }
 }
 
 public data class KLuaCoreStackFrame(
@@ -375,7 +377,9 @@ public sealed interface KLuaCoreCoroutineExecution {
         public val line: Int? = null,
         public val cause: Throwable? = null,
         public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
-    ) : KLuaCoreCoroutineExecution
+    ) : KLuaCoreCoroutineExecution {
+        public val traceback: String = formatCoreTraceback(message, luaFrames)
+    }
 }
 
 public sealed interface KLuaCoreValue {
@@ -545,6 +549,19 @@ private fun LuaVmException.rootCause(): Throwable? {
 
 private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> {
     return map { frame -> KLuaCoreStackFrame(frame.sourceName, frame.line) }
+}
+
+private fun formatCoreTraceback(message: String, frames: List<KLuaCoreStackFrame>): String {
+    return buildString {
+        append(message)
+        append("\nstack traceback:")
+        for (frame in frames) {
+            append("\n\t")
+            append(frame.sourceName)
+            append(':')
+            append(frame.line)
+        }
+    }
 }
 
 private fun callCoreFunction(

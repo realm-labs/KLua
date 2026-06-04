@@ -16,9 +16,24 @@ class LuaRuntimeException(
     val sourceName: String? = null,
     val line: Int? = null,
     val luaFrames: List<LuaStackFrame> = emptyList(),
-) : LuaException(message, cause)
+) : LuaException(message, cause) {
+    val traceback: String = formatLuaTraceback(message, luaFrames)
+}
 
 data class LuaStackFrame(
     val sourceName: String,
     val line: Int,
 )
+
+private fun formatLuaTraceback(message: String, frames: List<LuaStackFrame>): String {
+    return buildString {
+        append(message)
+        append("\nstack traceback:")
+        for (frame in frames) {
+            append("\n\t")
+            append(frame.sourceName)
+            append(':')
+            append(frame.line)
+        }
+    }
+}

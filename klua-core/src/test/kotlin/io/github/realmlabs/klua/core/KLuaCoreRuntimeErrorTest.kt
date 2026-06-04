@@ -46,5 +46,13 @@ class KLuaCoreRuntimeErrorTest {
             ),
             error.luaFrames,
         )
+        assertEquals(
+            "attempt to perform arithmetic on string\n" +
+                "stack traceback:\n" +
+                "\tcore-trace.lua:2\n" +
+                "\tcore-trace.lua:5\n" +
+                "\tcore-trace.lua:7",
+            error.traceback,
+        )
     }
 }
