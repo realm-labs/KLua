@@ -25,18 +25,33 @@ internal class LuaVm(
     private val thread = LuaThread()
 
     fun execute(prototype: Prototype): List<LuaValue> {
-        return execute(prototype, emptyList(), emptyList())
+        return executeReturned(prototype, emptyList(), emptyList())
     }
 
     fun execute(prototype: Prototype, arguments: List<LuaValue>): List<LuaValue> {
-        return execute(prototype, arguments, emptyList())
+        return executeReturned(prototype, arguments, emptyList())
     }
 
     internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return callValue(callee, arguments)
     }
 
-    private fun execute(prototype: Prototype, arguments: List<LuaValue>, upvalues: List<LuaUpvalue>): List<LuaValue> {
+    private fun executeReturned(
+        prototype: Prototype,
+        arguments: List<LuaValue>,
+        upvalues: List<LuaUpvalue>,
+    ): List<LuaValue> {
+        return when (val result = executeFrame(prototype, arguments, upvalues)) {
+            is LuaExecutionResult.Returned -> result.values
+            is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield from outside a coroutine")
+        }
+    }
+
+    private fun executeFrame(
+        prototype: Prototype,
+        arguments: List<LuaValue>,
+        upvalues: List<LuaUpvalue>,
+    ): LuaExecutionResult {
         val frame = thread.pushCall(prototype, arguments, upvalues)
         val stack = frame.stack
         try {
@@ -112,7 +127,7 @@ internal class LuaVm(
                     Opcode.RETURN -> {
                         val base = register(frame, Instruction.a(instruction))
                         val count = returnCount(frame, base, Instruction.b(instruction))
-                        return stack.slice(base, count)
+                        return LuaExecutionResult.Returned(stack.slice(base, count))
                     }
                 }
             }
@@ -157,12 +172,12 @@ internal class LuaVm(
 
     private fun callValue(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return when (callee) {
-            is LuaClosure -> execute(callee.prototype, arguments, callee.upvalues)
+            is LuaClosure -> executeReturned(callee.prototype, arguments, callee.upvalues)
             is LuaNativeFunction -> callNative(callee, arguments)
             is LuaTable -> {
                 val call = callee.metatableRawGet(CALL_KEY)
                 when (call) {
-                    is LuaClosure -> execute(call.prototype, listOf(callee) + arguments, call.upvalues)
+                    is LuaClosure -> executeReturned(call.prototype, listOf(callee) + arguments, call.upvalues)
                     is LuaNativeFunction -> callNative(call, listOf(callee) + arguments)
                     else -> throw LuaVmException("attempt to call table")
                 }
@@ -300,7 +315,7 @@ internal class LuaVm(
 
         return when (val index = table.metatableRawGet(INDEX_KEY)) {
             is LuaTable -> tableGet(index, key, visited)
-            is LuaClosure -> execute(index.prototype, listOf(table, key), index.upvalues).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeReturned(index.prototype, listOf(table, key), index.upvalues).firstOrNull() ?: LuaNil
             else -> LuaNil
         }
     }
@@ -349,7 +364,7 @@ internal class LuaVm(
 
         when (val newIndex = table.metatableRawGet(NEW_INDEX_KEY)) {
             is LuaTable -> tableSet(newIndex, key, value, visited)
-            is LuaClosure -> execute(newIndex.prototype, listOf(table, key, value), newIndex.upvalues)
+            is LuaClosure -> executeReturned(newIndex.prototype, listOf(table, key, value), newIndex.upvalues)
             else -> table.rawSet(key, value)
         }
     }
@@ -394,7 +409,7 @@ internal class LuaVm(
     private fun arithmetic(left: LuaValue, right: LuaValue, operation: Arithmetic): LuaValue {
         val metamethod = arithmeticMetamethod(left, right, operation)
         if (metamethod != null) {
-            return execute(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+            return executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
         }
         return operation.apply(left, right)
     }
@@ -427,7 +442,7 @@ internal class LuaVm(
             else -> {
                 val metamethod = tableMetamethod(value, UNM_KEY)
                 if (metamethod != null) {
-                    execute(metamethod.prototype, listOf(value), metamethod.upvalues).firstOrNull() ?: LuaNil
+                    executeReturned(metamethod.prototype, listOf(value), metamethod.upvalues).firstOrNull() ?: LuaNil
                 } else {
                     throw LuaVmException("attempt to perform arithmetic on ${typeName(value)}")
                 }
@@ -453,7 +468,7 @@ internal class LuaVm(
 
     private fun tableLength(table: LuaTable): LuaValue {
         return when (val length = table.metatableRawGet(LEN_KEY)) {
-            is LuaClosure -> execute(length.prototype, listOf(table), length.upvalues).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeReturned(length.prototype, listOf(table), length.upvalues).firstOrNull() ?: LuaNil
             else -> LuaInteger(table.rawLength())
         }
     }
@@ -474,7 +489,7 @@ internal class LuaVm(
             }
             val metamethod = tableMetamethod(left, EQ_KEY) ?: tableMetamethod(right, EQ_KEY)
             if (metamethod != null) {
-                val result = execute(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val result = executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
                 return isTruthy(result)
             }
             return false
@@ -482,14 +497,14 @@ internal class LuaVm(
         if (comparison == Comparison.LT) {
             val metamethod = tableMetamethod(left, LT_KEY) ?: tableMetamethod(right, LT_KEY)
             if (metamethod != null) {
-                val result = execute(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val result = executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
                 return isTruthy(result)
             }
         }
         if (comparison == Comparison.LE) {
             val metamethod = tableMetamethod(left, LE_KEY) ?: tableMetamethod(right, LE_KEY)
             if (metamethod != null) {
-                val result = execute(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val result = executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
                 return isTruthy(result)
             }
         }
@@ -504,7 +519,7 @@ internal class LuaVm(
         if (left == null || right == null) {
             val metamethod = tableMetamethod(leftValue, CONCAT_KEY) ?: tableMetamethod(rightValue, CONCAT_KEY)
             if (metamethod != null) {
-                val result = execute(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val result = executeReturned(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
                 stack.set(register(frame, Instruction.a(instruction)), result)
                 return
             }
@@ -522,7 +537,7 @@ internal class LuaVm(
         if (left == null || right == null) {
             val metamethod = bitwiseMetamethod(leftValue, rightValue, operation)
             if (metamethod != null) {
-                val result = execute(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val result = executeReturned(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
                 stack.set(register(frame, Instruction.a(instruction)), result)
                 return
             }
@@ -549,7 +564,7 @@ internal class LuaVm(
         if (integer == null) {
             val metamethod = tableMetamethod(value, BNOT_KEY)
             if (metamethod != null) {
-                val result = execute(metamethod.prototype, listOf(value), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val result = executeReturned(metamethod.prototype, listOf(value), metamethod.upvalues).firstOrNull() ?: LuaNil
                 stack.set(register(frame, Instruction.a(instruction)), result)
                 return
             }
