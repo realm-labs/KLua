@@ -163,9 +163,21 @@ internal object LuaMathLibrary {
     }
 
     private fun mathRandomSeed(context: LuaCallContext): LuaReturn {
-        val seed = requiredInteger(context, 1, "math.randomseed")
-        random = Random(seed)
-        return LuaReturn.none()
+        if (context.argumentCount > 2) {
+            throw LuaRuntimeException("wrong number of arguments to 'math.randomseed'")
+        }
+        val firstSeed = if (context.argumentCount == 0) {
+            System.nanoTime() xor Random().nextLong()
+        } else {
+            requiredInteger(context, 1, "math.randomseed")
+        }
+        val secondSeed = if (context.argumentCount < 2) {
+            0L
+        } else {
+            requiredInteger(context, 2, "math.randomseed")
+        }
+        random = Random(combineSeeds(firstSeed, secondSeed))
+        return LuaReturn.of(firstSeed, secondSeed)
     }
 
     private fun mathSin(context: LuaCallContext): LuaReturn {
@@ -238,6 +250,10 @@ internal object LuaMathLibrary {
             value = candidate % bound
         } while (candidate + mask - value < 0L)
         return value
+    }
+
+    private fun combineSeeds(firstSeed: Long, secondSeed: Long): Long {
+        return firstSeed xor java.lang.Long.rotateLeft(secondSeed, 32)
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {

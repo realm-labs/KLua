@@ -890,6 +890,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math randomseed returns effective seeds and supports two seed values`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local firstSeed, secondSeed = math.randomseed(123, 456)
+                local first = math.random(100)
+                local generatedFirstSeed, generatedSecondSeed = math.randomseed()
+                local generated = math.random(100)
+                math.randomseed(123, 456)
+                local repeated = math.random(100)
+                local singleFirstSeed, singleSecondSeed = math.randomseed(789)
+                return firstSeed, secondSeed, first == repeated,
+                    generatedFirstSeed ~= nil, generatedSecondSeed == 0, generated >= 1 and generated <= 100,
+                    singleFirstSeed, singleSecondSeed
+                """.trimIndent(),
+                "math-randomseed.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(123L, state.toInteger(1))
+        assertEquals(456L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals(789L, state.toInteger(7))
+        assertEquals(0L, state.toInteger(8))
+    }
+
+    @Test
     fun `math random supports wide integer ranges`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -941,6 +976,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'math.random' (interval is empty)", state.toString(-1))
+    }
+
+    @Test
+    fun `math randomseed reports arity errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.randomseed(1, 2, 3)""", "math-randomseed-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("wrong number of arguments to 'math.randomseed'", state.toString(-1))
     }
 
     @Test
