@@ -775,8 +775,11 @@ class LuaStdlibTest {
                 local lastStart, lastEnd = string.find("banana", "an", -4)
                 local dotStart, dotEnd = string.find("a.b", ".", 1, true)
                 local patternStart, patternEnd = string.find("abc", "a.c")
+                local digitStart, digitEnd = string.find("a1", "%d")
+                local literalDotStart, literalDotEnd = string.find("a.b", "%.")
                 return firstStart, firstEnd, secondStart, secondEnd, lastStart, lastEnd,
-                    dotStart, dotEnd, patternStart, patternEnd, string.find("hello", "xyz")
+                    dotStart, dotEnd, patternStart, patternEnd, digitStart, digitEnd,
+                    literalDotStart, literalDotEnd, string.find("hello", "xyz")
                 """.trimIndent(),
                 "string-find.lua",
             ),
@@ -793,7 +796,11 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(8))
         assertEquals(1L, state.toInteger(9))
         assertEquals(3L, state.toInteger(10))
-        assertTrue(state.isNil(11))
+        assertEquals(2L, state.toInteger(11))
+        assertEquals(2L, state.toInteger(12))
+        assertEquals(2L, state.toInteger(13))
+        assertEquals(2L, state.toInteger(14))
+        assertTrue(state.isNil(15))
     }
 
     @Test
@@ -880,7 +887,9 @@ class LuaStdlibTest {
                 local none, noneCount = string.gsub("banana", "zz", "ON")
                 local unchanged, unchangedCount = string.gsub("banana", "an", "ON", 0)
                 local wildcard, wildcardCount = string.gsub("abc", ".", "x", 2)
-                return all, allCount, one, oneCount, none, noneCount, unchanged, unchangedCount, wildcard, wildcardCount
+                local digits, digitsCount = string.gsub("a1b2", "%d", "x")
+                return all, allCount, one, oneCount, none, noneCount, unchanged, unchangedCount,
+                    wildcard, wildcardCount, digits, digitsCount
                 """.trimIndent(),
                 "string-gsub.lua",
             ),
@@ -897,6 +906,8 @@ class LuaStdlibTest {
         assertEquals(0L, state.toInteger(8))
         assertEquals("xxc", state.toString(9))
         assertEquals(2L, state.toInteger(10))
+        assertEquals("axbx", state.toString(11))
+        assertEquals(2L, state.toInteger(12))
     }
 
     @Test
@@ -928,6 +939,10 @@ class LuaStdlibTest {
                 local wildcardFirst = wildcard()
                 local wildcardSecond = wildcard()
                 local wildcardDone = wildcard()
+                local letters = string.gmatch("a1b", "%a")
+                local letterFirst = letters()
+                local letterSecond = letters()
+                local letterDone = letters()
                 local collector = string.gmatch("xx-xx", "xx")
                 local collected = ""
                 while true do
@@ -937,7 +952,8 @@ class LuaStdlibTest {
                     end
                     collected = collected .. match
                 end
-                return first, second, done, wildcardFirst, wildcardSecond, wildcardDone, collected
+                return first, second, done, wildcardFirst, wildcardSecond, wildcardDone,
+                    letterFirst, letterSecond, letterDone, collected
                 """.trimIndent(),
                 "string-gmatch.lua",
             ),
@@ -950,7 +966,10 @@ class LuaStdlibTest {
         assertEquals("a", state.toString(4))
         assertEquals("b", state.toString(5))
         assertTrue(state.isNil(6))
-        assertEquals("xxxx", state.toString(7))
+        assertEquals("a", state.toString(7))
+        assertEquals("b", state.toString(8))
+        assertTrue(state.isNil(9))
+        assertEquals("xxxx", state.toString(10))
     }
 
     @Test
@@ -1114,6 +1133,7 @@ class LuaStdlibTest {
                     string.match("banana", "an", 3),
                     string.match("banana", "an", -4),
                     string.match("abc", "a.c"),
+                    string.match("a1", "%a%d"),
                     string.match("hello", "xyz")
                 """.trimIndent(),
                 "string-match.lua",
@@ -1125,7 +1145,8 @@ class LuaStdlibTest {
         assertEquals("an", state.toString(2))
         assertEquals("an", state.toString(3))
         assertEquals("abc", state.toString(4))
-        assertTrue(state.isNil(5))
+        assertEquals("a1", state.toString(5))
+        assertTrue(state.isNil(6))
     }
 
     @Test
