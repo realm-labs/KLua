@@ -1578,8 +1578,9 @@ class LuaStdlibTest {
             state.load(
                 """
                 return type(coroutine), type(coroutine.close), type(coroutine.create),
-                    type(coroutine.resume), type(coroutine.running), type(coroutine.status),
-                    type(coroutine.wrap), type(coroutine.yield)
+                    type(coroutine.isyieldable), type(coroutine.resume),
+                    type(coroutine.running), type(coroutine.status), type(coroutine.wrap),
+                    type(coroutine.yield)
                 """.trimIndent(),
                 "open-libs-coroutine.lua",
             ),
@@ -1594,6 +1595,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(6))
         assertEquals("function", state.toString(7))
         assertEquals("function", state.toString(8))
+        assertEquals("function", state.toString(9))
     }
 
     @Test
@@ -2004,6 +2006,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine isyieldable reports current and explicit coroutine states`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainYieldable = coroutine.isyieldable()
+                local co
+                co = coroutine.create(function()
+                    local running, isMain = coroutine.running()
+                    return coroutine.isyieldable(), coroutine.isyieldable(running), isMain
+                end)
+                local before = coroutine.isyieldable(co)
+                local ok, currentYieldable, explicitYieldable, isMain = coroutine.resume(co)
+                local after = coroutine.isyieldable(co)
+                return mainYieldable, before, ok, currentYieldable,
+                    explicitYieldable, isMain, after, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-isyieldable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertFalse(state.toBoolean(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("dead", state.toString(8))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)
@@ -2045,6 +2083,20 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, closeState.pcall(0, -1))
         assertIs<LuaRuntimeException>(closeState.getLastError())
         assertEquals("bad argument #1 to 'coroutine.close' (thread expected)", closeState.toString(-1))
+
+        val isYieldableState = LuaState.create()
+        LuaStdlib.openCoroutine(isYieldableState)
+
+        assertEquals(
+            LuaStatus.OK,
+            isYieldableState.load("""return coroutine.isyieldable("not-thread")""", "coroutine-isyieldable-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, isYieldableState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(isYieldableState.getLastError())
+        assertEquals(
+            "bad argument #1 to 'coroutine.isyieldable' (thread expected)",
+            isYieldableState.toString(-1),
+        )
 
         val wrapState = LuaState.create()
         LuaStdlib.openCoroutine(wrapState)

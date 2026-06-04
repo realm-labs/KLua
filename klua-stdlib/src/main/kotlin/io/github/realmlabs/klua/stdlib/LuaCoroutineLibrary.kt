@@ -17,6 +17,7 @@ internal object LuaCoroutineLibrary {
         state.newTable()
         setFunctionField(state, "close", ::coroutineClose)
         setFunctionField(state, "create", ::coroutineCreate)
+        setFunctionField(state, "isyieldable") { context -> coroutineIsYieldable(context, runtime) }
         setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
         setFunctionField(state, "running") { coroutineRunning(runtime) }
         setFunctionField(state, "status", ::coroutineStatus)
@@ -117,6 +118,14 @@ internal object LuaCoroutineLibrary {
         }
         coroutine.status = CoroutineStatus.DEAD
         return LuaReturn.of(true)
+    }
+
+    private fun coroutineIsYieldable(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
+        if (context.isNone(1)) {
+            return LuaReturn.of(runtime.running != null)
+        }
+        val coroutine = requiredCoroutine(context, 1, "coroutine.isyieldable")
+        return LuaReturn.of(coroutine.status != CoroutineStatus.DEAD)
     }
 
     private fun coroutineStatus(context: LuaCallContext): LuaReturn {
