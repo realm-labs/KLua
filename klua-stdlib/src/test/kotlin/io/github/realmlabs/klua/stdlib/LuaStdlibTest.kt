@@ -1569,6 +1569,91 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openLibs installs coroutine library`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return type(coroutine), type(coroutine.create), type(coroutine.resume), type(coroutine.status)""",
+                "open-libs-coroutine.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals("function", state.toString(2))
+        assertEquals("function", state.toString(3))
+        assertEquals("function", state.toString(4))
+    }
+
+    @Test
+    fun `coroutine create resume and status support non yielding functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co
+                local payload = {name = "payload"}
+                co = coroutine.create(function(left, right, value)
+                    return coroutine.status(co), left + right, value == payload, value.name, "done"
+                end)
+                local before = coroutine.status(co)
+                local ok, during, sum, samePayload, payloadName, marker =
+                    coroutine.resume(co, 20, 22, payload)
+                local after = coroutine.status(co)
+                local againOk, againMessage = coroutine.resume(co)
+                return before, ok, during, sum, samePayload, payloadName,
+                    marker, after, againOk, againMessage
+                """.trimIndent(),
+                "coroutine-basic.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("suspended", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("running", state.toString(3))
+        assertEquals(42L, state.toInteger(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("payload", state.toString(6))
+        assertEquals("done", state.toString(7))
+        assertEquals("dead", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("cannot resume dead coroutine", state.toString(10))
+    }
+
+    @Test
+    fun `coroutine resume reports protected failures`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    error("boom")
+                end)
+                local ok, message = coroutine.resume(co)
+                return ok, message, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("boom", state.toString(2))
+        assertEquals("dead", state.toString(3))
+    }
+
+    @Test
     fun `openMath installs math numeric functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
