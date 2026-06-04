@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.Instruction
+import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.compiler.Compiler
@@ -336,6 +337,34 @@ class LuaVmTest {
 
         assertEquals(LuaExecutionResult.Yielded(listOf(LuaInteger(42))), result)
         assertEquals(2, vm.activeCallDepth)
+    }
+
+    @Test
+    fun `records pending call result slots when lua call yields`() {
+        val globals = LuaTable()
+        globals.rawSet(
+            LuaString("yield"),
+            LuaNativeFunction { arguments ->
+                throw LuaYieldSignal(arguments)
+            },
+        )
+        val vm = LuaVm(globals)
+
+        val result = vm.executeYieldable(
+            Compiler.compile(
+                """
+                local function nested(value)
+                    return yield(value)
+                end
+                return nested(42)
+                """.trimIndent(),
+            ),
+        )
+
+        val frame = vm.currentFrame
+        assertEquals(LuaExecutionResult.Yielded(listOf(LuaInteger(42))), result)
+        assertEquals(1, frame?.pendingCallResultBase)
+        assertEquals(OPEN_RESULT_COUNT, frame?.pendingCallExpectedResults)
     }
 
     @Test

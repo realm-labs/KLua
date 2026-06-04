@@ -12,6 +12,8 @@ internal data class CallFrame(
     var pc: Int = 0,
     var openResultBase: Int = 0,
     var openResultCount: Int = 0,
+    var pendingCallResultBase: Int = -1,
+    var pendingCallExpectedResults: Int = -1,
     val base: Int = 0,
     val returnBase: Int = 0,
     val expectedResults: Int = -1,

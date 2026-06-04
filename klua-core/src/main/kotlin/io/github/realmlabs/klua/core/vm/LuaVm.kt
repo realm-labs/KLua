@@ -35,6 +35,9 @@ internal class LuaVm(
     internal val activeCallDepth: Int
         get() = thread.callDepth
 
+    internal val currentFrame: CallFrame?
+        get() = thread.currentFrame
+
     internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return returnedValues(callValue(callee, arguments))
     }
@@ -183,6 +186,8 @@ internal class LuaVm(
         val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
         val results = callValue(callee, arguments)
         if (results is LuaExecutionResult.Yielded) {
+            frame.pendingCallResultBase = base
+            frame.pendingCallExpectedResults = Instruction.c(instruction)
             return results
         }
         val expectedResults = Instruction.c(instruction)
