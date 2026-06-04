@@ -245,6 +245,48 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade runtime errors expose userdata host call frames`() {
+        val lua = Lua.create()
+        val host = HostObject("host")
+        lua.registerType(HostObject::class.java) { type ->
+            type.method("explode") { _, _ ->
+                throw IllegalStateException("userdata boom")
+            }
+        }
+        lua.globals().set("host", host)
+
+        val error = assertFailsWith<LuaRuntimeException> {
+            lua.load(
+                """
+                local function outer()
+                    return host:explode()
+                end
+                return outer()
+                """.trimIndent(),
+                "api-userdata-host-trace.lua",
+            ).eval()
+        }
+
+        assertEquals("userdata boom", error.message)
+        assertEquals(
+            listOf(
+                LuaStackFrame("[Kotlin]: HostObject.explode", 0),
+                LuaStackFrame("api-userdata-host-trace.lua", 2),
+                LuaStackFrame("api-userdata-host-trace.lua", 4),
+            ),
+            error.luaFrames,
+        )
+        assertEquals(
+            "userdata boom\n" +
+                "stack traceback:\n" +
+                "\t[Kotlin]: HostObject.explode\n" +
+                "\tapi-userdata-host-trace.lua:2\n" +
+                "\tapi-userdata-host-trace.lua:4",
+            error.traceback,
+        )
+    }
+
+    @Test
     fun `facade coroutine runtime errors expose lua call frames`() {
         val lua = Lua.create()
         val function = lua.load(

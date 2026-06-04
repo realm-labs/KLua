@@ -86,7 +86,12 @@ class LuaState private constructor(
                     type = type,
                     name = name,
                     method = KLuaCoreUserDataMethod { receiver, arguments ->
-                        callHostUserDataMethod(method, receiver, arguments.map { it.toStackValue() })
+                        callHostUserDataMethod(
+                            method,
+                            receiver,
+                            arguments.map { it.toStackValue() },
+                            nativeFrameName = "${type.luaDebugName()}.$name",
+                        )
                     },
                 )
             },
@@ -96,12 +101,21 @@ class LuaState private constructor(
                     name = name,
                     getter = getter?.let { propertyGetter ->
                         KLuaCoreUserDataGetter { receiver ->
-                            callHostUserDataGetter(propertyGetter, receiver)
+                            callHostUserDataGetter(
+                                propertyGetter,
+                                receiver,
+                                nativeFrameName = "${type.luaDebugName()}.$name.get",
+                            )
                         }
                     },
                     setter = setter?.let { propertySetter ->
                         KLuaCoreUserDataSetter { receiver, value ->
-                            callHostUserDataSetter(propertySetter, receiver, value.toStackValue())
+                            callHostUserDataSetter(
+                                propertySetter,
+                                receiver,
+                                value.toStackValue(),
+                                nativeFrameName = "${type.luaDebugName()}.$name.set",
+                            )
                         }
                     },
                 )
@@ -493,6 +507,7 @@ class LuaState private constructor(
         method: LuaUserDataMethod<T>,
         receiver: T,
         arguments: List<LuaStackValue>,
+        nativeFrameName: String? = null,
     ): KLuaCoreCallResult {
         return try {
             val result = method.call(receiver, DefaultLuaCallContext(arguments))
@@ -500,15 +515,23 @@ class LuaState private constructor(
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult()
         } catch (exception: LuaException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                exception,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         }
     }
 
     private fun <T : Any> callHostUserDataGetter(
         getter: LuaUserDataGetter<T>,
         receiver: T,
+        nativeFrameName: String? = null,
     ): KLuaCoreCallResult {
         return try {
             val result = getter.get(receiver)
@@ -516,9 +539,16 @@ class LuaState private constructor(
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult()
         } catch (exception: LuaException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                exception,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         }
     }
 
@@ -526,6 +556,7 @@ class LuaState private constructor(
         setter: LuaUserDataSetter<T>,
         receiver: T,
         value: LuaStackValue,
+        nativeFrameName: String? = null,
     ): KLuaCoreCallResult {
         return try {
             setter.set(receiver, value.toAnyValue())
@@ -533,9 +564,16 @@ class LuaState private constructor(
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult()
         } catch (exception: LuaException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         } catch (exception: RuntimeException) {
-            KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName, exception)
+            KLuaCoreCallResult.RuntimeError(
+                exception.message ?: exception::class.java.simpleName,
+                exception,
+                nativeFrames = nativeFrameName.toNativeFrames(),
+            )
         }
     }
 
@@ -1216,6 +1254,10 @@ private fun List<KLuaCoreStackFrame>.toApiStackFrames(): List<LuaStackFrame> {
 
 private fun String?.toNativeFrames(): List<String> {
     return if (this == null) emptyList() else listOf(this)
+}
+
+private fun Class<*>.luaDebugName(): String {
+    return simpleName.takeIf { it.isNotEmpty() } ?: name
 }
 
 class LuaYieldException internal constructor(

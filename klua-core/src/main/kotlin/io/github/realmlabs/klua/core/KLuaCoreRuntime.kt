@@ -793,7 +793,11 @@ private fun <T : Any> callCoreUserDataMethod(
                     LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
                 },
             )
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
+                result.message,
+                luaFrames = result.nativeFrames.toNativeStackFrames(),
+                cause = result.cause,
+            )
         }
     } catch (error: LuaVmException) {
         throw error
@@ -824,7 +828,11 @@ private fun <T : Any> callCoreUserDataGetter(
                     LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
                 },
             )
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
+                result.message,
+                luaFrames = result.nativeFrames.toNativeStackFrames(),
+                cause = result.cause,
+            )
         }
     } catch (error: LuaVmException) {
         throw error
@@ -853,7 +861,11 @@ private fun <T : Any> callCoreUserDataSetter(
                     LuaYieldSignalContinuation { arguments -> continuePublicYield(continuation, arguments, globals) }
                 },
             )
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(result.message, cause = result.cause)
+            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
+                result.message,
+                luaFrames = result.nativeFrames.toNativeStackFrames(),
+                cause = result.cause,
+            )
         }
     } catch (error: LuaVmException) {
         throw error
