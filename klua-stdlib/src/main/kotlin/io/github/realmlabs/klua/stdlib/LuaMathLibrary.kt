@@ -211,10 +211,33 @@ internal object LuaMathLibrary {
             throw LuaRuntimeException("bad argument #1 to 'math.random' (interval is empty)")
         }
         val width = upper - lower + 1
-        if (width <= 0L || width > Int.MAX_VALUE) {
-            throw LuaRuntimeException("bad argument #1 to 'math.random' (interval is too large)")
+        if (width == 0L) {
+            return random.nextLong()
         }
-        return lower + random.nextInt(width.toInt())
+        if (width > 0L) {
+            return lower + randomLongBelow(width)
+        }
+
+        var candidate: Long
+        do {
+            candidate = random.nextLong()
+        } while (java.lang.Long.compareUnsigned(candidate, width) >= 0)
+        return lower + candidate
+    }
+
+    private fun randomLongBelow(bound: Long): Long {
+        val mask = bound - 1
+        if (bound and mask == 0L) {
+            return random.nextLong() and mask
+        }
+
+        var candidate: Long
+        var value: Long
+        do {
+            candidate = random.nextLong().ushr(1)
+            value = candidate % bound
+        } while (candidate + mask - value < 0L)
+        return value
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {

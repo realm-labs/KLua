@@ -890,6 +890,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random supports wide integer ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                math.randomseed(456)
+                local upperOnly = math.random(3000000000)
+                local wideRange = math.random(-3000000000, 3000000000)
+                local fullRange = math.random(math.mininteger, math.maxinteger)
+                math.randomseed(456)
+                local repeated = math.random(3000000000)
+                return upperOnly >= 1 and upperOnly <= 3000000000,
+                    wideRange >= -3000000000 and wideRange <= 3000000000,
+                    fullRange ~= nil,
+                    upperOnly == repeated
+                """.trimIndent(),
+                "math-random-wide.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        for (index in 1..4) {
+            assertTrue(state.toBoolean(index))
+        }
+    }
+
+    @Test
     fun `math functions report numeric argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
