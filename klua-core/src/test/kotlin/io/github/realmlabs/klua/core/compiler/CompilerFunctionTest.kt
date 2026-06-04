@@ -26,6 +26,8 @@ class CompilerFunctionTest {
         assertEquals(false, function.isVararg)
         assertEquals(1, function.lineDefined)
         assertEquals(1, function.lastLineDefined)
+        assertEquals(1, function.debugInfo.lineDefined)
+        assertEquals(1, function.debugInfo.lastLineDefined)
         assertEquals(4, function.maxStackSize)
         assertEquals(
             """
@@ -373,6 +375,7 @@ class CompilerFunctionTest {
         val function = prototype.nested.single()
         assertEquals("x", function.upvalues.single().name)
         assertContentEquals(arrayOf("x"), function.upvalueNames)
+        assertContentEquals(arrayOf("x"), function.debugInfo.upvalueNames)
         assertEquals(UpvalueSource.LOCAL, function.upvalues.single().source)
         assertEquals(0, function.upvalues.single().sourceIndex)
         assertEquals(

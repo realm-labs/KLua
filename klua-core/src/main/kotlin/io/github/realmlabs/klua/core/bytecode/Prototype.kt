@@ -21,6 +21,19 @@ internal data class Prototype(
     val lastLineDefined: Int = 0,
     val validBreakpointLines: IntArray = validBreakpointLines(lineInfo),
 ) {
+    val debugInfo: DebugInfo
+        get() = DebugInfo(
+            sourceName = sourceName,
+            sourceId = sourceId,
+            lineByPc = lineInfo,
+            columnByPc = null,
+            localVars = localVars,
+            upvalueNames = upvalueNames,
+            validBreakpointLines = validBreakpointLines,
+            lineDefined = lineDefined,
+            lastLineDefined = lastLineDefined,
+        )
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Prototype) return false
@@ -63,6 +76,18 @@ internal data class Prototype(
         return result
     }
 }
+
+internal class DebugInfo(
+    val sourceName: String,
+    val sourceId: String,
+    val lineByPc: IntArray,
+    val columnByPc: IntArray?,
+    val localVars: Array<LocalVarInfo>,
+    val upvalueNames: Array<String>,
+    val validBreakpointLines: IntArray,
+    val lineDefined: Int,
+    val lastLineDefined: Int,
+)
 
 private fun upvalueNames(upvalues: Array<UpvalueDescriptor>): Array<String> {
     return upvalues.map { upvalue -> upvalue.name }.toTypedArray()

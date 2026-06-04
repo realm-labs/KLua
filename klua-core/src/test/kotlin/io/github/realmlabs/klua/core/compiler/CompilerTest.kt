@@ -20,10 +20,17 @@ class CompilerTest {
         assertEquals("return-int.lua", prototype.sourceName)
         assertEquals("return-int.lua", prototype.sourceId)
         assertEquals(LuaSourceVersion.LUA_54, prototype.version)
+        assertEquals("return-int.lua", prototype.debugInfo.sourceName)
+        assertEquals("return-int.lua", prototype.debugInfo.sourceId)
+        assertContentEquals(intArrayOf(1, 1), prototype.debugInfo.lineByPc)
+        assertEquals(null, prototype.debugInfo.columnByPc)
+        assertEquals(0, prototype.debugInfo.lineDefined)
+        assertEquals(0, prototype.debugInfo.lastLineDefined)
         assertEquals(1, prototype.maxStackSize)
         assertEquals(0, prototype.constants.size)
         assertContentEquals(intArrayOf(1, 1), prototype.lineInfo)
         assertContentEquals(intArrayOf(1), prototype.validBreakpointLines)
+        assertContentEquals(intArrayOf(1), prototype.debugInfo.validBreakpointLines)
         assertEquals(
             """
             0000  [1]  LOAD_INT R0 42
@@ -69,6 +76,7 @@ class CompilerTest {
             ),
             prototype.localVars,
         )
+        assertContentEquals(prototype.localVars, prototype.debugInfo.localVars)
     }
 
     @Test
