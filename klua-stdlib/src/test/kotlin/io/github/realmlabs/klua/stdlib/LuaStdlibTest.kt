@@ -3342,6 +3342,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert preserves table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = {name = "first"}
+                local second = {name = "second"}
+                local values = {}
+                table.insert(values, first)
+                table.insert(values, 1, second)
+                return values[1] == second, values[2] == first, values[1].name, values[2].name
+                """.trimIndent(),
+                "table-insert-table-values.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("second", state.toString(3))
+        assertEquals("first", state.toString(4))
+    }
+
+    @Test
     fun `table insert reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

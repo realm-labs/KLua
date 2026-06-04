@@ -376,7 +376,7 @@ public object LuaStdlib {
             context.setTableValue(1, index + 1L, context.getTableValue(1, index))
             index--
         }
-        context.setTableValue(1, position, context.get(valueIndex))
+        context.setTableValue(1, position, argumentValue(context, valueIndex))
         return LuaReturn.none()
     }
 
