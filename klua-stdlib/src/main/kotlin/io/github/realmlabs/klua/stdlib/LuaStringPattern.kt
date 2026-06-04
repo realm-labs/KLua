@@ -22,6 +22,9 @@ internal class LuaStringPattern private constructor(
     fun find(text: String, startIndex: Int): LuaPatternMatch? {
         val patternTokens = tokens
         return if (patternTokens == null) {
+            if (startIndex > text.length) {
+                return null
+            }
             val foundIndex = text.indexOf(pattern, startIndex)
             if (foundIndex < 0) {
                 null

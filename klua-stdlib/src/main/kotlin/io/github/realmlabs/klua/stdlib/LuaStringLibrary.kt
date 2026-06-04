@@ -601,9 +601,11 @@ internal object LuaStringLibrary {
 
     private fun String.normalizeSearchStart(index: Long): Int {
         val normalized = when {
-            index >= 0L -> index
+            index > 0L -> index
+            index == 0L -> 1L
+            index < -length.toLong() -> 1L
             else -> length + index + 1L
         }
-        return normalized.coerceIn(1L, length + 1L).toInt()
+        return normalized.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
     }
 }

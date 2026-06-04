@@ -1578,6 +1578,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string search functions reject init positions past the end`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local plainStart, plainEnd = string.find("abc", "", 5, true)
+                local patternStart, patternEnd = string.find("abc", "", 5)
+                local matched = string.match("abc", "", 5)
+                local iterator = string.gmatch("abc", "", 5)
+                return plainStart, plainEnd, patternStart, patternEnd, matched, iterator()
+                """.trimIndent(),
+                "string-search-init-past-end.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `string find reports unsupported patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
