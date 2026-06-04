@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -15,28 +16,12 @@ internal object LuaUtf8Library {
         state.newTable()
         setFunctionField(state, "char", ::utf8Char)
         setFunctionField(state, "codepoint", ::utf8Codepoint)
+        setFunctionField(state, "codes", ::utf8Codes)
         setFunctionField(state, "len", ::utf8Len)
         setFunctionField(state, "offset", ::utf8Offset)
         state.pushString(CHAR_PATTERN)
         state.setField(-2, "charpattern")
         state.setGlobal("utf8")
-        installLuaSource(
-            state,
-            """
-            utf8.codes = function(text)
-                local index = 0
-                local length = utf8.len(text)
-                return function()
-                    index = index + 1
-                    if index > length then
-                        return nil
-                    end
-                    return index, utf8.codepoint(text, index)
-                end
-            end
-            """.trimIndent(),
-            "stdlib-utf8-codes.lua",
-        )
         return state
     }
 
@@ -57,6 +42,20 @@ internal object LuaUtf8Library {
             return LuaReturn.none()
         }
         return LuaReturn.ofValues((start..end).map { index -> codePoints[index - 1].toLong() })
+    }
+
+    private fun utf8Codes(context: LuaCallContext): LuaReturn {
+        val codePoints = requiredString(context, 1, "utf8.codes").codePoints().toArray()
+        var index = 0
+        val iterator = LuaFunction {
+            if (index >= codePoints.size) {
+                LuaReturn.of(null)
+            } else {
+                index++
+                LuaReturn.of(index.toLong(), codePoints[index - 1].toLong())
+            }
+        }
+        return LuaReturn.of(iterator)
     }
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {

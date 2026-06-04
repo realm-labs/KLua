@@ -1905,6 +1905,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codes reports string argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.codes({})""", "utf8-codes-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'utf8.codes' (string expected)", state.toString(-1))
+    }
+
+    @Test
     fun `utf8 len returns zero for empty strings`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
