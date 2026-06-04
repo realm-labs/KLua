@@ -54,6 +54,23 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `executes dotted function declarations`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local module = {}
+                function module.add(a, b)
+                    return a + b
+                end
+                return module.add(20, 22)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `executes local call initializers with multiple results`() {
         val result = LuaVm().execute(
             Compiler.compile(

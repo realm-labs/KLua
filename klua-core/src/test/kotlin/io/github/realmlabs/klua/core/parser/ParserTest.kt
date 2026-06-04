@@ -293,6 +293,25 @@ class ParserTest {
     }
 
     @Test
+    fun `parses dotted function statements as field assignments`() {
+        val chunk = Parser.parse(
+            """
+            function module.make(value)
+                return value
+            end
+            """.trimIndent(),
+        )
+
+        val statement = assertIs<AssignmentStatement>(chunk.statements.single())
+        val target = assertIs<IndexAssignmentTarget>(statement.targets.single()).index
+        assertEquals("module", assertIs<VariableExpression>(target.receiver).name)
+        assertEquals("make", assertIs<StringExpression>(target.key).value)
+
+        val function = assertIs<FunctionExpression>(statement.values.single())
+        assertEquals(listOf("value"), function.parameters)
+    }
+
+    @Test
     fun `parses anonymous vararg function expressions`() {
         val chunk = Parser.parse("local f = function(first, ...) return ... end")
         val local = assertIs<LocalStatement>(chunk.statements.single())

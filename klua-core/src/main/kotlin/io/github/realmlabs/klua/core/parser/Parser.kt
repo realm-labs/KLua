@@ -110,11 +110,28 @@ internal class Parser private constructor(
         )
     }
 
-    private fun functionStatement(start: Token): FunctionStatement {
+    private fun functionStatement(start: Token): Statement {
         val name = consume(TokenKind.IDENTIFIER, "expected function name")
+        val functionName = name.literal as String
+        var target: Expression = VariableExpression(functionName, name.range)
+        while (match(TokenKind.DOT)) {
+            val field = consume(TokenKind.IDENTIFIER, "expected field name after '.'")
+            target = IndexExpression(
+                receiver = target,
+                key = StringExpression(field.literal as String, field.range),
+                range = SourceRange(target.range.start, field.range.end),
+            )
+        }
         val function = functionBody(start)
+        if (target is IndexExpression) {
+            return AssignmentStatement(
+                targets = listOf(IndexAssignmentTarget(target)),
+                values = listOf(function),
+                range = SourceRange(start.range.start, function.range.end),
+            )
+        }
         return FunctionStatement(
-            name = name.literal as String,
+            name = functionName,
             function = function,
             range = SourceRange(start.range.start, function.range.end),
         )
