@@ -88,6 +88,33 @@ class KLuaCoreRuntimeCoroutineTest {
     }
 
     @Test
+    fun `core coroutine runtime errors expose source line metadata`() {
+        val globals = KLuaCoreGlobals.create()
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile(
+                """
+                return function()
+                    local x = 1
+                    return "x" + x
+                end
+                """.trimIndent(),
+                "core-coroutine-error-line.lua",
+            ),
+        ).chunk
+        val function = assertIs<KLuaCoreValue.FunctionValue>(
+            assertIs<KLuaCoreExecution.Success>(
+                KLuaCoreRuntime.execute(chunk, emptyList(), globals),
+            ).values.single(),
+        )
+        val coroutine = assertNotNull(KLuaCoreRuntime.createCoroutine(function, globals))
+
+        val error = assertIs<KLuaCoreCoroutineExecution.RuntimeError>(coroutine.resume(emptyList()))
+        assertEquals("attempt to perform arithmetic on string", error.message)
+        assertEquals("core-coroutine-error-line.lua", error.sourceName)
+        assertEquals(3, error.line)
+    }
+
+    @Test
     fun `core coroutine runner resumes top level yieldable native functions`() {
         val globals = KLuaCoreGlobals.create()
         val function = KLuaCoreRuntime.createFunctionValue(
