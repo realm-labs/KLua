@@ -11,7 +11,7 @@ import java.util.Locale
 internal object LuaStringLibrary {
     private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcqs"
     private const val FORMAT_FLAGS = "-+ #0"
-    private val GSUB_REPLACEMENT_TYPES = setOf("string", "function", "table")
+    private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
     fun open(state: LuaState): LuaState {
@@ -73,7 +73,7 @@ internal object LuaStringLibrary {
         val pattern = requiredString(context, 2, "string.gsub")
         val replacementType = context.typeName(3)
         if (replacementType !in GSUB_REPLACEMENT_TYPES) {
-            throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/function/table expected)")
+            throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/number/function/table expected)")
         }
         val limit = if (context.isNone(4) || context.isNil(4)) {
             Long.MAX_VALUE
@@ -121,6 +121,7 @@ internal object LuaStringLibrary {
         captures: List<String>,
     ): String {
         return when (replacementType) {
+            "number" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures, "string.gsub")
             "string" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures, "string.gsub")
             "function" -> {
                 val result = context.call(3, replacementArguments(wholeMatch, captures)).get(1)
@@ -130,7 +131,7 @@ internal object LuaStringLibrary {
                 val result = context.getTableValue(3, replacementArguments(wholeMatch, captures).first())
                 replacementValueToString(result, wholeMatch)
             }
-            else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/function/table expected)")
+            else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/number/function/table expected)")
         }
     }
 

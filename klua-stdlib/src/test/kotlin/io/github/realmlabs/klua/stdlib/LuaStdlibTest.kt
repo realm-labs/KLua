@@ -2167,6 +2167,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub accepts numeric replacements`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local integerReplacement, integerCount = string.gsub("a1b2", "%d", 7)
+                local floatReplacement, floatCount = string.gsub("a b", "%s", 1.5)
+                return integerReplacement, integerCount, floatReplacement, floatCount
+                """.trimIndent(),
+                "string-gsub-number-replacement.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a7b7", state.toString(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("a1.5b", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+    }
+
+    @Test
     fun `string gsub expands replacement percents`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
