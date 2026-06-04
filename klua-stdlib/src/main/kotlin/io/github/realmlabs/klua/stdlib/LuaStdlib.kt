@@ -38,6 +38,7 @@ public object LuaStdlib {
         state.register("print") { context -> print(context, output) }
         state.register("rawequal", ::rawequal)
         state.register("rawget", ::rawget)
+        state.register("rawlen", ::rawlen)
         state.register("rawset", ::rawset)
         state.register("select", ::select)
         state.register("setmetatable", ::setmetatable)
@@ -190,6 +191,14 @@ public object LuaStdlib {
             throw LuaRuntimeException("table index is nil")
         }
         return LuaReturn.of(context.getTableValue(1, argumentValue(context, 2)))
+    }
+
+    private fun rawlen(context: LuaCallContext): LuaReturn {
+        return when {
+            context.typeName(1) == "string" -> LuaReturn.of(requiredString(context, 1, "rawlen").length.toLong())
+            context.isTable(1) -> LuaReturn.of(context.tableLength(1) ?: 0L)
+            else -> throw LuaRuntimeException("bad argument #1 to 'rawlen' (table or string expected)")
+        }
     }
 
     private fun rawset(context: LuaCallContext): LuaReturn {

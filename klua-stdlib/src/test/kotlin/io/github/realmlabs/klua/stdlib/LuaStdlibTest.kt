@@ -529,6 +529,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `rawlen returns string and raw table lengths`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {"a", "b"}
+                return rawlen("KLua"), rawlen(values)
+                """.trimIndent(),
+                "rawlen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(4L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+    }
+
+    @Test
+    fun `rawlen reports argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawlen(42)""", "rawlen-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'rawlen' (table or string expected)", state.toString(-1))
+    }
+
+    @Test
     fun `rawset reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
