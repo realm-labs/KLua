@@ -10,6 +10,7 @@ internal data class Prototype(
     val constants: Array<LuaValue>,
     val nested: Array<Prototype> = emptyArray(),
     val upvalues: Array<UpvalueDescriptor> = emptyArray(),
+    val upvalueNames: Array<String> = upvalueNames(upvalues),
     val localVars: Array<LocalVarInfo> = emptyArray(),
     val lineInfo: IntArray = IntArray(code.size),
     val maxStackSize: Int,
@@ -29,6 +30,7 @@ internal data class Prototype(
             constants.contentEquals(other.constants) &&
             nested.contentEquals(other.nested) &&
             upvalues.contentEquals(other.upvalues) &&
+            upvalueNames.contentEquals(other.upvalueNames) &&
             localVars.contentEquals(other.localVars) &&
             lineInfo.contentEquals(other.lineInfo) &&
             validBreakpointLines.contentEquals(other.validBreakpointLines) &&
@@ -45,6 +47,7 @@ internal data class Prototype(
         result = 31 * result + constants.contentHashCode()
         result = 31 * result + nested.contentHashCode()
         result = 31 * result + upvalues.contentHashCode()
+        result = 31 * result + upvalueNames.contentHashCode()
         result = 31 * result + localVars.contentHashCode()
         result = 31 * result + lineInfo.contentHashCode()
         result = 31 * result + validBreakpointLines.contentHashCode()
@@ -53,6 +56,10 @@ internal data class Prototype(
         result = 31 * result + isVararg.hashCode()
         return result
     }
+}
+
+private fun upvalueNames(upvalues: Array<UpvalueDescriptor>): Array<String> {
+    return upvalues.map { upvalue -> upvalue.name }.toTypedArray()
 }
 
 private fun validBreakpointLines(lineInfo: IntArray): IntArray {

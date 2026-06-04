@@ -143,7 +143,7 @@ Current implemented areas:
 
 - Multi-module Gradle project with Kotlin/JVM 17 modules and tests.
 - Lexer and parser for current supported Lua syntax.
-- AST model, compiler, internal bytecode, prototype model with source IDs, valid breakpoint line metadata, and local variable debug ranges, constant pool, and disassembler.
+- AST model, compiler, internal bytecode, prototype model with source IDs, valid breakpoint line metadata, local variable debug ranges, upvalue name metadata, constant pool, and disassembler.
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and internal thread/yield/resume/dead-state plumbing.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
 - Runtime errors preserve structured source-name, line, Lua call-frame metadata, and readable traceback strings from VM bytecode positions through core execution results, API runtime exceptions, and API coroutine runtime results, and host exceptions can survive as runtime error causes.

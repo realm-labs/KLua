@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.core.compiler
 import io.github.realmlabs.klua.core.bytecode.Disassembler
 import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 
 class CompilerFunctionTest {
@@ -367,6 +368,7 @@ class CompilerFunctionTest {
 
         val function = prototype.nested.single()
         assertEquals("x", function.upvalues.single().name)
+        assertContentEquals(arrayOf("x"), function.upvalueNames)
         assertEquals(UpvalueSource.LOCAL, function.upvalues.single().source)
         assertEquals(0, function.upvalues.single().sourceIndex)
         assertEquals(
@@ -474,6 +476,7 @@ class CompilerFunctionTest {
 
         val middle = outer.nested.single()
         assertEquals("x", middle.upvalues.single().name)
+        assertContentEquals(arrayOf("x"), middle.upvalueNames)
         assertEquals(UpvalueSource.LOCAL, middle.upvalues.single().source)
         assertEquals(0, middle.upvalues.single().sourceIndex)
         assertEquals(
@@ -486,6 +489,7 @@ class CompilerFunctionTest {
 
         val inner = middle.nested.single()
         assertEquals("x", inner.upvalues.single().name)
+        assertContentEquals(arrayOf("x"), inner.upvalueNames)
         assertEquals(UpvalueSource.UPVALUE, inner.upvalues.single().source)
         assertEquals(0, inner.upvalues.single().sourceIndex)
         assertEquals(
