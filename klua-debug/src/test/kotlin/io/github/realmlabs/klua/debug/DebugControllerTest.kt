@@ -34,6 +34,29 @@ class DebugControllerTest {
     }
 
     @Test
+    fun `shouldStop uses condition evaluator for conditional breakpoints`() {
+        val evaluated = mutableListOf<String>()
+        val controller = DebugController(
+            conditionEvaluator = DebugConditionEvaluator { condition ->
+                evaluated += condition
+                condition == "ready"
+            },
+        )
+        val falseBreakpoint = controller.setBreakpoint("main.lua", 4, condition = "waiting")
+        val trueBreakpoint = controller.setBreakpoint("main.lua", 5, condition = "ready")
+
+        assertNull(controller.shouldStop("main.lua", 4, DebugEvent.LINE, callDepth = 1))
+        assertFalse(controller.isPaused)
+        val stop = controller.shouldStop("main.lua", 5, DebugEvent.LINE, callDepth = 1)
+
+        assertEquals(listOf("waiting", "ready"), evaluated)
+        assertEquals(DebugStopReason.BREAKPOINT, stop?.reason)
+        assertEquals(trueBreakpoint, stop?.breakpoint)
+        assertEquals("waiting", falseBreakpoint.condition)
+        assertTrue(controller.isPaused)
+    }
+
+    @Test
     fun `pause and resume control manual stop state`() {
         val controller = DebugController()
 

@@ -44,8 +44,13 @@ public data class DebugStop(
     public val breakpoint: Breakpoint? = null,
 )
 
+public fun interface DebugConditionEvaluator {
+    public fun evaluate(condition: String): Boolean
+}
+
 public class DebugController(
     public val breakpoints: BreakpointManager = BreakpointManager(),
+    private val conditionEvaluator: DebugConditionEvaluator = DebugConditionEvaluator { true },
 ) {
     private var paused: Boolean = false
     private var stepMode: StepMode = StepMode.None
@@ -104,7 +109,7 @@ public class DebugController(
 
         if (event == DebugEvent.LINE) {
             val breakpoint = breakpoints.breakpointAt(sourceId, line)
-            if (breakpoint?.enabled == true) {
+            if (breakpoint != null && shouldStopAtBreakpoint(breakpoint)) {
                 paused = true
                 return DebugStop(DebugStopReason.BREAKPOINT, sourceId, line, event, breakpoint)
             }
@@ -126,5 +131,13 @@ public class DebugController(
             is StepMode.Over -> event == DebugEvent.LINE && callDepth <= mode.startDepth
             is StepMode.Out -> event == DebugEvent.RETURN && callDepth <= mode.targetDepth
         }
+    }
+
+    private fun shouldStopAtBreakpoint(breakpoint: Breakpoint): Boolean {
+        if (!breakpoint.enabled) {
+            return false
+        }
+        val condition = breakpoint.condition ?: return true
+        return conditionEvaluator.evaluate(condition)
     }
 }
