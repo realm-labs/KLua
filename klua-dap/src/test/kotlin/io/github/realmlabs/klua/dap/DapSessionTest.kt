@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.debug.DebugVariable
 import io.github.realmlabs.klua.debug.StepMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotEquals
@@ -215,5 +216,50 @@ class DapSessionTest {
 
         assertEquals(DapScopesResponse(emptyList()), session.scopes(frameId = 99))
         assertEquals(DapVariablesResponse(emptyList()), session.variables(variablesReference = 99))
+    }
+
+    @Test
+    fun `evaluate delegates expression and frame to evaluator`() {
+        val evaluated = mutableListOf<Pair<String, Int?>>()
+        val session = DapSession(
+            expressionEvaluator = DapExpressionEvaluator { expression, frame ->
+                evaluated += expression to frame?.level
+                DebugVariable("result", 123L, "number", "123")
+            },
+        )
+        val stackTrace = session.stackTrace(listOf(DebugFrameView(level = 2, sourceName = "main.lua", line = 8)))
+
+        val response = session.evaluate(
+            DapEvaluateRequest(expression = "answer", frameId = stackTrace.stackFrames[0].id, context = "watch"),
+        )
+
+        assertEquals(listOf(Pair<String, Int?>("answer", 2)), evaluated)
+        assertEquals(DapEvaluateResponse(result = "123", type = "number"), response)
+    }
+
+    @Test
+    fun `evaluate returns variables reference for table results`() {
+        val session = DapSession(
+            expressionEvaluator = DapExpressionEvaluator { _, _ ->
+                DebugVariable("result", linkedMapOf("name" to "KLua"), "table", "table(1)")
+            },
+        )
+
+        val response = session.evaluate(DapEvaluateRequest(expression = "state"))
+        val children = session.variables(response.variablesReference)
+
+        assertEquals("table(1)", response.result)
+        assertEquals("table", response.type)
+        assertTrue(response.variablesReference > 0)
+        assertEquals(listOf(DapVariable("name", "KLua", "string")), children.variables)
+    }
+
+    @Test
+    fun `evaluate validates expressions`() {
+        val session = DapSession()
+
+        assertFailsWith<IllegalArgumentException> {
+            session.evaluate(DapEvaluateRequest(expression = " "))
+        }
     }
 }

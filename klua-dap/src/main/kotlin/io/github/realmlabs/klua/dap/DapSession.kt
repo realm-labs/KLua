@@ -106,10 +106,29 @@ public data class DapVariablesResponse(
     public val variables: List<DapVariable>,
 )
 
+public data class DapEvaluateRequest(
+    public val expression: String,
+    public val frameId: Int? = null,
+    public val context: String? = null,
+)
+
+public data class DapEvaluateResponse(
+    public val result: String,
+    public val type: String,
+    public val variablesReference: Int = 0,
+)
+
+public fun interface DapExpressionEvaluator {
+    public fun evaluate(expression: String, frame: DebugFrameView?): DebugVariable
+}
+
 public class DapSession(
     private val capabilities: DapCapabilities = DapCapabilities(),
     private val breakpointManager: BreakpointManager = BreakpointManager(),
     private val debugController: DebugController = DebugController(breakpointManager),
+    private val expressionEvaluator: DapExpressionEvaluator = DapExpressionEvaluator { _, _ ->
+        DebugVariable("", null, "nil", "nil")
+    },
 ) {
     private var initialized = false
     private var configured = false
@@ -215,6 +234,18 @@ public class DapSession(
             is VariableReference.Variable -> reference.variable.childPage(start, count).variables
         }
         return DapVariablesResponse(variables.map { variable -> variable.toDapVariable() })
+    }
+
+    public fun evaluate(request: DapEvaluateRequest): DapEvaluateResponse {
+        require(request.expression.isNotBlank()) { "expression must not be blank" }
+        val frame = request.frameId?.let { frameId -> framesById[frameId] }
+        val variable = expressionEvaluator.evaluate(request.expression, frame)
+        val dapVariable = variable.toDapVariable()
+        return DapEvaluateResponse(
+            result = dapVariable.value,
+            type = dapVariable.type,
+            variablesReference = dapVariable.variablesReference,
+        )
     }
 
     public fun breakpointAt(sourceId: String, line: Int): Breakpoint? {
