@@ -45,6 +45,34 @@ public data class DebugVariable(
     public val value: Any?,
     public val typeName: String,
     public val displayValue: String,
+) {
+    public fun childPage(start: Int = 0, count: Int = 50): DebugVariablePage {
+        require(start >= 0) { "start must be non-negative: $start" }
+        require(count >= 0) { "count must be non-negative: $count" }
+        val entries = (value as? Map<*, *>)?.entries?.toList().orEmpty()
+        val variables = entries
+            .drop(start)
+            .take(count)
+            .map { entry ->
+                DebugVariable(
+                    name = debugEntryName(entry.key),
+                    value = entry.value,
+                    typeName = debugTypeName(entry.value),
+                    displayValue = debugDisplayValue(entry.value),
+                )
+            }
+        return DebugVariablePage(
+            start = start,
+            total = entries.size,
+            variables = variables,
+        )
+    }
+}
+
+public data class DebugVariablePage(
+    public val start: Int,
+    public val total: Int,
+    public val variables: List<DebugVariable>,
 )
 
 public fun LuaStackFrame.toDebugFrameView(level: Int): DebugFrameView {
@@ -102,5 +130,13 @@ private fun debugDisplayValue(value: Any?): String {
         is CharSequence -> value.toString()
         is Map<*, *> -> "table(${value.size})"
         else -> value::class.java.name
+    }
+}
+
+private fun debugEntryName(key: Any?): String {
+    return when (key) {
+        is CharSequence -> key.toString()
+        is Char -> key.toString()
+        else -> "[${debugDisplayValue(key)}]"
     }
 }

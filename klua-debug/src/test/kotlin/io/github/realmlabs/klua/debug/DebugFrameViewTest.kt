@@ -92,6 +92,60 @@ class DebugFrameViewTest {
     }
 
     @Test
+    fun `childPage pages table variable entries as child variables`() {
+        val variable = LuaLocalVariable(
+            "tableValue",
+            linkedMapOf<Any?, Any?>(
+                "name" to "KLua",
+                2L to 42L,
+                null to false,
+            ),
+        ).toDebugVariable()
+
+        val firstPage = variable.childPage(start = 0, count = 2)
+        val secondPage = variable.childPage(start = 2, count = 2)
+
+        assertEquals(
+            DebugVariablePage(
+                start = 0,
+                total = 3,
+                variables = listOf(
+                    DebugVariable("name", "KLua", "string", "KLua"),
+                    DebugVariable("[2]", 42L, "number", "42"),
+                ),
+            ),
+            firstPage,
+        )
+        assertEquals(
+            DebugVariablePage(
+                start = 2,
+                total = 3,
+                variables = listOf(DebugVariable("[nil]", false, "boolean", "false")),
+            ),
+            secondPage,
+        )
+    }
+
+    @Test
+    fun `childPage returns empty page for scalar variables`() {
+        val variable = LuaLocalVariable("value", 1L).toDebugVariable()
+
+        assertEquals(DebugVariablePage(start = 0, total = 0, variables = emptyList()), variable.childPage())
+    }
+
+    @Test
+    fun `childPage validates page arguments`() {
+        val variable = LuaLocalVariable("tableValue", mapOf("a" to 1)).toDebugVariable()
+
+        assertFailsWith<IllegalArgumentException> {
+            variable.childPage(start = -1)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            variable.childPage(count = -1)
+        }
+    }
+
+    @Test
     fun `toDebugFrameView rejects negative levels`() {
         assertFailsWith<IllegalArgumentException> {
             LuaStackFrame("main.lua", 1).toDebugFrameView(-1)
