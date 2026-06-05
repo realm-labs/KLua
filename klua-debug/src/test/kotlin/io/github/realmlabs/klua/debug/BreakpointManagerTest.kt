@@ -60,6 +60,34 @@ class BreakpointManagerTest {
     }
 
     @Test
+    fun `replaceSourceBreakpoints replaces only the requested source`() {
+        val manager = BreakpointManager()
+        manager.setBreakpoint("main.lua", 1)
+        manager.setBreakpoint("main.lua", 2)
+        val other = manager.setBreakpoint("other.lua", 1)
+
+        val replacements = manager.replaceSourceBreakpoints(
+            "main.lua",
+            listOf(
+                BreakpointRequest(3),
+                BreakpointRequest(4, enabled = false, condition = "ready"),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                Breakpoint("main.lua", 3),
+                Breakpoint("main.lua", 4, enabled = false, condition = "ready"),
+            ),
+            replacements,
+        )
+        assertNull(manager.breakpointAt("main.lua", 1))
+        assertNull(manager.breakpointAt("main.lua", 2))
+        assertEquals(listOf(replacements[0], replacements[1]), manager.listBreakpoints("main.lua"))
+        assertEquals(other, manager.breakpointAt("other.lua", 1))
+    }
+
+    @Test
     fun `setBreakpoint rejects invalid locations`() {
         val manager = BreakpointManager()
 
@@ -68,6 +96,12 @@ class BreakpointManagerTest {
         }
         assertFailsWith<IllegalArgumentException> {
             manager.setBreakpoint("main.lua", 0)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            manager.replaceSourceBreakpoints("", listOf(BreakpointRequest(1)))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            manager.replaceSourceBreakpoints("main.lua", listOf(BreakpointRequest(0)))
         }
     }
 }

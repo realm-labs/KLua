@@ -7,6 +7,12 @@ public data class Breakpoint(
     public val condition: String? = null,
 )
 
+public data class BreakpointRequest(
+    public val line: Int,
+    public val enabled: Boolean = true,
+    public val condition: String? = null,
+)
+
 public class BreakpointManager {
     private val breakpoints = linkedMapOf<BreakpointKey, Breakpoint>()
 
@@ -33,6 +39,14 @@ public class BreakpointManager {
             breakpoints.remove(key)
         }
         return keys.size
+    }
+
+    public fun replaceSourceBreakpoints(sourceId: String, requests: List<BreakpointRequest>): List<Breakpoint> {
+        require(sourceId.isNotBlank()) { "sourceId must not be blank" }
+        clearSource(sourceId)
+        return requests.map { request ->
+            setBreakpoint(sourceId, request.line, request.enabled, request.condition)
+        }
     }
 
     public fun breakpointAt(sourceId: String, line: Int): Breakpoint? {
