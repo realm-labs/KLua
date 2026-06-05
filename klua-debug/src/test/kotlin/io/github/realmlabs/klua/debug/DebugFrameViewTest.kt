@@ -92,6 +92,35 @@ class DebugFrameViewTest {
     }
 
     @Test
+    fun `userdata display adapters customize debugger value summaries`() {
+        val hostValue = HostValue("Ada")
+        val adapters = DebugDisplayAdapters.ofUserData(
+            DebugUserDataDisplayAdapter { value ->
+                (value as? HostValue)?.let { host -> "HostValue(${host.name})" }
+            },
+        )
+
+        val variable = LuaLocalVariable("userdataValue", hostValue).toDebugVariable(adapters)
+        val frame = LuaStackFrame(
+            sourceName = "main.lua",
+            line = 1,
+            locals = listOf(LuaLocalVariable("userdataValue", hostValue)),
+        ).toDebugFrameView(level = 0, displayAdapters = adapters)
+        val tableVariable = LuaLocalVariable("tableValue", mapOf("host" to hostValue)).toDebugVariable()
+
+        assertEquals(DebugVariable("userdataValue", hostValue, "userdata", "HostValue(Ada)"), variable)
+        assertEquals(variable, frame.locals.single())
+        assertEquals(
+            DebugVariablePage(
+                start = 0,
+                total = 1,
+                variables = listOf(DebugVariable("host", hostValue, "userdata", "HostValue(Ada)")),
+            ),
+            tableVariable.childPage(displayAdapters = adapters),
+        )
+    }
+
+    @Test
     fun `childPage pages table variable entries as child variables`() {
         val variable = LuaLocalVariable(
             "tableValue",
@@ -152,5 +181,7 @@ class DebugFrameViewTest {
         }
     }
 
-    private class HostValue
+    private data class HostValue(
+        val name: String = "host",
+    )
 }

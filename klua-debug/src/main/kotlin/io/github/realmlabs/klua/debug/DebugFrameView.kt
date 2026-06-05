@@ -19,6 +19,13 @@ public data class DebugFrameView(
         public fun fromLuaFrames(frames: List<LuaStackFrame>): List<DebugFrameView> {
             return frames.mapIndexed { index, frame -> frame.toDebugFrameView(index) }
         }
+
+        public fun fromLuaFrames(
+            frames: List<LuaStackFrame>,
+            displayAdapters: DebugDisplayAdapters,
+        ): List<DebugFrameView> {
+            return frames.mapIndexed { index, frame -> frame.toDebugFrameView(index, displayAdapters) }
+        }
     }
 }
 
@@ -46,7 +53,11 @@ public data class DebugVariable(
     public val typeName: String,
     public val displayValue: String,
 ) {
-    public fun childPage(start: Int = 0, count: Int = 50): DebugVariablePage {
+    public fun childPage(
+        start: Int = 0,
+        count: Int = 50,
+        displayAdapters: DebugDisplayAdapters = DebugDisplayAdapters.Empty,
+    ): DebugVariablePage {
         require(start >= 0) { "start must be non-negative: $start" }
         require(count >= 0) { "count must be non-negative: $count" }
         val entries = (value as? Map<*, *>)?.entries?.toList().orEmpty()
@@ -58,7 +69,7 @@ public data class DebugVariable(
                     name = debugEntryName(entry.key),
                     value = entry.value,
                     typeName = debugTypeName(entry.value),
-                    displayValue = debugDisplayValue(entry.value),
+                    displayValue = debugDisplayValue(entry.value, displayAdapters),
                 )
             }
         return DebugVariablePage(
@@ -75,7 +86,35 @@ public data class DebugVariablePage(
     public val variables: List<DebugVariable>,
 )
 
+public fun interface DebugUserDataDisplayAdapter {
+    public fun display(value: Any): String?
+}
+
+public class DebugDisplayAdapters private constructor(
+    private val userDataAdapters: List<DebugUserDataDisplayAdapter>,
+) {
+    internal fun displayUserData(value: Any): String {
+        return userDataAdapters.firstNotNullOfOrNull { adapter -> adapter.display(value) }
+            ?: value::class.java.name
+    }
+
+    public companion object {
+        public val Empty: DebugDisplayAdapters = DebugDisplayAdapters(emptyList())
+
+        public fun ofUserData(vararg adapters: DebugUserDataDisplayAdapter): DebugDisplayAdapters {
+            return DebugDisplayAdapters(adapters.toList())
+        }
+    }
+}
+
 public fun LuaStackFrame.toDebugFrameView(level: Int): DebugFrameView {
+    return toDebugFrameView(level, DebugDisplayAdapters.Empty)
+}
+
+public fun LuaStackFrame.toDebugFrameView(
+    level: Int,
+    displayAdapters: DebugDisplayAdapters,
+): DebugFrameView {
     require(level >= 0) { "level must be non-negative: $level" }
     return DebugFrameView(
         level = level,
@@ -83,16 +122,20 @@ public fun LuaStackFrame.toDebugFrameView(level: Int): DebugFrameView {
         line = line,
         lineDefined = lineDefined,
         lastLineDefined = lastLineDefined,
-        locals = locals.map { local -> local.toDebugVariable() },
+        locals = locals.map { local -> local.toDebugVariable(displayAdapters) },
     )
 }
 
 public fun LuaLocalVariable.toDebugVariable(): DebugVariable {
+    return toDebugVariable(DebugDisplayAdapters.Empty)
+}
+
+public fun LuaLocalVariable.toDebugVariable(displayAdapters: DebugDisplayAdapters): DebugVariable {
     return DebugVariable(
         name = name,
         value = value,
         typeName = debugTypeName(value),
-        displayValue = debugDisplayValue(value),
+        displayValue = debugDisplayValue(value, displayAdapters),
     )
 }
 
@@ -115,7 +158,7 @@ private fun debugTypeName(value: Any?): String {
     }
 }
 
-private fun debugDisplayValue(value: Any?): String {
+private fun debugDisplayValue(value: Any?, displayAdapters: DebugDisplayAdapters = DebugDisplayAdapters.Empty): String {
     return when (value) {
         null -> "nil"
         is Boolean -> value.toString()
@@ -129,7 +172,7 @@ private fun debugDisplayValue(value: Any?): String {
         is Char -> value.toString()
         is CharSequence -> value.toString()
         is Map<*, *> -> "table(${value.size})"
-        else -> value::class.java.name
+        else -> displayAdapters.displayUserData(value)
     }
 }
 
