@@ -2257,6 +2257,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine wrap preserves nil holes in yield and return values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local wrapped = coroutine.wrap(function()
+                    local first, second, third = coroutine.yield(nil, "middle", nil)
+                    return first, second, third
+                end)
+
+                local yieldCount, yieldFirst, yieldSecond, yieldThird = pack(wrapped())
+                local returnCount, returnFirst, returnSecond, returnThird = pack(wrapped(nil, "done", nil))
+                return yieldCount, yieldFirst == nil, yieldSecond, yieldThird == nil,
+                    returnCount, returnFirst == nil, returnSecond, returnThird == nil
+                """.trimIndent(),
+                "coroutine-wrap-nil-holes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("middle", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals(3L, state.toInteger(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("done", state.toString(7))
+        assertTrue(state.toBoolean(8))
+    }
+
+    @Test
     fun `coroutine running reports main and active coroutine contexts`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
