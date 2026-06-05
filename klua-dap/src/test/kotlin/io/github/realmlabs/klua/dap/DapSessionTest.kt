@@ -91,6 +91,22 @@ class DapSessionTest {
     }
 
     @Test
+    fun `disconnect marks session disconnected and clears configured state`() {
+        val session = DapSession()
+        session.configurationDone()
+
+        val response = session.disconnect(DapDisconnectRequest(restart = true, terminateDebuggee = true))
+
+        assertEquals(
+            DapDisconnectResponse(disconnected = true, restart = true, terminateDebuggee = true),
+            response,
+        )
+        assertTrue(session.isDisconnected)
+        assertFalse(session.isConfigured)
+        assertEquals(StepMode.None, session.currentStepMode())
+    }
+
+    @Test
     fun `launch and attach validate required targets`() {
         val session = DapSession()
 
@@ -357,9 +373,22 @@ class DapSessionTest {
         val session = DapSession()
 
         val next = session.handle(DapCommandRequest(command = "next", arguments = DapStepRequest(callDepth = 2)))
+        val disconnect = session.handle(
+            DapCommandRequest(
+                command = "disconnect",
+                arguments = DapDisconnectRequest(terminateDebuggee = true),
+            ),
+        )
         val threads = session.handle(DapCommandRequest(command = "threads"))
 
         assertEquals(DapCommandResponse("next", DapStepResponse(StepMode.Over(2))), next)
+        assertEquals(
+            DapCommandResponse(
+                "disconnect",
+                DapDisconnectResponse(disconnected = true, terminateDebuggee = true),
+            ),
+            disconnect,
+        )
         assertEquals(
             DapCommandResponse("threads", DapThreadsResponse(listOf(DapThread(id = 1, name = "main")))),
             threads,

@@ -207,6 +207,41 @@ class DapWireSessionTest {
     }
 
     @Test
+    fun `handle routes JSON disconnect arguments to session`() {
+        val session = DapSession()
+        val response = DapWireSession(session).handle(
+            DapRequestMessage(
+                seq = 8,
+                command = "disconnect",
+                arguments = DapJsonObject(
+                    linkedMapOf(
+                        "restart" to DapJsonBoolean(true),
+                        "terminateDebuggee" to DapJsonBoolean(true),
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(session.isDisconnected)
+        assertEquals(
+            DapResponseMessage(
+                seq = 1,
+                requestSeq = 8,
+                command = "disconnect",
+                success = true,
+                body = DapJsonObject(
+                    linkedMapOf(
+                        "disconnected" to DapJsonBoolean(true),
+                        "restart" to DapJsonBoolean(true),
+                        "terminateDebuggee" to DapJsonBoolean(true),
+                    ),
+                ),
+            ),
+            response,
+        )
+    }
+
+    @Test
     fun `handleJson parses request and serializes response`() {
         val wireSession = DapWireSession(
             DapSession(

@@ -59,6 +59,17 @@ public data class DapAttachResponse(
     public val target: String,
 )
 
+public data class DapDisconnectRequest(
+    public val restart: Boolean = false,
+    public val terminateDebuggee: Boolean = false,
+)
+
+public data class DapDisconnectResponse(
+    public val disconnected: Boolean,
+    public val restart: Boolean = false,
+    public val terminateDebuggee: Boolean = false,
+)
+
 public data class DapSource(
     public val path: String,
     public val name: String? = null,
@@ -187,6 +198,7 @@ public class DapSession(
 ) {
     private var initialized = false
     private var configured = false
+    private var disconnected = false
     private var debugMode = DapDebugMode.None
     private var initializeRequest: DapInitializeRequest? = null
     private var launchRequest: DapLaunchRequest? = null
@@ -202,6 +214,9 @@ public class DapSession(
     public val isConfigured: Boolean
         get() = configured
 
+    public val isDisconnected: Boolean
+        get() = disconnected
+
     public val clientId: String?
         get() = initializeRequest?.clientId
 
@@ -216,12 +231,14 @@ public class DapSession(
 
     public fun initialize(request: DapInitializeRequest): DapInitializeResponse {
         initialized = true
+        disconnected = false
         initializeRequest = request
         return DapInitializeResponse(capabilities)
     }
 
     public fun launch(request: DapLaunchRequest): DapLaunchResponse {
         require(request.program.isNotBlank()) { "launch program must not be blank" }
+        disconnected = false
         debugMode = DapDebugMode.Launch
         launchRequest = request
         attachRequest = null
@@ -231,10 +248,22 @@ public class DapSession(
     public fun attach(request: DapAttachRequest): DapAttachResponse {
         val target = request.targetDescription()
         require(target.isNotBlank()) { "attach requires processId or host and port" }
+        disconnected = false
         debugMode = DapDebugMode.Attach
         attachRequest = request
         launchRequest = null
         return DapAttachResponse(attached = true, target = target)
+    }
+
+    public fun disconnect(request: DapDisconnectRequest = DapDisconnectRequest()): DapDisconnectResponse {
+        disconnected = true
+        configured = false
+        debugController.resume()
+        return DapDisconnectResponse(
+            disconnected = true,
+            restart = request.restart,
+            terminateDebuggee = request.terminateDebuggee,
+        )
     }
 
     public fun setBreakpoints(request: DapSetBreakpointsRequest): DapSetBreakpointsResponse {
@@ -341,6 +370,7 @@ public class DapSession(
             "initialize" -> initialize(request.argumentsAs())
             "launch" -> launch(request.argumentsAs())
             "attach" -> attach(request.argumentsAs())
+            "disconnect" -> disconnect(request.argumentsAs())
             "setBreakpoints" -> setBreakpoints(request.argumentsAs())
             "configurationDone" -> configurationDone()
             "continue" -> continueExecution()

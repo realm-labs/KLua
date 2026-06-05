@@ -62,6 +62,7 @@ public class DapWireSession(
             "initialize" -> argumentsObject().toInitializeRequest()
             "launch" -> argumentsObject().toLaunchRequest()
             "attach" -> argumentsObject().toAttachRequest()
+            "disconnect" -> argumentsObjectOrNull()?.toDisconnectRequest() ?: DapDisconnectRequest()
             "setBreakpoints" -> argumentsObject().toSetBreakpointsRequest()
             "configurationDone", "continue", "pause", "stepIn", "threads" -> null
             "next", "stepOut" -> DapStepRequest(argumentsObjectOrNull()?.optionalInt("callDepth") ?: 0)
@@ -107,6 +108,13 @@ private fun DapJsonObject.toAttachRequest(): DapAttachRequest {
         processId = optionalInt("processId"),
         host = optionalString("host"),
         port = optionalInt("port"),
+    )
+}
+
+private fun DapJsonObject.toDisconnectRequest(): DapDisconnectRequest {
+    return DapDisconnectRequest(
+        restart = optionalBoolean("restart") ?: false,
+        terminateDebuggee = optionalBoolean("terminateDebuggee") ?: false,
     )
 }
 
@@ -159,6 +167,13 @@ private fun Any?.toDapJson(): DapJsonValue? {
             linkedMapOf(
                 "attached" to DapJsonBoolean(attached),
                 "target" to DapJsonString(target),
+            ),
+        )
+        is DapDisconnectResponse -> DapJsonObject(
+            linkedMapOf(
+                "disconnected" to DapJsonBoolean(disconnected),
+                "restart" to DapJsonBoolean(restart),
+                "terminateDebuggee" to DapJsonBoolean(terminateDebuggee),
             ),
         )
         is DapSetBreakpointsResponse -> DapJsonObject(
