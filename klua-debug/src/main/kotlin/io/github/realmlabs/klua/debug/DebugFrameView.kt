@@ -11,9 +11,31 @@ public data class DebugFrameView(
     public val lastLineDefined: Int = 0,
     public val locals: List<DebugVariable> = emptyList(),
 ) {
+    public fun scopes(): List<DebugScopeView> {
+        return listOf(DebugScopeView.locals(locals))
+    }
+
     public companion object {
         public fun fromLuaFrames(frames: List<LuaStackFrame>): List<DebugFrameView> {
             return frames.mapIndexed { index, frame -> frame.toDebugFrameView(index) }
+        }
+    }
+}
+
+public enum class DebugScopeKind {
+    LOCALS,
+    UPVALUES,
+    GLOBALS,
+}
+
+public data class DebugScopeView(
+    public val name: String,
+    public val kind: DebugScopeKind,
+    public val variables: List<DebugVariable>,
+) {
+    public companion object {
+        public fun locals(variables: List<DebugVariable>): DebugScopeView {
+            return DebugScopeView("Locals", DebugScopeKind.LOCALS, variables)
         }
     }
 }

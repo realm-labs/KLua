@@ -43,6 +43,34 @@ class DebugFrameViewTest {
     }
 
     @Test
+    fun `scopes exposes frame locals as a locals scope`() {
+        val frame = LuaStackFrame(
+            sourceName = "main.lua",
+            line = 4,
+            locals = listOf(
+                LuaLocalVariable("left", 1L),
+                LuaLocalVariable("right", 2L),
+            ),
+        ).toDebugFrameView(0)
+
+        val scopes = frame.scopes()
+
+        assertEquals(
+            listOf(
+                DebugScopeView(
+                    name = "Locals",
+                    kind = DebugScopeKind.LOCALS,
+                    variables = listOf(
+                        DebugVariable("left", 1L, "number", "1"),
+                        DebugVariable("right", 2L, "number", "2"),
+                    ),
+                ),
+            ),
+            scopes,
+        )
+    }
+
+    @Test
     fun `toDebugVariable renders supported debugger value summaries`() {
         val hostValue = HostValue()
         val values = listOf(
