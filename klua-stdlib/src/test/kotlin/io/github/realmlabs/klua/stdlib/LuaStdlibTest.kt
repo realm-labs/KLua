@@ -491,6 +491,21 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook rejects invalid hook masks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return debug.sethook(function() end, "x", 0)""", "debug-sethook-mask-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'debug.sethook' (invalid hook mask)", state.toString(-1))
+    }
+
+    @Test
     fun `package searchpath returns first readable template match`() {
         val root = Files.createTempDirectory("klua-searchpath")
         Files.createDirectories(root.resolve("alpha"))

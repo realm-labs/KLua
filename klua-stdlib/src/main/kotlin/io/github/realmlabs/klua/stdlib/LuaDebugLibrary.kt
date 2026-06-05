@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
+import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaStackFrame
 import io.github.realmlabs.klua.api.LuaState
 
@@ -101,6 +102,9 @@ internal object LuaDebugLibrary {
 
     private fun setHook(context: LuaCallContext): LuaReturn {
         val mask = context.toString(2) ?: ""
+        if (mask.any { event -> event !in "crl" }) {
+            throw LuaRuntimeException("bad argument #2 to 'debug.sethook' (invalid hook mask)")
+        }
         val count = context.toInteger(3)?.toInt() ?: 0
         context.setDebugHook(1, mask, count)
         return LuaReturn.of()
