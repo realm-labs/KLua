@@ -19,7 +19,7 @@ class CompilerTest {
 
         assertEquals("return-int.lua", prototype.sourceName)
         assertEquals("return-int.lua", prototype.sourceId)
-        assertEquals(LuaSourceVersion.LUA_54, prototype.version)
+        assertEquals(LuaSourceVersion.LUA_55, prototype.version)
         assertEquals("return-int.lua", prototype.debugInfo.sourceName)
         assertEquals("return-int.lua", prototype.debugInfo.sourceId)
         assertContentEquals(intArrayOf(1, 1), prototype.debugInfo.lineByPc)

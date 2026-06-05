@@ -47,14 +47,12 @@ import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.bytecode.UpvalueDescriptor
 import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import io.github.realmlabs.klua.core.parser.Parser
-import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaString
 
 internal class Compiler private constructor(
     private val sourceName: String,
-    private val version: LuaSourceVersion,
     private val isVarargFunction: Boolean = false,
     private val parentLocalResolver: ((String) -> Int?)? = null,
     private val parentUpvalueResolver: ((String) -> Int?)? = null,
@@ -85,7 +83,6 @@ internal class Compiler private constructor(
 
         return Prototype(
             sourceName = sourceName,
-            version = version,
             code = writer.code(),
             constants = constants.toArray(),
             nested = nested.toTypedArray(),
@@ -666,7 +663,6 @@ internal class Compiler private constructor(
     private fun compileNestedFunction(expression: FunctionExpression): Prototype {
         val compiler = Compiler(
             sourceName = sourceName,
-            version = version,
             isVarargFunction = expression.isVararg,
             parentLocalResolver = { name -> locals[name] },
             parentUpvalueResolver = { name -> resolveUpvalue(name) },
@@ -687,7 +683,6 @@ internal class Compiler private constructor(
         }
         return Prototype(
             sourceName = sourceName,
-            version = version,
             code = compiler.writer.code(),
             constants = compiler.constants.toArray(),
             nested = compiler.nested.toTypedArray(),
@@ -1008,11 +1003,10 @@ internal class Compiler private constructor(
         fun compile(
             source: String,
             sourceName: String = "chunk",
-            version: LuaSourceVersion = LuaSourceVersion.LUA_54,
             isVarargChunk: Boolean = false,
         ): Prototype {
             val chunk = Parser.parse(source, sourceName)
-            return Compiler(sourceName, version, isVarargFunction = isVarargChunk).compile(chunk)
+            return Compiler(sourceName, isVarargFunction = isVarargChunk).compile(chunk)
         }
     }
 }

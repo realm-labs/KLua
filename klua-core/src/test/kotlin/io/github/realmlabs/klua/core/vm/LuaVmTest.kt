@@ -5,7 +5,6 @@ import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.compiler.Compiler
-import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
@@ -83,7 +82,6 @@ class LuaVmTest {
     fun `executes move opcode`() {
         val prototype = Prototype(
             sourceName = "move.lua",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.MOVE, 1, 0),
@@ -1037,7 +1035,6 @@ class LuaVmTest {
     fun `rejects missing return`() {
         val prototype = Prototype(
             sourceName = "broken.lua",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(Instruction.abc(Opcode.LOAD_NIL, 0)),
             constants = emptyArray(),
             lineInfo = intArrayOf(1),
@@ -1055,7 +1052,6 @@ class LuaVmTest {
     fun `rejects invalid constant index`() {
         val prototype = Prototype(
             sourceName = "bad-constant.lua",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(Instruction.abc(Opcode.LOAD_K, 0, 0)),
             constants = emptyArray(),
             lineInfo = intArrayOf(1),

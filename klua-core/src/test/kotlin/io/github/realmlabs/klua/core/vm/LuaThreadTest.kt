@@ -1,7 +1,6 @@
 package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.Prototype
-import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaValue
@@ -128,7 +127,6 @@ class LuaThreadTest {
     ): Prototype {
         return Prototype(
             sourceName = sourceName,
-            version = LuaSourceVersion.LUA_54,
             code = IntArray(0),
             constants = emptyArray<LuaValue>(),
             maxStackSize = maxStackSize,

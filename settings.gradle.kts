@@ -16,7 +16,6 @@ rootProject.name = "KLua"
 
 include(
     "klua-api",
-    "klua-compat",
     "klua-core",
     "klua-dap",
     "klua-debug",

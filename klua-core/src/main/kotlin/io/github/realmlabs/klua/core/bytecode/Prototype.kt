@@ -5,7 +5,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal data class Prototype(
     val sourceName: String,
-    val version: LuaSourceVersion,
+    val version: LuaSourceVersion = LuaSourceVersion.LUA_55,
     val code: IntArray,
     val constants: Array<LuaValue>,
     val nested: Array<Prototype> = emptyArray(),

@@ -3,7 +3,6 @@ package io.github.realmlabs.klua.core.vm
 import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
-import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaInteger
@@ -755,7 +754,6 @@ class LuaVmMetamethodOperatorTest {
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.MOVE, 0, 1),
                 Instruction.abc(Opcode.RETURN, 0, 1),
@@ -770,7 +768,6 @@ class LuaVmMetamethodOperatorTest {
     private fun returnConstantPrototype(value: LuaValue): Prototype {
         return Prototype(
             sourceName = "metamethod",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.RETURN, 0, 1),
@@ -789,7 +786,6 @@ class LuaVmMetamethodOperatorTest {
     private fun tableArithmeticPrototype(opcode: Opcode, left: LuaValue, right: LuaValue): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.LOAD_K, 1, 1),
@@ -805,7 +801,6 @@ class LuaVmMetamethodOperatorTest {
     private fun tableComparePrototype(opcode: Opcode, left: LuaValue, right: LuaValue): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.LOAD_K, 1, 1),
@@ -821,7 +816,6 @@ class LuaVmMetamethodOperatorTest {
     private fun tableConcatPrototype(left: LuaValue, right: LuaValue): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.LOAD_K, 1, 1),
@@ -837,7 +831,6 @@ class LuaVmMetamethodOperatorTest {
     private fun tableUnaryPrototype(opcode: Opcode, value: LuaValue): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(opcode, 0, 0),

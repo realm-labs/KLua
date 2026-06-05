@@ -3,7 +3,6 @@ package io.github.realmlabs.klua.core.vm
 import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
-import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
@@ -160,7 +159,6 @@ class LuaVmMetatableTest {
     private fun returnSecondArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.MOVE, 0, 1),
                 Instruction.abc(Opcode.RETURN, 0, 1),
@@ -175,7 +173,6 @@ class LuaVmMetatableTest {
     private fun returnConstantPrototype(value: LuaValue): Prototype {
         return Prototype(
             sourceName = "metamethod",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.RETURN, 0, 1),
@@ -190,7 +187,6 @@ class LuaVmMetatableTest {
     private fun returnSelfAndFirstArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.RETURN, 0, 2),
             ),
@@ -204,7 +200,6 @@ class LuaVmMetatableTest {
     private fun storeThirdArgumentPrototype(): Prototype {
         return Prototype(
             sourceName = "metamethod",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.GET_UPVALUE, 3, 0),
                 Instruction.abc(Opcode.SET_TABLE, 3, 1, 2),
@@ -220,7 +215,6 @@ class LuaVmMetatableTest {
     private fun tableFieldReadPrototype(table: LuaTable, field: String): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.GET_FIELD, 1, 0, 1),
@@ -235,7 +229,6 @@ class LuaVmMetatableTest {
     private fun tableCallPrototype(table: LuaTable, argument: LuaValue, resultCount: Int): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.LOAD_K, 1, 1),
@@ -251,7 +244,6 @@ class LuaVmMetatableTest {
     private fun tableLengthPrototype(table: LuaTable): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.LEN, 0, 0),
@@ -266,7 +258,6 @@ class LuaVmMetatableTest {
     private fun tableFieldWritePrototype(table: LuaTable, field: String, value: LuaValue): Prototype {
         return Prototype(
             sourceName = "metatable-test",
-            version = LuaSourceVersion.LUA_54,
             code = intArrayOf(
                 Instruction.abc(Opcode.LOAD_K, 0, 0),
                 Instruction.abc(Opcode.LOAD_K, 1, 2),

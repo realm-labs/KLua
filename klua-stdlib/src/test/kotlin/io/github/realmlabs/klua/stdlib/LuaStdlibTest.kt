@@ -5,7 +5,6 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaStatus
-import io.github.realmlabs.klua.api.LuaVersion
 import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.withContinuation
@@ -49,20 +48,13 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `openBase installs version global from state config`() {
+    fun `openBase installs lua 55 version global`() {
         val defaultState = LuaState.create()
         LuaStdlib.openBase(defaultState)
 
         assertEquals(LuaStatus.OK, defaultState.load("""return _VERSION""", "version-default.lua"))
         assertEquals(LuaStatus.OK, defaultState.pcall(0, -1))
-        assertEquals("Lua 5.4", defaultState.toString(1))
-
-        val luaJitState = LuaState.create(LuaConfig(version = LuaVersion.LUAJIT_21))
-        LuaStdlib.openBase(luaJitState)
-
-        assertEquals(LuaStatus.OK, luaJitState.load("""return _VERSION""", "version-luajit.lua"))
-        assertEquals(LuaStatus.OK, luaJitState.pcall(0, -1))
-        assertEquals("LuaJIT 2.1", luaJitState.toString(1))
+        assertEquals("Lua 5.5", defaultState.toString(1))
     }
 
     @Test

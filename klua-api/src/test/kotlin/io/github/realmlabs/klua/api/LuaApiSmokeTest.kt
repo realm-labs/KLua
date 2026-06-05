@@ -5,12 +5,13 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class LuaApiSmokeTest {
     @Test
-    fun `state and facade default to lua 54`() {
-        assertEquals(LuaVersion.LUA_54, LuaState.create().config.version)
-        assertEquals(LuaVersion.LUA_54, Lua.create().config.version)
+    fun `state and facade use default config`() {
+        assertTrue(LuaState.create().config.debugEnabled)
+        assertTrue(Lua.create().config.debugEnabled)
     }
 
     @Test
