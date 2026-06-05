@@ -31,7 +31,9 @@ public object LuaStdlib {
         openUtf8(state)
         openCoroutine(state)
         openPackage(state)
-        openDebug(state)
+        if (state.config.debugEnabled) {
+            openDebug(state)
+        }
         return state
     }
 

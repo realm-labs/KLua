@@ -11,6 +11,7 @@ object LuaProfiles {
     fun lua54(): LuaConfig = LuaConfig(LuaVersion.LUA_54)
     fun lua55(): LuaConfig = LuaConfig(LuaVersion.LUA_55)
     fun luajit21(): LuaConfig = LuaConfig(LuaVersion.LUAJIT_21)
+    fun production(): LuaConfig = LuaConfig(version = LuaVersion.LUA_54, debugEnabled = false)
 }
 
 object Lua54Profile : LuaVersionProfile {

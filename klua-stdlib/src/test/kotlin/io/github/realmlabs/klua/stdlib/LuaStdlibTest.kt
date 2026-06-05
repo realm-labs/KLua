@@ -1,8 +1,8 @@
 package io.github.realmlabs.klua.stdlib
 
-import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaConfig
 import io.github.realmlabs.klua.api.LuaReturn
+import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.api.LuaStatus
 import io.github.realmlabs.klua.api.LuaVersion
@@ -150,6 +150,26 @@ class LuaStdlibTest {
         assertEquals("Lua", state.toString(12))
         assertEquals("debug-openlibs.lua", state.toString(13))
         assertEquals(1L, state.toInteger(14))
+    }
+
+    @Test
+    fun `openLibs skips debug library when disabled in config`() {
+        val state = LuaState.create(LuaConfig(debugEnabled = false))
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                "return type(debug), type(math), type(string), type(table)",
+                "debug-disabled-openlibs.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("nil", state.toString(1))
+        assertEquals("table", state.toString(2))
+        assertEquals("table", state.toString(3))
+        assertEquals("table", state.toString(4))
     }
 
     @Test
