@@ -60,6 +60,49 @@ class DapSessionTest {
     }
 
     @Test
+    fun `launch records launch mode and target program`() {
+        val session = DapSession()
+
+        val response = session.launch(
+            DapLaunchRequest(
+                program = "scripts/main.lua",
+                cwd = "/workspace",
+                args = listOf("one", "two"),
+                stopOnEntry = true,
+            ),
+        )
+
+        assertEquals(DapLaunchResponse(launched = true, program = "scripts/main.lua"), response)
+        assertEquals(DapDebugMode.Launch, session.mode)
+        assertEquals("scripts/main.lua", session.launchedProgram)
+        assertEquals(null, session.attachTarget)
+    }
+
+    @Test
+    fun `attach records attach mode and target`() {
+        val session = DapSession()
+
+        val response = session.attach(DapAttachRequest(host = "127.0.0.1", port = 8172))
+
+        assertEquals(DapAttachResponse(attached = true, target = "127.0.0.1:8172"), response)
+        assertEquals(DapDebugMode.Attach, session.mode)
+        assertEquals("127.0.0.1:8172", session.attachTarget)
+        assertEquals(null, session.launchedProgram)
+    }
+
+    @Test
+    fun `launch and attach validate required targets`() {
+        val session = DapSession()
+
+        assertFailsWith<IllegalArgumentException> {
+            session.launch(DapLaunchRequest(program = " "))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            session.attach(DapAttachRequest())
+        }
+    }
+
+    @Test
     fun `setBreakpoints replaces source breakpoints and returns verified DAP breakpoints`() {
         val session = DapSession()
         val source = DapSource(path = "main.lua", name = "main.lua")
@@ -366,7 +409,7 @@ class DapSessionTest {
         val session = DapSession()
 
         assertFailsWith<IllegalArgumentException> {
-            session.handle(DapCommandRequest(command = "launch"))
+            session.handle(DapCommandRequest(command = "restart"))
         }
         assertFailsWith<IllegalArgumentException> {
             session.handle(DapCommandRequest(command = "initialize"))

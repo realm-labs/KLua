@@ -108,6 +108,71 @@ class DapWireSessionTest {
     }
 
     @Test
+    fun `handle routes JSON launch arguments to session`() {
+        val session = DapSession()
+        val wireSession = DapWireSession(session)
+
+        val response = wireSession.handle(
+            DapRequestMessage(
+                seq = 4,
+                command = "launch",
+                arguments = DapJsonObject(
+                    linkedMapOf(
+                        "program" to DapJsonString("scripts/main.lua"),
+                        "cwd" to DapJsonString("/workspace"),
+                        "args" to DapJsonArray(listOf(DapJsonString("one"), DapJsonString("two"))),
+                        "stopOnEntry" to DapJsonBoolean(true),
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(response.success)
+        assertEquals(DapDebugMode.Launch, session.mode)
+        assertEquals("scripts/main.lua", session.launchedProgram)
+        assertEquals(
+            DapJsonObject(
+                linkedMapOf(
+                    "launched" to DapJsonBoolean(true),
+                    "program" to DapJsonString("scripts/main.lua"),
+                ),
+            ),
+            response.body,
+        )
+    }
+
+    @Test
+    fun `handle routes JSON attach arguments to session`() {
+        val session = DapSession()
+        val wireSession = DapWireSession(session)
+
+        val response = wireSession.handle(
+            DapRequestMessage(
+                seq = 5,
+                command = "attach",
+                arguments = DapJsonObject(
+                    linkedMapOf(
+                        "processId" to DapJsonNumber(1201.0),
+                    ),
+                ),
+            ),
+        )
+
+        assertTrue(response.success)
+        assertEquals(DapDebugMode.Attach, session.mode)
+        assertEquals("process:1201", session.attachTarget)
+        assertEquals(
+            DapJsonObject(
+                linkedMapOf(
+                    "attached" to DapJsonBoolean(true),
+                    "target" to DapJsonString("process:1201"),
+                ),
+            ),
+            response.body,
+        )
+    }
+
+    @Test
     fun `handleJson parses request and serializes response`() {
         val wireSession = DapWireSession(
             DapSession(
@@ -141,5 +206,20 @@ class DapWireSessionTest {
         assertEquals(11, response.requestSeq)
         assertEquals("initialize", response.command)
         assertEquals("command initialize requires JSON object arguments", response.message)
+    }
+
+    @Test
+    fun `handle returns failed response envelope for invalid attach target`() {
+        val response = DapWireSession().handle(
+            DapRequestMessage(
+                seq = 12,
+                command = "attach",
+                arguments = DapJsonObject(emptyMap()),
+            ),
+        )
+
+        assertFalse(response.success)
+        assertEquals("attach", response.command)
+        assertEquals("attach requires processId or host and port", response.message)
     }
 }

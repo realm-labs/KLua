@@ -30,6 +30,35 @@ public data class DapInitializeResponse(
     public val capabilities: DapCapabilities,
 )
 
+public enum class DapDebugMode {
+    None,
+    Launch,
+    Attach,
+}
+
+public data class DapLaunchRequest(
+    public val program: String,
+    public val cwd: String? = null,
+    public val args: List<String> = emptyList(),
+    public val stopOnEntry: Boolean = false,
+)
+
+public data class DapLaunchResponse(
+    public val launched: Boolean,
+    public val program: String,
+)
+
+public data class DapAttachRequest(
+    public val processId: Int? = null,
+    public val host: String? = null,
+    public val port: Int? = null,
+)
+
+public data class DapAttachResponse(
+    public val attached: Boolean,
+    public val target: String,
+)
+
 public data class DapSource(
     public val path: String,
     public val name: String? = null,
@@ -158,7 +187,10 @@ public class DapSession(
 ) {
     private var initialized = false
     private var configured = false
+    private var debugMode = DapDebugMode.None
     private var initializeRequest: DapInitializeRequest? = null
+    private var launchRequest: DapLaunchRequest? = null
+    private var attachRequest: DapAttachRequest? = null
     private var nextFrameId = 1
     private var nextVariablesReference = 1
     private val framesById = linkedMapOf<Int, DebugFrameView>()
@@ -173,10 +205,36 @@ public class DapSession(
     public val clientId: String?
         get() = initializeRequest?.clientId
 
+    public val mode: DapDebugMode
+        get() = debugMode
+
+    public val launchedProgram: String?
+        get() = launchRequest?.program
+
+    public val attachTarget: String?
+        get() = attachRequest?.targetDescription()
+
     public fun initialize(request: DapInitializeRequest): DapInitializeResponse {
         initialized = true
         initializeRequest = request
         return DapInitializeResponse(capabilities)
+    }
+
+    public fun launch(request: DapLaunchRequest): DapLaunchResponse {
+        require(request.program.isNotBlank()) { "launch program must not be blank" }
+        debugMode = DapDebugMode.Launch
+        launchRequest = request
+        attachRequest = null
+        return DapLaunchResponse(launched = true, program = request.program)
+    }
+
+    public fun attach(request: DapAttachRequest): DapAttachResponse {
+        val target = request.targetDescription()
+        require(target.isNotBlank()) { "attach requires processId or host and port" }
+        debugMode = DapDebugMode.Attach
+        attachRequest = request
+        launchRequest = null
+        return DapAttachResponse(attached = true, target = target)
     }
 
     public fun setBreakpoints(request: DapSetBreakpointsRequest): DapSetBreakpointsResponse {
@@ -281,6 +339,8 @@ public class DapSession(
     public fun handle(request: DapCommandRequest): DapCommandResponse {
         val body = when (request.command) {
             "initialize" -> initialize(request.argumentsAs())
+            "launch" -> launch(request.argumentsAs())
+            "attach" -> attach(request.argumentsAs())
             "setBreakpoints" -> setBreakpoints(request.argumentsAs())
             "configurationDone" -> configurationDone()
             "continue" -> continueExecution()
@@ -360,6 +420,12 @@ private fun Breakpoint.toDapBreakpoint(source: DapSource): DapBreakpoint {
 private inline fun <reified T : Any> DapCommandRequest.argumentsAs(): T {
     return arguments as? T
         ?: throw IllegalArgumentException("command $command requires ${T::class.java.simpleName} arguments")
+}
+
+private fun DapAttachRequest.targetDescription(): String {
+    if (processId != null) return "process:$processId"
+    if (!host.isNullOrBlank() && port != null) return "$host:$port"
+    return ""
 }
 
 private sealed class VariableReference {

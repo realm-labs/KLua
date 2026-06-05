@@ -37,6 +37,8 @@ public class DapWireSession(
     private fun DapRequestMessage.toCommandRequest(): DapCommandRequest {
         val arguments = when (command) {
             "initialize" -> argumentsObject().toInitializeRequest()
+            "launch" -> argumentsObject().toLaunchRequest()
+            "attach" -> argumentsObject().toAttachRequest()
             "setBreakpoints" -> argumentsObject().toSetBreakpointsRequest()
             "configurationDone", "continue", "pause", "stepIn", "threads" -> null
             "next", "stepOut" -> DapStepRequest(argumentsObjectOrNull()?.optionalInt("callDepth") ?: 0)
@@ -65,6 +67,23 @@ private fun DapJsonObject.toInitializeRequest(): DapInitializeRequest {
         adapterId = optionalString("adapterID") ?: optionalString("adapterId") ?: "klua",
         linesStartAt1 = optionalBoolean("linesStartAt1") ?: true,
         columnsStartAt1 = optionalBoolean("columnsStartAt1") ?: true,
+    )
+}
+
+private fun DapJsonObject.toLaunchRequest(): DapLaunchRequest {
+    return DapLaunchRequest(
+        program = requiredString("program"),
+        cwd = optionalString("cwd"),
+        args = optionalStringArray("args") ?: emptyList(),
+        stopOnEntry = optionalBoolean("stopOnEntry") ?: false,
+    )
+}
+
+private fun DapJsonObject.toAttachRequest(): DapAttachRequest {
+    return DapAttachRequest(
+        processId = optionalInt("processId"),
+        host = optionalString("host"),
+        port = optionalInt("port"),
     )
 }
 
@@ -107,6 +126,18 @@ private fun Any?.toDapJson(): DapJsonValue? {
         null -> null
         is DapInitializeResponse -> DapJsonObject(linkedMapOf("capabilities" to capabilities.toDapJson()))
         is DapCapabilities -> toDapJson()
+        is DapLaunchResponse -> DapJsonObject(
+            linkedMapOf(
+                "launched" to DapJsonBoolean(launched),
+                "program" to DapJsonString(program),
+            ),
+        )
+        is DapAttachResponse -> DapJsonObject(
+            linkedMapOf(
+                "attached" to DapJsonBoolean(attached),
+                "target" to DapJsonString(target),
+            ),
+        )
         is DapSetBreakpointsResponse -> DapJsonObject(
             linkedMapOf("breakpoints" to DapJsonArray(breakpoints.map { breakpoint -> breakpoint.toDapJson() })),
         )
@@ -238,6 +269,13 @@ private fun DapJsonObject.optionalArray(name: String): DapJsonArray? {
     val value = properties[name] ?: return null
     return value as? DapJsonArray
         ?: throw IllegalArgumentException("expected array property: $name")
+}
+
+private fun DapJsonObject.optionalStringArray(name: String): List<String>? {
+    return optionalArray(name)?.values?.mapIndexed { index, value ->
+        (value as? DapJsonString)?.value
+            ?: throw IllegalArgumentException("expected string element in $name at index $index")
+    }
 }
 
 private fun DapJsonObject.requiredString(name: String): String {
