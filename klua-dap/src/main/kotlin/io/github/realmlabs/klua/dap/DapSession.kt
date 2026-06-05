@@ -4,6 +4,9 @@ import io.github.realmlabs.klua.debug.Breakpoint
 import io.github.realmlabs.klua.debug.BreakpointManager
 import io.github.realmlabs.klua.debug.BreakpointRequest
 import io.github.realmlabs.klua.debug.DebugController
+import io.github.realmlabs.klua.debug.DebugFrameView
+import io.github.realmlabs.klua.debug.DebugScopeView
+import io.github.realmlabs.klua.debug.DebugVariable
 import io.github.realmlabs.klua.debug.StepMode
 
 public data class DapInitializeRequest(
@@ -69,6 +72,40 @@ public data class DapStepResponse(
     public val stepMode: StepMode,
 )
 
+public data class DapStackFrame(
+    public val id: Int,
+    public val name: String,
+    public val source: DapSource,
+    public val line: Int,
+    public val column: Int = 1,
+)
+
+public data class DapStackTraceResponse(
+    public val stackFrames: List<DapStackFrame>,
+    public val totalFrames: Int,
+)
+
+public data class DapScope(
+    public val name: String,
+    public val variablesReference: Int,
+    public val expensive: Boolean = false,
+)
+
+public data class DapScopesResponse(
+    public val scopes: List<DapScope>,
+)
+
+public data class DapVariable(
+    public val name: String,
+    public val value: String,
+    public val type: String,
+    public val variablesReference: Int = 0,
+)
+
+public data class DapVariablesResponse(
+    public val variables: List<DapVariable>,
+)
+
 public class DapSession(
     private val capabilities: DapCapabilities = DapCapabilities(),
     private val breakpointManager: BreakpointManager = BreakpointManager(),
@@ -77,6 +114,10 @@ public class DapSession(
     private var initialized = false
     private var configured = false
     private var initializeRequest: DapInitializeRequest? = null
+    private var nextFrameId = 1
+    private var nextVariablesReference = 1
+    private val framesById = linkedMapOf<Int, DebugFrameView>()
+    private val variablesByReference = linkedMapOf<Int, VariableReference>()
 
     public val isInitialized: Boolean
         get() = initialized
@@ -139,12 +180,69 @@ public class DapSession(
         return DapStepResponse(debugController.currentStepMode())
     }
 
+    public fun stackTrace(frames: List<DebugFrameView>): DapStackTraceResponse {
+        framesById.clear()
+        val dapFrames = frames.map { frame ->
+            val id = nextFrameId++
+            framesById[id] = frame
+            DapStackFrame(
+                id = id,
+                name = frame.sourceName,
+                source = DapSource(path = frame.sourceName, name = frame.sourceName.substringAfterLast('/')),
+                line = frame.line,
+            )
+        }
+        return DapStackTraceResponse(dapFrames, dapFrames.size)
+    }
+
+    public fun scopes(frameId: Int): DapScopesResponse {
+        val frame = framesById[frameId] ?: return DapScopesResponse(emptyList())
+        val scopes = frame.scopes().map { scope ->
+            DapScope(
+                name = scope.name,
+                variablesReference = storeVariables(VariableReference.Scope(scope)),
+            )
+        }
+        return DapScopesResponse(scopes)
+    }
+
+    public fun variables(variablesReference: Int, start: Int = 0, count: Int = 50): DapVariablesResponse {
+        require(start >= 0) { "start must be non-negative: $start" }
+        require(count >= 0) { "count must be non-negative: $count" }
+        val reference = variablesByReference[variablesReference] ?: return DapVariablesResponse(emptyList())
+        val variables = when (reference) {
+            is VariableReference.Scope -> reference.scope.variables.drop(start).take(count)
+            is VariableReference.Variable -> reference.variable.childPage(start, count).variables
+        }
+        return DapVariablesResponse(variables.map { variable -> variable.toDapVariable() })
+    }
+
     public fun breakpointAt(sourceId: String, line: Int): Breakpoint? {
         return breakpointManager.breakpointAt(sourceId, line)
     }
 
     public fun currentStepMode(): StepMode {
         return debugController.currentStepMode()
+    }
+
+    private fun storeVariables(reference: VariableReference): Int {
+        val id = nextVariablesReference++
+        variablesByReference[id] = reference
+        return id
+    }
+
+    private fun DebugVariable.toDapVariable(): DapVariable {
+        val reference = if (typeName == "table") {
+            storeVariables(VariableReference.Variable(this))
+        } else {
+            0
+        }
+        return DapVariable(
+            name = name,
+            value = displayValue,
+            type = typeName,
+            variablesReference = reference,
+        )
     }
 }
 
@@ -155,4 +253,14 @@ private fun Breakpoint.toDapBreakpoint(source: DapSource): DapBreakpoint {
         line = line,
         condition = condition,
     )
+}
+
+private sealed class VariableReference {
+    data class Scope(
+        val scope: DebugScopeView,
+    ) : VariableReference()
+
+    data class Variable(
+        val variable: DebugVariable,
+    ) : VariableReference()
 }

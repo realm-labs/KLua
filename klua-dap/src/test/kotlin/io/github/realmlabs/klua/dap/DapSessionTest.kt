@@ -1,10 +1,13 @@
 package io.github.realmlabs.klua.dap
 
+import io.github.realmlabs.klua.debug.DebugFrameView
+import io.github.realmlabs.klua.debug.DebugVariable
 import io.github.realmlabs.klua.debug.StepMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertTrue
 
 class DapSessionTest {
@@ -135,5 +138,82 @@ class DapSessionTest {
         assertEquals(StepMode.Into, stepIn.stepMode)
         assertEquals(StepMode.Out(targetDepth = 2), stepOut.stepMode)
         assertEquals(StepMode.Out(targetDepth = 2), session.currentStepMode())
+    }
+
+    @Test
+    fun `stackTrace maps debug frames to DAP frames and scopes`() {
+        val session = DapSession()
+        val frames = listOf(
+            DebugFrameView(
+                level = 0,
+                sourceName = "scripts/main.lua",
+                line = 12,
+                locals = listOf(DebugVariable("answer", 42L, "number", "42")),
+            ),
+            DebugFrameView(level = 1, sourceName = "scripts/lib.lua", line = 4),
+        )
+
+        val stackTrace = session.stackTrace(frames)
+        val scopes = session.scopes(stackTrace.stackFrames[0].id)
+
+        assertEquals(2, stackTrace.totalFrames)
+        assertEquals(
+            DapStackFrame(
+                id = stackTrace.stackFrames[0].id,
+                name = "scripts/main.lua",
+                source = DapSource(path = "scripts/main.lua", name = "main.lua"),
+                line = 12,
+            ),
+            stackTrace.stackFrames[0],
+        )
+        assertNotEquals(stackTrace.stackFrames[0].id, stackTrace.stackFrames[1].id)
+        assertEquals(1, scopes.scopes.size)
+        assertEquals("Locals", scopes.scopes[0].name)
+        assertTrue(scopes.scopes[0].variablesReference > 0)
+    }
+
+    @Test
+    fun `variables returns scope variables and paged table children`() {
+        val session = DapSession()
+        val table = linkedMapOf<Any?, Any?>(
+            "name" to "KLua",
+            2L to 99L,
+        )
+        val stackTrace = session.stackTrace(
+            listOf(
+                DebugFrameView(
+                    level = 0,
+                    sourceName = "main.lua",
+                    line = 1,
+                    locals = listOf(
+                        DebugVariable("tableValue", table, "table", "table(2)"),
+                        DebugVariable("scalar", true, "boolean", "true"),
+                    ),
+                ),
+            ),
+        )
+        val localsReference = session.scopes(stackTrace.stackFrames[0].id).scopes[0].variablesReference
+
+        val locals = session.variables(localsReference, start = 0, count = 2)
+        val tableReference = locals.variables[0].variablesReference
+        val children = session.variables(tableReference, start = 1, count = 1)
+
+        assertEquals(
+            listOf(
+                DapVariable("tableValue", "table(2)", "table", variablesReference = tableReference),
+                DapVariable("scalar", "true", "boolean", variablesReference = 0),
+            ),
+            locals.variables,
+        )
+        assertTrue(tableReference > 0)
+        assertEquals(listOf(DapVariable("[2]", "99", "number")), children.variables)
+    }
+
+    @Test
+    fun `scopes and variables return empty responses for unknown references`() {
+        val session = DapSession()
+
+        assertEquals(DapScopesResponse(emptyList()), session.scopes(frameId = 99))
+        assertEquals(DapVariablesResponse(emptyList()), session.variables(variablesReference = 99))
     }
 }
