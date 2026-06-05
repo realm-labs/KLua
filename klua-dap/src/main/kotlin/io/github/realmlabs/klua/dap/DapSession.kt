@@ -106,6 +106,15 @@ public data class DapVariablesResponse(
     public val variables: List<DapVariable>,
 )
 
+public data class DapThread(
+    public val id: Int,
+    public val name: String,
+)
+
+public data class DapThreadsResponse(
+    public val threads: List<DapThread>,
+)
+
 public data class DapEvaluateRequest(
     public val expression: String,
     public val frameId: Int? = null,
@@ -122,12 +131,19 @@ public fun interface DapExpressionEvaluator {
     public fun evaluate(expression: String, frame: DebugFrameView?): DebugVariable
 }
 
+public fun interface DapThreadProvider {
+    public fun threads(): List<DapThread>
+}
+
 public class DapSession(
     private val capabilities: DapCapabilities = DapCapabilities(),
     private val breakpointManager: BreakpointManager = BreakpointManager(),
     private val debugController: DebugController = DebugController(breakpointManager),
     private val expressionEvaluator: DapExpressionEvaluator = DapExpressionEvaluator { _, _ ->
         DebugVariable("", null, "nil", "nil")
+    },
+    private val threadProvider: DapThreadProvider = DapThreadProvider {
+        listOf(DapThread(id = 1, name = "main"))
     },
 ) {
     private var initialized = false
@@ -246,6 +262,10 @@ public class DapSession(
             type = dapVariable.type,
             variablesReference = dapVariable.variablesReference,
         )
+    }
+
+    public fun threads(): DapThreadsResponse {
+        return DapThreadsResponse(threadProvider.threads())
     }
 
     public fun breakpointAt(sourceId: String, line: Int): Breakpoint? {

@@ -262,4 +262,33 @@ class DapSessionTest {
             session.evaluate(DapEvaluateRequest(expression = " "))
         }
     }
+
+    @Test
+    fun `threads returns default main thread`() {
+        val session = DapSession()
+
+        assertEquals(DapThreadsResponse(listOf(DapThread(id = 1, name = "main"))), session.threads())
+    }
+
+    @Test
+    fun `threads delegates to configured thread provider`() {
+        val session = DapSession(
+            threadProvider = DapThreadProvider {
+                listOf(
+                    DapThread(id = 1, name = "main"),
+                    DapThread(id = 2, name = "coroutine 2"),
+                )
+            },
+        )
+
+        assertEquals(
+            DapThreadsResponse(
+                listOf(
+                    DapThread(id = 1, name = "main"),
+                    DapThread(id = 2, name = "coroutine 2"),
+                ),
+            ),
+            session.threads(),
+        )
+    }
 }
