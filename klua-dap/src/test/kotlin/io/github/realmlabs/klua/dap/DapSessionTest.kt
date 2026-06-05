@@ -1,8 +1,10 @@
 package io.github.realmlabs.klua.dap
 
+import io.github.realmlabs.klua.debug.StepMode
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class DapSessionTest {
@@ -93,5 +95,45 @@ class DapSessionTest {
         assertEquals(null, session.breakpointAt("main.lua", 2))
         assertEquals(null, session.breakpointAt("main.lua", 4))
         assertEquals(6, session.breakpointAt("main.lua", 6)?.line)
+    }
+
+    @Test
+    fun `configurationDone marks session configured`() {
+        val session = DapSession()
+
+        val response = session.configurationDone()
+
+        assertTrue(response.configured)
+        assertTrue(session.isConfigured)
+    }
+
+    @Test
+    fun `pause and continue map to debug controller state`() {
+        val session = DapSession()
+
+        val pause = session.pause()
+
+        assertTrue(pause.paused)
+        assertEquals(StepMode.None, session.currentStepMode())
+
+        val next = session.next(callDepth = 2)
+        assertIs<StepMode.Over>(next.stepMode)
+        assertEquals(StepMode.Over(2), session.currentStepMode())
+
+        val continued = session.continueExecution()
+        assertTrue(continued.allThreadsContinued)
+        assertEquals(StepMode.None, session.currentStepMode())
+    }
+
+    @Test
+    fun `stepIn and stepOut map to debug controller step modes`() {
+        val session = DapSession()
+
+        val stepIn = session.stepIn()
+        val stepOut = session.stepOut(callDepth = 3)
+
+        assertEquals(StepMode.Into, stepIn.stepMode)
+        assertEquals(StepMode.Out(targetDepth = 2), stepOut.stepMode)
+        assertEquals(StepMode.Out(targetDepth = 2), session.currentStepMode())
     }
 }

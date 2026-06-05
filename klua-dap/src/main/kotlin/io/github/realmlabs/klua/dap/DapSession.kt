@@ -3,6 +3,8 @@ package io.github.realmlabs.klua.dap
 import io.github.realmlabs.klua.debug.Breakpoint
 import io.github.realmlabs.klua.debug.BreakpointManager
 import io.github.realmlabs.klua.debug.BreakpointRequest
+import io.github.realmlabs.klua.debug.DebugController
+import io.github.realmlabs.klua.debug.StepMode
 
 public data class DapInitializeRequest(
     public val clientId: String? = null,
@@ -51,15 +53,36 @@ public data class DapSetBreakpointsResponse(
     public val breakpoints: List<DapBreakpoint>,
 )
 
+public data class DapConfigurationDoneResponse(
+    public val configured: Boolean,
+)
+
+public data class DapContinueResponse(
+    public val allThreadsContinued: Boolean = true,
+)
+
+public data class DapPauseResponse(
+    public val paused: Boolean,
+)
+
+public data class DapStepResponse(
+    public val stepMode: StepMode,
+)
+
 public class DapSession(
     private val capabilities: DapCapabilities = DapCapabilities(),
     private val breakpointManager: BreakpointManager = BreakpointManager(),
+    private val debugController: DebugController = DebugController(breakpointManager),
 ) {
     private var initialized = false
+    private var configured = false
     private var initializeRequest: DapInitializeRequest? = null
 
     public val isInitialized: Boolean
         get() = initialized
+
+    public val isConfigured: Boolean
+        get() = configured
 
     public val clientId: String?
         get() = initializeRequest?.clientId
@@ -86,8 +109,42 @@ public class DapSession(
         )
     }
 
+    public fun configurationDone(): DapConfigurationDoneResponse {
+        configured = true
+        return DapConfigurationDoneResponse(configured = true)
+    }
+
+    public fun continueExecution(): DapContinueResponse {
+        debugController.resume()
+        return DapContinueResponse()
+    }
+
+    public fun pause(): DapPauseResponse {
+        debugController.pause()
+        return DapPauseResponse(paused = debugController.isPaused)
+    }
+
+    public fun next(callDepth: Int): DapStepResponse {
+        debugController.stepOver(callDepth)
+        return DapStepResponse(debugController.currentStepMode())
+    }
+
+    public fun stepIn(): DapStepResponse {
+        debugController.stepInto()
+        return DapStepResponse(debugController.currentStepMode())
+    }
+
+    public fun stepOut(callDepth: Int): DapStepResponse {
+        debugController.stepOut(callDepth)
+        return DapStepResponse(debugController.currentStepMode())
+    }
+
     public fun breakpointAt(sourceId: String, line: Int): Breakpoint? {
         return breakpointManager.breakpointAt(sourceId, line)
+    }
+
+    public fun currentStepMode(): StepMode {
+        return debugController.currentStepMode()
     }
 }
 
