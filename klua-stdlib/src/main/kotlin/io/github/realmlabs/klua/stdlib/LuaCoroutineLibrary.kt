@@ -152,8 +152,8 @@ internal object LuaCoroutineLibrary {
     private fun coroutineClose(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
         val coroutine = requiredCoroutine(context, 1, "coroutine.close")
         if (coroutine.status == CoroutineStatus.RUNNING) {
-            val status = if (coroutine.isMain || runtime.running == coroutine) "running" else "normal"
-            return LuaReturn.of(false, "cannot close $status coroutine")
+            val kind = if (isRunningCoroutine(coroutine, runtime)) "running" else "normal"
+            return LuaReturn.of(false, "cannot close $kind coroutine")
         }
         coroutine.status = CoroutineStatus.DEAD
         return LuaReturn.of(true)
@@ -172,10 +172,14 @@ internal object LuaCoroutineLibrary {
         return LuaReturn.of(
             when (coroutine.status) {
                 CoroutineStatus.SUSPENDED -> "suspended"
-                CoroutineStatus.RUNNING -> if (coroutine.isMain || runtime.running == coroutine) "running" else "normal"
+                CoroutineStatus.RUNNING -> if (isRunningCoroutine(coroutine, runtime)) "running" else "normal"
                 CoroutineStatus.DEAD -> "dead"
             },
         )
+    }
+
+    private fun isRunningCoroutine(coroutine: LuaCoroutine, runtime: CoroutineRuntime): Boolean {
+        return runtime.running == coroutine || coroutine.isMain && runtime.running == null
     }
 
     private fun coroutineWrap(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {

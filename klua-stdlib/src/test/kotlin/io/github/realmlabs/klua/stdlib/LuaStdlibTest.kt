@@ -2333,6 +2333,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine status reports main thread as normal inside resumed coroutine`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainThread = coroutine.running()
+                local beforeStatus = coroutine.status(mainThread)
+                local beforeCloseOk, beforeCloseMessage = coroutine.close(mainThread)
+                local co = coroutine.create(function()
+                    local running, isMain = coroutine.running()
+                    local mainStatus = coroutine.status(mainThread)
+                    local closeOk, closeMessage = coroutine.close(mainThread)
+                    return running ~= mainThread, isMain, mainStatus, closeOk, closeMessage
+                end)
+                local ok, differentThread, coroutineIsMain, duringStatus, duringCloseOk, duringCloseMessage =
+                    coroutine.resume(co)
+                return beforeStatus, beforeCloseOk, beforeCloseMessage,
+                    ok, differentThread, coroutineIsMain, duringStatus, duringCloseOk, duringCloseMessage,
+                    coroutine.status(mainThread)
+                """.trimIndent(),
+                "coroutine-main-status-normal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("running", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("cannot close running coroutine", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("normal", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("cannot close normal coroutine", state.toString(9))
+        assertEquals("running", state.toString(10))
+    }
+
+    @Test
     fun `type reports coroutine threads`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
