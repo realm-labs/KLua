@@ -2,6 +2,11 @@ package io.github.realmlabs.klua.dap
 
 import io.github.realmlabs.klua.debug.StepMode
 
+public data class DapWireExchange(
+    public val response: DapResponseMessage,
+    public val events: List<DapEventMessage> = emptyList(),
+)
+
 public class DapWireSession(
     private val session: DapSession = DapSession(),
 ) {
@@ -28,10 +33,28 @@ public class DapWireSession(
         }
     }
 
+    public fun handleExchange(request: DapRequestMessage): DapWireExchange {
+        val response = handle(request)
+        val events = if (response.success && request.command == "initialize") {
+            listOf(DapEventMessage(seq = nextSeq++, event = "initialized"))
+        } else {
+            emptyList()
+        }
+        return DapWireExchange(response, events)
+    }
+
     public fun handleJson(json: String): String {
         val message = DapProtocolCodec.parse(json)
         require(message is DapRequestMessage) { "expected DAP request message" }
         return DapProtocolCodec.stringify(handle(message))
+    }
+
+    public fun handleJsonExchange(json: String): List<String> {
+        val message = DapProtocolCodec.parse(json)
+        require(message is DapRequestMessage) { "expected DAP request message" }
+        val exchange = handleExchange(message)
+        return listOf(DapProtocolCodec.stringify(exchange.response)) +
+            exchange.events.map { event -> DapProtocolCodec.stringify(event) }
     }
 
     private fun DapRequestMessage.toCommandRequest(): DapCommandRequest {

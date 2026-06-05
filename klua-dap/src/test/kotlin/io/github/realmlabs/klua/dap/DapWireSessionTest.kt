@@ -48,6 +48,40 @@ class DapWireSessionTest {
     }
 
     @Test
+    fun `handleExchange emits initialized event after initialize response`() {
+        val wireSession = DapWireSession()
+
+        val exchange = wireSession.handleExchange(
+            DapRequestMessage(
+                seq = 8,
+                command = "initialize",
+                arguments = DapJsonObject(linkedMapOf("adapterID" to DapJsonString("klua"))),
+            ),
+        )
+
+        assertEquals(1, exchange.response.seq)
+        assertEquals(8, exchange.response.requestSeq)
+        assertEquals("initialize", exchange.response.command)
+        assertTrue(exchange.response.success)
+        assertEquals(listOf(DapEventMessage(seq = 2, event = "initialized")), exchange.events)
+    }
+
+    @Test
+    fun `handleJsonExchange serializes response and events`() {
+        val messages = DapWireSession().handleJsonExchange(
+            """{"seq":9,"type":"request","command":"initialize","arguments":{"adapterID":"klua"}}""",
+        )
+
+        assertEquals(
+            listOf(
+                """{"seq":1,"type":"response","request_seq":9,"success":true,"command":"initialize","body":{"capabilities":{"supportsConfigurationDoneRequest":true,"supportsConditionalBreakpoints":true,"supportsHitConditionalBreakpoints":false,"supportsEvaluateForHovers":false,"supportsStepBack":false,"supportsSetVariable":false}}}""",
+                """{"seq":2,"type":"event","event":"initialized"}""",
+            ),
+            messages,
+        )
+    }
+
+    @Test
     fun `handle routes JSON setBreakpoints arguments to session`() {
         val session = DapSession()
         val wireSession = DapWireSession(session)

@@ -42,8 +42,10 @@ public class DapMessageConnection(
     private val stream = DapMessageStream()
 
     public fun feed(bytes: ByteArray): List<ByteArray> {
-        return stream.feed(bytes).map { json ->
-            DapMessageTransport.frame(wireSession.handleJson(json))
+        return stream.feed(bytes).flatMap { json ->
+            wireSession.handleJsonExchange(json).map { responseJson ->
+                DapMessageTransport.frame(responseJson)
+            }
         }
     }
 }

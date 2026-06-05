@@ -93,4 +93,22 @@ class DapMessageTransportTest {
             responses,
         )
     }
+
+    @Test
+    fun `connection returns initialized event frame after initialize response`() {
+        val request = DapMessageTransport.frame(
+            """{"seq":1,"type":"request","command":"initialize","arguments":{"adapterID":"klua"}}""",
+        )
+        val responseStream = DapMessageStream()
+
+        val messages = DapMessageConnection().feed(request).flatMap { frame -> responseStream.feed(frame) }
+
+        assertEquals(
+            listOf(
+                """{"seq":1,"type":"response","request_seq":1,"success":true,"command":"initialize","body":{"capabilities":{"supportsConfigurationDoneRequest":true,"supportsConditionalBreakpoints":true,"supportsHitConditionalBreakpoints":false,"supportsEvaluateForHovers":false,"supportsStepBack":false,"supportsSetVariable":false}}}""",
+                """{"seq":2,"type":"event","event":"initialized"}""",
+            ),
+            messages,
+        )
+    }
 }
