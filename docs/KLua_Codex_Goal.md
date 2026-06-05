@@ -25,7 +25,7 @@ Update this prompt only when the execution rules in this document materially cha
 
 KLua is a greenfield pure Kotlin Lua runtime for JVM 17+. It should provide:
 
-- A Lua-compatible source runtime with Lua 5.4 as the first and default target.
+- A Lua 5.5 source runtime as the only supported language target.
 - A C-Lua-like low-level `LuaState` stack API.
 - An `mlua`-style high-level embedding API for Java and Kotlin users.
 - A clean internal bytecode compiler and interpreter before any JVM bytecode generation work.
@@ -39,7 +39,6 @@ Implementation starts clean. There is no requirement to preserve old project API
 - Keep stable Java-friendly public APIs in `klua-api`.
 - Keep Kotlin convenience APIs in `klua-kotlin`.
 - Keep standard libraries in `klua-stdlib`.
-- Keep version profiles and compatibility behavior in `klua-compat`.
 - Keep debugging internals in `klua-debug`.
 - Keep Debug Adapter Protocol integration in `klua-dap`.
 - Keep command-line tools in `klua-tools`.
@@ -73,16 +72,14 @@ Implementation starts clean. There is no requirement to preserve old project API
 - A file should have one main responsibility. Split by lexer/parser/compiler/VM/API/debug/stdlib behavior instead of creating broad utility files.
 - Prefer small package-private or internal helpers over shared global helpers when behavior belongs to one subsystem.
 
-## Compatibility Policy
+## Language Target Policy
 
-- Lua 5.4 is the first implementation target and the default runtime profile.
-- The long-term roadmap includes Lua 5.1, Lua 5.2, Lua 5.3, Lua 5.4, Lua 5.5, and LuaJIT-like profiles.
-- One `LuaState` owns exactly one `LuaVersionProfile`.
-- Do not mix chunks compiled for different source-language versions inside one `LuaState`.
+- Lua 5.5 is the only supported source-language target.
+- Do not add old-version compatibility profiles, flags, aliases, shims, or runtime selection APIs.
 - Do not support official PUC Lua `.luac` bytecode in v1.
-- Use one internal KLua bytecode format across profiles.
-- Store the source Lua version on compiled prototypes and bytecode packages.
-- Add version behavior through profiles and tests, not scattered ad hoc conditionals.
+- Use one internal KLua bytecode format.
+- Compiled prototypes and bytecode packages may carry a fixed internal Lua 5.5 marker for validation and diagnostics, but this must not become a public version-selection API.
+- Treat Lua 5.5 feature gaps as conformance work, not compatibility-profile work.
 
 ## Public API Concepts
 
@@ -92,8 +89,6 @@ These concepts should exist as the initial public API direction. Exact method si
 - `Lua`: high-level embedding facade.
 - `LuaChunk`: loaded source or bytecode chunk.
 - `LuaConfig`: runtime configuration.
-- `LuaVersion`: selected Lua source version.
-- `LuaVersionProfile`: lexer, parser, compiler, runtime, stdlib, and API behavior profile.
 - `LuaStatus`: non-throwing low-level call result.
 - `LuaException`: base structured exception type for high-level APIs.
 - `LuaReturn`: return values from host functions.
@@ -125,7 +120,7 @@ Follow this order unless a later task is strictly necessary to unblock an earlie
 18. M17 script packaging and bytecode loading.
 19. M18 sandbox and game-server limits.
 20. M19 benchmark-driven performance pass.
-21. M20 multi-version compatibility hardening.
+21. M20 Lua 5.5 conformance hardening.
 22. M21 v1.0 release.
 23. M22 optional JVM bytecode compiler.
 
@@ -145,28 +140,28 @@ Current implemented areas:
 - Lexer and parser for current supported Lua syntax.
 - AST model, compiler, internal bytecode, prototype model with a consolidated debug-info view and serialization-friendly snapshot hook covering source IDs, valid breakpoint line metadata, local variable debug ranges, upvalue name metadata, and function definition line ranges, plus constant pool and disassembler.
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and internal thread/yield/resume/dead-state plumbing.
-- Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, version/profile scaffolding, and JMH module baseline.
+- Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, single-target runtime configuration, and JMH module baseline.
 - Runtime errors preserve structured source-name, line, Lua call-frame metadata, registered global and userdata host/native call-frame metadata, and readable traceback strings from VM bytecode positions through core execution results, API runtime exceptions, and API coroutine runtime results, and host exceptions can survive as runtime error causes.
-- Partial `klua-stdlib` support with base, math, string, table, utf8, package, coroutine, and minimal debug library installers covered by focused Lua-source tests, with config-level debug-library opt-out for production-style profiles, including Lua-backed coroutine yield/resume, protected `pcall`/`xpcall` yield continuation, wrap/close/isyieldable behavior, main/normal coroutine status and close reporting, coroutine thread type/string reporting, host/native yield-boundary checks, Lua-frame-backed `debug.traceback`, level-based and function-value `debug.getinfo` source/currentline/function-definition metadata for Lua and host/native functions, level-based `debug.getlocal` local name/value inspection, `debug.setlocal` local mutation, `debug.getupvalue` closure upvalue inspection, `debug.setupvalue` closure upvalue mutation, and Lua-style `debug.sethook`/`debug.gethook` call/return/line/count hook support.
+- Partial `klua-stdlib` support with base, math, string, table, utf8, package, coroutine, and minimal debug library installers covered by focused Lua-source tests, with config-level debug-library opt-out for production-style configs, including Lua-backed coroutine yield/resume, protected `pcall`/`xpcall` yield continuation, wrap/close/isyieldable behavior, main/normal coroutine status and close reporting, coroutine thread type/string reporting, host/native yield-boundary checks, Lua-frame-backed `debug.traceback`, level-based and function-value `debug.getinfo` source/currentline/function-definition metadata for Lua and host/native functions, level-based `debug.getlocal` local name/value inspection, `debug.setlocal` local mutation, `debug.getupvalue` closure upvalue inspection, `debug.setupvalue` closure upvalue mutation, and Lua-style `debug.sethook`/`debug.gethook` call/return/line/count hook support.
 - Initial `klua-debug` source-line breakpoint manager for setting, replacing, source-wide replacement, clearing, listing, and enabled-hit lookup by source ID and line, public Lua stack-frame, local-variable, locals-scope, and paged table-variable debugger views with stable value summaries, opt-in userdata display adapters, and a small debug controller for pause, breakpoint, conditional-breakpoint, and step stop decisions.
 - Initial `klua-dap` typed session surface for initialize requests, launch/attach/disconnect lifecycle modes, advertised debugger capabilities, `setBreakpoints` source breakpoint replacement, `configurationDone`, pause/continue/step controls backed by the debug controller, thread listing, stackTrace/scopes/variables adapters over debug frame views, an expression-evaluation hook, transport-independent typed command routing, `Content-Length` framed JSON message transport primitives, a dependency-free JSON value parser/stringifier for DAP wire messages, generic DAP request/response/event protocol envelopes, a wire-session bridge from JSON request envelopes to typed DAP session responses, initialized-event emission, and chunked framed-request handling that emits framed response/event bytes.
 - Initial `klua-tools` CLI debugger runner core with `klua --debug <script.lua> [args...]` invocation parsing, command-loop entry wrapper, command parsing for `break`, `run`, `continue`, `next`, `step`, `out`, `bt`, `locals`, `print`, and `quit`, source breakpoint registration, public-API script execution, top-level expression evaluation, debug tooling documentation, and an example VS Code launch configuration.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
-- Focused parser, compiler, VM, API, Kotlin helper, compatibility, and foundation tests.
+- Focused parser, compiler, VM, API, Kotlin helper, conformance, and foundation tests.
 
 Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
-- Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.4 conformance coverage beyond the current Lua-backed and protected-call yield/resume paths.
+- Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.5 conformance coverage beyond the current Lua-backed and protected-call yield/resume paths.
 - Error handling, tracebacks, and debug metadata.
 - Debug hooks and source-level debugger.
 - DAP adapter and command-line/debug tooling.
 - Script packaging and KLua bytecode loading.
 - Sandbox and game-server execution limits.
 - Benchmark-driven performance pass.
-- Multi-version compatibility hardening.
+- Lua 5.5 conformance hardening.
 
 ## Completed Initial Proof Point
 
@@ -200,7 +195,7 @@ Every implemented feature should include the relevant tests:
 - Debug metadata tests where line, local, upvalue, or breakpoint data changes.
 - Java API tests for `klua-api`.
 - Kotlin API tests for `klua-kotlin`.
-- Profile-specific tests once multi-version support begins.
+- Lua 5.5 conformance tests for language and standard-library behavior.
 - JMH benchmarks only after correctness exists for hot paths.
 
 Minimum CI target after M0:
@@ -220,7 +215,7 @@ A feature is done only when:
 - It has focused tests at the parser, compiler, VM, API, or integration level as appropriate.
 - Errors include useful source context when the feature can fail at compile time or runtime.
 - The implementation follows the file-size and responsibility rules.
-- Any compatibility behavior is tied to a named profile or explicitly documented as Lua 5.4-only.
+- Behavior is implemented as Lua 5.5 semantics; deviations and incomplete Lua 5.5 features are documented as conformance gaps.
 
 ## Engineering Defaults
 
@@ -246,9 +241,8 @@ A feature is done only when:
 
 - The repository already contains working compiler, VM, API, Kotlin helper, userdata, and test slices.
 - This document is the operational execution brief and must stay aligned with the current repo state.
-- "No backward capability" means no legacy project API preservation.
-- It does not mean removing the planned Lua compatibility profiles.
-- Lua 5.4 remains the first real runtime target.
+- "No backward capability" means no legacy project API preservation and no old Lua-version compatibility profile preservation.
+- Lua 5.5 is the only runtime target.
 - Interpreter-first architecture remains the required path before any JVM bytecode compiler.
 - Clean module structure is more important than minimizing module count.
 - Performance work starts after correctness and benchmark baselines exist.

@@ -2,7 +2,7 @@
 
 **Project:** KLua  
 **Runtime:** Pure Kotlin Lua implementation for JVM 17+  
-**Primary goals:** Lua-like compatibility, Java/Kotlin-friendly embedding, good performance, and future JVM JIT optimization potential.
+**Primary goals:** Lua 5.5 conformance, Java/Kotlin-friendly embedding, good performance, and future JVM JIT optimization potential.
 
 ---
 
@@ -31,7 +31,7 @@ M16 DAP adapter and debug tooling
 M17 Script packaging and bytecode loading
 M18 Sandbox and game-server limits
 M19 Performance pass 1
-M20 Multi-version compatibility hardening
+M20 Lua 5.5 conformance hardening
 M21 v1.0 release
 M22 Optional JVM bytecode compiler
 ```
@@ -69,9 +69,9 @@ klua-core
 klua-api
 klua-kotlin
 klua-stdlib
-klua-compat
 klua-debug
 klua-dap
+klua-tools
 klua-jmh
 klua-tests
 ```
@@ -1182,7 +1182,7 @@ breakpoint stepping
 
 - Benchmarks are stable and automated.
 - Table access and calls improve measurably.
-- No compatibility regressions.
+- No conformance regressions.
 
 ### Risks
 
@@ -1191,67 +1191,38 @@ breakpoint stepping
 
 ---
 
-## M20: Multi-Version Compatibility Hardening
+## M20: Lua 5.5 Conformance Hardening
 
 ### Goal
 
-Move from “Lua-like” toward reliable Lua compatibility across named version profiles.
-
-Default target remains Lua 5.4, but KLua should have an architecture that can support:
-
-```text
-Lua 5.1
-Lua 5.2
-Lua 5.3
-Lua 5.4
-Lua 5.5
-LuaJIT-like compatibility mode
-```
+Move from “Lua-like” toward reliable Lua 5.5 behavior without carrying old-version compatibility profiles.
 
 ### Tasks
 
-- Add `LuaVersion` enum.
-- Add `LuaConfig` with selected language version.
-- Add `LuaVersionProfile` interface.
-- Add `LexerProfile`, `ParserProfile`, `SemanticsProfile`, `StdlibProfile`, and `ApiProfile`.
-- Tag each compiled `Prototype` with its target `LuaVersion`.
-- Make `LuaState` own exactly one version profile.
-- Add `LuaProfiles.lua51()`, `lua52()`, `lua53()`, `lua54()`, `lua55()`, and `luajit21()` factory methods.
-- Add version-aware syntax errors.
-- Add version-specific standard library installers.
-- Add version-aware bytecode package header checks.
-- Add conformance test tasks per version profile.
+- Keep `LuaConfig` focused on runtime options rather than source-version selection.
+- Keep compiled `Prototype` metadata fixed to the internal Lua 5.5 marker for diagnostics and bytecode-package validation.
+- Add Lua 5.5 syntax and semantic conformance tests as features land.
+- Add Lua 5.5 standard-library conformance tests for base, table, string, math, utf8, coroutine, package, and debug behavior.
+- Add bytecode package header checks that reject unsupported KLua bytecode formats without exposing a public language-version selector.
+- Document remaining Lua 5.5 gaps in the project status and conformance notes.
 
 ### Recommended implementation order
 
 ```text
-1. Lua 5.4 profile
-   Keep as the default and strongest compatibility target.
-
-2. Lua 5.3 profile
-   Mostly reuse 5.4 runtime, but disable <const>, <close>, and 5.4-specific stdlib behavior.
-
-3. Lua 5.2 profile
-   Add/adjust bit32, _ENV behavior, package/debug differences, and coroutine/protected-call differences.
-
-4. Lua 5.1 profile
-   Add setfenv/getfenv, loadstring, module, old package behavior, and legacy function environments.
-
-5. LuaJIT-like profile
-   Start as Lua 5.1 plus selected LuaJIT ecosystem expectations.
-
-6. Lua 5.5 profile
-   Add global declarations, named vararg tables, table.create, readonly for-loop behavior, and other 5.5-specific behavior.
+1. Lock the public API to a single Lua 5.5 target.
+2. Expand parser/compiler coverage for Lua 5.5 syntax features.
+3. Harden VM semantics against Lua 5.5 reference behavior.
+4. Harden standard-library edge cases against Lua 5.5 reference behavior.
+5. Add package/bytecode validation that assumes only KLua's Lua 5.5 format.
+6. Publish a conformance-gap matrix before v1.0.
 ```
 
-### Version-sensitive features to test
+### Lua 5.5 features to test
 
 ```text
-_ENV vs setfenv/getfenv
 global lookup and assignment
-module/load/loadstring behavior
 integer vs float behavior
-bit32 vs bitwise operators
+bitwise operators
 floor division
 varargs and multiple returns
 goto and labels
@@ -1262,35 +1233,28 @@ metatable edge cases
 coroutine yield behavior
 pcall/xpcall yield behavior
 debug.getinfo/getlocal/getupvalue behavior
-stdlib differences
+stdlib edge cases
 ```
 
 ### Test tasks
 
 ```text
-./gradlew testLua51
-./gradlew testLua52
-./gradlew testLua53
-./gradlew testLua54
-./gradlew testLua55
-./gradlew testLuaJitCompat
+./gradlew test
 ```
 
 ### Success criteria
 
-- Lua 5.4 profile remains stable and is the default.
-- Each compatibility profile has its own documented feature matrix.
-- Official or reference-behavior tests are grouped by version.
-- Known compatibility gaps are documented.
-- Common Lua scripts run with minimal changes in the matching profile.
-- Bytecode compiled for one version is not accidentally loaded into an incompatible state.
+- Lua 5.5 remains the only public runtime target.
+- Official or reference-behavior tests are grouped by language, stdlib, coroutine, debug, and tooling area.
+- Known conformance gaps are documented.
+- Common Lua 5.5 scripts run with minimal changes.
+- Unsupported bytecode formats are rejected before execution.
 
 ### Risks
 
 - Lua versions differ in many small semantic details.
-- Lua 5.1 environment behavior is meaningfully different from Lua 5.2+ `_ENV`.
-- Compatibility flags can accidentally create undocumented KLua-only dialects.
-- Exact compatibility can consume a lot of time if not scoped by profile and tests.
+- Carrying old-version shims can accidentally create undocumented KLua-only dialects.
+- Exact conformance can consume a lot of time if not scoped by tests and documented gaps.
 
 ### Anti-goals for this milestone
 
@@ -1300,6 +1264,7 @@ Do not attempt these yet unless the core runtime is already stable:
 official PUC .luac binary loading
 native Lua C module compatibility
 perfect LuaJIT FFI compatibility
+old Lua-version compatibility profiles
 mixing multiple source-language versions inside one LuaState
 ```
 
@@ -1331,7 +1296,7 @@ Source-level debugger core
 Breakpoints and stepping
 Variable inspection
 Benchmark results
-Compatibility documentation
+Conformance documentation
 ```
 
 ### Documentation checklist
@@ -1343,7 +1308,7 @@ Compatibility documentation
 - Userdata binding guide.
 - Sandbox guide.
 - Standard library reference.
-- Compatibility notes.
+- Conformance notes.
 - Performance guide.
 - Debugging guide.
 - Debug Adapter Protocol guide, if `klua-dap` is included.
@@ -1359,7 +1324,7 @@ Compatibility documentation
 ### Risks
 
 - Calling it 1.0 before API stability.
-- No clear compatibility policy.
+- No clear language target policy.
 
 ---
 
@@ -1513,29 +1478,24 @@ inline caches
 fast-mode vs debug-mode VM loop
 ```
 
-### v0.8: Tooling and Compatibility Release
+### v0.8: Tooling and Conformance Release
 
 ```text
 DAP adapter
-expanded Lua 5.4 compatibility tests
+expanded Lua 5.5 conformance tests
 weak table support
 stdlib edge cases
 coroutine edge cases
-documented compatibility gaps
+documented conformance gaps
 ```
 
-### v0.9: Multi-Version Compatibility Release
+### v0.9: Lua 5.5 Conformance Release
 
 ```text
-LuaVersionProfile architecture
-Lua 5.3 profile
-Lua 5.2 profile
-Lua 5.1 profile
-LuaJIT-like compatibility profile
-Lua 5.5 profile, if scoped tightly
-version-specific stdlib installers
-version-specific conformance test tasks
-compatibility matrix documentation
+Lua 5.5 syntax and semantic gap closure
+Lua 5.5 standard-library conformance expansion
+bytecode/package validation for KLua's single supported format
+conformance matrix documentation
 ```
 
 ### v1.0: Stable Release
@@ -1544,7 +1504,7 @@ compatibility matrix documentation
 stable public API
 stable bytecode package format, or clearly marked experimental
 complete docs
-compatibility matrix
+conformance matrix
 performance guide
 debugging guide
 release artifacts
@@ -1570,7 +1530,7 @@ Week 4:
   Functions, simple calls, initial LuaState API, golden tests.
 ```
 
-Do not worry about full compatibility in the first month. The first goal is to prove the pipeline:
+Do not worry about full conformance in the first month. The first goal is to prove the pipeline:
 
 ```text
 source -> parser -> compiler -> bytecode -> VM -> result
@@ -1629,7 +1589,7 @@ Use VM-managed coroutine state.
 
 ### 4. Do not chase official `.luac` compatibility early
 
-Source compatibility matters more than binary compatibility.
+Source conformance matters more than binary compatibility.
 
 ### 5. Do not implement JVM bytecode generation before the interpreter is stable
 
@@ -1668,8 +1628,8 @@ Build KLua in this order:
 12. CLI/DAP debugging tools.
 13. Packaging and sandboxing.
 14. Benchmark-driven optimization.
-15. Lua 5.4 compatibility hardening.
-16. Multi-version profiles.
+15. Lua 5.5 conformance hardening.
+16. Bytecode/package validation.
 17. Stable v1.0.
 18. Optional JVM bytecode compiler.
 ```

@@ -1,16 +1,16 @@
 # KLua
 
-KLua is a work-in-progress pure Kotlin Lua runtime for JVM 17+. It aims to provide a Lua-compatible source runtime, a C-Lua-like low-level stack API for Java embedders, Kotlin-friendly convenience APIs, and an interpreter-first runtime architecture that can grow into debugging, tooling, compatibility profiles, and benchmark-driven optimization.
+KLua is a work-in-progress pure Kotlin Lua runtime for JVM 17+. It aims to provide a Lua 5.5 source runtime, a C-Lua-like low-level stack API for Java embedders, Kotlin-friendly convenience APIs, and an interpreter-first runtime architecture that can grow into debugging, tooling, conformance hardening, and benchmark-driven optimization.
 
 ## Status
 
 KLua is pre-1.0 and not production-ready. Public APIs may change while the runtime moves toward a complete Lua implementation.
 
-The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, a default Lua 5.4 configuration, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string/table standard library support, tests, and a JMH benchmark module. Broader standard libraries, debug tooling, DAP support, bytecode loading, sandboxing, broader compatibility profiles, and performance work are still roadmap items.
+The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, a single Lua 5.5 runtime target, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string/table standard library support, tests, and a JMH benchmark module. Broader standard libraries, debug tooling, DAP support, bytecode loading, sandboxing, Lua 5.5 conformance hardening, and performance work are still roadmap items.
 
 ## Goals
 
-- Build a Lua-compatible source runtime for JVM 17+, with Lua 5.4 as the first and default target.
+- Build a Lua 5.5 source runtime for JVM 17+.
 - Provide a Java-friendly low-level `LuaState` stack API.
 - Provide a Kotlin convenience layer for common embedding workflows.
 - Keep the runtime interpreter-first: Lua source -> parser -> AST -> compiler -> KLua bytecode -> VM.
@@ -24,12 +24,11 @@ The repository currently includes a multi-module Gradle project, lexer/parser/co
 - `klua-api`: stable Java-friendly public API surface, including `LuaState`, `Lua`, `LuaChunk`, and host function types.
 - `klua-kotlin`: Kotlin extension helpers for the public API.
 - `klua-stdlib`: partial standard library integration, currently focused on base, math, string, and table functions.
-- `klua-compat`: Lua version profile and compatibility behavior.
 - `klua-debug`: planned runtime debugging internals.
 - `klua-dap`: planned Debug Adapter Protocol integration.
 - `klua-tools`: planned command-line tools.
 - `klua-jmh`: JMH benchmarks.
-- `klua-tests`: cross-module foundation, integration, and compatibility tests.
+- `klua-tests`: cross-module foundation, integration, and conformance tests.
 
 ## Requirements
 
@@ -123,13 +122,13 @@ See [docs/KLua_Architecture.md](docs/KLua_Architecture.md) for the full architec
 
 ## Roadmap
 
-The project is organized around small, testable milestones: foundation, lexer/parser, compiler skeleton, minimal VM, expressions and control flow, functions, tables, closures, metatables, public APIs, userdata and JVM interop, standard libraries, coroutines, debugging, DAP tooling, packaging, sandboxing, performance work, compatibility hardening, v1.0, and optional JVM bytecode generation.
+The project is organized around small, testable milestones: foundation, lexer/parser, compiler skeleton, minimal VM, expressions and control flow, functions, tables, closures, metatables, public APIs, userdata and JVM interop, standard libraries, coroutines, debugging, DAP tooling, packaging, sandboxing, performance work, Lua 5.5 conformance hardening, v1.0, and optional JVM bytecode generation.
 
 See [docs/KLua_Implementation_Milestones.md](docs/KLua_Implementation_Milestones.md) for the milestone plan.
 
 ## Contributing
 
-Before making implementation changes, read [docs/KLua_Codex_Goal.md](docs/KLua_Codex_Goal.md). It defines the module boundaries, delivery rules, compatibility policy, implementation order, testing requirements, and definition of done for this repository.
+Before making implementation changes, read [docs/KLua_Codex_Goal.md](docs/KLua_Codex_Goal.md). It defines the module boundaries, delivery rules, language target policy, implementation order, testing requirements, and definition of done for this repository.
 
 ## License
 

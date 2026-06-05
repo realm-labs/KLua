@@ -36,43 +36,25 @@ Do **not** start by generating JVM bytecode. Start with a correct custom bytecod
 
 ---
 
-## 2. Compatibility Target
+## 2. Lua 5.5 Target
 
-Recommended default target:
+Supported source-language target:
 
 ```text
-Lua 5.4-compatible source language,
+Lua 5.5-compatible source language,
 but not binary-compatible with official .luac bytecode.
 ```
 
-KLua should start with one strong default profile, then grow into a multi-version runtime.
-
-Recommended default and long-term compatibility plan:
-
-```text
-Default profile:
-  Lua 5.4
-
-Important compatibility profile:
-  Lua 5.1 / LuaJIT-like behavior
-
-Later profiles:
-  Lua 5.2
-  Lua 5.3
-  Lua 5.5
-```
-
-Lua 5.4 is a good first target because it is modern and mature. It includes `_ENV`, integers/floats, bitwise operators, `goto`, `<const>`, and to-be-closed variables. Lua 5.1 compatibility matters later because a lot of real-world Lua ecosystem code still assumes Lua 5.1 or LuaJIT-style behavior.
+KLua intentionally supports one Lua language target: Lua 5.5. Older Lua versions and LuaJIT-like modes are not project goals. This keeps the compiler, VM, standard library, debug semantics, and embedding API from carrying compatibility branches before v1.
 
 This means KLua should aim to support:
 
-- Lua syntax and runtime behavior.
+- Lua 5.5 syntax and runtime behavior.
 - Tables, functions, closures, varargs, multiple returns.
 - Metatables and metamethods.
 - Coroutines.
 - Standard libraries where appropriate.
 - A Lua-like stack API for embedders.
-- Version-aware compatibility profiles.
 
 But KLua does **not** initially need to support:
 
@@ -80,141 +62,47 @@ But KLua does **not** initially need to support:
 - Native Lua C modules.
 - Exact C API binary compatibility.
 - Every debug-hook edge case in v1.
-- Mixing different Lua language versions freely inside one `LuaState`.
+- Older Lua source versions.
+- LuaJIT-specific behavior.
 
 This keeps the implementation practical while still feeling like real Lua to script authors.
 
-### 2.1 Version Profiles as a First-Class Concept
+### 2.1 No Public Version Selection
 
-Do not scatter version checks everywhere:
+Do not add public source-version selectors or old-version compatibility flags.
 
-```kotlin
-if (version == LuaVersion.LUA_51) { ... }
-if (version == LuaVersion.LUA_54) { ... }
-```
-
-Instead, make the selected Lua version a first-class compiler/runtime profile.
+`LuaConfig` is for runtime options, such as debug-library availability or future sandbox/performance settings:
 
 ```kotlin
-enum class LuaVersion {
-    LUA_51,
-    LUA_52,
-    LUA_53,
-    LUA_54,
-    LUA_55,
-    LUAJIT_21
-}
-
 data class LuaConfig(
-    val version: LuaVersion = LuaVersion.LUA_54,
-    val compatibility: CompatOptions = CompatOptions.defaultFor(version),
-    val stdlib: StdlibProfile = StdlibProfile.defaultFor(version),
+    val debugEnabled: Boolean = true,
 )
 ```
 
 Recommended rule:
 
 ```text
-One LuaState = one Lua language version profile.
+One LuaState = Lua 5.5 semantics.
 ```
 
-Examples:
+If a Lua 5.5 feature is missing, track it as a conformance gap. Do not introduce a compatibility profile to explain or preserve the gap.
 
-```kotlin
-val lua54 = LuaState.create(
-    LuaConfig(version = LuaVersion.LUA_54)
-)
-
-val lua51 = LuaState.create(
-    LuaConfig(version = LuaVersion.LUA_51)
-)
-```
-
-Avoid allowing arbitrary Lua 5.1, Lua 5.4, and Lua 5.5 chunks to mix inside one state at first. It makes `_ENV`, `setfenv`, global declarations, stdlib behavior, coroutine behavior, and debug semantics harder to reason about.
-
-### 2.2 Version Profile Shape
-
-A Lua version affects much more than syntax.
-
-```text
-LuaVersionProfile
-  lexer features
-  parser grammar
-  compiler lowering
-  VM semantics
-  standard libraries
-  debug behavior
-  embedding API compatibility
-  conformance tests
-```
-
-Recommended model:
-
-```kotlin
-interface LuaVersionProfile {
-    val version: LuaVersion
-    val lexer: LexerProfile
-    val parser: ParserProfile
-    val semantics: SemanticsProfile
-    val stdlib: StdlibProfile
-    val api: ApiProfile
-}
-```
-
-Example Lua 5.4 profile:
-
-```kotlin
-object Lua54Profile : LuaVersionProfile {
-    override val version = LuaVersion.LUA_54
-
-    override val lexer = LexerProfile(
-        hasBitwiseOperators = true,
-        hasFloorDivision = true,
-        hasAttributeSyntax = true,
-        hasGlobalDeclarations = false,
-    )
-
-    override val parser = ParserProfile(
-        hasGoto = true,
-        hasEnv = true,
-        hasLocalAttributes = true,
-        hasNamedVarargTable = false,
-    )
-
-    override val semantics = SemanticsProfile(
-        hasIntegerSubtype = true,
-        hasToBeClosedVariables = true,
-        hasYieldablePCall = true,
-        hasLua51Setfenv = false,
-    )
-
-    override val stdlib = StdlibProfile.lua54()
-    override val api = ApiProfile.lua54()
-}
-```
-
-### 2.3 One Internal Bytecode, Multiple Source Profiles
-
-Do not create a separate VM for each Lua version.
+### 2.2 One Internal Bytecode
 
 Recommended pipeline:
 
 ```text
-Lua 5.1 source
-Lua 5.2 source
-Lua 5.3 source
-Lua 5.4 source
 Lua 5.5 source
-    -> version-aware lexer/parser/compiler
+    -> lexer/parser/compiler
     -> one KLua internal bytecode format
     -> one KLua VM runtime
 ```
 
-Each compiled prototype should record its source language version:
+Compiled prototypes may record a fixed internal Lua 5.5 source marker for diagnostics and future bytecode-package validation:
 
 ```kotlin
 class Prototype(
-    val version: LuaVersion,
+    val version: LuaSourceVersion = LuaSourceVersion.LUA_55,
     val code: IntArray,
     val constants: Array<LuaValue>,
     val nested: Array<Prototype>,
@@ -223,7 +111,7 @@ class Prototype(
 )
 ```
 
-The VM should usually execute the same opcodes for all profiles, but some semantic paths need the profile:
+The VM should execute one semantic path. Areas that require particular care for Lua 5.5 conformance include:
 
 ```text
 global lookup
@@ -238,17 +126,7 @@ debug API behavior
 
 ### 2.4 Environment Handling
 
-Environment handling is one of the hardest version splits.
-
-Lua 5.1 style:
-
-```text
-function has an environment table
-getfenv / setfenv can inspect or replace it
-globals resolve through the function environment
-```
-
-Lua 5.2+ style:
+KLua should implement the modern lexical environment model:
 
 ```text
 _ENV is a lexical upvalue
@@ -261,25 +139,20 @@ Recommended internal model:
 class LuaClosure(
     val proto: Prototype,
     val upvalues: Array<Upvalue>,
-    var legacyEnv: LuaTable? = null, // mainly for Lua 5.1 compatibility
 )
 ```
 
 Compiler lowering:
 
 ```text
-Lua 5.1 mode:
-  GETGLOBAL name -> lookup in closure.legacyEnv
-
-Lua 5.2+ mode:
-  global name -> _ENV["name"]
+global name -> _ENV["name"]
 ```
 
-This lets one VM support both models without pretending that Lua 5.1 and Lua 5.4 environments are identical.
+Do not add `getfenv`, `setfenv`, function environment tables, or other old-version environment compatibility behavior.
 
 ### 2.5 Number Model
 
-Implement Lua 5.3+ style integer/float representation early, even if older profiles expose simpler behavior.
+Implement Lua 5.5 integer/float representation directly.
 
 ```kotlin
 sealed interface LuaNumber : LuaValue
@@ -291,87 +164,37 @@ value class LuaInteger(val value: Long) : LuaNumber
 value class LuaFloat(val value: Double) : LuaNumber
 ```
 
-Profile controls behavior:
+The implementation should support integer subtype behavior, bitwise operators, and floor division as Lua 5.5 conformance requirements.
+
+### 2.6 Standard Library Installation
+
+Standard libraries should be installed for the single Lua 5.5 target.
 
 ```kotlin
-data class NumberSemantics(
-    val hasIntegerSubtype: Boolean,
-    val hasFloorDivisionOperator: Boolean,
-    val hasBitwiseOperators: Boolean,
-    val hasBit32Library: Boolean,
-)
-```
-
-Useful mapping:
-
-```text
-Lua 5.1:
-  no user-visible integer subtype by default
-  no built-in bitwise operators
-
-Lua 5.2:
-  bit32 library
-  no bitwise operators
-
-Lua 5.3+:
-  integer subtype
-  bitwise operators
-  floor division
-```
-
-### 2.6 Standard Library Profiles
-
-Standard libraries should be installed by profile, not by one global installer.
-
-```kotlin
-interface StdlibInstaller {
-    fun install(state: LuaState)
-}
-
-object Lua54Stdlib : StdlibInstaller {
-    override fun install(state: LuaState) {
-        installBase54(state)
-        installTable54(state)
-        installString54(state)
-        installMath54(state)
-        installCoroutine54(state)
+object LuaStdlib {
+    fun install(state: LuaState) {
+        installBase(state)
+        installTable(state)
+        installString(state)
+        installMath(state)
+        installCoroutine(state)
         installUtf8(state)
-        installDebug54(state)
-        installPackage54(state)
+        installDebug(state)
+        installPackage(state)
     }
 }
 ```
 
-Examples of version-sensitive library behavior:
+Lua 5.5 library behavior to track:
 
 ```text
-Lua 5.1:
-  global unpack
-  loadstring
-  module
-  getfenv / setfenv
-
-Lua 5.2:
-  table.unpack
-  bit32
-  _ENV
-  module removed from default style
-
-Lua 5.3:
-  integers
-  bitwise operators
-  utf8 library
-
-Lua 5.4:
-  <const>
-  <close>
-  warn
-  to-be-closed variables
-
-Lua 5.5:
-  global declarations
-  named vararg tables
-  table.create
+global declarations
+named vararg tables
+table.create
+<const>
+<close>
+warn
+to-be-closed variables
 ```
 
 ### 2.7 KLua Bytecode Compatibility
@@ -384,7 +207,7 @@ KLua should have its own bytecode package format:
 .kluac
   magic: KLua
   KLua bytecode format version
-  target Lua source version
+  fixed Lua 5.5 source marker
   source map/debug info
   function prototypes
   constants
@@ -396,7 +219,7 @@ Header example:
 data class KLuaChunkHeader(
     val magic: Int,
     val kluaBytecodeVersion: Int,
-    val luaVersion: LuaVersion,
+    val luaVersion: LuaSourceVersion,
     val flags: Int,
 )
 ```
@@ -404,40 +227,24 @@ data class KLuaChunkHeader(
 Loading rule:
 
 ```text
-LuaState 5.4 can load KLua bytecode compiled for Lua 5.4.
-LuaState 5.1 should not load KLua bytecode compiled for Lua 5.4 unless an explicit compatibility policy allows it.
+LuaState can load supported KLua bytecode packages that carry the Lua 5.5 marker.
+Unsupported KLua bytecode format versions are rejected before execution.
 ```
 
-### 2.8 Compatibility Profiles, Not Compatibility Chaos
+### 2.8 No Compatibility Dialects
 
 Avoid a random bag of feature flags:
 
 ```kotlin
 LuaConfig(
-    version = LuaVersion.LUA_54,
     enableLua51Globals = true,
-    enableLua55Globals = true,
     enableLuaJitExtensions = true,
 )
 ```
 
 That creates a dialect that is hard to document and test.
 
-Prefer named profiles:
-
-```kotlin
-object LuaProfiles {
-    fun lua51(): LuaConfig
-    fun lua52(): LuaConfig
-    fun lua53(): LuaConfig
-    fun lua54(): LuaConfig
-    fun lua55(): LuaConfig
-    fun luajit21(): LuaConfig
-    fun compatibility(): LuaConfig
-}
-```
-
-Document `compatibility()` as KLua-specific, not exact Lua.
+Prefer implementing Lua 5.5 semantics directly and documenting missing behavior as conformance gaps.
 
 ---
 
@@ -462,10 +269,6 @@ klua-stdlib
   Standard libraries:
   base, table, string, math, utf8, coroutine, package, debug-lite.
 
-klua-compat
-  Version profiles and compatibility shims:
-  Lua 5.1, 5.2, 5.3, 5.4, 5.5, LuaJIT-like behavior.
-
 klua-debug
   Lua-level debugging runtime:
   debug metadata, tracebacks, hooks, breakpoints, stepping, variable inspection.
@@ -477,9 +280,6 @@ klua-dap
 klua-tools
   CLI tools:
   compiler, bytecode package validator, REPL, command-line debugger.
-
-klua-compat-luaj
-  Optional compatibility layer for users familiar with LuaJ APIs.
 
 klua-jmh
   JMH benchmarks.
@@ -1832,66 +1632,44 @@ Error propagation across boundary
 ```
 
 
-### 19.1 Versioned Compatibility Test Matrix
+### 19.1 Lua 5.5 Conformance Test Matrix
 
-Run conformance tests by version profile:
+Run conformance tests through the normal test task, grouped by runtime area:
 
 ```text
-./gradlew testLua51
-./gradlew testLua52
-./gradlew testLua53
-./gradlew testLua54
-./gradlew testLua55
-./gradlew testLuaJitCompat
+./gradlew test
 ```
 
 Test layout:
 
 ```text
 tests/
-  lua51/
-    official/
-    klua-extra/
-    compatibility/
-
-  lua52/
-    official/
-    klua-extra/
-
-  lua53/
-    official/
-    klua-extra/
-
-  lua54/
-    official/
-    klua-extra/
-
   lua55/
     official/
     klua-extra/
-
-  luajit21/
-    compatibility/
-    ecosystem/
+    stdlib/
+    coroutine/
+    debug/
+    package/
 ```
 
 CI strategy:
 
 ```text
 Every commit:
-  run default Lua 5.4 profile tests
+  run unit and integration tests
 
 Nightly:
-  run all version profiles
+  run full conformance, debugger, packaging, and benchmark smoke checks
 
 Before release:
-  run all profiles, benchmarks, debugger tests, and package-load tests
+  run conformance, benchmarks, debugger tests, and package-load tests
 ```
 
 Important rule:
 
 ```text
-A compatibility profile is only real when it has its own tests.
+Lua 5.5 behavior is only real when it has tests or a documented conformance gap.
 ```
 
 
@@ -1969,7 +1747,7 @@ full debug API and IDE debugger
 official .luac loading
 native C module compatibility
 perfect weak table behavior
-full Lua 5.4 edge-case coverage
+full Lua 5.5 edge-case coverage
 ```
 
 This gives you a usable, testable foundation without getting stuck in advanced runtime details too early.
@@ -1988,7 +1766,7 @@ v0.2:
   embedding API, userdata, partial stdlib
 
 v0.3:
-  coroutines, metatables, better compatibility
+  coroutines, metatables, better conformance
 
 v0.4:
   debug metadata, tracebacks, Lua stack frame views
@@ -2006,10 +1784,10 @@ v0.8:
   optional Debug Adapter Protocol integration and CLI debugger
 
 v0.9:
-  multi-version profiles: Lua 5.3 first, then Lua 5.2, Lua 5.1/LuaJIT-like, and Lua 5.5
+  Lua 5.5 conformance hardening and documented gap closure
 
 v1.0:
-  stable API, documented behavior, compatibility suite, debugging guide
+  stable API, documented behavior, conformance suite, debugging guide
 
 post-v1:
   optional JVM bytecode compiler and profiling-guided optimization
