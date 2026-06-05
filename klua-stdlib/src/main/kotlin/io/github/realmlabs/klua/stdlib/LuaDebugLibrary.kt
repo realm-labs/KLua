@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaFunctionDebugInfo
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaStackFrame
@@ -50,18 +51,8 @@ internal object LuaDebugLibrary {
 
     private fun getInfo(context: LuaCallContext): LuaReturn {
         if (context.typeName(1) == "function") {
-            val info = context.getFunctionDebugInfo(1) ?: return LuaReturn.of(null)
-            return LuaReturn.of(
-                mapOf(
-                    "what" to "Lua",
-                    "source" to info.sourceName,
-                    "short_src" to info.sourceName,
-                    "currentline" to -1L,
-                    "linedefined" to info.lineDefined.toLong(),
-                    "lastlinedefined" to info.lastLineDefined.toLong(),
-                    "namewhat" to "",
-                ),
-            )
+            val info = context.getFunctionDebugInfo(1)
+            return LuaReturn.of(functionInfoTable(info))
         }
         val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
         val frame = context.luaFrames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
@@ -75,6 +66,29 @@ internal object LuaDebugLibrary {
                 "lastlinedefined" to frame.lastLineDefined.toLong(),
                 "namewhat" to "",
             ),
+        )
+    }
+
+    private fun functionInfoTable(info: LuaFunctionDebugInfo?): Map<String, Any> {
+        if (info == null) {
+            return mapOf(
+                "what" to "Java",
+                "source" to "[Java]",
+                "short_src" to "[Java]",
+                "currentline" to -1L,
+                "linedefined" to -1L,
+                "lastlinedefined" to -1L,
+                "namewhat" to "",
+            )
+        }
+        return mapOf(
+            "what" to "Lua",
+            "source" to info.sourceName,
+            "short_src" to info.sourceName,
+            "currentline" to -1L,
+            "linedefined" to info.lineDefined.toLong(),
+            "lastlinedefined" to info.lastLineDefined.toLong(),
+            "namewhat" to "",
         )
     }
 

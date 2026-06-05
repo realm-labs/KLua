@@ -277,6 +277,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo returns host function metadata`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local info = debug.getinfo(print)
+                return info.source, info.short_src, info.currentline, info.what,
+                    info.linedefined, info.lastlinedefined, info.namewhat
+                """.trimIndent(),
+                "debug-getinfo-host-function.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("[Java]", state.toString(1))
+        assertEquals("[Java]", state.toString(2))
+        assertEquals(-1L, state.toInteger(3))
+        assertEquals("Java", state.toString(4))
+        assertEquals(-1L, state.toInteger(5))
+        assertEquals(-1L, state.toInteger(6))
+        assertEquals("", state.toString(7))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
