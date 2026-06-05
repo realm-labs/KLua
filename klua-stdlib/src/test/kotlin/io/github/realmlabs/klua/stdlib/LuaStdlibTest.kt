@@ -245,6 +245,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo returns lua function definition metadata`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe()
+                    local x = 1
+                    return x
+                end
+
+                local info = debug.getinfo(probe)
+                return info.source, info.short_src, info.currentline, info.what,
+                    info.linedefined, info.lastlinedefined, info.namewhat
+                """.trimIndent(),
+                "debug-getinfo-function.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("debug-getinfo-function.lua", state.toString(1))
+        assertEquals("debug-getinfo-function.lua", state.toString(2))
+        assertEquals(-1L, state.toInteger(3))
+        assertEquals("Lua", state.toString(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(4L, state.toInteger(6))
+        assertEquals("", state.toString(7))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

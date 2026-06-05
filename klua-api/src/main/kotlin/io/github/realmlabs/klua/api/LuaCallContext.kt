@@ -24,6 +24,8 @@ interface LuaCallContext {
 
     fun load(source: String, chunkName: String): LuaReturn
 
+    fun getFunctionDebugInfo(index: Int): LuaFunctionDebugInfo? = null
+
     fun getUpvalue(index: Int, upvalueIndex: Int): LuaReturn? = null
 
     fun setUpvalue(index: Int, upvalueIndex: Int, value: Any?): String? = null

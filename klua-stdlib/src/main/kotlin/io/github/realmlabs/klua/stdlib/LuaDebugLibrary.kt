@@ -49,6 +49,20 @@ internal object LuaDebugLibrary {
     }
 
     private fun getInfo(context: LuaCallContext): LuaReturn {
+        if (context.typeName(1) == "function") {
+            val info = context.getFunctionDebugInfo(1) ?: return LuaReturn.of(null)
+            return LuaReturn.of(
+                mapOf(
+                    "what" to "Lua",
+                    "source" to info.sourceName,
+                    "short_src" to info.sourceName,
+                    "currentline" to -1L,
+                    "linedefined" to info.lineDefined.toLong(),
+                    "lastlinedefined" to info.lastLineDefined.toLong(),
+                    "namewhat" to "",
+                ),
+            )
+        }
         val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
         val frame = context.luaFrames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
         return LuaReturn.of(

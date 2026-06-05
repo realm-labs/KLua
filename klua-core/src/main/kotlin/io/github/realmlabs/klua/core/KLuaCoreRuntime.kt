@@ -115,6 +115,15 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun getFunctionDebugInfo(function: KLuaCoreValue.FunctionValue): KLuaCoreFunctionDebugInfo? {
+        val closure = function.sourceFunction as? LuaClosure ?: return null
+        return KLuaCoreFunctionDebugInfo(
+            sourceName = closure.prototype.sourceName,
+            lineDefined = closure.prototype.lineDefined,
+            lastLineDefined = closure.prototype.lastLineDefined,
+        )
+    }
+
     public fun getUpvalue(
         function: KLuaCoreValue.FunctionValue,
         index: Int,
@@ -377,6 +386,12 @@ public data class KLuaCoreLocalVariable(
 public data class KLuaCoreUpvalue(
     public val name: String,
     public val value: KLuaCoreValue,
+)
+
+public data class KLuaCoreFunctionDebugInfo(
+    public val sourceName: String,
+    public val lineDefined: Int,
+    public val lastLineDefined: Int,
 )
 
 public data class KLuaCoreDebugHook(

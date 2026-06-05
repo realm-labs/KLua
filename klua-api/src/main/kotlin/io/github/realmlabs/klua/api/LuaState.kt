@@ -1127,6 +1127,17 @@ class LuaState private constructor(
             return loadLuaFunction(source, chunkName)
         }
 
+        override fun getFunctionDebugInfo(index: Int): LuaFunctionDebugInfo? {
+            val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
+            val coreFunction = function.coreFunction ?: return null
+            val info = KLuaCoreRuntime.getFunctionDebugInfo(coreFunction) ?: return null
+            return LuaFunctionDebugInfo(
+                sourceName = info.sourceName,
+                lineDefined = info.lineDefined,
+                lastLineDefined = info.lastLineDefined,
+            )
+        }
+
         override fun getUpvalue(index: Int, upvalueIndex: Int): LuaReturn? {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
             val coreFunction = function.coreFunction ?: return null
