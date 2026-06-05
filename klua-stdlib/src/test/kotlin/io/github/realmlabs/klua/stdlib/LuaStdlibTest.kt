@@ -496,6 +496,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package searchpath keeps names unchanged with empty separator`() {
+        val root = Files.createTempDirectory("klua-searchpath-empty-separator")
+        val module = root.resolve("alpha.beta.lua")
+        Files.writeString(module, "return 42")
+        val template = "${root.luaPath()}/?.lua"
+
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return package.searchpath("alpha.beta", "$template", "", "/")
+                """.trimIndent(),
+                "package-searchpath-empty-separator.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("${root}/alpha.beta.lua", state.toString(1))
+    }
+
+    @Test
     fun `package searchpath returns missing path diagnostics`() {
         val root = Files.createTempDirectory("klua-searchpath-missing")
         val template = "${root.luaPath()}/?.lua;${root.luaPath()}/?/init.lua"
