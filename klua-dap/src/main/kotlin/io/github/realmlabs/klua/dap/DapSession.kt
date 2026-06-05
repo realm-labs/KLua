@@ -1,5 +1,9 @@
 package io.github.realmlabs.klua.dap
 
+import io.github.realmlabs.klua.debug.Breakpoint
+import io.github.realmlabs.klua.debug.BreakpointManager
+import io.github.realmlabs.klua.debug.BreakpointRequest
+
 public data class DapInitializeRequest(
     public val clientId: String? = null,
     public val clientName: String? = null,
@@ -21,8 +25,35 @@ public data class DapInitializeResponse(
     public val capabilities: DapCapabilities,
 )
 
+public data class DapSource(
+    public val path: String,
+    public val name: String? = null,
+)
+
+public data class DapSourceBreakpoint(
+    public val line: Int,
+    public val condition: String? = null,
+)
+
+public data class DapSetBreakpointsRequest(
+    public val source: DapSource,
+    public val breakpoints: List<DapSourceBreakpoint>,
+)
+
+public data class DapBreakpoint(
+    public val verified: Boolean,
+    public val source: DapSource,
+    public val line: Int,
+    public val condition: String? = null,
+)
+
+public data class DapSetBreakpointsResponse(
+    public val breakpoints: List<DapBreakpoint>,
+)
+
 public class DapSession(
     private val capabilities: DapCapabilities = DapCapabilities(),
+    private val breakpointManager: BreakpointManager = BreakpointManager(),
 ) {
     private var initialized = false
     private var initializeRequest: DapInitializeRequest? = null
@@ -38,4 +69,33 @@ public class DapSession(
         initializeRequest = request
         return DapInitializeResponse(capabilities)
     }
+
+    public fun setBreakpoints(request: DapSetBreakpointsRequest): DapSetBreakpointsResponse {
+        val sourceId = request.source.path
+        val breakpoints = breakpointManager.replaceSourceBreakpoints(
+            sourceId,
+            request.breakpoints.map { breakpoint ->
+                BreakpointRequest(
+                    line = breakpoint.line,
+                    condition = breakpoint.condition,
+                )
+            },
+        )
+        return DapSetBreakpointsResponse(
+            breakpoints.map { breakpoint -> breakpoint.toDapBreakpoint(request.source) },
+        )
+    }
+
+    public fun breakpointAt(sourceId: String, line: Int): Breakpoint? {
+        return breakpointManager.breakpointAt(sourceId, line)
+    }
+}
+
+private fun Breakpoint.toDapBreakpoint(source: DapSource): DapBreakpoint {
+    return DapBreakpoint(
+        verified = enabled,
+        source = source,
+        line = line,
+        condition = condition,
+    )
 }
