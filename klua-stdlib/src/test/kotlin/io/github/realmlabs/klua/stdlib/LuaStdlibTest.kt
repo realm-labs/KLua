@@ -2792,12 +2792,13 @@ class LuaStdlibTest {
                 local outer
                 outer = coroutine.create(function()
                     local inner = coroutine.create(function()
-                        return coroutine.close(outer)
+                        local closeOk, message = coroutine.close(outer)
+                        return closeOk, message, coroutine.status(outer)
                     end)
                     return coroutine.resume(inner)
                 end)
-                local outerOk, innerOk, closeOk, closeMessage = coroutine.resume(outer)
-                return outerOk, innerOk, closeOk, closeMessage, coroutine.status(outer)
+                local ok, innerOk, closeOk, message, outerStatusDuringInner = coroutine.resume(outer)
+                return ok, innerOk, closeOk, message, outerStatusDuringInner, coroutine.status(outer)
                 """.trimIndent(),
                 "coroutine-close-normal.lua",
             ),
@@ -2808,7 +2809,8 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertFalse(state.toBoolean(3))
         assertEquals("cannot close normal coroutine", state.toString(4))
-        assertEquals("dead", state.toString(5))
+        assertEquals("normal", state.toString(5))
+        assertEquals("dead", state.toString(6))
     }
 
     @Test
