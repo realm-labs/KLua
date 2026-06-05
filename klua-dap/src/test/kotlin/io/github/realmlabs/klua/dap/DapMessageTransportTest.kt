@@ -54,4 +54,43 @@ class DapMessageTransportTest {
             stream.feed("Content-Type: application/json\r\n\r\n{}".toByteArray(StandardCharsets.US_ASCII))
         }
     }
+
+    @Test
+    fun `connection buffers request frames and returns framed responses`() {
+        val request = DapMessageTransport.frame(
+            """{"seq":5,"type":"request","command":"threads"}""",
+        )
+        val connection = DapMessageConnection()
+
+        val first = connection.feed(request.copyOfRange(0, 10))
+        val second = connection.feed(request.copyOfRange(10, request.size))
+        val responseJson = DapMessageStream().feed(second.single()).single()
+
+        assertEquals(emptyList(), first)
+        assertEquals(
+            """{"seq":1,"type":"response","request_seq":5,"success":true,"command":"threads","body":{"threads":[{"id":1,"name":"main"}]}}""",
+            responseJson,
+        )
+    }
+
+    @Test
+    fun `connection returns one framed response per complete request`() {
+        val requests = DapMessageTransport.frame(
+            """{"seq":1,"type":"request","command":"configurationDone"}""",
+        ) + DapMessageTransport.frame(
+            """{"seq":2,"type":"request","command":"continue"}""",
+        )
+        val connection = DapMessageConnection()
+        val responseStream = DapMessageStream()
+
+        val responses = connection.feed(requests).flatMap { response -> responseStream.feed(response) }
+
+        assertEquals(
+            listOf(
+                """{"seq":1,"type":"response","request_seq":1,"success":true,"command":"configurationDone","body":{"configured":true}}""",
+                """{"seq":2,"type":"response","request_seq":2,"success":true,"command":"continue","body":{"allThreadsContinued":true}}""",
+            ),
+            responses,
+        )
+    }
 }

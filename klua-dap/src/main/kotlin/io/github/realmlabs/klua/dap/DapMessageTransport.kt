@@ -36,6 +36,18 @@ public class DapMessageStream {
     }
 }
 
+public class DapMessageConnection(
+    private val wireSession: DapWireSession = DapWireSession(),
+) {
+    private val stream = DapMessageStream()
+
+    public fun feed(bytes: ByteArray): List<ByteArray> {
+        return stream.feed(bytes).map { json ->
+            DapMessageTransport.frame(wireSession.handleJson(json))
+        }
+    }
+}
+
 private val HeaderDelimiter = byteArrayOf('\r'.code.toByte(), '\n'.code.toByte(), '\r'.code.toByte(), '\n'.code.toByte())
 
 private fun ByteArray.headerEndIndex(): Int {
