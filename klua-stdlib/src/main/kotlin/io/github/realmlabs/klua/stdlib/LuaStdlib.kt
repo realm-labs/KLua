@@ -107,6 +107,7 @@ public object LuaStdlib {
     public fun openTable(state: LuaState): LuaState {
         state.newTable()
         setFunctionField(state, "concat", ::tableConcat)
+        setFunctionField(state, "create", ::tableCreate)
         setFunctionField(state, "insert", ::tableInsert)
         setFunctionField(state, "move", ::tableMove)
         setFunctionField(state, "pack", ::tablePack)
@@ -561,6 +562,14 @@ public object LuaStdlib {
         }
     }
 
+    private fun tableCreate(context: LuaCallContext): LuaReturn {
+        requiredNonNegativeInteger(context, 1, "table.create")
+        if (!context.isNone(2) && !context.isNil(2)) {
+            requiredNonNegativeInteger(context, 2, "table.create")
+        }
+        return LuaReturn.of(linkedMapOf<Any, Any?>())
+    }
+
     private fun tableInsert(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'table.insert' (table expected)")
@@ -817,6 +826,14 @@ public object LuaStdlib {
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+    }
+
+    private fun requiredNonNegativeInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+        val value = requiredInteger(context, index, functionName)
+        if (value < 0) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (non-negative integer expected)")
+        }
+        return value
     }
 
     private fun requireAnyArgument(context: LuaCallContext, functionName: String) {

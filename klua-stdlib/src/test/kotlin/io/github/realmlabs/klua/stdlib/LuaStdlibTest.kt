@@ -5523,6 +5523,94 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table create returns an empty table`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local created = table.create(3)
+                local firstKey = next(created)
+                return type(created), #created, firstKey == nil
+                """.trimIndent(),
+                "table-create.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals(0L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `table create accepts record hints and creates independent tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local left = table.create(2, 4)
+                local right = table.create(2)
+                left[1] = "left"
+                right[1] = "right"
+                left.name = "record"
+                return left[1], right[1], left.name, #left, #right
+                """.trimIndent(),
+                "table-create-hints.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("left", state.toString(1))
+        assertEquals("right", state.toString(2))
+        assertEquals("record", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+    }
+
+    @Test
+    fun `table create reports argument errors`() {
+        val typeState = LuaState.create()
+        LuaStdlib.openTable(typeState)
+
+        assertEquals(LuaStatus.OK, typeState.load("""return table.create("not-integer")""", "table-create-type-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, typeState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(typeState.getLastError())
+        assertEquals("bad argument #1 to 'table.create' (integer expected)", typeState.toString(-1))
+
+        val sequenceState = LuaState.create()
+        LuaStdlib.openTable(sequenceState)
+
+        assertEquals(LuaStatus.OK, sequenceState.load("""return table.create(-1)""", "table-create-seq-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, sequenceState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(sequenceState.getLastError())
+        assertEquals(
+            "bad argument #1 to 'table.create' (non-negative integer expected)",
+            sequenceState.toString(-1),
+        )
+
+        val recordState = LuaState.create()
+        LuaStdlib.openTable(recordState)
+
+        assertEquals(LuaStatus.OK, recordState.load("""return table.create(1, -1)""", "table-create-rec-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, recordState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(recordState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'table.create' (non-negative integer expected)",
+            recordState.toString(-1),
+        )
+    }
+
+    @Test
     fun `table insert mutates list values`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
