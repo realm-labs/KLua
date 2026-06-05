@@ -2889,6 +2889,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine isyieldable reports normal coroutine state`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outer
+                outer = coroutine.create(function()
+                    local inner = coroutine.create(function()
+                        return coroutine.status(outer), coroutine.isyieldable(outer)
+                    end)
+                    return coroutine.resume(inner)
+                end)
+                local ok, innerOk, outerStatus, outerYieldable = coroutine.resume(outer)
+                return ok, innerOk, outerStatus, outerYieldable, coroutine.status(outer)
+                """.trimIndent(),
+                "coroutine-isyieldable-normal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("normal", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("dead", state.toString(5))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)
