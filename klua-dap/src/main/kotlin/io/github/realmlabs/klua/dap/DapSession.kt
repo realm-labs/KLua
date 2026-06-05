@@ -115,6 +115,16 @@ public data class DapThreadsResponse(
     public val threads: List<DapThread>,
 )
 
+public data class DapCommandRequest(
+    public val command: String,
+    public val arguments: Any? = null,
+)
+
+public data class DapCommandResponse(
+    public val command: String,
+    public val body: Any?,
+)
+
 public data class DapEvaluateRequest(
     public val expression: String,
     public val frameId: Int? = null,
@@ -268,6 +278,29 @@ public class DapSession(
         return DapThreadsResponse(threadProvider.threads())
     }
 
+    public fun handle(request: DapCommandRequest): DapCommandResponse {
+        val body = when (request.command) {
+            "initialize" -> initialize(request.argumentsAs())
+            "setBreakpoints" -> setBreakpoints(request.argumentsAs())
+            "configurationDone" -> configurationDone()
+            "continue" -> continueExecution()
+            "pause" -> pause()
+            "next" -> next(request.argumentsAs<DapStepRequest>().callDepth)
+            "stepIn" -> stepIn()
+            "stepOut" -> stepOut(request.argumentsAs<DapStepRequest>().callDepth)
+            "threads" -> threads()
+            "stackTrace" -> stackTrace(request.argumentsAs<DapStackTraceRequest>().frames)
+            "scopes" -> scopes(request.argumentsAs<DapScopesRequest>().frameId)
+            "variables" -> {
+                val arguments = request.argumentsAs<DapVariablesRequest>()
+                variables(arguments.variablesReference, arguments.start, arguments.count)
+            }
+            "evaluate" -> evaluate(request.argumentsAs())
+            else -> throw IllegalArgumentException("unsupported DAP command: ${request.command}")
+        }
+        return DapCommandResponse(request.command, body)
+    }
+
     public fun breakpointAt(sourceId: String, line: Int): Breakpoint? {
         return breakpointManager.breakpointAt(sourceId, line)
     }
@@ -297,6 +330,24 @@ public class DapSession(
     }
 }
 
+public data class DapStepRequest(
+    public val callDepth: Int,
+)
+
+public data class DapStackTraceRequest(
+    public val frames: List<DebugFrameView>,
+)
+
+public data class DapScopesRequest(
+    public val frameId: Int,
+)
+
+public data class DapVariablesRequest(
+    public val variablesReference: Int,
+    public val start: Int = 0,
+    public val count: Int = 50,
+)
+
 private fun Breakpoint.toDapBreakpoint(source: DapSource): DapBreakpoint {
     return DapBreakpoint(
         verified = enabled,
@@ -304,6 +355,11 @@ private fun Breakpoint.toDapBreakpoint(source: DapSource): DapBreakpoint {
         line = line,
         condition = condition,
     )
+}
+
+private inline fun <reified T : Any> DapCommandRequest.argumentsAs(): T {
+    return arguments as? T
+        ?: throw IllegalArgumentException("command $command requires ${T::class.java.simpleName} arguments")
 }
 
 private sealed class VariableReference {

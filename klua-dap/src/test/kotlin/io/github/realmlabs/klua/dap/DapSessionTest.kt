@@ -291,4 +291,85 @@ class DapSessionTest {
             session.threads(),
         )
     }
+
+    @Test
+    fun `handle routes initialize command`() {
+        val session = DapSession()
+
+        val response = session.handle(
+            DapCommandRequest(
+                command = "initialize",
+                arguments = DapInitializeRequest(clientId = "vscode"),
+            ),
+        )
+
+        assertEquals("initialize", response.command)
+        assertEquals(DapInitializeResponse(DapCapabilities()), response.body)
+        assertTrue(session.isInitialized)
+        assertEquals("vscode", session.clientId)
+    }
+
+    @Test
+    fun `handle routes control and thread commands`() {
+        val session = DapSession()
+
+        val next = session.handle(DapCommandRequest(command = "next", arguments = DapStepRequest(callDepth = 2)))
+        val threads = session.handle(DapCommandRequest(command = "threads"))
+
+        assertEquals(DapCommandResponse("next", DapStepResponse(StepMode.Over(2))), next)
+        assertEquals(
+            DapCommandResponse("threads", DapThreadsResponse(listOf(DapThread(id = 1, name = "main")))),
+            threads,
+        )
+    }
+
+    @Test
+    fun `handle routes stack scope variable and evaluate commands`() {
+        val session = DapSession(
+            expressionEvaluator = DapExpressionEvaluator { _, _ ->
+                DebugVariable("result", linkedMapOf("answer" to 42L), "table", "table(1)")
+            },
+        )
+        val frame = DebugFrameView(
+            level = 0,
+            sourceName = "main.lua",
+            line = 7,
+            locals = listOf(DebugVariable("localValue", "KLua", "string", "KLua")),
+        )
+
+        val stackTrace = session.handle(
+            DapCommandRequest(command = "stackTrace", arguments = DapStackTraceRequest(listOf(frame))),
+        ).body as DapStackTraceResponse
+        val scopes = session.handle(
+            DapCommandRequest(
+                command = "scopes",
+                arguments = DapScopesRequest(stackTrace.stackFrames[0].id),
+            ),
+        ).body as DapScopesResponse
+        val variables = session.handle(
+            DapCommandRequest(
+                command = "variables",
+                arguments = DapVariablesRequest(scopes.scopes[0].variablesReference),
+            ),
+        ).body as DapVariablesResponse
+        val evaluated = session.handle(
+            DapCommandRequest(command = "evaluate", arguments = DapEvaluateRequest("state")),
+        ).body as DapEvaluateResponse
+
+        assertEquals(listOf(DapVariable("localValue", "KLua", "string")), variables.variables)
+        assertEquals(DapEvaluateResponse("table(1)", "table", evaluated.variablesReference), evaluated)
+        assertTrue(evaluated.variablesReference > 0)
+    }
+
+    @Test
+    fun `handle rejects unsupported commands and missing arguments`() {
+        val session = DapSession()
+
+        assertFailsWith<IllegalArgumentException> {
+            session.handle(DapCommandRequest(command = "launch"))
+        }
+        assertFailsWith<IllegalArgumentException> {
+            session.handle(DapCommandRequest(command = "initialize"))
+        }
+    }
 }
