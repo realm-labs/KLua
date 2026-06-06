@@ -791,7 +791,7 @@ This milestone is not the full debugger yet. It creates the foundation that make
 - Implement structured `LuaException`.
 - Implement `pcall` and `xpcall` behavior.
 - Implement readable Lua tracebacks.
-- Implement minimal `debug.traceback()` and `debug.getinfo()`.
+- Implement `debug.traceback()` and expand `debug.getinfo()`/local/upvalue metadata in small verified slices.
 - Add source maps for bytecode packages.
 - Add debug metadata serialization hooks, even if packaging is implemented later.
 
