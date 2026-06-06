@@ -123,8 +123,8 @@ internal object LuaStringLibrary {
         captures: List<Any?>,
     ): String {
         return when (replacementType) {
-            "number" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures, "string.gsub")
-            "string" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures, "string.gsub")
+            "number" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures)
+            "string" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures)
             "function" -> {
                 val result = context.call(3, replacementArguments(wholeMatch, captures)).get(1)
                 replacementValueToString(result, wholeMatch)
@@ -160,7 +160,6 @@ internal object LuaStringLibrary {
         replacement: String,
         wholeMatch: String,
         captures: List<Any?>,
-        functionName: String,
     ): String {
         val result = StringBuilder()
         var index = 0
@@ -179,15 +178,21 @@ internal object LuaStringLibrary {
                 '0' -> result.append(wholeMatch)
                 in '1'..'9' -> {
                     val captureIndex = next.digitToInt()
-                    val capture = captures.getOrNull(captureIndex - 1)
-                        ?: throw LuaRuntimeException("bad argument #3 to '$functionName' (invalid capture index %$next)")
-                    result.append(capture)
+                    result.append(replacementCapture(captures, captureIndex, wholeMatch))
                 }
-                else -> throw LuaRuntimeException("bad argument #3 to '$functionName' (invalid capture index %$next)")
+                else -> throw LuaRuntimeException("invalid use of '%' in replacement string")
             }
             index += 2
         }
         return result.toString()
+    }
+
+    private fun replacementCapture(captures: List<Any?>, captureIndex: Int, wholeMatch: String): Any? {
+        if (captures.isEmpty() && captureIndex == 1) {
+            return wholeMatch
+        }
+        return captures.getOrNull(captureIndex - 1)
+            ?: throw LuaRuntimeException("invalid capture index %$captureIndex")
     }
 
     private fun stringFind(context: LuaCallContext): LuaReturn {

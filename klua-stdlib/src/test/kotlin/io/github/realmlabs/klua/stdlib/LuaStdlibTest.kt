@@ -6933,15 +6933,35 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string gsub reports unsupported replacement captures`() {
+    fun `string gsub follows lua replacement capture rules`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", "a", "%1")""", "string-gsub-capture-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local fallback, fallbackCount = string.gsub("abc", "a", "%1")
+                local captureOk, captureMessage = pcall(string.gsub, "abc", "a", "%2")
+                local letterOk, letterMessage = pcall(string.gsub, "abc", "a", "%x")
+                local danglingOk, danglingMessage = pcall(string.gsub, "abc", "a", "%")
+                return fallback, fallbackCount, captureOk, captureMessage,
+                    letterOk, letterMessage, danglingOk, danglingMessage
+                """.trimIndent(),
+                "string-gsub-replacement-captures.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'string.gsub' (invalid capture index %1)", state.toString(-1))
+        assertEquals("abc", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("invalid capture index %2", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("invalid use of '%' in replacement string", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("invalid use of '%' in replacement string", state.toString(8))
     }
 
     @Test
