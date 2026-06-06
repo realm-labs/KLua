@@ -3041,14 +3041,17 @@ class LuaStdlibTest {
             state.load(
                 """
                 local values = {"a", "b"}
+                local pairCount = select("#", pairs(values))
                 local pairIterator, pairState, pairKey = pairs(values)
                 local pairFirstKey, pairFirstValue = pairIterator(pairState, pairKey)
                 local pairSecondKey, pairSecondValue = pairIterator(pairState, pairFirstKey)
+                local ipairsCount = select("#", ipairs(values))
                 local ipairsIterator, ipairsState, ipairsIndex = ipairs(values)
                 local ipairsFirstKey, ipairsFirstValue = ipairsIterator(ipairsState, ipairsIndex)
                 local ipairsSecondKey, ipairsSecondValue = ipairsIterator(ipairsState, ipairsFirstKey)
                 local ipairsDone = ipairsIterator(ipairsState, ipairsSecondKey)
-                return pairFirstKey, pairFirstValue, pairSecondKey, pairSecondValue,
+                return pairCount, pairFirstKey, pairFirstValue, pairSecondKey, pairSecondValue,
+                    ipairsCount,
                     ipairsFirstKey, ipairsFirstValue, ipairsSecondKey, ipairsSecondValue, ipairsDone
                 """.trimIndent(),
                 "pairs-ipairs.lua",
@@ -3056,15 +3059,17 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals(1L, state.toInteger(1))
-        assertEquals("a", state.toString(2))
-        assertEquals(2L, state.toInteger(3))
-        assertEquals("b", state.toString(4))
-        assertEquals(1L, state.toInteger(5))
-        assertEquals("a", state.toString(6))
-        assertEquals(2L, state.toInteger(7))
-        assertEquals("b", state.toString(8))
-        assertTrue(state.isNil(9))
+        assertEquals(4L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals("a", state.toString(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals("b", state.toString(5))
+        assertEquals(3L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals("a", state.toString(8))
+        assertEquals(2L, state.toInteger(9))
+        assertEquals("b", state.toString(10))
+        assertTrue(state.isNil(11))
     }
 
     @Test
@@ -3092,7 +3097,7 @@ class LuaStdlibTest {
                 for key, value in pairs(target) do
                     seenKey, seenValue = key, value
                 end
-                return seenKey, seenValue
+                return seenKey, seenValue, select("#", pairs(target))
                 """.trimIndent(),
                 "pairs-metamethod.lua",
             ),
@@ -3101,6 +3106,7 @@ class LuaStdlibTest {
 
         assertEquals("custom", state.toString(1))
         assertEquals("value", state.toString(2))
+        assertEquals(4L, state.toInteger(3))
     }
 
     @Test
