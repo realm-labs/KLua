@@ -199,6 +199,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug traceback returns non string messages unchanged`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local marker = {name = "marker"}
+                local returnedTable = debug.traceback(marker)
+                local returnedNumber = debug.traceback(42)
+                return returnedTable == marker,
+                    returnedTable.name,
+                    returnedNumber,
+                    type(returnedNumber)
+                """.trimIndent(),
+                "debug-traceback-non-string.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("marker", state.toString(2))
+        assertEquals(42L, state.toInteger(3))
+        assertEquals("number", state.toString(4))
+    }
+
+    @Test
     fun `debug getinfo returns lua frame source and current line`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
