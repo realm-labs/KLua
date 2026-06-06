@@ -358,13 +358,20 @@ class LuaStdlibTest {
                 local function fixed(a)
                     return a
                 end
+                local function active(a, b, ...)
+                    local _ = captured
+                    local info = debug.getinfo(1, "u")
+                    return info.nups, info.nparams, info.isvararg
+                end
 
                 local varargInfo = debug.getinfo(vararg, "u")
                 local fixedInfo = debug.getinfo(fixed, "u")
                 local hostInfo = debug.getinfo(print, "u")
+                local activeNups, activeNparams, activeIsVararg = active(1, 2, 3)
                 return varargInfo.nups, varargInfo.nparams, varargInfo.isvararg,
                     fixedInfo.nups, fixedInfo.nparams, fixedInfo.isvararg,
                     hostInfo.nups, hostInfo.nparams, hostInfo.isvararg,
+                    activeNups, activeNparams, activeIsVararg,
                     varargInfo.source
                 """.trimIndent(),
                 "debug-getinfo-upvalues.lua",
@@ -381,7 +388,10 @@ class LuaStdlibTest {
         assertEquals(0L, state.toInteger(7))
         assertEquals(0L, state.toInteger(8))
         assertTrue(state.toBoolean(9))
-        assertTrue(state.isNil(10))
+        assertEquals(1L, state.toInteger(10))
+        assertEquals(2L, state.toInteger(11))
+        assertTrue(state.toBoolean(12))
+        assertTrue(state.isNil(13))
     }
 
     @Test

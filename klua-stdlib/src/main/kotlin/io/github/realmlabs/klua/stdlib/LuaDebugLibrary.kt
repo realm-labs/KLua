@@ -73,6 +73,11 @@ internal object LuaDebugLibrary {
                 }
                 'l' -> table["currentline"] = frame.line.toLong()
                 'n' -> table["namewhat"] = ""
+                'u' -> {
+                    table["nups"] = frame.upvalueCount.toLong()
+                    table["nparams"] = frame.parameterCount.toLong()
+                    table["isvararg"] = frame.isVararg
+                }
             }
         }
     }

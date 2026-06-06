@@ -356,6 +356,9 @@ internal class LuaVm(
                     line,
                     frame.prototype.lineDefined,
                     frame.prototype.lastLineDefined,
+                    frame.prototype.upvalues.size,
+                    frame.prototype.numParams,
+                    frame.prototype.isVararg,
                     activeLocals(frame, pc),
                 )
             }

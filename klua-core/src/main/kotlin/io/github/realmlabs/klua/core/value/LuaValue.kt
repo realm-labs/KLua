@@ -92,6 +92,9 @@ internal data class LuaNativeStackFrame(
     val line: Int,
     val lineDefined: Int,
     val lastLineDefined: Int,
+    val upvalueCount: Int,
+    val parameterCount: Int,
+    val isVararg: Boolean,
     val locals: List<LuaNativeLocalVariable> = emptyList(),
 )
 

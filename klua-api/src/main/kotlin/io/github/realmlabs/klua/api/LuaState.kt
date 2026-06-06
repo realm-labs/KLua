@@ -1040,6 +1040,9 @@ class LuaState private constructor(
                 frame.line,
                 frame.lineDefined,
                 frame.lastLineDefined,
+                frame.upvalueCount,
+                frame.parameterCount,
+                frame.isVararg,
                 frame.locals.map { local ->
                     LuaLocalVariable(
                         local.name,

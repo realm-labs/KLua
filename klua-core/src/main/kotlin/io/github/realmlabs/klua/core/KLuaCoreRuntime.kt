@@ -378,6 +378,9 @@ public data class KLuaCoreStackFrame(
     public val line: Int,
     public val lineDefined: Int = 0,
     public val lastLineDefined: Int = 0,
+    public val upvalueCount: Int = 0,
+    public val parameterCount: Int = 0,
+    public val isVararg: Boolean = false,
     public val locals: List<KLuaCoreLocalVariable> = emptyList(),
 )
 
@@ -674,6 +677,9 @@ private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaC
             frame.line,
             frame.lineDefined,
             frame.lastLineDefined,
+            frame.upvalueCount,
+            frame.parameterCount,
+            frame.isVararg,
             frame.locals.map { local ->
                 KLuaCoreLocalVariable(
                     local.name,
