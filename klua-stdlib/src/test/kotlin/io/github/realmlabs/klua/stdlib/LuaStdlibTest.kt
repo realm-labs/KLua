@@ -1640,6 +1640,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber explicit base wraps unsigned 64 bit values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return tonumber("FFFFFFFFFFFFFFFF", 16),
+                    tonumber("8000000000000000", 16),
+                    tonumber("10000000000000000", 16),
+                    tonumber("18446744073709551615", 10),
+                    tonumber("-18446744073709551615", 10),
+                    tonumber("  +ff  ", 16)
+                """.trimIndent(),
+                "tonumber-base-wrap.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(-1L, state.toInteger(1))
+        assertEquals(Long.MIN_VALUE, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals(-1L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(255L, state.toInteger(6))
+    }
+
+    @Test
     fun `tonumber reports missing and base conversion argument errors`() {
         val missingState = LuaState.create()
         LuaStdlib.openBase(missingState)

@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.continueWith
 import io.github.realmlabs.klua.api.withContinuation
 import java.io.IOException
+import java.math.BigInteger
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.function.Consumer
@@ -406,7 +407,7 @@ public object LuaStdlib {
                 throw LuaRuntimeException("bad argument #2 to 'tonumber' (base out of range)")
             }
             return when (value) {
-                is CharSequence -> LuaReturn.of(value.toString().trim().toLongOrNull(base.toInt()))
+                is CharSequence -> LuaReturn.of(parseBasedInteger(value.toString(), base.toInt()))
                 else -> throw LuaRuntimeException("bad argument #1 to 'tonumber' (string expected)")
             }
         }
@@ -574,6 +575,33 @@ public object LuaStdlib {
         return parseHexInteger(trimmed) ?: trimmed.toLongOrNull() ?: trimmed.toDoubleOrNull()
     }
 
+    private fun parseBasedInteger(text: String, base: Int): Long? {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) {
+            return null
+        }
+        val sign = when (trimmed.first()) {
+            '-' -> -1
+            '+' -> 1
+            else -> 1
+        }
+        val digitsStart = if (trimmed.first() == '-' || trimmed.first() == '+') 1 else 0
+        if (digitsStart == trimmed.length) {
+            return null
+        }
+
+        var value = BigInteger.ZERO
+        val radix = BigInteger.valueOf(base.toLong())
+        for (index in digitsStart until trimmed.length) {
+            val digit = trimmed[index].digitToIntOrNull(base) ?: return null
+            value = value.multiply(radix).add(BigInteger.valueOf(digit.toLong()))
+        }
+        if (sign < 0) {
+            value = value.negate()
+        }
+        return value.mod(UINT64_MODULUS).toLong()
+    }
+
     private fun String.isNamedFloatingPointLiteral(): Boolean {
         val unsigned = trimStart('+', '-')
         return unsigned.equals("nan", ignoreCase = true) || unsigned.equals("infinity", ignoreCase = true)
@@ -600,6 +628,8 @@ public object LuaStdlib {
             else -> null
         }
     }
+
+    private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
     private fun standardOutput(): Consumer<String> {
         return Consumer { line -> println(line) }
