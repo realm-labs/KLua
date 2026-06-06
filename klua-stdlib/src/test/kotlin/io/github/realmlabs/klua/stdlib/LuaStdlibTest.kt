@@ -1097,6 +1097,21 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook reports hook function errors before mask errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return debug.sethook("not-function", "x", 0)""", "debug-sethook-function-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'debug.sethook' (function expected)", state.toString(-1))
+    }
+
+    @Test
     fun `debug sethook nil clears hook without validating mask`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
