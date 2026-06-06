@@ -214,21 +214,41 @@ internal object LuaDebugLibrary {
     }
 
     private fun upvalueId(context: LuaCallContext): LuaReturn {
-        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
-        if (index <= 0) {
-            return LuaReturn.of(null)
-        }
-        return LuaReturn.of(context.getUpvalueId(1, index))
+        requireFunction(context, 1, "debug.upvalueid")
+        val index = requiredPositiveUpvalueIndex(context, 2, "debug.upvalueid")
+        val id = context.getUpvalueId(1, index)
+            ?: throw LuaRuntimeException("bad argument #2 to 'debug.upvalueid' (invalid upvalue index)")
+        return LuaReturn.of(id)
     }
 
     private fun upvalueJoin(context: LuaCallContext): LuaReturn {
-        val targetIndex = context.toInteger(2)?.toInt() ?: return LuaReturn.none()
-        val sourceIndex = context.toInteger(4)?.toInt() ?: return LuaReturn.none()
-        if (targetIndex <= 0 || sourceIndex <= 0) {
-            return LuaReturn.none()
+        requireFunction(context, 1, "debug.upvaluejoin")
+        requireFunction(context, 3, "debug.upvaluejoin")
+        val targetIndex = requiredPositiveUpvalueIndex(context, 2, "debug.upvaluejoin")
+        val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "debug.upvaluejoin")
+        if (context.getUpvalueId(1, targetIndex) == null) {
+            throw LuaRuntimeException("bad argument #2 to 'debug.upvaluejoin' (invalid upvalue index)")
+        }
+        if (context.getUpvalueId(3, sourceIndex) == null) {
+            throw LuaRuntimeException("bad argument #4 to 'debug.upvaluejoin' (invalid upvalue index)")
         }
         context.joinUpvalue(1, targetIndex, 3, sourceIndex)
         return LuaReturn.none()
+    }
+
+    private fun requireFunction(context: LuaCallContext, index: Int, functionName: String) {
+        if (context.typeName(index) != "function") {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (function expected)")
+        }
+    }
+
+    private fun requiredPositiveUpvalueIndex(context: LuaCallContext, index: Int, functionName: String): Int {
+        val upvalueIndex = context.toInteger(index)?.toInt()
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+        if (upvalueIndex <= 0) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid upvalue index)")
+        }
+        return upvalueIndex
     }
 
     private fun getMetatable(context: LuaCallContext): LuaReturn {

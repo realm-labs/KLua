@@ -816,15 +816,11 @@ class LuaStdlibTest {
                 local leftAgain = debug.upvalueid(left, 1)
                 local rightShared = debug.upvalueid(right, 1)
                 local differentOther = debug.upvalueid(different, 1)
-                local missing = debug.upvalueid(left, 99)
-                local hostMissing = debug.upvalueid(print, 1)
 
                 return type(leftShared),
                     leftShared == leftAgain,
                     leftShared == rightShared,
-                    leftShared == differentOther,
-                    missing,
-                    hostMissing
+                    leftShared == differentOther
                 """.trimIndent(),
                 "debug-upvalueid.lua",
             ),
@@ -835,8 +831,6 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertTrue(state.toBoolean(3))
         assertFalse(state.toBoolean(4))
-        assertTrue(state.isNil(5))
-        assertTrue(state.isNil(6))
     }
 
     @Test
@@ -861,6 +855,9 @@ class LuaStdlibTest {
                 local beforeLeft = left()
                 local beforeRight = right()
                 local beforeSame = debug.upvalueid(left, 1) == debug.upvalueid(right, 1)
+                local okSource, sourceMessage = pcall(function()
+                    debug.upvaluejoin(left, 1, right, 99)
+                end)
 
                 debug.upvaluejoin(left, 1, right, 1)
 
@@ -868,7 +865,8 @@ class LuaStdlibTest {
                 local afterLeft = left()
                 local afterRight = right()
                 debug.setupvalue(right, 1, "joined")
-                return beforeLeft, beforeRight, beforeSame, afterSame, afterLeft, afterRight, left(), right()
+                return beforeLeft, beforeRight, beforeSame, okSource, sourceMessage,
+                    afterSame, afterLeft, afterRight, left(), right()
                 """.trimIndent(),
                 "debug-upvaluejoin.lua",
             ),
@@ -878,11 +876,59 @@ class LuaStdlibTest {
         assertEquals("left", state.toString(1))
         assertEquals("right", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertTrue(state.toBoolean(4))
-        assertEquals("right", state.toString(5))
-        assertEquals("right", state.toString(6))
-        assertEquals("joined", state.toString(7))
-        assertEquals("joined", state.toString(8))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #4 to 'debug.upvaluejoin' (invalid upvalue index)", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("right", state.toString(7))
+        assertEquals("right", state.toString(8))
+        assertEquals("joined", state.toString(9))
+        assertEquals("joined", state.toString(10))
+    }
+
+    @Test
+    fun `debug upvalue identity functions report argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function make(value)
+                    return function()
+                        return value
+                    end
+                end
+                local left = make("left")
+                local leftAgain = make("left-again")
+                local right = make("right")
+
+                local okFunction, functionMessage = pcall(debug.upvalueid, "not-function", 1)
+                local okIdIndex, idIndexMessage = pcall(debug.upvalueid, left, 99)
+                local okJoinFunction, joinFunctionMessage = pcall(debug.upvaluejoin, "not-function", 1, leftAgain, 1)
+                local okJoinOtherFunction, joinOtherFunctionMessage = pcall(debug.upvaluejoin, left, 1, "not-function", 1)
+                local okJoinTarget, joinTargetMessage = pcall(debug.upvaluejoin, left, 99, leftAgain, 1)
+                return okFunction, functionMessage,
+                    okIdIndex, idIndexMessage,
+                    okJoinFunction, joinFunctionMessage,
+                    okJoinOtherFunction, joinOtherFunctionMessage,
+                    okJoinTarget, joinTargetMessage
+                """.trimIndent(),
+                "debug-upvalue-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'debug.upvalueid' (function expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'debug.upvalueid' (invalid upvalue index)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'debug.upvaluejoin' (function expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #3 to 'debug.upvaluejoin' (function expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #2 to 'debug.upvaluejoin' (invalid upvalue index)", state.toString(10))
     }
 
     @Test
