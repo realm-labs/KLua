@@ -2246,6 +2246,21 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage reports non string option errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return collectgarbage(true)""", "collectgarbage-option-type-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'collectgarbage' (string expected)", state.toString(-1))
+    }
+
+    @Test
     fun `load compiles string chunks with shared globals and arguments`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

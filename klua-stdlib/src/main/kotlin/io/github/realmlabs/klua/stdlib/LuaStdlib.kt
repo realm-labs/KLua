@@ -140,7 +140,7 @@ public object LuaStdlib {
     }
 
     private fun collectgarbage(context: LuaCallContext, running: Boolean, mode: String): GarbageCollectorResult {
-        return when (val option = context.toString(1) ?: "collect") {
+        return when (val option = optionalString(context, 1, "collect", "collectgarbage")) {
             "collect" -> {
                 System.gc()
                 GarbageCollectorResult(running, mode, LuaReturn.none())
