@@ -222,7 +222,7 @@ internal object LuaStringLibrary {
             requiredInteger(context, 3, "string.gmatch")
         }
         val compiledPattern = LuaStringPattern.compile(pattern)
-        var cursor = text.normalizeSearchStart(start) - 1
+        var cursor = text.luaByteSearchStartToCharIndex(start)
         val iterator = LuaFunction { _ ->
             if (cursor > text.length) {
                 LuaReturn.of(null)
@@ -237,7 +237,7 @@ internal object LuaStringLibrary {
                         match.endIndex
                     }
                     if (match.captures.isNotEmpty()) {
-                        LuaReturn.ofValues(match.captures)
+                        LuaReturn.ofValues(text.luaByteCaptures(match.captures))
                     } else {
                         LuaReturn.of(text.substring(match.startIndex, match.endIndex))
                     }

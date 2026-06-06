@@ -6889,10 +6889,14 @@ class LuaStdlibTest {
                 local negative = string.gmatch("one two three", "%a+", -5)
                 local clamped = string.gmatch("one two", "%a+", 0)
                 local pastEnd = string.gmatch("one two", "%a+", 8)
+                local utf8Position = string.gmatch("éx", "()x")
+                local utf8FromSecondByte = string.gmatch("éx", "x", 2)
                 return positive(), positive(), positive(),
                     negative(), negative(),
                     clamped(),
-                    pastEnd()
+                    pastEnd(),
+                    utf8Position(),
+                    utf8FromSecondByte()
                 """.trimIndent(),
                 "string-gmatch-init.lua",
             ),
@@ -6906,6 +6910,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(5))
         assertEquals("one", state.toString(6))
         assertTrue(state.isNil(7))
+        assertEquals(3L, state.toInteger(8))
+        assertEquals("x", state.toString(9))
     }
 
     @Test
