@@ -32,6 +32,8 @@ interface LuaCallContext {
 
     fun getUpvalueId(index: Int, upvalueIndex: Int): Any? = null
 
+    fun joinUpvalue(index: Int, upvalueIndex: Int, otherIndex: Int, otherUpvalueIndex: Int): Boolean = false
+
     fun setUpvalue(index: Int, upvalueIndex: Int, value: Any?): String? = null
 
     fun setLocal(level: Int, index: Int, value: Any?): String? = null

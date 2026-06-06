@@ -16,6 +16,7 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_getupvalue") { context -> getUpvalue(context) }
         state.register("klua_debug_setupvalue") { context -> setupUpvalue(context) }
         state.register("klua_debug_upvalueid") { context -> upvalueId(context) }
+        state.register("klua_debug_upvaluejoin") { context -> upvalueJoin(context) }
         state.register("klua_debug_getmetatable") { context -> getMetatable(context) }
         state.register("klua_debug_setmetatable") { context -> setMetatable(context) }
         state.register("klua_debug_sethook") { context -> setHook(context) }
@@ -220,6 +221,16 @@ internal object LuaDebugLibrary {
         return LuaReturn.of(context.getUpvalueId(1, index))
     }
 
+    private fun upvalueJoin(context: LuaCallContext): LuaReturn {
+        val targetIndex = context.toInteger(2)?.toInt() ?: return LuaReturn.none()
+        val sourceIndex = context.toInteger(4)?.toInt() ?: return LuaReturn.none()
+        if (targetIndex <= 0 || sourceIndex <= 0) {
+            return LuaReturn.none()
+        }
+        context.joinUpvalue(1, targetIndex, 3, sourceIndex)
+        return LuaReturn.none()
+    }
+
     private fun getMetatable(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             return LuaReturn.of(null)
@@ -295,6 +306,10 @@ internal object LuaDebugLibrary {
 
         function debug.upvalueid(func, index)
             return klua_debug_upvalueid(func, index)
+        end
+
+        function debug.upvaluejoin(func1, index1, func2, index2)
+            return klua_debug_upvaluejoin(func1, index1, func2, index2)
         end
 
         function debug.getmetatable(value)

@@ -159,6 +159,27 @@ public object KLuaCoreRuntime {
         return KLuaCoreValue.UserDataValue(upvalue)
     }
 
+    public fun joinUpvalue(
+        targetFunction: KLuaCoreValue.FunctionValue,
+        targetIndex: Int,
+        sourceFunction: KLuaCoreValue.FunctionValue,
+        sourceIndex: Int,
+    ): Boolean {
+        if (targetIndex <= 0 || sourceIndex <= 0) {
+            return false
+        }
+        val targetClosure = targetFunction.sourceFunction as? LuaClosure ?: return false
+        val sourceClosure = sourceFunction.sourceFunction as? LuaClosure ?: return false
+        val targetZeroIndex = targetIndex - 1
+        val sourceZeroIndex = sourceIndex - 1
+        val sourceUpvalue = sourceClosure.upvalues.getOrNull(sourceZeroIndex) ?: return false
+        if (targetZeroIndex !in targetClosure.upvalues.indices) {
+            return false
+        }
+        targetClosure.upvalues[targetZeroIndex] = sourceUpvalue
+        return true
+    }
+
     public fun setUpvalue(
         function: KLuaCoreValue.FunctionValue,
         index: Int,

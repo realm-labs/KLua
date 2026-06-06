@@ -46,7 +46,7 @@ internal data class LuaUserDataProperty(
 
 internal data class LuaClosure(
     val prototype: Prototype,
-    val upvalues: List<LuaUpvalue> = emptyList(),
+    val upvalues: MutableList<LuaUpvalue> = mutableListOf(),
 ) : LuaValue
 
 internal class LuaNativeFunction(

@@ -120,7 +120,8 @@ class LuaStdlibTest {
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
                     type(debug.setlocal), type(debug.getupvalue), type(debug.setupvalue),
-                    type(debug.upvalueid), type(debug.getmetatable), type(debug.setmetatable), type(debug.getregistry),
+                    type(debug.upvalueid), type(debug.upvaluejoin), type(debug.getmetatable),
+                    type(debug.setmetatable), type(debug.getregistry),
                     type(debug.sethook), type(debug.gethook), debug.traceback("boom"),
                     type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
@@ -142,11 +143,12 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(11))
         assertEquals("function", state.toString(12))
         assertEquals("function", state.toString(13))
-        assertTrue(state.toString(14)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(15))
-        assertEquals("Lua", state.toString(16))
-        assertEquals("debug-openlibs.lua", state.toString(17))
-        assertEquals(1L, state.toInteger(18))
+        assertEquals("function", state.toString(14))
+        assertTrue(state.toString(15)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(16))
+        assertEquals("Lua", state.toString(17))
+        assertEquals("debug-openlibs.lua", state.toString(18))
+        assertEquals(1L, state.toInteger(19))
     }
 
     @Test
@@ -835,6 +837,52 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(4))
         assertTrue(state.isNil(5))
         assertTrue(state.isNil(6))
+    }
+
+    @Test
+    fun `debug upvaluejoin makes lua closures share upvalues`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local leftValue = "left"
+                local rightValue = "right"
+
+                local function left()
+                    return leftValue
+                end
+                local function right()
+                    return rightValue
+                end
+
+                local beforeLeft = left()
+                local beforeRight = right()
+                local beforeSame = debug.upvalueid(left, 1) == debug.upvalueid(right, 1)
+
+                debug.upvaluejoin(left, 1, right, 1)
+
+                local afterSame = debug.upvalueid(left, 1) == debug.upvalueid(right, 1)
+                local afterLeft = left()
+                local afterRight = right()
+                debug.setupvalue(right, 1, "joined")
+                return beforeLeft, beforeRight, beforeSame, afterSame, afterLeft, afterRight, left(), right()
+                """.trimIndent(),
+                "debug-upvaluejoin.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("left", state.toString(1))
+        assertEquals("right", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("right", state.toString(5))
+        assertEquals("right", state.toString(6))
+        assertEquals("joined", state.toString(7))
+        assertEquals("joined", state.toString(8))
     }
 
     @Test

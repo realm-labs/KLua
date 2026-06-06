@@ -500,7 +500,7 @@ internal class LuaVm(
                     frame.upvalues[index]
                 }
             }
-        }
+        }.toMutableList()
         stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues))
     }
 

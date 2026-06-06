@@ -1169,6 +1169,14 @@ class LuaState private constructor(
                 ?.toPublicCallReturnValue()
         }
 
+        override fun joinUpvalue(index: Int, upvalueIndex: Int, otherIndex: Int, otherUpvalueIndex: Int): Boolean {
+            val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return false
+            val otherFunction = valueAt(otherIndex) as? LuaStackValue.NativeFunctionValue ?: return false
+            val coreFunction = function.coreFunction ?: return false
+            val otherCoreFunction = otherFunction.coreFunction ?: return false
+            return KLuaCoreRuntime.joinUpvalue(coreFunction, upvalueIndex, otherCoreFunction, otherUpvalueIndex)
+        }
+
         override fun setUpvalue(index: Int, upvalueIndex: Int, value: Any?): String? {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
             val coreFunction = function.coreFunction ?: return null

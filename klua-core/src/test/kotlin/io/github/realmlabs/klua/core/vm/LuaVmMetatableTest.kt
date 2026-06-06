@@ -76,7 +76,7 @@ class LuaVmMetatableTest {
         val table = LuaTable()
         val sink = LuaTable()
         val metatable = LuaTable()
-        metatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), listOf(LuaUpvalue(sink))))
+        metatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), mutableListOf(LuaUpvalue(sink))))
         table.metatable = metatable
 
         LuaVm().execute(tableFieldWritePrototype(table, "answer", LuaInteger(42)))
@@ -93,7 +93,7 @@ class LuaVmMetatableTest {
         val metatable = LuaTable()
         val targetMetatable = LuaTable()
 
-        targetMetatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), listOf(LuaUpvalue(sink))))
+        targetMetatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), mutableListOf(LuaUpvalue(sink))))
         target.metatable = targetMetatable
         metatable.rawSet(LuaString("__newindex"), target)
         table.metatable = metatable
@@ -112,7 +112,7 @@ class LuaVmMetatableTest {
         val metatable = LuaTable()
 
         table.rawSet(LuaString("answer"), LuaInteger(1))
-        metatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), listOf(LuaUpvalue(sink))))
+        metatable.rawSet(LuaString("__newindex"), LuaClosure(storeThirdArgumentPrototype(), mutableListOf(LuaUpvalue(sink))))
         table.metatable = metatable
 
         LuaVm().execute(tableFieldWritePrototype(table, "answer", LuaInteger(42)))
