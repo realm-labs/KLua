@@ -148,7 +148,7 @@ internal object LuaMathLibrary {
 
     private fun mathLdexp(context: LuaCallContext): LuaReturn {
         val mantissa = requiredNumber(context, 1, "math.ldexp")
-        val exponent = requiredInteger(context, 2, "math.ldexp").coerceInIntRange()
+        val exponent = requiredInteger(context, 2, "math.ldexp").toInt()
         return LuaReturn.of(java.lang.Math.scalb(mantissa, exponent))
     }
 
@@ -380,14 +380,6 @@ internal object LuaMathLibrary {
 
     private fun combineSeeds(firstSeed: Long, secondSeed: Long): Long {
         return firstSeed xor java.lang.Long.rotateLeft(secondSeed, 32)
-    }
-
-    private fun Long.coerceInIntRange(): Int {
-        return when {
-            this > Int.MAX_VALUE -> Int.MAX_VALUE
-            this < Int.MIN_VALUE -> Int.MIN_VALUE
-            else -> toInt()
-        }
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {

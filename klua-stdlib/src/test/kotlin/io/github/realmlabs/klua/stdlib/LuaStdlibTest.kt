@@ -4962,6 +4962,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math ldexp narrows exponent like lua 55 lmathlib`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return math.ldexp(1, 2147483647),
+                    math.ldexp(1, 2147483648),
+                    math.ldexp(1, 2147483649),
+                    math.ldexp(1, -2147483648),
+                    math.ldexp(1, -2147483649)
+                """.trimIndent(),
+                "math-ldexp-exponent-narrowing.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue((state.toNumber(1) ?: error("missing max int exponent result")).isInfinite())
+        assertEquals(0.0, state.toNumber(2) ?: error("missing wrapped min int exponent result"), 0.0)
+        assertEquals(0.0, state.toNumber(3) ?: error("missing wrapped negative exponent result"), 0.0)
+        assertEquals(0.0, state.toNumber(4) ?: error("missing min int exponent result"), 0.0)
+        assertTrue((state.toNumber(5) ?: error("missing wrapped max int exponent result")).isInfinite())
+    }
+
+    @Test
     fun `math frexp and ldexp report argument errors`() {
         val frexpState = LuaState.create()
         LuaStdlib.openMath(frexpState)
