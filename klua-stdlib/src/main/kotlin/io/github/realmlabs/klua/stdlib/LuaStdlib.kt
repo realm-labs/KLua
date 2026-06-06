@@ -138,6 +138,9 @@ public object LuaStdlib {
     }
 
     private fun error(context: LuaCallContext): LuaReturn {
+        if (!context.isNone(2) && !context.isNil(2)) {
+            requiredNumberIndex(context, 2, "error")
+        }
         throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
     }
 

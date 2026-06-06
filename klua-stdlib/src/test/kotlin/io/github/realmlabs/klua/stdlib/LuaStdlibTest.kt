@@ -1939,11 +1939,23 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return error("boom")""", "error.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return error("boom", nil)""", "error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("boom", state.toString(-1))
+    }
+
+    @Test
+    fun `error reports non numeric level errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return error("boom", false)""", "error-level-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'error' (number expected)", state.toString(-1))
     }
 
     @Test
