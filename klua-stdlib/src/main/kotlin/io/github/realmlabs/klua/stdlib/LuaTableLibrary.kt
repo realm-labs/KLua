@@ -357,6 +357,7 @@ internal object LuaTableLibrary {
         if (start > end) {
             return LuaReturn.none()
         }
+        tableUnpackResultCount(start, end)
 
         val values = mutableListOf<Any?>()
         var index = start
@@ -365,6 +366,23 @@ internal object LuaTableLibrary {
             index++
         }
         return LuaReturn.ofValues(values)
+    }
+
+    private fun tableUnpackResultCount(start: Long, end: Long): Long {
+        val span = try {
+            java.lang.Math.subtractExact(end, start)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("too many results to unpack")
+        }
+        val count = try {
+            java.lang.Math.addExact(span, 1L)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("too many results to unpack")
+        }
+        if (count >= Int.MAX_VALUE) {
+            throw LuaRuntimeException("too many results to unpack")
+        }
+        return count
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {

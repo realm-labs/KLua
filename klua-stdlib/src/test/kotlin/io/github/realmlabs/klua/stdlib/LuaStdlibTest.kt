@@ -8238,6 +8238,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table unpack reports too many result errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 2147483647
+                    end,
+                })
+                return table.unpack(values)
+                """.trimIndent(),
+                "table-unpack-too-many-results.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("too many results to unpack", state.toString(-1))
+    }
+
+    @Test
     fun `table unpack returns no values for empty ranges`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
