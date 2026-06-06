@@ -37,7 +37,7 @@ internal object LuaTableLibrary {
             requiredInteger(context, 3, "table.concat")
         }
         val end = if (context.isNone(4) || context.isNil(4)) {
-            context.tableLength(1) ?: 0L
+            tableLength(context, 1)
         } else {
             requiredInteger(context, 4, "table.concat")
         }
@@ -96,6 +96,13 @@ internal object LuaTableLibrary {
             is LuaFunction -> "function"
             else -> "table"
         }
+    }
+
+    private fun tableLength(context: LuaCallContext, index: Int): Long {
+        val length = context.getTableField(context.getMetatable(index), "__len")
+            ?: return context.tableLength(index) ?: 0L
+        return luaInteger(context.call(length, listOf(context.getTable(index))).get(1))
+            ?: throw LuaRuntimeException("object length is not an integer")
     }
 
     private fun tableCreate(context: LuaCallContext): LuaReturn {
@@ -370,6 +377,28 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (non-negative integer expected)")
         }
         return value
+    }
+
+    private fun luaInteger(value: Any?): Long? {
+        return when (value) {
+            is Byte -> value.toLong()
+            is Short -> value.toLong()
+            is Int -> value.toLong()
+            is Long -> value
+            is Float -> value.toDouble().luaInteger()
+            is Double -> value.luaInteger()
+            is CharSequence -> value.toString().trim().toLongOrNull()
+                ?: value.toString().trim().toDoubleOrNull()?.luaInteger()
+            else -> null
+        }
+    }
+
+    private fun Double.luaInteger(): Long? {
+        if (!isFinite()) {
+            return null
+        }
+        val integer = toLong()
+        return if (integer.toDouble() == this) integer else null
     }
 
     private fun argumentValue(context: LuaCallContext, index: Int): Any? {

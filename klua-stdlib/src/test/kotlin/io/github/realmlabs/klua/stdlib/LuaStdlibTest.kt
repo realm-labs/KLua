@@ -7387,15 +7387,56 @@ class LuaStdlibTest {
     @Test
     fun `table concat default range respects raw sequence length`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openTable(state)
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return table.concat({"a", nil, "c"})""", "table-concat-default-length.lua"),
+            state.load(
+                """
+                local fallback = setmetatable({}, {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = function(_, index)
+                        return ({ "meta-a", "meta-b" })[index]
+                    end,
+                })
+                return table.concat({"a", nil, "c"}), table.concat(fallback, ",")
+                """.trimIndent(),
+                "table-concat-default-length.lua",
+            ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("a", state.toString(1))
+        assertEquals("meta-a,meta-b", state.toString(2))
+    }
+
+    @Test
+    fun `table concat reports non integer length metamethod results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 1.5
+                    end,
+                })
+                return table.concat(values)
+                """.trimIndent(),
+                "table-concat-length-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("object length is not an integer", state.toString(-1))
     }
 
     @Test
