@@ -94,7 +94,14 @@ internal class LuaStringPattern private constructor(
                 captures + (checkCaptureLimit(token.index) to (textIndex + 1L)),
             )
             is Token.BackReference -> {
-                val capture = captures[token.index] as? String ?: return null
+                if (token.index < 0) {
+                    throw LuaRuntimeException("invalid capture index %${token.displayIndex}")
+                }
+                val captured = captures[token.index]
+                if (captured == null && token.index !in captures) {
+                    throw LuaRuntimeException("invalid capture index %${token.displayIndex}")
+                }
+                val capture = captured as? String ?: return null
                 if (!text.startsWith(capture, textIndex)) {
                     null
                 } else {
@@ -259,8 +266,8 @@ internal class LuaStringPattern private constructor(
                             throw LuaRuntimeException("string patterns are not supported")
                         }
                         val next = pattern[index + 1]
-                        if (next in '1'..'9') {
-                            tokens += Token.BackReference(next.digitToInt() - 1)
+                        if (next in '0'..'9') {
+                            tokens += Token.BackReference(next.digitToInt() - 1, next.digitToInt())
                             hasPatternToken = true
                             index += 2
                         } else if (next == 'b') {
@@ -462,6 +469,7 @@ private sealed interface Token {
 
     data class BackReference(
         val index: Int,
+        val displayIndex: Int,
     ) : Token {
         override fun matches(char: Char): Boolean = false
     }

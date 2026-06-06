@@ -6173,6 +6173,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns report invalid backreference captures`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zeroOk, zeroMessage = pcall(string.match, "abc", "%0")
+                local missingOk, missingMessage = pcall(string.match, "abc", "%1")
+                local unfinishedOk, unfinishedMessage = pcall(string.match, "aa", "(a%1)")
+                local position = string.match("a", "()%1")
+                return zeroOk, zeroMessage, missingOk, missingMessage,
+                    unfinishedOk, unfinishedMessage, position
+                """.trimIndent(),
+                "string-pattern-invalid-backreferences.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("invalid capture index %0", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("invalid capture index %1", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("invalid capture index %1", state.toString(6))
+        assertTrue(state.isNil(7))
+    }
+
+    @Test
     fun `string patterns support balanced matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
