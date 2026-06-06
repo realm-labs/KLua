@@ -1,11 +1,9 @@
 package io.github.realmlabs.klua.core.bytecode
 
-import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal data class Prototype(
     val sourceName: String,
-    val version: LuaSourceVersion = LuaSourceVersion.LUA_55,
     val code: IntArray,
     val constants: Array<LuaValue>,
     val nested: Array<Prototype> = emptyArray(),
@@ -40,7 +38,6 @@ internal data class Prototype(
 
         return sourceName == other.sourceName &&
             sourceId == other.sourceId &&
-            version == other.version &&
             code.contentEquals(other.code) &&
             constants.contentEquals(other.constants) &&
             nested.contentEquals(other.nested) &&
@@ -59,7 +56,6 @@ internal data class Prototype(
     override fun hashCode(): Int {
         var result = sourceName.hashCode()
         result = 31 * result + sourceId.hashCode()
-        result = 31 * result + version.hashCode()
         result = 31 * result + code.contentHashCode()
         result = 31 * result + constants.contentHashCode()
         result = 31 * result + nested.contentHashCode()

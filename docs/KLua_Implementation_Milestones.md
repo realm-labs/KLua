@@ -1200,7 +1200,7 @@ Move from “Lua-like” toward reliable Lua 5.5 behavior without carrying old-v
 ### Tasks
 
 - Keep `LuaConfig` focused on runtime options rather than source-version selection.
-- Keep compiled `Prototype` metadata fixed to the internal Lua 5.5 marker for diagnostics and bytecode-package validation.
+- Keep compiled `Prototype` metadata free of language-version selection; future bytecode packages can carry a fixed Lua 5.5 marker for validation.
 - Add Lua 5.5 syntax and semantic conformance tests as features land.
 - Add Lua 5.5 standard-library conformance tests for base, table, string, math, utf8, coroutine, package, and debug behavior.
 - Add bytecode package header checks that reject unsupported KLua bytecode formats without exposing a public language-version selector.

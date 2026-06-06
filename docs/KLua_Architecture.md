@@ -98,11 +98,10 @@ Lua 5.5 source
     -> one KLua VM runtime
 ```
 
-Compiled prototypes may record a fixed internal Lua 5.5 source marker for diagnostics and future bytecode-package validation:
+Compiled prototypes do not carry a language-version field. KLua has one source target, so version validation belongs at the future bytecode-package boundary rather than on every in-memory prototype:
 
 ```kotlin
 class Prototype(
-    val version: LuaSourceVersion = LuaSourceVersion.LUA_55,
     val code: IntArray,
     val constants: Array<LuaValue>,
     val nested: Array<Prototype>,
@@ -219,7 +218,7 @@ Header example:
 data class KLuaChunkHeader(
     val magic: Int,
     val kluaBytecodeVersion: Int,
-    val luaVersion: LuaSourceVersion,
+    val sourceLanguage: String,
     val flags: Int,
 )
 ```
@@ -227,7 +226,7 @@ data class KLuaChunkHeader(
 Loading rule:
 
 ```text
-LuaState can load supported KLua bytecode packages that carry the Lua 5.5 marker.
+LuaState can load supported KLua bytecode packages that carry the fixed Lua 5.5 source marker.
 Unsupported KLua bytecode format versions are rejected before execution.
 ```
 

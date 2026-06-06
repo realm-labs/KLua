@@ -2,7 +2,6 @@ package io.github.realmlabs.klua.core.compiler
 
 import io.github.realmlabs.klua.core.bytecode.Disassembler
 import io.github.realmlabs.klua.core.bytecode.LocalVarInfo
-import io.github.realmlabs.klua.core.runtime.LuaSourceVersion
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaString
@@ -19,7 +18,6 @@ class CompilerTest {
 
         assertEquals("return-int.lua", prototype.sourceName)
         assertEquals("return-int.lua", prototype.sourceId)
-        assertEquals(LuaSourceVersion.LUA_55, prototype.version)
         assertEquals("return-int.lua", prototype.debugInfo.sourceName)
         assertEquals("return-int.lua", prototype.debugInfo.sourceId)
         assertContentEquals(intArrayOf(1, 1), prototype.debugInfo.lineByPc)
