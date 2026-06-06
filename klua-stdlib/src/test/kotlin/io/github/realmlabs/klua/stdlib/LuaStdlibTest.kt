@@ -6010,9 +6010,13 @@ class LuaStdlibTest {
                 local expanded, expandedCount = string.gsub("ab", "()", "%1")
                 local utf8Before = string.match("éx", "()x")
                 local fromSecondByte = string.match("éx", "x", 2)
+                local utf8Replaced = string.gsub("éx", "()x", function(position)
+                    return "[" .. position .. "]"
+                end)
+                local utf8Expanded = string.gsub("éx", "()x", "%1")
                 return first, last, before, after, matchBefore, matchAfter,
                     firstWord, secondWord, replaced, count, expanded, expandedCount,
-                    utf8Before, fromSecondByte
+                    utf8Before, fromSecondByte, utf8Replaced, utf8Expanded
                 """.trimIndent(),
                 "string-pattern-position-captures.lua",
             ),
@@ -6033,6 +6037,8 @@ class LuaStdlibTest {
         assertEquals(3L, state.toInteger(12))
         assertEquals(3L, state.toInteger(13))
         assertEquals("x", state.toString(14))
+        assertEquals("é[3]", state.toString(15))
+        assertEquals("é3", state.toString(16))
     }
 
     @Test

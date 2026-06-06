@@ -98,7 +98,7 @@ internal object LuaStringLibrary {
             result.append(text, cursor, match.startIndex)
             val wholeMatch = text.substring(match.startIndex, match.endIndex)
             result.append(
-                replacementForMatch(context, replacementType, wholeMatch, match.captures),
+                replacementForMatch(context, replacementType, wholeMatch, text.luaByteCaptures(match.captures)),
             )
             cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
                 result.append(text[match.endIndex])
