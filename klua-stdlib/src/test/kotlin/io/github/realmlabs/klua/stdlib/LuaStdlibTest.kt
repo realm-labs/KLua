@@ -5449,7 +5449,8 @@ class LuaStdlibTest {
                 """
                 return string.len("hello"), string.len("é"), string.lower("HeLLo"), string.upper("HeLLo"),
                     string.reverse("abc"), string.rep("ha", 3), string.sub("abcdef", 2, 4),
-                    string.sub("abcdef", -3, -1), string.sub("abcdef", 4, 2)
+                    string.sub("abcdef", -3, -1), string.sub("abcdef", 4, 2),
+                    string.sub("éx", 1, 2), string.sub("éx", 3, 3)
                 """.trimIndent(),
                 "string.lua",
             ),
@@ -5465,6 +5466,8 @@ class LuaStdlibTest {
         assertEquals("bcd", state.toString(7))
         assertEquals("def", state.toString(8))
         assertEquals("", state.toString(9))
+        assertEquals("é", state.toString(10))
+        assertEquals("x", state.toString(11))
     }
 
     @Test

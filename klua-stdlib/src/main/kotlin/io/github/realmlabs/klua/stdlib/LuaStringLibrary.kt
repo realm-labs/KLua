@@ -364,7 +364,7 @@ internal object LuaStringLibrary {
         } else {
             requiredInteger(context, 3, "string.sub")
         }
-        return LuaReturn.of(text.substringByLuaRange(start, end))
+        return LuaReturn.of(text.substringByLuaByteRange(start, end))
     }
 
     private fun stringUpper(context: LuaCallContext): LuaReturn {
@@ -764,35 +764,13 @@ internal object LuaStringLibrary {
         state.setField(-2, name)
     }
 
-    private fun String.substringByLuaRange(start: Long, end: Long): String {
-        val range = luaIndexRange(start, end)
+    private fun String.substringByLuaByteRange(start: Long, end: Long): String {
+        val bytes = toByteArray(StandardCharsets.UTF_8)
+        val range = bytes.luaIndexRange(start, end)
         if (range.isEmpty()) {
             return ""
         }
-        return substring(range.first - 1, range.last)
-    }
-
-    private fun String.luaIndexRange(start: Long, end: Long): IntRange {
-        val normalizedStart = normalizeStringIndex(start)
-        val normalizedEnd = normalizeStringIndex(end)
-        if (normalizedStart > normalizedEnd) {
-            return IntRange.EMPTY
-        }
-        val first = normalizedStart.coerceIn(1, length + 1)
-        val last = normalizedEnd.coerceIn(0, length)
-        if (first > last) {
-            return IntRange.EMPTY
-        }
-        return first..last
-    }
-
-    private fun String.normalizeStringIndex(index: Long): Int {
-        return when {
-            index > Int.MAX_VALUE -> Int.MAX_VALUE
-            index < Int.MIN_VALUE -> Int.MIN_VALUE
-            index >= 0L -> index.toInt()
-            else -> (length + index + 1L).coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
-        }
+        return String(bytes.copyOfRange(range.first - 1, range.last), StandardCharsets.UTF_8)
     }
 
     private fun String.normalizeSearchStart(index: Long): Int {
