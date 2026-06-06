@@ -199,7 +199,7 @@ internal object LuaStringLibrary {
             requiredInteger(context, 3, "string.find")
         }
         val plain = context.toBoolean(4)
-        val startIndex = text.normalizeSearchStart(start) - 1
+        val startIndex = text.luaByteSearchStartToCharIndex(start)
         val match = if (plain) {
             LuaStringPattern.literal(pattern).find(text, startIndex)
         } else {
@@ -208,7 +208,9 @@ internal object LuaStringLibrary {
         if (match == null) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.ofValues(listOf(match.startIndex + 1L, match.endIndex.toLong()) + match.captures)
+        return LuaReturn.ofValues(
+            listOf(text.luaBytePosition(match.startIndex), text.luaByteEndPosition(match.endIndex)) + match.captures,
+        )
     }
 
     private fun stringGmatch(context: LuaCallContext): LuaReturn {
@@ -781,5 +783,39 @@ internal object LuaStringLibrary {
             else -> length + index + 1L
         }
         return normalized.coerceIn(1L, Int.MAX_VALUE.toLong()).toInt()
+    }
+
+    private fun String.luaByteSearchStartToCharIndex(index: Long): Int {
+        val byteLength = luaByteLength()
+        val normalized = when {
+            index > 0L -> index
+            index == 0L -> 1L
+            index < -byteLength -> 1L
+            else -> byteLength + index + 1L
+        }
+        if (normalized > byteLength + 1L) {
+            return length + 1
+        }
+        if (normalized == byteLength + 1L) {
+            return length
+        }
+
+        var bytePosition = 1L
+        for (charIndex in indices) {
+            val charBytes = this[charIndex].toString().toByteArray(StandardCharsets.UTF_8).size.toLong()
+            if (bytePosition >= normalized) {
+                return charIndex
+            }
+            bytePosition += charBytes
+        }
+        return length
+    }
+
+    private fun String.luaBytePosition(charIndex: Int): Long {
+        return substring(0, charIndex).luaByteLength() + 1L
+    }
+
+    private fun String.luaByteEndPosition(charIndex: Int): Long {
+        return substring(0, charIndex).luaByteLength()
     }
 }
