@@ -8019,7 +8019,15 @@ class LuaStdlibTest {
                 local d, e = table.unpack({"a", "b", "c"}, 2, 3)
                 local count = select("#", table.unpack({"first", nil, "third"}, 1, 3))
                 local first, second, third = table.unpack({"first", nil, "third"}, 1, 3)
-                return a, b, c, d, e, count, first, second, third
+                local fallback = setmetatable({}, {
+                    __index = function(_, index)
+                        return ({ "meta-first", nil, "meta-third" })[index]
+                    end,
+                })
+                local metaCount = select("#", table.unpack(fallback, 1, 3))
+                local metaFirst, metaSecond, metaThird = table.unpack(fallback, 1, 3)
+                return a, b, c, d, e, count, first, second, third,
+                    metaCount, metaFirst, metaSecond, metaThird
                 """.trimIndent(),
                 "table-unpack.lua",
             ),
@@ -8035,6 +8043,10 @@ class LuaStdlibTest {
         assertEquals("first", state.toString(7))
         assertTrue(state.isNil(8))
         assertEquals("third", state.toString(9))
+        assertEquals(3L, state.toInteger(10))
+        assertEquals("meta-first", state.toString(11))
+        assertTrue(state.isNil(12))
+        assertEquals("meta-third", state.toString(13))
     }
 
     @Test

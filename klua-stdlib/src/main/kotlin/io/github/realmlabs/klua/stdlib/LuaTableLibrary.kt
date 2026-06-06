@@ -348,11 +348,7 @@ internal object LuaTableLibrary {
         val values = mutableListOf<Any?>()
         var index = start
         while (index <= end) {
-            values += try {
-                context.getTableValue(1, index)
-            } catch (_: IllegalArgumentException) {
-                throw LuaRuntimeException("invalid value at index $index in table for 'unpack'")
-            }
+            values += tableIndexValue(context, index)
             index++
         }
         return LuaReturn.ofValues(values)
