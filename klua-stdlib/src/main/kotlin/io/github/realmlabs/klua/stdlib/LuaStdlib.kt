@@ -150,6 +150,9 @@ public object LuaStdlib {
             "restart" -> GarbageCollectorResult(true, mode, LuaReturn.none())
             "count" -> GarbageCollectorResult(running, mode, LuaReturn.of(usedMemoryKilobytes()))
             "step" -> {
+                if (!context.isNone(2) && !context.isNil(2)) {
+                    requiredNumber(context, 2, "collectgarbage")
+                }
                 System.gc()
                 GarbageCollectorResult(running, mode, LuaReturn.of(true))
             }
@@ -527,6 +530,11 @@ public object LuaStdlib {
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+    }
+
+    private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {
+        return context.toNumber(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
     }
 
     private fun requiredNumberIndex(context: LuaCallContext, index: Int, functionName: String): Long {

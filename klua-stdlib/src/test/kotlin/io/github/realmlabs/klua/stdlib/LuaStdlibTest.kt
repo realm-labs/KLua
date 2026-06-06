@@ -2315,6 +2315,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage step validates optional size argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nilStep = collectgarbage("step", nil)
+                local sizedStep = collectgarbage("step", 0)
+                local countType = type(collectgarbage("count", "ignored"))
+                local ok, message = pcall(collectgarbage, "step", "not-size")
+                return nilStep, sizedStep, countType, ok, message
+                """.trimIndent(),
+                "collectgarbage-step-size.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("number", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #2 to 'collectgarbage' (number expected)", state.toString(5))
+    }
+
+    @Test
     fun `load compiles string chunks with shared globals and arguments`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
