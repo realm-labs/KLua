@@ -650,6 +650,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setlocal reports out of range stack levels`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    local number = 12
+                    local missing = debug.setlocal(1, 99, "ignored")
+                    local ok, message = pcall(debug.setlocal, 99, 1, "ignored")
+                    return missing, ok, message, number
+                end
+
+                return leaf()
+                """.trimIndent(),
+                "debug-setlocal-level-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("bad argument #1 to 'debug.setlocal' (level out of range)", state.toString(3))
+        assertEquals(12L, state.toInteger(4))
+    }
+
+    @Test
     fun `debug getupvalue returns lua closure upvalue names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

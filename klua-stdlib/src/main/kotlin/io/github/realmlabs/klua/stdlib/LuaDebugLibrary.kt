@@ -171,6 +171,8 @@ internal object LuaDebugLibrary {
         if (index <= 0) {
             return LuaReturn.of(null)
         }
+        context.luaFrames.drop(level).firstOrNull()
+            ?: throw LuaRuntimeException("bad argument #1 to 'debug.setlocal' (level out of range)")
         return LuaReturn.of(context.setLocal(level, index, context.get(3)))
     }
 
