@@ -403,7 +403,6 @@ public object LuaStdlib {
     }
 
     private fun xpcall(context: LuaCallContext): LuaReturn {
-        requireAnyArgument(context, "xpcall")
         if (context.typeName(2) != "function") {
             throw LuaRuntimeException("bad argument #2 to 'xpcall' (function expected)")
         }

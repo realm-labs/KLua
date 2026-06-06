@@ -2288,6 +2288,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `xpcall reports missing handler argument errors`() {
+        val missingState = LuaState.create()
+        LuaStdlib.openBase(missingState)
+
+        assertEquals(LuaStatus.OK, missingState.load("""return xpcall()""", "xpcall-missing-handler.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, missingState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(missingState.getLastError())
+        assertEquals("bad argument #2 to 'xpcall' (function expected)", missingState.toString(-1))
+
+        val functionState = LuaState.create()
+        LuaStdlib.openBase(functionState)
+
+        assertEquals(
+            LuaStatus.OK,
+            functionState.load("""return xpcall(function() return "ok" end)""", "xpcall-function-missing-handler.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, functionState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(functionState.getLastError())
+        assertEquals("bad argument #2 to 'xpcall' (function expected)", functionState.toString(-1))
+    }
+
+    @Test
     fun `select returns vararg count and suffixes`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
