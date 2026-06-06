@@ -9,6 +9,10 @@ Reference documents:
 - `docs/KLua_Architecture.md`
 - `docs/KLua_Implementation_Milestones.md`
 
+Reference implementation:
+
+- Official Lua 5.5 source code is available locally at `~/Downloads/lua-lua-a5522f0`.
+
 Do not duplicate those documents here. Use them for deeper rationale and feature detail when a milestone needs more context.
 
 ## Codex Goal Prompt
@@ -80,6 +84,13 @@ Implementation starts clean. There is no requirement to preserve old project API
 - Use one internal KLua bytecode format.
 - Compiled prototypes should not expose a language-version field. Future bytecode packages may carry a fixed Lua 5.5 marker for validation and diagnostics, but this must not become a public version-selection API.
 - Treat Lua 5.5 feature gaps as conformance work, not compatibility-profile work.
+
+## Reference Behavior Policy
+
+- For behavior-sensitive implementation work, inspect the official Lua 5.5 source code in `~/Downloads/lua-lua-a5522f0` before deciding semantics.
+- Use the local `lua5.5` executable for observable behavior checks, but use the Lua 5.5 source code to understand the actual control flow, coercion rules, error paths, and edge-case logic behind that behavior.
+- When the manual, local tests, or existing KLua behavior are ambiguous, treat the Lua 5.5 source code as the implementation reference and document any intentional KLua deviation as a conformance gap.
+- Prefer focused tests derived from the reference source path being implemented. When helpful, note the relevant Lua source file or function in the test name, commit message, or implementation comment.
 
 ## Public API Concepts
 
