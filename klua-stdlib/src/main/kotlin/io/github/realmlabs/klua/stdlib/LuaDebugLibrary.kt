@@ -61,10 +61,10 @@ internal object LuaDebugLibrary {
     private fun getInfo(context: LuaCallContext): LuaReturn {
         if (context.typeName(1) == "function") {
             val info = context.getFunctionDebugInfo(1)
-            val what = context.toString(2) ?: DEFAULT_GETINFO_OPTIONS
+            val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "debug.getinfo")
             return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
         }
-        val what = context.toString(2) ?: DEFAULT_GETINFO_OPTIONS
+        val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "debug.getinfo")
         val level = requiredStackLevel(context, "debug.getinfo")
         if (level < 0) {
             return LuaReturn.of(null)
@@ -342,6 +342,20 @@ internal object LuaDebugLibrary {
         } else {
             context.toInteger(index)
                 ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+        }
+    }
+
+    private fun optionalString(
+        context: LuaCallContext,
+        index: Int,
+        default: String,
+        functionName: String,
+    ): String {
+        return if (context.isNone(index) || context.isNil(index)) {
+            default
+        } else {
+            context.toString(index)
+                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
         }
     }
 

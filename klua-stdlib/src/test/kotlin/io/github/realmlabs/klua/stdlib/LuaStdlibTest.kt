@@ -595,6 +595,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports non string what errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.getinfo, print, true)
+                return ok, message
+                """.trimIndent(),
+                "debug-getinfo-what-type-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getinfo' (string expected)", state.toString(2))
+    }
+
+    @Test
     fun `debug getinfo reports non numeric stack level errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
