@@ -339,9 +339,9 @@ internal object LuaTableLibrary {
     }
 
     private fun tableUnpack(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'table.unpack' (table expected)")
-        }
+        val sourceType = context.typeName(1)
+        val isTable = context.isTable(1)
+        val isString = sourceType == "string"
 
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
@@ -349,7 +349,11 @@ internal object LuaTableLibrary {
             requiredInteger(context, 2, "table.unpack")
         }
         val end = if (context.isNone(3) || context.isNil(3)) {
-            tableLength(context, 1)
+            when {
+                isTable -> tableLength(context, 1)
+                isString -> context.toString(1)?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0L
+                else -> throw LuaRuntimeException("attempt to get length of a $sourceType value")
+            }
         } else {
             requiredInteger(context, 3, "table.unpack")
         }
@@ -357,12 +361,15 @@ internal object LuaTableLibrary {
         if (start > end) {
             return LuaReturn.none()
         }
+        if (!isTable && !isString) {
+            throw LuaRuntimeException("attempt to index a $sourceType value")
+        }
         tableUnpackResultCount(start, end)
 
         val values = mutableListOf<Any?>()
         var index = start
         while (index <= end) {
-            values += tableIndexValue(context, index)
+            values += if (isTable) tableIndexValue(context, index) else null
             index++
         }
         return LuaReturn.ofValues(values)

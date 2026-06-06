@@ -8452,8 +8452,12 @@ class LuaStdlibTest {
                 local metaCount = select("#", table.unpack(fallback, 1, 3))
                 local metaFirst, metaSecond, metaThird = table.unpack(fallback, 1, 3)
                 local defaultMetaCount = select("#", table.unpack(fallback))
+                local stringCount = select("#", table.unpack("abc"))
+                local stringFirst, stringSecond, stringThird = table.unpack("abc")
+                local stringExplicitCount = select("#", table.unpack("abc", 2, 4))
                 return a, b, c, d, e, count, first, second, third,
-                    metaCount, metaFirst, metaSecond, metaThird, defaultMetaCount
+                    metaCount, metaFirst, metaSecond, metaThird, defaultMetaCount,
+                    stringCount, stringFirst, stringSecond, stringThird, stringExplicitCount
                 """.trimIndent(),
                 "table-unpack.lua",
             ),
@@ -8474,6 +8478,11 @@ class LuaStdlibTest {
         assertTrue(state.isNil(12))
         assertEquals("meta-third", state.toString(13))
         assertEquals(3L, state.toInteger(14))
+        assertEquals(3L, state.toInteger(15))
+        assertTrue(state.isNil(16))
+        assertTrue(state.isNil(17))
+        assertTrue(state.isNil(18))
+        assertEquals(3L, state.toInteger(19))
     }
 
     @Test
@@ -8548,11 +8557,23 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return table.unpack("not-table")""", "table-unpack-error.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return table.unpack(42)""", "table-unpack-error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'table.unpack' (table expected)", state.toString(-1))
+        assertEquals("attempt to get length of a number value", state.toString(-1))
+
+        val indexState = LuaState.create()
+        LuaStdlib.openTable(indexState)
+
+        assertEquals(
+            LuaStatus.OK,
+            indexState.load("""return table.unpack(42, 1, 1)""", "table-unpack-index-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, indexState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(indexState.getLastError())
+        assertEquals("attempt to index a number value", indexState.toString(-1))
     }
 }
 
