@@ -4566,14 +4566,18 @@ class LuaStdlibTest {
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return math.asin(0), math.acos(1), math.atan(1), math.atan(1, 0)""", "math-inverse-trig.lua"),
+            state.load(
+                """return math.asin(0), math.acos(1), math.atan(1), math.atan(1, nil), math.atan(1, 0)""",
+                "math-inverse-trig.lua",
+            ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(0.0, state.toNumber(1) ?: error("missing asin result"), 1e-12)
         assertEquals(0.0, state.toNumber(2) ?: error("missing acos result"), 1e-12)
         assertEquals(Math.PI / 4, state.toNumber(3) ?: error("missing atan result"), 1e-12)
-        assertEquals(Math.PI / 2, state.toNumber(4) ?: error("missing atan2 result"), 1e-12)
+        assertEquals(Math.PI / 4, state.toNumber(4) ?: error("missing atan nil result"), 1e-12)
+        assertEquals(Math.PI / 2, state.toNumber(5) ?: error("missing atan2 result"), 1e-12)
     }
 
     @Test

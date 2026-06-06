@@ -8,7 +8,6 @@ import java.util.Random
 import kotlin.math.absoluteValue
 import kotlin.math.acos
 import kotlin.math.asin
-import kotlin.math.atan
 import kotlin.math.atan2
 import kotlin.math.ceil
 import kotlin.math.cos
@@ -74,10 +73,12 @@ internal object LuaMathLibrary {
 
     private fun mathAtan(context: LuaCallContext): LuaReturn {
         val y = requiredNumber(context, 1, "math.atan")
-        if (context.argumentCount < 2) {
-            return LuaReturn.of(atan(y))
+        val x = if (context.argumentCount < 2 || context.isNil(2)) {
+            1.0
+        } else {
+            requiredNumber(context, 2, "math.atan")
         }
-        return LuaReturn.of(atan2(y, requiredNumber(context, 2, "math.atan")))
+        return LuaReturn.of(atan2(y, x))
     }
 
     private fun mathCeil(context: LuaCallContext): LuaReturn {
