@@ -64,7 +64,7 @@ class LuaState private constructor(
         return when (val callable = stack[functionIndex]) {
             is LuaStackValue.ChunkValue -> pcallChunk(functionIndex, callable, resultCount)
             is LuaStackValue.NativeFunctionValue -> pcallNativeFunction(functionIndex, callable, resultCount)
-            else -> runtimeCallError(functionIndex, "attempt to call ${stackTypeName(callable)}")
+            else -> runtimeCallError(functionIndex, attemptToCallMessage(callable))
         }
     }
 
@@ -1103,6 +1103,10 @@ class LuaState private constructor(
         }
     }
 
+    private fun attemptToCallMessage(value: LuaStackValue?): String {
+        return "attempt to call a ${stackTypeName(value)} value"
+    }
+
     private fun toApiStackFrames(frames: List<KLuaCoreStackFrame>): List<LuaStackFrame> {
         return frames.map { frame ->
             LuaStackFrame(
@@ -1186,14 +1190,14 @@ class LuaState private constructor(
 
         override fun call(index: Int, arguments: List<Any?>): LuaReturn {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue
-                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+                ?: throw IllegalArgumentException(attemptToCallMessage(valueAt(index)))
             return callFunction(function, arguments)
         }
 
         override fun call(function: Any?, arguments: List<Any?>): LuaReturn {
             val stackFunction = function.toStackValue()
             val nativeFunction = stackFunction as? LuaStackValue.NativeFunctionValue
-                ?: throw IllegalArgumentException("value is ${stackTypeName(stackFunction)}")
+                ?: throw IllegalArgumentException(attemptToCallMessage(stackFunction))
             return callFunction(nativeFunction, arguments)
         }
 

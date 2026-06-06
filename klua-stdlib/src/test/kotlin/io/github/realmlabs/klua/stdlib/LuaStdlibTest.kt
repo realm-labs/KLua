@@ -2160,12 +2160,23 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return pcall(42)""", "pcall-non-callable.lua"))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numberOk, numberMessage = pcall(42)
+                local nilOk, nilMessage = pcall(nil)
+                return numberOk, numberMessage, nilOk, nilMessage
+                """.trimIndent(),
+                "pcall-non-callable.lua",
+            ),
+        )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("string", state.typeName(2))
-        assertTrue((state.toString(2) ?: "").isNotEmpty())
+        assertEquals("attempt to call a number value", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to call a nil value", state.toString(4))
     }
 
     @Test
@@ -2339,7 +2350,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 return xpcall(42, function(message)
-                    return "handled:" .. type(message)
+                    return message
                 end)
                 """.trimIndent(),
                 "xpcall-non-callable.lua",
@@ -2348,7 +2359,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("handled:string", state.toString(2))
+        assertEquals("attempt to call a number value", state.toString(2))
     }
 
     @Test
@@ -2363,7 +2374,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("argument 1 is nil", state.toString(2))
+        assertEquals("attempt to call a nil value", state.toString(2))
     }
 
     @Test

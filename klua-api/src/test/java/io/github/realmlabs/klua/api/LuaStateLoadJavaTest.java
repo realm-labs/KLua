@@ -111,6 +111,6 @@ class LuaStateLoadJavaTest {
 
         assertEquals(1, state.getTop());
         assertTrue(state.getLastError() instanceof LuaRuntimeException);
-        assertEquals("attempt to call number", state.toString(-1));
+        assertEquals("attempt to call a number value", state.toString(-1));
     }
 }
