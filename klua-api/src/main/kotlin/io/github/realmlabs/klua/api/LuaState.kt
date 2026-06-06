@@ -1139,6 +1139,9 @@ class LuaState private constructor(
                 sourceName = info.sourceName,
                 lineDefined = info.lineDefined,
                 lastLineDefined = info.lastLineDefined,
+                upvalueCount = info.upvalueCount,
+                parameterCount = info.parameterCount,
+                isVararg = info.isVararg,
             )
         }
 

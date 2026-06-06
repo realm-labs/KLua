@@ -4,4 +4,7 @@ data class LuaFunctionDebugInfo(
     val sourceName: String,
     val lineDefined: Int,
     val lastLineDefined: Int,
+    val upvalueCount: Int,
+    val parameterCount: Int,
+    val isVararg: Boolean,
 )

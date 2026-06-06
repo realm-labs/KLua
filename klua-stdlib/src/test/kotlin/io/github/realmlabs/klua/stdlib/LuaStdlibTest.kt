@@ -343,6 +343,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo returns function arity and upvalue metadata`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local captured = "upvalue"
+                local function vararg(a, b, ...)
+                    return captured, a, b, ...
+                end
+                local function fixed(a)
+                    return a
+                end
+
+                local varargInfo = debug.getinfo(vararg, "u")
+                local fixedInfo = debug.getinfo(fixed, "u")
+                local hostInfo = debug.getinfo(print, "u")
+                return varargInfo.nups, varargInfo.nparams, varargInfo.isvararg,
+                    fixedInfo.nups, fixedInfo.nparams, fixedInfo.isvararg,
+                    hostInfo.nups, hostInfo.nparams, hostInfo.isvararg,
+                    varargInfo.source
+                """.trimIndent(),
+                "debug-getinfo-upvalues.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals(0L, state.toInteger(7))
+        assertEquals(0L, state.toInteger(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.isNil(10))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

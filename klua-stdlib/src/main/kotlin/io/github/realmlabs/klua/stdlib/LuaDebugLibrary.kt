@@ -91,6 +91,11 @@ internal object LuaDebugLibrary {
                     'l' -> table["currentline"] = -1L
                     'n' -> table["namewhat"] = ""
                     'f' -> table["func"] = function
+                    'u' -> {
+                        table["nups"] = 0L
+                        table["nparams"] = 0L
+                        table["isvararg"] = true
+                    }
                 }
             }
         }
@@ -106,6 +111,11 @@ internal object LuaDebugLibrary {
                 'l' -> table["currentline"] = -1L
                 'n' -> table["namewhat"] = ""
                 'f' -> table["func"] = function
+                'u' -> {
+                    table["nups"] = info.upvalueCount.toLong()
+                    table["nparams"] = info.parameterCount.toLong()
+                    table["isvararg"] = info.isVararg
+                }
             }
         }
     }

@@ -121,6 +121,9 @@ public object KLuaCoreRuntime {
             sourceName = closure.prototype.sourceName,
             lineDefined = closure.prototype.lineDefined,
             lastLineDefined = closure.prototype.lastLineDefined,
+            upvalueCount = closure.prototype.upvalues.size,
+            parameterCount = closure.prototype.numParams,
+            isVararg = closure.prototype.isVararg,
         )
     }
 
@@ -392,6 +395,9 @@ public data class KLuaCoreFunctionDebugInfo(
     public val sourceName: String,
     public val lineDefined: Int,
     public val lastLineDefined: Int,
+    public val upvalueCount: Int,
+    public val parameterCount: Int,
+    public val isVararg: Boolean,
 )
 
 public data class KLuaCoreDebugHook(
