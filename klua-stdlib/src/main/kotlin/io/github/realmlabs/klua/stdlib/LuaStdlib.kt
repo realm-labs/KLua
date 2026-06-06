@@ -224,22 +224,29 @@ public object LuaStdlib {
         } else {
             readChunkSource(context)
         }
-        if (source == null) {
-            return LuaReturn.of(null, "reader function must return a string")
-        }
         return context.load(source, chunkName)
     }
 
-    private fun readChunkSource(context: LuaCallContext): String? {
+    private fun readChunkSource(context: LuaCallContext): String {
         val source = StringBuilder()
         while (true) {
             val chunk = context.call(1, emptyList()).get(1) ?: break
-            if (chunk !is String) {
-                return null
-            }
-            source.append(chunk)
+            source.append(readerChunkToString(chunk))
         }
         return source.toString()
+    }
+
+    private fun readerChunkToString(chunk: Any?): String {
+        return when (chunk) {
+            is Byte -> chunk.toLong().toString()
+            is Short -> chunk.toLong().toString()
+            is Int -> chunk.toLong().toString()
+            is Long -> chunk.toString()
+            is Float -> chunk.toDouble().toString()
+            is Double -> chunk.toString()
+            is CharSequence -> chunk.toString()
+            else -> throw LuaRuntimeException("reader function must return a string")
+        }
     }
 
     private fun loadfile(context: LuaCallContext): LuaReturn {

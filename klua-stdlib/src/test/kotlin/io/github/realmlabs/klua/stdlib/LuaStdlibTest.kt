@@ -2805,6 +2805,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load converts numeric reader function results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local index = 0
+                local parts = {"return ", 4, "2"}
+                local chunk = load(function()
+                    index = index + 1
+                    return parts[index]
+                end, "reader-number.lua")
+                return chunk(), index
+                """.trimIndent(),
+                "load-reader-number.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(4L, state.toInteger(2))
+    }
+
+    @Test
     fun `load rejects non string reader function results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -2813,17 +2839,17 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local chunk, message = load(function()
-                    return 42
-                end, "reader-number.lua")
-                return chunk, message
+                local ok, message = pcall(load, function()
+                    return false
+                end, "reader-boolean.lua")
+                return ok, message
                 """.trimIndent(),
-                "load-reader-number.lua",
+                "load-reader-boolean.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertTrue(state.isNil(1))
+        assertFalse(state.toBoolean(1))
         assertEquals("reader function must return a string", state.toString(2))
     }
 
