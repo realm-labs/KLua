@@ -55,15 +55,15 @@ internal object LuaStringLibrary {
     }
 
     private fun stringChar(context: LuaCallContext): LuaReturn {
-        val chars = StringBuilder()
+        val bytes = ByteArray(context.argumentCount)
         for (index in 1..context.argumentCount) {
             val code = requiredInteger(context, index, "string.char")
             if (code !in 0L..255L) {
                 throw LuaRuntimeException("bad argument #$index to 'string.char' (value out of range)")
             }
-            chars.append(code.toInt().toChar())
+            bytes[index - 1] = code.toByte()
         }
-        return LuaReturn.of(chars.toString())
+        return LuaReturn.of(String(bytes, StandardCharsets.UTF_8))
     }
 
     private fun stringLen(context: LuaCallContext): LuaReturn {

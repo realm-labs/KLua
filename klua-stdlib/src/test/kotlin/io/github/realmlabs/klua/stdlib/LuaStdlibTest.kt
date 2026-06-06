@@ -5519,8 +5519,11 @@ class LuaStdlibTest {
                 local last = string.byte("ABC", -1)
                 local utf8First, utf8Second = string.byte("é", 1, -1)
                 local utf8Last = string.byte("é", -1)
+                local utf8Char = string.char(195, 169)
+                local charFirst, charSecond = string.byte(utf8Char, 1, -1)
                 local empty = string.char()
-                return first, second, third, last, utf8First, utf8Second, utf8Last, string.char(65, 66, 67), empty
+                return first, second, third, last, utf8First, utf8Second, utf8Last,
+                    string.char(65, 66, 67), utf8Char, charFirst, charSecond, empty
                 """.trimIndent(),
                 "string-byte-char.lua",
             ),
@@ -5535,7 +5538,10 @@ class LuaStdlibTest {
         assertEquals(169L, state.toInteger(6))
         assertEquals(169L, state.toInteger(7))
         assertEquals("ABC", state.toString(8))
-        assertEquals("", state.toString(9))
+        assertEquals("é", state.toString(9))
+        assertEquals(195L, state.toInteger(10))
+        assertEquals(169L, state.toInteger(11))
+        assertEquals("", state.toString(12))
     }
 
     @Test
