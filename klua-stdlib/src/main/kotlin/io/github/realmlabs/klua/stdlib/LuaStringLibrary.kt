@@ -301,13 +301,13 @@ internal object LuaStringLibrary {
         } else {
             requiredInteger(context, 3, "string.match")
         }
-        val startIndex = text.normalizeSearchStart(start) - 1
+        val startIndex = text.luaByteSearchStartToCharIndex(start)
         val match = LuaStringPattern.compile(pattern).find(text, startIndex)
         if (match == null) {
             return LuaReturn.of(null)
         }
         if (match.captures.isNotEmpty()) {
-            return LuaReturn.ofValues(match.captures)
+            return LuaReturn.ofValues(text.luaByteCaptures(match.captures))
         }
         return LuaReturn.of(text.substring(match.startIndex, match.endIndex))
     }
@@ -817,5 +817,15 @@ internal object LuaStringLibrary {
 
     private fun String.luaByteEndPosition(charIndex: Int): Long {
         return substring(0, charIndex).luaByteLength()
+    }
+
+    private fun String.luaByteCaptures(captures: List<Any?>): List<Any?> {
+        return captures.map { capture ->
+            if (capture is Long) {
+                luaBytePosition((capture - 1L).toInt())
+            } else {
+                capture
+            }
+        }
     }
 }
