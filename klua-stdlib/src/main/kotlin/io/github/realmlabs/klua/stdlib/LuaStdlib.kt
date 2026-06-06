@@ -332,7 +332,6 @@ public object LuaStdlib {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'rawget' (table expected)")
         }
-        requireTableKey(context, 2)
         return LuaReturn.of(context.getTableValue(1, argumentValue(context, 2)))
     }
 
@@ -347,6 +346,9 @@ public object LuaStdlib {
     private fun rawset(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'rawset' (table expected)")
+        }
+        if (context.isNone(3)) {
+            throw LuaRuntimeException("bad argument #3 to 'rawset' (value expected)")
         }
         requireTableKey(context, 2)
         context.setTableValue(1, argumentValue(context, 2), argumentValue(context, 3))

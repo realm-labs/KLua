@@ -2840,27 +2840,25 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `rawget rejects nil keys`() {
+    fun `rawget returns nil for nil keys`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return rawget({}, nil)""", "rawget-key-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.load("""return rawget({}, nil)""", "rawget-nil-key.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("table index is nil", state.toString(-1))
+        assertTrue(state.isNil(1))
     }
 
     @Test
-    fun `rawget rejects nan keys`() {
+    fun `rawget returns nil for nan keys`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return rawget({}, 0 / 0)""", "rawget-nan-key-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.load("""return rawget({}, 0 / 0)""", "rawget-nan-key.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("table index is NaN", state.toString(-1))
+        assertTrue(state.isNil(1))
     }
 
     @Test
@@ -2932,6 +2930,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'rawset' (table expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `rawset reports missing value argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawset({}, nil)""", "rawset-missing-value-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #3 to 'rawset' (value expected)", state.toString(-1))
     }
 
     @Test
