@@ -120,6 +120,7 @@ class LuaStdlibTest {
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
                     type(debug.setlocal), type(debug.getupvalue), type(debug.setupvalue),
+                    type(debug.getmetatable), type(debug.setmetatable), type(debug.getregistry),
                     type(debug.sethook), type(debug.gethook), debug.traceback("boom"),
                     type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
@@ -137,11 +138,14 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(7))
         assertEquals("function", state.toString(8))
         assertEquals("function", state.toString(9))
-        assertTrue(state.toString(10)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(11))
-        assertEquals("Lua", state.toString(12))
-        assertEquals("debug-openlibs.lua", state.toString(13))
-        assertEquals(1L, state.toInteger(14))
+        assertEquals("function", state.toString(10))
+        assertEquals("function", state.toString(11))
+        assertEquals("function", state.toString(12))
+        assertTrue(state.toString(13)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(14))
+        assertEquals("Lua", state.toString(15))
+        assertEquals("debug-openlibs.lua", state.toString(16))
+        assertEquals(1L, state.toInteger(17))
     }
 
     @Test
@@ -2448,6 +2452,32 @@ class LuaStdlibTest {
         assertEquals("bad argument #1 to 'debug.setmetatable' (table expected)", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertEquals("bad argument #2 to 'debug.setmetatable' (nil or table expected)", state.toString(5))
+    }
+
+    @Test
+    fun `debug getregistry returns stable mutable registry table`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = debug.getregistry()
+                local second = debug.getregistry()
+                first.answer = 42
+                second.label = "registry"
+                return type(first), first == second, second.answer, first.label
+                """.trimIndent(),
+                "debug-registry.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(42L, state.toInteger(3))
+        assertEquals("registry", state.toString(4))
     }
 
     @Test

@@ -219,6 +219,7 @@ internal object LuaDebugLibrary {
 
     private const val DEBUG_SOURCE: String = """
         debug = debug or {}
+        local klua_debug_registry = {}
 
         local function klua_debug_tostring(value)
             if _G ~= nil and _G.tostring ~= nil then
@@ -235,6 +236,10 @@ internal object LuaDebugLibrary {
                 return message
             end
             return klua_debug_traceback(klua_debug_tostring(message), level)
+        end
+
+        function debug.getregistry()
+            return klua_debug_registry
         end
 
         function debug.getinfo(threadOrLevel, what)
