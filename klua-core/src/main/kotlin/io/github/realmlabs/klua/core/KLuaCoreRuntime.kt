@@ -78,6 +78,7 @@ public object KLuaCoreRuntime {
                 error.line,
                 error.rootCause(),
                 error.luaFrames.toCoreStackFrames(),
+                error.errorObject?.let { toPublicValue(it, globals) },
             )
         }
     }
@@ -378,6 +379,7 @@ public sealed interface KLuaCoreCallResult {
         public val message: String,
         public val cause: Throwable? = null,
         public val nativeFrames: List<String> = emptyList(),
+        public val errorObject: KLuaCoreValue? = null,
     ) : KLuaCoreCallResult
 }
 
@@ -406,6 +408,7 @@ public sealed interface KLuaCoreExecution {
         public val line: Int? = null,
         public val cause: Throwable? = null,
         public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
+        public val errorObject: KLuaCoreValue? = null,
     ) : KLuaCoreExecution {
         public val traceback: String = formatCoreTraceback(message, luaFrames)
     }
@@ -811,6 +814,7 @@ private fun callCoreFunction(
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
                 result.message,
                 luaFrames = result.nativeFrames.toNativeStackFrames(),
+                errorObject = result.errorObject?.toLuaValueOrNull(globals),
                 cause = result.cause,
             )
         }
@@ -855,6 +859,7 @@ private fun continuePublicYield(
         is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
             result.message,
             luaFrames = result.nativeFrames.toNativeStackFrames(),
+            errorObject = result.errorObject?.toLuaValueOrNull(globals),
             cause = result.cause,
         )
     }
@@ -957,6 +962,7 @@ private fun <T : Any> callCoreUserDataMethod(
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
                 result.message,
                 luaFrames = result.nativeFrames.toNativeStackFrames(),
+                errorObject = result.errorObject?.toLuaValueOrNull(globals),
                 cause = result.cause,
             )
         }
@@ -992,6 +998,7 @@ private fun <T : Any> callCoreUserDataGetter(
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
                 result.message,
                 luaFrames = result.nativeFrames.toNativeStackFrames(),
+                errorObject = result.errorObject?.toLuaValueOrNull(globals),
                 cause = result.cause,
             )
         }
@@ -1025,6 +1032,7 @@ private fun <T : Any> callCoreUserDataSetter(
             is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
                 result.message,
                 luaFrames = result.nativeFrames.toNativeStackFrames(),
+                errorObject = result.errorObject?.toLuaValueOrNull(globals),
                 cause = result.cause,
             )
         }
@@ -1050,7 +1058,11 @@ private fun callPublicLuaFunction(
         val vm = LuaVm(globals.table)
         vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
-        KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error", error.rootCause())
+        KLuaCoreCallResult.RuntimeError(
+            error.message ?: "runtime error",
+            error.rootCause(),
+            errorObject = error.errorObject?.let { toPublicValue(it, globals) },
+        )
     }
 }
 
@@ -1070,7 +1082,11 @@ private fun LuaExecutionResult.toCoreCallResult(
                 try {
                     vm.resumeYieldable(luaArguments).toCoreCallResult(vm, globals)
                 } catch (error: LuaVmException) {
-                    KLuaCoreCallResult.RuntimeError(error.message ?: "runtime error", error.rootCause())
+                    KLuaCoreCallResult.RuntimeError(
+                        error.message ?: "runtime error",
+                        error.rootCause(),
+                        errorObject = error.errorObject?.let { toPublicValue(it, globals) },
+                    )
                 }
             },
         )

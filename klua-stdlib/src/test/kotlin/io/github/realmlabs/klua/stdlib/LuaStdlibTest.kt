@@ -1935,6 +1935,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `assert preserves lua error objects`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local marker = {name = "marker"}
+                local ok, err = pcall(assert, false, marker)
+                local missingOk, missingErr = pcall(assert)
+                return ok, err == marker, err.name, missingOk, missingErr
+                """.trimIndent(),
+                "assert-error-object.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("marker", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(5))
+    }
+
+    @Test
     fun `error raises runtime error with message`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -1944,6 +1970,38 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("boom", state.toString(-1))
+    }
+
+    @Test
+    fun `error preserves lua error objects`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local marker = {name = "marker"}
+                local ok, err = pcall(error, marker)
+                local handlerSawMarker = false
+                local handled = xpcall(function()
+                    error(marker)
+                end, function(value)
+                    handlerSawMarker = value == marker
+                    return value.name
+                end)
+                return ok, err == marker, err.name, handled, handlerSawMarker
+                """.trimIndent(),
+                "error-object.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("marker", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
     }
 
     @Test

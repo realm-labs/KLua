@@ -132,7 +132,9 @@ public object LuaStdlib {
 
     private fun assert(context: LuaCallContext): LuaReturn {
         if (!context.toBoolean(1)) {
-            throw LuaRuntimeException(context.toString(2) ?: "assertion failed!")
+            requireAnyArgument(context, "assert")
+            val errorObject = if (context.isNone(2)) "assertion failed!" else argumentValue(context, 2)
+            throw luaError(errorObject)
         }
         return LuaReturn.ofValues((1..context.argumentCount).map { index -> argumentValue(context, index) })
     }
@@ -141,7 +143,7 @@ public object LuaStdlib {
         if (!context.isNone(2) && !context.isNil(2)) {
             requiredNumberIndex(context, 2, "error")
         }
-        throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
+        throw luaError(if (context.isNone(1)) null else argumentValue(context, 1))
     }
 
     private fun collectgarbage(
@@ -493,7 +495,7 @@ public object LuaStdlib {
                 protectedCallResume(context, yield, handlerIndex, arguments)
             }
         } catch (exception: LuaException) {
-            protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
+            protectedCallError(context, errorObject(exception), handlerIndex)
         } catch (exception: RuntimeException) {
             protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
         }
@@ -513,18 +515,18 @@ public object LuaStdlib {
                 protectedCallResume(context, nextYield, handlerIndex, nextArguments)
             }
         } catch (exception: LuaException) {
-            protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
+            protectedCallError(context, errorObject(exception), handlerIndex)
         } catch (exception: RuntimeException) {
             protectedCallError(context, exception.message ?: exception::class.java.simpleName, handlerIndex)
         }
     }
 
-    private fun protectedCallError(context: LuaCallContext, message: String, handlerIndex: Int?): LuaReturn {
+    private fun protectedCallError(context: LuaCallContext, errorObject: Any?, handlerIndex: Int?): LuaReturn {
         if (handlerIndex == null) {
-            return LuaReturn.of(false, message)
+            return LuaReturn.of(false, errorObject)
         }
         return try {
-            val handlerResult = context.call(handlerIndex, listOf(message))
+            val handlerResult = context.call(handlerIndex, listOf(errorObject))
             LuaReturn.ofValues(listOf(false) + handlerResult.values)
         } catch (yield: LuaYieldException) {
             throw yield.withContinuation { arguments ->
@@ -541,6 +543,39 @@ public object LuaStdlib {
             throw nextYield.withContinuation { nextArguments ->
                 protectedCallErrorResume(nextYield, nextArguments)
             }
+        }
+    }
+
+    private fun luaError(errorObject: Any?): LuaRuntimeException {
+        val message = when (errorObject) {
+            null -> "<no error object>"
+            is CharSequence -> errorObject.toString()
+            else -> luaErrorTypeName(errorObject)
+        }
+        return LuaRuntimeException(message, errorObject = errorObject, hasErrorObject = true)
+    }
+
+    private fun errorObject(exception: LuaException): Any? {
+        return if (exception is LuaRuntimeException && exception.hasErrorObject) {
+            exception.errorObject
+        } else {
+            exception.message ?: exception::class.java.simpleName
+        }
+    }
+
+    private fun luaErrorTypeName(value: Any): String {
+        return when (value) {
+            is Boolean -> "boolean"
+            is Byte,
+            is Short,
+            is Int,
+            is Long,
+            is Float,
+            is Double,
+            -> "number"
+            is LuaFunction -> "function"
+            is Map<*, *> -> "table"
+            else -> "userdata"
         }
     }
 

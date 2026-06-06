@@ -153,9 +153,11 @@ class LuaState private constructor(
                     sourceName = result.sourceName,
                     line = result.line,
                     luaFrames = toApiStackFrames(result.luaFrames),
+                    errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                    hasErrorObject = result.errorObject != null,
                 )
                 removeCallFrame(functionIndex)
-                stack += LuaStackValue.StringValue(result.message)
+                stack += result.errorObject?.toStackValue() ?: LuaStackValue.StringValue(result.message)
                 LuaStatus.RUNTIME_ERROR
             }
         }
@@ -174,7 +176,12 @@ class LuaState private constructor(
             pushHostResults(result.values, resultCount)
             LuaStatus.OK
         } catch (exception: LuaException) {
-            runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception)
+            val errorObject = if (exception is LuaRuntimeException && exception.hasErrorObject) {
+                exception.errorObject
+            } else {
+                exception.message ?: exception::class.java.simpleName
+            }
+            runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception, errorObject)
         } catch (exception: RuntimeException) {
             runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception)
         }
@@ -184,10 +191,11 @@ class LuaState private constructor(
         functionIndex: Int,
         message: String,
         cause: Throwable? = null,
+        errorObject: Any? = message,
     ): LuaStatus {
         lastError = LuaRuntimeException(message, cause)
         removeCallFrame(functionIndex)
-        stack += LuaStackValue.StringValue(message)
+        stack += errorObject.toStackValue()
         return LuaStatus.RUNTIME_ERROR
     }
 
@@ -512,9 +520,15 @@ class LuaState private constructor(
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult(stackArguments, arguments)
         } catch (exception: LuaException) {
+            val errorObject = if (exception is LuaRuntimeException && exception.hasErrorObject) {
+                exception.errorObject.toCoreReturnValue(stackArguments, arguments)
+            } else {
+                null
+            }
             KLuaCoreCallResult.RuntimeError(
                 exception.message ?: exception::class.java.simpleName,
                 nativeFrames = nativeFrameName.toNativeFrames(),
+                errorObject = errorObject,
             )
         } catch (exception: RuntimeException) {
             KLuaCoreCallResult.RuntimeError(
@@ -663,7 +677,7 @@ class LuaState private constructor(
                 result.values.map { it.toStackValue().toPublicCallReturnValue() },
             )
             is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldException()
-            is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
+            is KLuaCoreCallResult.RuntimeError -> throw coreRuntimeError(result)
         }
     }
 
@@ -684,7 +698,16 @@ class LuaState private constructor(
                 result.values.map { it.toStackValue().toPublicCallReturnValue() },
             )
             is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldException()
-            is KLuaCoreCallResult.RuntimeError -> throw LuaRuntimeException(result.message)
+            is KLuaCoreCallResult.RuntimeError -> throw coreRuntimeError(result)
+        }
+    }
+
+    private fun coreRuntimeError(result: KLuaCoreCallResult.RuntimeError): LuaRuntimeException {
+        val errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue()
+        return if (result.errorObject == null) {
+            LuaRuntimeException(result.message)
+        } else {
+            LuaRuntimeException(result.message, errorObject = errorObject, hasErrorObject = true)
         }
     }
 
