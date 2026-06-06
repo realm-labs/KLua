@@ -242,7 +242,7 @@ public object LuaStdlib {
             if (!iteratorContext.isTable(1)) {
                 throw LuaRuntimeException("bad argument #1 to 'ipairs iterator' (table expected)")
             }
-            val nextIndex = (iteratorContext.toInteger(2) ?: 0L) + 1L
+            val nextIndex = requiredNumberIndex(iteratorContext, 2, "ipairs iterator") + 1L
             val value = iteratorContext.getTableValue(1, nextIndex)
             if (value == null) {
                 LuaReturn.of(null)
@@ -522,6 +522,11 @@ public object LuaStdlib {
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+    }
+
+    private fun requiredNumberIndex(context: LuaCallContext, index: Int, functionName: String): Long {
+        return context.toInteger(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
     }
 
     private fun requireAnyArgument(context: LuaCallContext, functionName: String) {

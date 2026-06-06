@@ -2688,6 +2688,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `ipairs iterator reports index argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator, values = ipairs({10, 20})
+                local okNil, nilMessage = pcall(iterator, values, nil)
+                local okString, stringMessage = pcall(iterator, values, "not-index")
+                return okNil, nilMessage, okString, stringMessage
+                """.trimIndent(),
+                "ipairs-iterator-index-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(4))
+    }
+
+    @Test
     fun `next reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
