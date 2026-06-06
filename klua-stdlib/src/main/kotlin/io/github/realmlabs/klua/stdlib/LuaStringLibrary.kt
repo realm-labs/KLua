@@ -696,9 +696,41 @@ internal object LuaStringLibrary {
         return when (context.typeName(index)) {
             "nil" -> "nil"
             "boolean" -> context.toBoolean(index).toString()
-            "number" -> context.toString(index) ?: context.typeName(index)
+            "number" -> quoteNumber(context, index)
             "string" -> quoteString(context.toString(index) ?: "")
             else -> throw LuaRuntimeException("bad argument #$index to 'string.format' (value has no literal form)")
+        }
+    }
+
+    private fun quoteNumber(context: LuaCallContext, index: Int): String {
+        return when (val value = context.get(index)) {
+            is Byte -> value.toLong().toString()
+            is Short -> value.toLong().toString()
+            is Int -> value.toLong().toString()
+            is Long -> if (value == Long.MIN_VALUE) "0x8000000000000000" else value.toString()
+            is Float -> quoteFloat(value.toDouble())
+            is Double -> quoteFloat(value)
+            else -> context.toString(index) ?: context.typeName(index)
+        }
+    }
+
+    private fun quoteFloat(value: Double): String {
+        if (value == Double.POSITIVE_INFINITY) {
+            return "1e9999"
+        }
+        if (value == Double.NEGATIVE_INFINITY) {
+            return "-1e9999"
+        }
+        if (value.isNaN()) {
+            return "(0/0)"
+        }
+        val hex = java.lang.Double.toHexString(value).replace(".0p", "p")
+        val exponent = hex.lastIndexOf('p')
+        val sign = hex.getOrNull(exponent + 1)
+        return if (exponent >= 0 && sign != '+' && sign != '-') {
+            hex.substring(0, exponent + 1) + "+" + hex.substring(exponent + 1)
+        } else {
+            hex
         }
     }
 
