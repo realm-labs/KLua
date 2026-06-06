@@ -1568,6 +1568,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require appends string searcher diagnostics and skips false searchers`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.searchers = {
+                    function()
+                        return "\n\tcustom miss"
+                    end,
+                    function()
+                        return false
+                    end,
+                }
+                local ok, message = pcall(require, "custom")
+                return ok, message, package._searcherResultType
+                """.trimIndent(),
+                "require-searcher-protocol.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        val message = state.toString(2) ?: ""
+        assertTrue(message.contains("module 'custom' not found"))
+        assertTrue(message.contains("custom miss"))
+        assertTrue(state.isNil(3))
+    }
+
+    @Test
     fun `require loads Lua files found on package path`() {
         val root = Files.createTempDirectory("klua-require-file")
         Files.createDirectories(root.resolve("alpha"))

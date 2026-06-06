@@ -23,6 +23,7 @@ internal object LuaPackageLibrary {
         state.newTable()
         state.setField(-2, "preload")
         setFunctionField(state, "searchpath", ::searchpath)
+        setFunctionField(state, "_searcherResultType", ::searcherResultType)
         state.setGlobal("package")
         installLuaSource(state, REQUIRE_SOURCE, "stdlib-package.lua")
         return state
@@ -51,6 +52,10 @@ internal object LuaPackageLibrary {
         })
     }
 
+    private fun searcherResultType(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(context.typeName(1))
+    }
+
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
         return context.toString(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
@@ -71,6 +76,9 @@ internal object LuaPackageLibrary {
     }
 
     private const val REQUIRE_SOURCE: String = """
+        local searcherResultType = package._searcherResultType
+        package._searcherResultType = nil
+
         package.searchers = {
             function(name)
                 local loader = package.preload[name]
@@ -110,7 +118,8 @@ internal object LuaPackageLibrary {
                 end
 
                 local loader, extra = searcher(name)
-                if loader ~= nil then
+                local loaderType = searcherResultType(loader)
+                if loaderType == "function" then
                     local result = loader(name, extra)
                     if result ~= nil then
                         loaded[name] = result
@@ -122,7 +131,9 @@ internal object LuaPackageLibrary {
                     end
                     return value
                 end
-                if extra ~= nil then
+                if loaderType == "string" then
+                    errors = errors .. loader
+                elseif extra ~= nil then
                     errors = errors .. extra
                 end
                 index = index + 1
