@@ -5182,6 +5182,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string lower and upper use ascii byte case mapping`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local upperA = "\u{C4}"
+                local lowerA = "\u{E4}"
+                local dottedI = "\u{130}"
+                local sharpS = "\u{DF}"
+                return string.lower("ABCxyz"), string.upper("ABCxyz"),
+                    string.lower(upperA), string.upper(lowerA),
+                    string.lower(dottedI), string.upper(sharpS)
+                """.trimIndent(),
+                "string-ascii-case.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("abcxyz", state.toString(1))
+        assertEquals("ABCXYZ", state.toString(2))
+        assertEquals("\u00C4", state.toString(3))
+        assertEquals("\u00E4", state.toString(4))
+        assertEquals("\u0130", state.toString(5))
+        assertEquals("\u00DF", state.toString(6))
+    }
+
+    @Test
     fun `string rep supports separators and empty repetitions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

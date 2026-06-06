@@ -286,7 +286,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringLower(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "string.lower").lowercase())
+        return LuaReturn.of(requiredString(context, 1, "string.lower").mapAsciiCase(::lowerAscii))
     }
 
     private fun stringMatch(context: LuaCallContext): LuaReturn {
@@ -350,7 +350,23 @@ internal object LuaStringLibrary {
     }
 
     private fun stringUpper(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "string.upper").uppercase())
+        return LuaReturn.of(requiredString(context, 1, "string.upper").mapAsciiCase(::upperAscii))
+    }
+
+    private fun String.mapAsciiCase(convert: (Char) -> Char): String {
+        return buildString(length) {
+            for (char in this@mapAsciiCase) {
+                append(convert(char))
+            }
+        }
+    }
+
+    private fun lowerAscii(char: Char): Char {
+        return if (char in 'A'..'Z') char + ('a' - 'A') else char
+    }
+
+    private fun upperAscii(char: Char): Char {
+        return if (char in 'a'..'z') char - ('a' - 'A') else char
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
