@@ -279,5 +279,5 @@ internal object LuaDebugLibrary {
         end
     """
 
-    private const val DEFAULT_GETINFO_OPTIONS = "nSl"
+    private const val DEFAULT_GETINFO_OPTIONS = "flnSrtu"
 }

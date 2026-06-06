@@ -427,6 +427,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo default includes available function metadata except active lines`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local captured = "upvalue"
+                local function probe(first, ...)
+                    return captured, first, ...
+                end
+
+                local luaInfo = debug.getinfo(probe)
+                local hostInfo = debug.getinfo(print)
+                return luaInfo.func == probe,
+                    luaInfo.nups,
+                    luaInfo.nparams,
+                    luaInfo.isvararg,
+                    luaInfo.activelines,
+                    hostInfo.func == print,
+                    hostInfo.nups,
+                    hostInfo.nparams,
+                    hostInfo.isvararg,
+                    hostInfo.activelines
+                """.trimIndent(),
+                "debug-getinfo-default.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals(0L, state.toInteger(7))
+        assertEquals(0L, state.toInteger(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.isNil(10))
+    }
+
+    @Test
     fun `debug getinfo returns active line metadata`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
