@@ -96,6 +96,29 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring reports table and function identities`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tableText = tostring({})
+                local functionText = tostring(function() end)
+                return tableText, functionText
+                """.trimIndent(),
+                "tostring-identities.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toString(1)?.matches(Regex("""table: [0-9a-f]+""")) == true)
+        assertTrue(state.toString(2)?.matches(Regex("""function: [0-9a-f]+""")) == true)
+    }
+
+    @Test
     fun `tostring reports invalid table tostring metamethod results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -5659,6 +5682,28 @@ class LuaStdlibTest {
         assertEquals("table:formatted", state.toString(1))
         assertFalse(state.toBoolean(2))
         assertEquals("bad argument #2 to 'string.format' (value has no literal form)", state.toString(3))
+    }
+
+    @Test
+    fun `string format string conversion reports table and function identities`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tableText = string.format("%s", {})
+                local functionText = string.format("%s", function() end)
+                return tableText, functionText
+                """.trimIndent(),
+                "string-format-identities.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toString(1)?.matches(Regex("""table: [0-9a-f]+""")) == true)
+        assertTrue(state.toString(2)?.matches(Regex("""function: [0-9a-f]+""")) == true)
     }
 
     @Test

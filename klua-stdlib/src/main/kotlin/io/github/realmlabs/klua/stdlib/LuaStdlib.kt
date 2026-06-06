@@ -577,6 +577,7 @@ public object LuaStdlib {
             "thread" -> context.get(index)?.let { value ->
                 "thread: ${System.identityHashCode(value).toString(16)}"
             } ?: "thread"
+            "function" -> context.get(index)?.typedPointerString("function") ?: "function"
             "table" -> tableToLuaString(context, index)
             "userdata" -> context.get(index)?.toString() ?: "userdata"
             else -> context.typeName(index)
@@ -585,7 +586,7 @@ public object LuaStdlib {
 
     private fun tableToLuaString(context: LuaCallContext, index: Int): String {
         val metamethod = context.getTableField(context.getMetatable(index), "__tostring")
-            ?: return context.typeName(index)
+            ?: return context.getTable(index)?.typedPointerString("table") ?: context.typeName(index)
         return when (val result = context.call(metamethod, listOf(argumentValue(context, index))).get(1)) {
             is Byte -> result.toLong().toString()
             is Short -> result.toLong().toString()
@@ -596,6 +597,10 @@ public object LuaStdlib {
             is CharSequence -> result.toString()
             else -> throw LuaRuntimeException("'__tostring' must return a string")
         }
+    }
+
+    private fun Any.typedPointerString(typeName: String): String {
+        return "$typeName: ${System.identityHashCode(this).toString(16)}"
     }
 
     private fun argumentValue(context: LuaCallContext, index: Int): Any? {

@@ -673,6 +673,7 @@ internal object LuaStringLibrary {
             "string",
             -> context.toString(index) ?: context.typeName(index)
             "userdata" -> context.get(index)?.toString() ?: "userdata"
+            "function" -> context.get(index)?.typedPointerString("function") ?: "function"
             "table" -> tableToLuaString(context, index)
             else -> context.typeName(index)
         }
@@ -680,7 +681,7 @@ internal object LuaStringLibrary {
 
     private fun tableToLuaString(context: LuaCallContext, index: Int): String {
         val metamethod = context.getTableField(context.getMetatable(index), "__tostring")
-            ?: return context.typeName(index)
+            ?: return context.getTable(index)?.typedPointerString("table") ?: context.typeName(index)
         return when (val result = context.call(metamethod, listOf(context.getTable(index))).get(1)) {
             is Byte -> result.toLong().toString()
             is Short -> result.toLong().toString()
@@ -691,6 +692,10 @@ internal object LuaStringLibrary {
             is CharSequence -> result.toString()
             else -> throw LuaRuntimeException("'__tostring' must return a string")
         }
+    }
+
+    private fun Any.typedPointerString(typeName: String): String {
+        return "$typeName: ${System.identityHashCode(this).toString(16)}"
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
