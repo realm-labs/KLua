@@ -2544,6 +2544,74 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage param queries and updates collector parameters`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local pause = collectgarbage("param", "pause")
+                local previous = collectgarbage("param", "pause", 300)
+                local updated = collectgarbage("param", "pause")
+                local query = collectgarbage("param", "pause", nil)
+                local unchanged = collectgarbage("param", "pause", -1)
+                return pause, previous, updated, query, unchanged, collectgarbage("param", "stepmul")
+                """.trimIndent(),
+                "collectgarbage-param.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(250L, state.toInteger(1))
+        assertEquals(250L, state.toInteger(2))
+        assertEquals(300L, state.toInteger(3))
+        assertEquals(300L, state.toInteger(4))
+        assertEquals(300L, state.toInteger(5))
+        assertEquals(200L, state.toInteger(6))
+    }
+
+    @Test
+    fun `collectgarbage param reports parameter argument errors`() {
+        val invalidState = LuaState.create()
+        LuaStdlib.openBase(invalidState)
+
+        assertEquals(
+            LuaStatus.OK,
+            invalidState.load("""return collectgarbage("param", "bad")""", "collectgarbage-param-invalid.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, invalidState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(invalidState.getLastError())
+        assertEquals("bad argument #2 to 'collectgarbage' (invalid option 'bad')", invalidState.toString(-1))
+
+        val missingState = LuaState.create()
+        LuaStdlib.openBase(missingState)
+
+        assertEquals(
+            LuaStatus.OK,
+            missingState.load("""return collectgarbage("param")""", "collectgarbage-param-missing.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, missingState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(missingState.getLastError())
+        assertEquals("bad argument #2 to 'collectgarbage' (string expected)", missingState.toString(-1))
+
+        val valueState = LuaState.create()
+        LuaStdlib.openBase(valueState)
+
+        assertEquals(
+            LuaStatus.OK,
+            valueState.load("""return collectgarbage("param", "pause", false)""", "collectgarbage-param-value.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, valueState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(valueState.getLastError())
+        assertEquals("bad argument #3 to 'collectgarbage' (number expected)", valueState.toString(-1))
+    }
+
+    @Test
     fun `load compiles string chunks with shared globals and arguments`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

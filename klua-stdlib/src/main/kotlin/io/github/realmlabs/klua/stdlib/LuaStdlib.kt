@@ -50,8 +50,9 @@ public object LuaStdlib {
         state.register("assert", ::assert)
         var garbageCollectorRunning = true
         var garbageCollectorMode = "incremental"
+        val garbageCollectorParams = DEFAULT_GARBAGE_COLLECTOR_PARAMS.toMutableMap()
         state.register("collectgarbage") { context ->
-            val result = collectgarbage(context, garbageCollectorRunning, garbageCollectorMode)
+            val result = collectgarbage(context, garbageCollectorRunning, garbageCollectorMode, garbageCollectorParams)
             garbageCollectorRunning = result.running
             garbageCollectorMode = result.mode
             result.returnValue
@@ -140,7 +141,12 @@ public object LuaStdlib {
         throw LuaRuntimeException(context.toString(1) ?: context.typeName(1))
     }
 
-    private fun collectgarbage(context: LuaCallContext, running: Boolean, mode: String): GarbageCollectorResult {
+    private fun collectgarbage(
+        context: LuaCallContext,
+        running: Boolean,
+        mode: String,
+        params: MutableMap<String, Long>,
+    ): GarbageCollectorResult {
         return when (val option = optionalString(context, 1, "collect", "collectgarbage")) {
             "collect" -> {
                 System.gc()
@@ -159,6 +165,18 @@ public object LuaStdlib {
             "isrunning" -> GarbageCollectorResult(running, mode, LuaReturn.of(running))
             "incremental" -> GarbageCollectorResult(running, "incremental", LuaReturn.of(mode))
             "generational" -> GarbageCollectorResult(running, "generational", LuaReturn.of(mode))
+            "param" -> {
+                val parameter = requiredString(context, 2, "collectgarbage")
+                val previous = params[parameter]
+                    ?: throw LuaRuntimeException("bad argument #2 to 'collectgarbage' (invalid option '$parameter')")
+                if (!context.isNone(3) && !context.isNil(3)) {
+                    val value = requiredNumberIndex(context, 3, "collectgarbage")
+                    if (value != -1L) {
+                        params[parameter] = value
+                    }
+                }
+                GarbageCollectorResult(running, mode, LuaReturn.of(previous))
+            }
             else -> throw LuaRuntimeException("bad argument #1 to 'collectgarbage' (invalid option '$option')")
         }
     }
@@ -690,6 +708,14 @@ public object LuaStdlib {
     }
 
     private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
+    private val DEFAULT_GARBAGE_COLLECTOR_PARAMS: Map<String, Long> = mapOf(
+        "minormul" to 20L,
+        "majorminor" to 50L,
+        "minormajor" to 68L,
+        "pause" to 250L,
+        "stepmul" to 200L,
+        "stepsize" to 9600L,
+    )
 
     private fun standardOutput(): Consumer<String> {
         return Consumer { line -> println(line) }
