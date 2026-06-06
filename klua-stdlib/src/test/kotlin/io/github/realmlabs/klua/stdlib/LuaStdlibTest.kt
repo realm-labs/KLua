@@ -1946,7 +1946,8 @@ class LuaStdlibTest {
                 local marker = {name = "marker"}
                 local ok, err = pcall(assert, false, marker)
                 local missingOk, missingErr = pcall(assert)
-                return ok, err == marker, err.name, missingOk, missingErr
+                local nilOk, nilErr = pcall(assert, false, nil)
+                return ok, err == marker, err.name, missingOk, missingErr, nilOk, nilErr
                 """.trimIndent(),
                 "assert-error-object.lua",
             ),
@@ -1958,6 +1959,8 @@ class LuaStdlibTest {
         assertEquals("marker", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("<no error object>", state.toString(7))
     }
 
     @Test
@@ -1983,6 +1986,8 @@ class LuaStdlibTest {
                 """
                 local marker = {name = "marker"}
                 local ok, err = pcall(error, marker)
+                local nilOk, nilErr = pcall(error, nil)
+                local missingOk, missingErr = pcall(error)
                 local handlerSawMarker = false
                 local handled = xpcall(function()
                     error(marker)
@@ -1990,7 +1995,7 @@ class LuaStdlibTest {
                     handlerSawMarker = value == marker
                     return value.name
                 end)
-                return ok, err == marker, err.name, handled, handlerSawMarker
+                return ok, err == marker, err.name, nilOk, nilErr, missingOk, missingErr, handled, handlerSawMarker
                 """.trimIndent(),
                 "error-object.lua",
             ),
@@ -2001,7 +2006,11 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("marker", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertTrue(state.toBoolean(5))
+        assertEquals("<no error object>", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("<no error object>", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertTrue(state.toBoolean(9))
     }
 
     @Test

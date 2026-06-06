@@ -547,8 +547,10 @@ public object LuaStdlib {
     }
 
     private fun luaError(errorObject: Any?): LuaRuntimeException {
+        if (errorObject == null) {
+            return LuaRuntimeException("<no error object>")
+        }
         val message = when (errorObject) {
-            null -> "<no error object>"
             is CharSequence -> errorObject.toString()
             else -> luaErrorTypeName(errorObject)
         }
