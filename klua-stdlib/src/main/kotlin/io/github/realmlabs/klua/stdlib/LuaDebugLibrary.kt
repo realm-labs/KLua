@@ -80,6 +80,8 @@ internal object LuaDebugLibrary {
                     table["nparams"] = frame.parameterCount.toLong()
                     table["isvararg"] = frame.isVararg
                 }
+                'r' -> addTransferInfo(table)
+                't' -> addTailCallInfo(table)
                 'L' -> table["activelines"] = activeLinesTable(frame.activeLines)
             }
         }
@@ -104,6 +106,8 @@ internal object LuaDebugLibrary {
                         table["nparams"] = 0L
                         table["isvararg"] = true
                     }
+                    'r' -> addTransferInfo(table)
+                    't' -> addTailCallInfo(table)
                     'L' -> Unit
                 }
             }
@@ -125,6 +129,8 @@ internal object LuaDebugLibrary {
                     table["nparams"] = info.parameterCount.toLong()
                     table["isvararg"] = info.isVararg
                 }
+                'r' -> addTransferInfo(table)
+                't' -> addTailCallInfo(table)
                 'L' -> table["activelines"] = activeLinesTable(info.activeLines)
             }
         }
@@ -140,9 +146,22 @@ internal object LuaDebugLibrary {
     ): Map<String, Any?> {
         val table = linkedMapOf<String, Any?>()
         for (option in what) {
+            if (option !in GETINFO_OPTIONS) {
+                throw LuaRuntimeException("bad argument #2 to 'debug.getinfo' (invalid option)")
+            }
             addFields(option, table)
         }
         return table
+    }
+
+    private fun addTransferInfo(table: MutableMap<String, Any?>) {
+        table["ftransfer"] = 0L
+        table["ntransfer"] = 0L
+    }
+
+    private fun addTailCallInfo(table: MutableMap<String, Any?>) {
+        table["istailcall"] = false
+        table["extraargs"] = 0L
     }
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
@@ -282,5 +301,6 @@ internal object LuaDebugLibrary {
         end
     """
 
+    private const val GETINFO_OPTIONS = "flnSrtuL"
     private const val DEFAULT_GETINFO_OPTIONS = "flnSrtu"
 }

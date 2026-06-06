@@ -471,6 +471,83 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo returns transfer and tail call metadata`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe()
+                    local frameInfo = debug.getinfo(1, "rt")
+                    return frameInfo.ftransfer,
+                        frameInfo.ntransfer,
+                        frameInfo.istailcall,
+                        frameInfo.extraargs,
+                        frameInfo.source
+                end
+
+                local function functionProbe() end
+                local functionInfo = debug.getinfo(functionProbe)
+                local hostInfo = debug.getinfo(print, "rt")
+                local frameFtransfer, frameNtransfer, frameIstailcall, frameExtraargs, frameSource = probe()
+                return functionInfo.ftransfer,
+                    functionInfo.ntransfer,
+                    functionInfo.istailcall,
+                    functionInfo.extraargs,
+                    hostInfo.ftransfer,
+                    hostInfo.ntransfer,
+                    hostInfo.istailcall,
+                    hostInfo.extraargs,
+                    frameFtransfer,
+                    frameNtransfer,
+                    frameIstailcall,
+                    frameExtraargs,
+                    frameSource
+                """.trimIndent(),
+                "debug-getinfo-transfer-tail.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(0L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals(0L, state.toInteger(8))
+        assertEquals(0L, state.toInteger(9))
+        assertEquals(0L, state.toInteger(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals(0L, state.toInteger(12))
+        assertTrue(state.isNil(13))
+    }
+
+    @Test
+    fun `debug getinfo reports invalid what options`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.getinfo, print, "x")
+                return ok, message
+                """.trimIndent(),
+                "debug-getinfo-invalid-option.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option)", state.toString(2))
+    }
+
+    @Test
     fun `debug getinfo returns active line metadata`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
