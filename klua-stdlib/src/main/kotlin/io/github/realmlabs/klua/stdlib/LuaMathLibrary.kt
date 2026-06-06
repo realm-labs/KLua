@@ -239,9 +239,6 @@ internal object LuaMathLibrary {
     }
 
     private fun mathRandomSeed(context: LuaCallContext, randomState: MathRandomState): LuaReturn {
-        if (context.argumentCount > 2) {
-            throw LuaRuntimeException("wrong number of arguments to 'math.randomseed'")
-        }
         val firstSeed = if (context.argumentCount == 0) {
             System.nanoTime() xor Random().nextLong()
         } else {

@@ -5192,15 +5192,28 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `math randomseed reports arity errors`() {
+    fun `math randomseed ignores extra seed arguments`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return math.randomseed(1, 2, 3)""", "math-randomseed-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local firstSeed, secondSeed = math.randomseed(1, 2, 3)
+                local first = math.random(100)
+                math.randomseed(1, 2)
+                local repeated = math.random(100)
+                return firstSeed, secondSeed, first == repeated
+                """.trimIndent(),
+                "math-randomseed-extra-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("wrong number of arguments to 'math.randomseed'", state.toString(-1))
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
     }
 
     @Test
