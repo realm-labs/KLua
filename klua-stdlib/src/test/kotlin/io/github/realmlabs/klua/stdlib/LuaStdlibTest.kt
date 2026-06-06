@@ -7382,6 +7382,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table concat uses index metamethod values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __index = function(_, index)
+                        return ({ "a", "b" })[index]
+                    end,
+                })
+                return table.concat(values, ",", 1, 2)
+                """.trimIndent(),
+                "table-concat-index-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a,b", state.toString(1))
+    }
+
+    @Test
     fun `table concat reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

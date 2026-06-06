@@ -59,11 +59,7 @@ internal object LuaTableLibrary {
     }
 
     private fun tableConcatValue(context: LuaCallContext, index: Long): String {
-        val value = try {
-            context.getTableValue(1, index)
-        } catch (_: IllegalArgumentException) {
-            null
-        }
+        val value = tableIndexValue(context, index)
         return when (value) {
             is Byte -> value.toLong().toString()
             is Short -> value.toLong().toString()
@@ -75,6 +71,19 @@ internal object LuaTableLibrary {
             else -> throw LuaRuntimeException(
                 "invalid value (${tableConcatTypeName(value)}) at index $index in table for 'concat'",
             )
+        }
+    }
+
+    private fun tableIndexValue(context: LuaCallContext, key: Any?): Any? {
+        val rawValue = context.getTableValue(1, key)
+        if (rawValue != null) {
+            return rawValue
+        }
+        val index = context.getTableField(context.getMetatable(1), "__index") ?: return null
+        return try {
+            context.call(index, listOf(context.getTable(1), key)).get(1)
+        } catch (_: IllegalArgumentException) {
+            context.getTableField(index, key)
         }
     }
 
