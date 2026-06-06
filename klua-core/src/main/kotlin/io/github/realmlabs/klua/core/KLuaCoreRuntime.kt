@@ -146,6 +146,19 @@ public object KLuaCoreRuntime {
         return KLuaCoreUpvalue(name, toPublicValue(upvalue.value, globals))
     }
 
+    public fun getUpvalueId(
+        function: KLuaCoreValue.FunctionValue,
+        index: Int,
+    ): KLuaCoreValue? {
+        if (index <= 0) {
+            return null
+        }
+        val closure = function.sourceFunction as? LuaClosure ?: return null
+        val zeroIndex = index - 1
+        val upvalue = closure.upvalues.getOrNull(zeroIndex) ?: return null
+        return KLuaCoreValue.UserDataValue(upvalue)
+    }
+
     public fun setUpvalue(
         function: KLuaCoreValue.FunctionValue,
         index: Int,

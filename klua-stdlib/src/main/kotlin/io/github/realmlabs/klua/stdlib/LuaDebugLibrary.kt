@@ -15,6 +15,7 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_setlocal") { context -> setLocal(context) }
         state.register("klua_debug_getupvalue") { context -> getUpvalue(context) }
         state.register("klua_debug_setupvalue") { context -> setupUpvalue(context) }
+        state.register("klua_debug_upvalueid") { context -> upvalueId(context) }
         state.register("klua_debug_getmetatable") { context -> getMetatable(context) }
         state.register("klua_debug_setmetatable") { context -> setMetatable(context) }
         state.register("klua_debug_sethook") { context -> setHook(context) }
@@ -211,6 +212,14 @@ internal object LuaDebugLibrary {
         return LuaReturn.of(context.setUpvalue(1, index, context.get(3)))
     }
 
+    private fun upvalueId(context: LuaCallContext): LuaReturn {
+        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+        if (index <= 0) {
+            return LuaReturn.of(null)
+        }
+        return LuaReturn.of(context.getUpvalueId(1, index))
+    }
+
     private fun getMetatable(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             return LuaReturn.of(null)
@@ -282,6 +291,10 @@ internal object LuaDebugLibrary {
 
         function debug.setupvalue(func, index, value)
             return klua_debug_setupvalue(func, index, value)
+        end
+
+        function debug.upvalueid(func, index)
+            return klua_debug_upvalueid(func, index)
         end
 
         function debug.getmetatable(value)

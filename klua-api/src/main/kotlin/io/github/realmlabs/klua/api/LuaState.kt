@@ -1161,6 +1161,14 @@ class LuaState private constructor(
             )
         }
 
+        override fun getUpvalueId(index: Int, upvalueIndex: Int): Any? {
+            val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
+            val coreFunction = function.coreFunction ?: return null
+            return KLuaCoreRuntime.getUpvalueId(coreFunction, upvalueIndex)
+                ?.toStackValue()
+                ?.toPublicCallReturnValue()
+        }
+
         override fun setUpvalue(index: Int, upvalueIndex: Int, value: Any?): String? {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
             val coreFunction = function.coreFunction ?: return null

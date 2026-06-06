@@ -120,7 +120,7 @@ class LuaStdlibTest {
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
                     type(debug.setlocal), type(debug.getupvalue), type(debug.setupvalue),
-                    type(debug.getmetatable), type(debug.setmetatable), type(debug.getregistry),
+                    type(debug.upvalueid), type(debug.getmetatable), type(debug.setmetatable), type(debug.getregistry),
                     type(debug.sethook), type(debug.gethook), debug.traceback("boom"),
                     type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
@@ -141,11 +141,12 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(10))
         assertEquals("function", state.toString(11))
         assertEquals("function", state.toString(12))
-        assertTrue(state.toString(13)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(14))
-        assertEquals("Lua", state.toString(15))
-        assertEquals("debug-openlibs.lua", state.toString(16))
-        assertEquals(1L, state.toInteger(17))
+        assertEquals("function", state.toString(13))
+        assertTrue(state.toString(14)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(15))
+        assertEquals("Lua", state.toString(16))
+        assertEquals("debug-openlibs.lua", state.toString(17))
+        assertEquals(1L, state.toInteger(18))
     }
 
     @Test
@@ -785,6 +786,55 @@ class LuaStdlibTest {
         assertEquals("count", state.toString(3))
         assertEquals(42L, state.toInteger(4))
         assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `debug upvalueid returns stable shared upvalue identities`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local shared = "shared"
+                local other = "other"
+
+                local function left()
+                    return shared
+                end
+                local function right()
+                    return shared
+                end
+                local function different()
+                    return other
+                end
+
+                local leftShared = debug.upvalueid(left, 1)
+                local leftAgain = debug.upvalueid(left, 1)
+                local rightShared = debug.upvalueid(right, 1)
+                local differentOther = debug.upvalueid(different, 1)
+                local missing = debug.upvalueid(left, 99)
+                local hostMissing = debug.upvalueid(print, 1)
+
+                return type(leftShared),
+                    leftShared == leftAgain,
+                    leftShared == rightShared,
+                    leftShared == differentOther,
+                    missing,
+                    hostMissing
+                """.trimIndent(),
+                "debug-upvalueid.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("userdata", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
     }
 
     @Test
