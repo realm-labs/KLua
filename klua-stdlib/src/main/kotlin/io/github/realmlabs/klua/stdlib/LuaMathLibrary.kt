@@ -161,30 +161,47 @@ internal object LuaMathLibrary {
 
     private fun mathMax(context: LuaCallContext): LuaReturn {
         requireMathArguments(context, "math.max")
-        var maxInteger = integerSubtype(context, 1)
-        var max = requiredNumber(context, 1, "math.max")
+        var maxIndex = 1
         for (index in 2..context.argumentCount) {
-            val value = requiredNumber(context, index, "math.max")
-            if (value > max) {
-                max = value
-                maxInteger = integerSubtype(context, index)
+            if (mathLessThan(context, maxIndex, index)) {
+                maxIndex = index
             }
         }
-        return LuaReturn.of(maxInteger ?: max)
+        return LuaReturn.of(mathMinMaxValue(context, maxIndex))
     }
 
     private fun mathMin(context: LuaCallContext): LuaReturn {
         requireMathArguments(context, "math.min")
-        var minInteger = integerSubtype(context, 1)
-        var min = requiredNumber(context, 1, "math.min")
+        var minIndex = 1
         for (index in 2..context.argumentCount) {
-            val value = requiredNumber(context, index, "math.min")
-            if (value < min) {
-                min = value
-                minInteger = integerSubtype(context, index)
+            if (mathLessThan(context, index, minIndex)) {
+                minIndex = index
             }
         }
-        return LuaReturn.of(minInteger ?: min)
+        return LuaReturn.of(mathMinMaxValue(context, minIndex))
+    }
+
+    private fun mathLessThan(context: LuaCallContext, leftIndex: Int, rightIndex: Int): Boolean {
+        val leftType = context.typeName(leftIndex)
+        val rightType = context.typeName(rightIndex)
+        if (leftType == "number" && rightType == "number") {
+            return requiredNumber(context, leftIndex, "math.min") < requiredNumber(context, rightIndex, "math.min")
+        }
+        if (leftType == "string" && rightType == "string") {
+            return requiredString(context, leftIndex, "math.min") < requiredString(context, rightIndex, "math.min")
+        }
+        if (leftType == rightType) {
+            throw LuaRuntimeException("attempt to compare two $leftType values")
+        }
+        throw LuaRuntimeException("attempt to compare $leftType with $rightType")
+    }
+
+    private fun mathMinMaxValue(context: LuaCallContext, index: Int): Any? {
+        return when (context.typeName(index)) {
+            "number" -> integerSubtype(context, index) ?: requiredNumber(context, index, "math.min")
+            "string" -> requiredString(context, index, "math.min")
+            else -> context.getLuaValue(index)
+        }
     }
 
     private fun mathModf(context: LuaCallContext): LuaReturn {
@@ -283,6 +300,11 @@ internal object LuaMathLibrary {
     private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {
         return context.toNumber(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+    }
+
+    private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
+        return context.toString(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
     }
 
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {

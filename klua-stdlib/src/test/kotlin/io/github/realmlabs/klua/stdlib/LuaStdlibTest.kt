@@ -4929,6 +4929,68 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math min and max use lua comparison and return selected value`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tableValue = {}
+                local minTable = math.min(tableValue)
+                local maxBoolean = math.max(true)
+                local minString = math.min("3", "4")
+                local maxString = math.max("3", "4")
+                return minTable == tableValue,
+                    maxBoolean,
+                    minString, math.type(minString),
+                    maxString, math.type(maxString)
+                """.trimIndent(),
+                "math-min-max-comparison.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("3", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals("4", state.toString(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
+    fun `math min and max report comparison errors`() {
+        val minState = LuaState.create()
+        LuaStdlib.openMath(minState)
+
+        assertEquals(LuaStatus.OK, minState.load("""return math.min("3", 4)""", "math-min-compare-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, minState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(minState.getLastError())
+        assertEquals("attempt to compare number with string", minState.toString(-1))
+
+        val maxState = LuaState.create()
+        LuaStdlib.openMath(maxState)
+
+        assertEquals(LuaStatus.OK, maxState.load("""return math.max("3", 2)""", "math-max-compare-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, maxState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(maxState.getLastError())
+        assertEquals("attempt to compare string with number", maxState.toString(-1))
+
+        val booleanState = LuaState.create()
+        LuaStdlib.openMath(booleanState)
+
+        assertEquals(LuaStatus.OK, booleanState.load("""return math.min(true, false)""", "math-min-boolean-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, booleanState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(booleanState.getLastError())
+        assertEquals("attempt to compare two boolean values", booleanState.toString(-1))
+    }
+
+    @Test
     fun `math min and max report missing argument errors`() {
         val minState = LuaState.create()
         LuaStdlib.openMath(minState)
