@@ -551,6 +551,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal reports out of range stack levels`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    local missing = debug.getlocal(1, 99)
+                    local ok, message = pcall(debug.getlocal, 99, 1)
+                    return missing, ok, message
+                end
+
+                return leaf()
+                """.trimIndent(),
+                "debug-getlocal-level-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("bad argument #1 to 'debug.getlocal' (level out of range)", state.toString(3))
+    }
+
+    @Test
     fun `debug getlocal returns function parameter names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
