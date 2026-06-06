@@ -52,44 +52,73 @@ internal object LuaDebugLibrary {
     private fun getInfo(context: LuaCallContext): LuaReturn {
         if (context.typeName(1) == "function") {
             val info = context.getFunctionDebugInfo(1)
-            return LuaReturn.of(functionInfoTable(info))
+            val what = context.toString(2) ?: DEFAULT_GETINFO_OPTIONS
+            return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
         }
+        val what = context.toString(2) ?: DEFAULT_GETINFO_OPTIONS
         val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
         val frame = context.luaFrames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
-        return LuaReturn.of(
-            mapOf(
-                "what" to "Lua",
-                "source" to frame.sourceName,
-                "short_src" to frame.sourceName,
-                "currentline" to frame.line.toLong(),
-                "linedefined" to frame.lineDefined.toLong(),
-                "lastlinedefined" to frame.lastLineDefined.toLong(),
-                "namewhat" to "",
-            ),
-        )
+        return LuaReturn.of(frameInfoTable(frame, what))
     }
 
-    private fun functionInfoTable(info: LuaFunctionDebugInfo?): Map<String, Any> {
-        if (info == null) {
-            return mapOf(
-                "what" to "Java",
-                "source" to "[Java]",
-                "short_src" to "[Java]",
-                "currentline" to -1L,
-                "linedefined" to -1L,
-                "lastlinedefined" to -1L,
-                "namewhat" to "",
-            )
+    private fun frameInfoTable(frame: LuaStackFrame, what: String): Map<String, Any?> {
+        return debugInfoTable(what) { option, table ->
+            when (option) {
+                'S' -> {
+                    table["what"] = "Lua"
+                    table["source"] = frame.sourceName
+                    table["short_src"] = frame.sourceName
+                    table["linedefined"] = frame.lineDefined.toLong()
+                    table["lastlinedefined"] = frame.lastLineDefined.toLong()
+                }
+                'l' -> table["currentline"] = frame.line.toLong()
+                'n' -> table["namewhat"] = ""
+            }
         }
-        return mapOf(
-            "what" to "Lua",
-            "source" to info.sourceName,
-            "short_src" to info.sourceName,
-            "currentline" to -1L,
-            "linedefined" to info.lineDefined.toLong(),
-            "lastlinedefined" to info.lastLineDefined.toLong(),
-            "namewhat" to "",
-        )
+    }
+
+    private fun functionInfoTable(info: LuaFunctionDebugInfo?, what: String, function: Any?): Map<String, Any?> {
+        if (info == null) {
+            return debugInfoTable(what) { option, table ->
+                when (option) {
+                    'S' -> {
+                        table["what"] = "Java"
+                        table["source"] = "[Java]"
+                        table["short_src"] = "[Java]"
+                        table["linedefined"] = -1L
+                        table["lastlinedefined"] = -1L
+                    }
+                    'l' -> table["currentline"] = -1L
+                    'n' -> table["namewhat"] = ""
+                    'f' -> table["func"] = function
+                }
+            }
+        }
+        return debugInfoTable(what) { option, table ->
+            when (option) {
+                'S' -> {
+                    table["what"] = "Lua"
+                    table["source"] = info.sourceName
+                    table["short_src"] = info.sourceName
+                    table["linedefined"] = info.lineDefined.toLong()
+                    table["lastlinedefined"] = info.lastLineDefined.toLong()
+                }
+                'l' -> table["currentline"] = -1L
+                'n' -> table["namewhat"] = ""
+                'f' -> table["func"] = function
+            }
+        }
+    }
+
+    private fun debugInfoTable(
+        what: String,
+        addFields: (option: Char, table: MutableMap<String, Any?>) -> Unit,
+    ): Map<String, Any?> {
+        val table = linkedMapOf<String, Any?>()
+        for (option in what) {
+            addFields(option, table)
+        }
+        return table
     }
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
@@ -183,4 +212,6 @@ internal object LuaDebugLibrary {
             return klua_debug_gethook()
         end
     """
+
+    private const val DEFAULT_GETINFO_OPTIONS = "nSl"
 }

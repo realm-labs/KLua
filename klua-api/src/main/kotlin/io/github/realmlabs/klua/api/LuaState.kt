@@ -1106,6 +1106,10 @@ class LuaState private constructor(
             }
         }
 
+        override fun getLuaValue(index: Int): Any? {
+            return valueAt(index)?.toPublicCallReturnValue()
+        }
+
         override fun call(index: Int, arguments: List<Any?>): LuaReturn {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue
                 ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")

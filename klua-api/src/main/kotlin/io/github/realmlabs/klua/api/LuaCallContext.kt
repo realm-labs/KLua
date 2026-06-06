@@ -16,6 +16,8 @@ interface LuaCallContext {
 
     fun get(index: Int): Any?
 
+    fun getLuaValue(index: Int): Any? = get(index)
+
     fun call(index: Int, arguments: List<Any?>): LuaReturn
 
     fun call(function: Any?, arguments: List<Any?>): LuaReturn

@@ -296,6 +296,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo filters fields with what option`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe()
+                    local frameLine = debug.getinfo(1, "l")
+                    local frameSource = debug.getinfo(1, "S")
+                    return frameLine.currentline, frameLine.source,
+                        frameSource.currentline, frameSource.source
+                end
+
+                local functionInfo = debug.getinfo(probe, "S")
+                local functionLine = debug.getinfo(probe, "l")
+                local functionValue = debug.getinfo(probe, "f")
+                local hostFunction = debug.getinfo(print, "fS")
+                local frameCurrentline, frameLineSource, frameSourceCurrentline, frameSource = probe()
+                return functionInfo.source, functionInfo.currentline,
+                    functionLine.currentline, functionLine.source,
+                    functionValue.func == probe, functionValue.source,
+                    hostFunction.func == print, hostFunction.what, hostFunction.currentline,
+                    frameCurrentline, frameLineSource, frameSourceCurrentline, frameSource
+                """.trimIndent(),
+                "debug-getinfo-what.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("debug-getinfo-what.lua", state.toString(1))
+        assertTrue(state.isNil(2))
+        assertEquals(-1L, state.toInteger(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("Java", state.toString(8))
+        assertTrue(state.isNil(9))
+        assertEquals(2L, state.toInteger(10))
+        assertTrue(state.isNil(11))
+        assertTrue(state.isNil(12))
+        assertEquals("debug-getinfo-what.lua", state.toString(13))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
