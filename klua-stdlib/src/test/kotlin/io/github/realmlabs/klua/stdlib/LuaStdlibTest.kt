@@ -6930,6 +6930,60 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move reports range overflow errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return table.move({}, math.mininteger, math.maxinteger, 1)""", "table-move-range-overflow.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #3 to 'table.move' (too many elements to move)", state.toString(-1))
+    }
+
+    @Test
+    fun `table move reports destination wrap errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return table.move({}, 1, 3, math.maxinteger)""", "table-move-destination-wrap.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #4 to 'table.move' (destination wrap around)", state.toString(-1))
+    }
+
+    @Test
+    fun `table move empty ranges skip overflow validation`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local destination = {}
+                local returned = table.move({}, 2, 1, math.maxinteger, destination)
+                return returned == destination
+                """.trimIndent(),
+                "table-move-empty-extreme-target.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+    }
+
+    @Test
     fun `table remove mutates list values and returns removed values`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

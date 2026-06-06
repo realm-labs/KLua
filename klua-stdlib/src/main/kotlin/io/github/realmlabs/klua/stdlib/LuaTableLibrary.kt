@@ -156,21 +156,46 @@ internal object LuaTableLibrary {
             return LuaReturn.of(context.getTable(destinationIndex))
         }
 
+        val count = tableMoveCount(first, last)
+        tableMoveLastTarget(target, count)
+
         val sameTable = context.getTable(1) === context.getTable(destinationIndex)
         if (sameTable && target > first && target <= last) {
-            var offset = last - first
+            var offset = count - 1L
             while (offset >= 0L) {
                 context.setTableValue(destinationIndex, target + offset, context.getTableValue(1, first + offset))
                 offset--
             }
         } else {
             var offset = 0L
-            while (offset <= last - first) {
+            while (offset < count) {
                 context.setTableValue(destinationIndex, target + offset, context.getTableValue(1, first + offset))
                 offset++
             }
         }
         return LuaReturn.of(context.getTable(destinationIndex))
+    }
+
+    private fun tableMoveCount(first: Long, last: Long): Long {
+        val span = try {
+            java.lang.Math.subtractExact(last, first)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("bad argument #3 to 'table.move' (too many elements to move)")
+        }
+        return try {
+            java.lang.Math.addExact(span, 1L)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("bad argument #3 to 'table.move' (too many elements to move)")
+        }
+    }
+
+    private fun tableMoveLastTarget(target: Long, count: Long): Long {
+        val offset = count - 1L
+        return try {
+            java.lang.Math.addExact(target, offset)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("bad argument #4 to 'table.move' (destination wrap around)")
+        }
     }
 
     private fun tableRemove(context: LuaCallContext): LuaReturn {
