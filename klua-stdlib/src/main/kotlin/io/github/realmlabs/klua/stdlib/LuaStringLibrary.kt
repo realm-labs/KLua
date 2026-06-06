@@ -209,7 +209,8 @@ internal object LuaStringLibrary {
             return LuaReturn.of(null)
         }
         return LuaReturn.ofValues(
-            listOf(text.luaBytePosition(match.startIndex), text.luaByteEndPosition(match.endIndex)) + match.captures,
+            listOf(text.luaBytePosition(match.startIndex), text.luaByteEndPosition(match.endIndex)) +
+                text.luaByteCaptures(match.captures),
         )
     }
 

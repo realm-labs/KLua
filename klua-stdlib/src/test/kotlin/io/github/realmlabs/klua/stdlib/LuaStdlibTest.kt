@@ -5594,12 +5594,13 @@ class LuaStdlibTest {
                 local literalDollarStart, literalDollarEnd = string.find("a${'$'}b", "${'$'}b")
                 local utf8Start, utf8End = string.find("éx", "é", 1, true)
                 local byteStart, byteEnd = string.find("éx", "x", 2, true)
+                local captureStart, captureEnd, capturePosition = string.find("éx", "()x")
                 return firstStart, firstEnd, secondStart, secondEnd, lastStart, lastEnd,
                     dotStart, dotEnd, patternStart, patternEnd, digitStart, digitEnd,
                     literalDotStart, literalDotEnd, anchorStart, anchorEnd, endStart, endEnd,
                     vowelStart, vowelEnd, rangeStart, rangeEnd, negatedStart, negatedEnd,
                     literalCaretStart, literalCaretEnd, literalDollarStart, literalDollarEnd,
-                    utf8Start, utf8End, byteStart, byteEnd,
+                    utf8Start, utf8End, byteStart, byteEnd, captureStart, captureEnd, capturePosition,
                     string.find("hello", "xyz"), string.find("abc", "^b")
                 """.trimIndent(),
                 "string-find.lua",
@@ -5639,8 +5640,11 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(30))
         assertEquals(3L, state.toInteger(31))
         assertEquals(3L, state.toInteger(32))
-        assertTrue(state.isNil(33))
-        assertTrue(state.isNil(34))
+        assertEquals(3L, state.toInteger(33))
+        assertEquals(3L, state.toInteger(34))
+        assertEquals(3L, state.toInteger(35))
+        assertTrue(state.isNil(36))
+        assertTrue(state.isNil(37))
     }
 
     @Test
