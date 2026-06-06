@@ -6561,6 +6561,20 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table concat default range respects raw sequence length`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return table.concat({"a", nil, "c"})""", "table-concat-default-length.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+    }
+
+    @Test
     fun `table concat reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
