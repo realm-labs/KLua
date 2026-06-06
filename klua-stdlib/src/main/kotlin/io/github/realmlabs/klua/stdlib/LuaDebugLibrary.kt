@@ -322,7 +322,7 @@ internal object LuaDebugLibrary {
         if (context.typeName(1) != "function") {
             throw LuaRuntimeException("bad argument #1 to 'debug.sethook' (function expected)")
         }
-        val mask = context.toString(2) ?: ""
+        val mask = optionalString(context, 2, "", "debug.sethook")
         if (mask.any { event -> event !in "crl" }) {
             throw LuaRuntimeException("bad argument #2 to 'debug.sethook' (invalid hook mask)")
         }
