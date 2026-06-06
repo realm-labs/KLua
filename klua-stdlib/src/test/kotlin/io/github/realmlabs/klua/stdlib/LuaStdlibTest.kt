@@ -1291,6 +1291,21 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook reports non numeric count errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return debug.sethook(function() end, "", "not-count")""", "debug-sethook-count-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #3 to 'debug.sethook' (number expected)", state.toString(-1))
+    }
+
+    @Test
     fun `debug sethook nil clears hook without validating mask`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

@@ -326,9 +326,23 @@ internal object LuaDebugLibrary {
         if (mask.any { event -> event !in "crl" }) {
             throw LuaRuntimeException("bad argument #2 to 'debug.sethook' (invalid hook mask)")
         }
-        val count = context.toInteger(3)?.toInt() ?: 0
+        val count = optionalInteger(context, 3, 0, "debug.sethook").toInt()
         context.setDebugHook(1, mask, count)
         return LuaReturn.of()
+    }
+
+    private fun optionalInteger(
+        context: LuaCallContext,
+        index: Int,
+        default: Long,
+        functionName: String,
+    ): Long {
+        return if (context.isNone(index) || context.isNil(index)) {
+            default
+        } else {
+            context.toInteger(index)
+                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+        }
     }
 
     private const val DEBUG_SOURCE: String = """
