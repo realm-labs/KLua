@@ -343,7 +343,7 @@ internal object LuaTableLibrary {
             requiredInteger(context, 2, "table.unpack")
         }
         val end = if (context.isNone(3) || context.isNil(3)) {
-            context.tableLength(1) ?: 0L
+            tableLength(context, 1)
         } else {
             requiredInteger(context, 3, "table.unpack")
         }

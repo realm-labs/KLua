@@ -8090,14 +8090,18 @@ class LuaStdlibTest {
                 local count = select("#", table.unpack({"first", nil, "third"}, 1, 3))
                 local first, second, third = table.unpack({"first", nil, "third"}, 1, 3)
                 local fallback = setmetatable({}, {
+                    __len = function()
+                        return 3
+                    end,
                     __index = function(_, index)
                         return ({ "meta-first", nil, "meta-third" })[index]
                     end,
                 })
                 local metaCount = select("#", table.unpack(fallback, 1, 3))
                 local metaFirst, metaSecond, metaThird = table.unpack(fallback, 1, 3)
+                local defaultMetaCount = select("#", table.unpack(fallback))
                 return a, b, c, d, e, count, first, second, third,
-                    metaCount, metaFirst, metaSecond, metaThird
+                    metaCount, metaFirst, metaSecond, metaThird, defaultMetaCount
                 """.trimIndent(),
                 "table-unpack.lua",
             ),
@@ -8117,6 +8121,33 @@ class LuaStdlibTest {
         assertEquals("meta-first", state.toString(11))
         assertTrue(state.isNil(12))
         assertEquals("meta-third", state.toString(13))
+        assertEquals(3L, state.toInteger(14))
+    }
+
+    @Test
+    fun `table unpack reports non integer length metamethod results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 1.5
+                    end,
+                })
+                return table.unpack(values)
+                """.trimIndent(),
+                "table-unpack-length-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("object length is not an integer", state.toString(-1))
     }
 
     @Test
