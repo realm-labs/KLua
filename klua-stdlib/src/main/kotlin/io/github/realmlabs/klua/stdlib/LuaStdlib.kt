@@ -308,6 +308,8 @@ public object LuaStdlib {
     }
 
     private fun rawequal(context: LuaCallContext): LuaReturn {
+        requireArgument(context, 1, "rawequal")
+        requireArgument(context, 2, "rawequal")
         return LuaReturn.of(rawEqual(context, 1, 2))
     }
 
@@ -535,6 +537,12 @@ public object LuaStdlib {
     private fun requireAnyArgument(context: LuaCallContext, functionName: String) {
         if (context.isNone(1)) {
             throw LuaRuntimeException("bad argument #1 to '$functionName' (value expected)")
+        }
+    }
+
+    private fun requireArgument(context: LuaCallContext, index: Int, functionName: String) {
+        if (context.isNone(index)) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (value expected)")
         }
     }
 

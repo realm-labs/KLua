@@ -2786,6 +2786,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `rawequal reports missing argument errors`() {
+        val firstState = LuaState.create()
+        LuaStdlib.openBase(firstState)
+
+        assertEquals(LuaStatus.OK, firstState.load("""return rawequal()""", "rawequal-first-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, firstState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(firstState.getLastError())
+        assertEquals("bad argument #1 to 'rawequal' (value expected)", firstState.toString(-1))
+
+        val secondState = LuaState.create()
+        LuaStdlib.openBase(secondState)
+
+        assertEquals(LuaStatus.OK, secondState.load("""return rawequal(1)""", "rawequal-second-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, secondState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(secondState.getLastError())
+        assertEquals("bad argument #2 to 'rawequal' (value expected)", secondState.toString(-1))
+    }
+
+    @Test
     fun `rawget reads table fields without invoking access syntax`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
