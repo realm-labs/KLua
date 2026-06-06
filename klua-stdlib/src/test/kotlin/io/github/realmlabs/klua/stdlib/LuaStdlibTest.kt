@@ -2531,7 +2531,16 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `warn reports non string argument errors`() {
+    fun `warn reports missing and non string argument errors`() {
+        val missingState = LuaState.create()
+        LuaStdlib.openBase(missingState)
+
+        assertEquals(LuaStatus.OK, missingState.load("""warn()""", "warn-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, missingState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(missingState.getLastError())
+        assertEquals("bad argument #1 to 'warn' (string expected)", missingState.toString(-1))
+
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 

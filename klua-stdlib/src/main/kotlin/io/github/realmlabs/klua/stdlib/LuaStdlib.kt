@@ -328,11 +328,10 @@ public object LuaStdlib {
     }
 
     private fun warn(context: LuaCallContext, output: Consumer<String>, warningsEnabled: Boolean): Boolean {
-        if (context.argumentCount == 0) {
-            return warningsEnabled
+        val parts = mutableListOf(requiredString(context, 1, "warn"))
+        for (index in 2..context.argumentCount) {
+            parts += requiredString(context, index, "warn")
         }
-
-        val parts = (1..context.argumentCount).map { index -> requiredString(context, index, "warn") }
         if (parts.size == 1 && parts.single().startsWith("@")) {
             return when (parts.single()) {
                 "@on" -> true
