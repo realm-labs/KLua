@@ -117,7 +117,7 @@ internal object LuaTableLibrary {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'table.insert' (table expected)")
         }
-        val length = context.tableLength(1) ?: 0L
+        val length = tableLength(context, 1)
         val position: Long
         val valueIndex: Int
         when (context.argumentCount) {
@@ -137,7 +137,7 @@ internal object LuaTableLibrary {
 
         var index = length
         while (index >= position) {
-            context.setTableValue(1, index + 1L, context.getTableValue(1, index))
+            context.setTableValue(1, index + 1L, tableIndexValue(context, index))
             index--
         }
         context.setTableValue(1, position, argumentValue(context, valueIndex))
@@ -218,7 +218,7 @@ internal object LuaTableLibrary {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'table.remove' (table expected)")
         }
-        val length = context.tableLength(1) ?: 0L
+        val length = tableLength(context, 1)
         if (length == 0L && (context.isNone(2) || context.isNil(2))) {
             return LuaReturn.of(null)
         }
@@ -237,10 +237,10 @@ internal object LuaTableLibrary {
             return LuaReturn.of(null)
         }
 
-        val removed = context.getTableValue(1, position)
+        val removed = tableIndexValue(context, position)
         var index = position
         while (index < length) {
-            context.setTableValue(1, index, context.getTableValue(1, index + 1L))
+            context.setTableValue(1, index, tableIndexValue(context, index + 1L))
             index++
         }
         context.setTableValue(1, length, null)

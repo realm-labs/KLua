@@ -7594,6 +7594,7 @@ class LuaStdlibTest {
     @Test
     fun `table insert mutates list values`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openTable(state)
 
         assertEquals(
@@ -7603,7 +7604,15 @@ class LuaStdlibTest {
                 local values = {"a", "c"}
                 table.insert(values, "d")
                 table.insert(values, 2, "b")
-                return values[1], values[2], values[3], values[4], #values
+                local fallback = setmetatable({}, {
+                    __len = function() return 2 end,
+                    __index = function(_, index)
+                        return ({ "meta-a", "meta-b" })[index]
+                    end,
+                })
+                table.insert(fallback, 2, "inserted")
+                return values[1], values[2], values[3], values[4], #values,
+                    rawget(fallback, 1), rawget(fallback, 2), rawget(fallback, 3)
                 """.trimIndent(),
                 "table-insert.lua",
             ),
@@ -7615,6 +7624,9 @@ class LuaStdlibTest {
         assertEquals("c", state.toString(3))
         assertEquals("d", state.toString(4))
         assertEquals(4L, state.toInteger(5))
+        assertTrue(state.isNil(6))
+        assertEquals("inserted", state.toString(7))
+        assertEquals("meta-b", state.toString(8))
     }
 
     @Test
@@ -7888,6 +7900,7 @@ class LuaStdlibTest {
     @Test
     fun `table remove mutates list values and returns removed values`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openTable(state)
 
         assertEquals(
@@ -7900,7 +7913,15 @@ class LuaStdlibTest {
                 local trailing = table.remove(values, #values + 1)
                 local empty = {}
                 local emptyRemoved = table.remove(empty, 0)
-                return middle, last, trailing, emptyRemoved, values[1], values[2], values[3], #values
+                local fallback = setmetatable({}, {
+                    __len = function() return 2 end,
+                    __index = function(_, index)
+                        return ({ "meta-a", "meta-b" })[index]
+                    end,
+                })
+                local fallbackRemoved = table.remove(fallback)
+                return middle, last, trailing, emptyRemoved, values[1], values[2], values[3], #values,
+                    fallbackRemoved, rawget(fallback, 1), rawget(fallback, 2)
                 """.trimIndent(),
                 "table-remove.lua",
             ),
@@ -7915,6 +7936,9 @@ class LuaStdlibTest {
         assertEquals("c", state.toString(6))
         assertTrue(state.isNil(7))
         assertEquals(2L, state.toInteger(8))
+        assertEquals("meta-b", state.toString(9))
+        assertTrue(state.isNil(10))
+        assertTrue(state.isNil(11))
     }
 
     @Test
