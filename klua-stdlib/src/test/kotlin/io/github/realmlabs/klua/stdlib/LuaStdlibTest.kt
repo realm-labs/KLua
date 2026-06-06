@@ -5416,14 +5416,22 @@ class LuaStdlibTest {
             state.load(
                 """
                 local text = "A" .. utf8.char(128512) .. "Z"
-                return utf8.offset(text, 2),
-                    utf8.offset(text, -1),
-                    utf8.offset(text, 1, 2),
-                    utf8.offset(text, 0, 4),
-                    utf8.offset(text, 2, 2),
-                    utf8.offset(text, 3, 2),
-                    utf8.offset(text, 4, 2),
-                    utf8.offset(text, 0, 7)
+                local secondStart, secondEnd = utf8.offset(text, 2)
+                local lastStart, lastEnd = utf8.offset(text, -1)
+                local currentStart, currentEnd = utf8.offset(text, 1, 2)
+                local containingStart, containingEnd = utf8.offset(text, 0, 4)
+                local nextStart, nextEnd = utf8.offset(text, 2, 2)
+                local afterStart, afterEnd = utf8.offset(text, 3, 2)
+                local missing = utf8.offset(text, 4, 2)
+                local trailingStart, trailingEnd = utf8.offset(text, 0, 7)
+                return secondStart, secondEnd,
+                    lastStart, lastEnd,
+                    currentStart, currentEnd,
+                    containingStart, containingEnd,
+                    nextStart, nextEnd,
+                    afterStart, afterEnd,
+                    missing,
+                    trailingStart, trailingEnd
                 """.trimIndent(),
                 "utf8-offset.lua",
             ),
@@ -5431,13 +5439,20 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(2L, state.toInteger(1))
-        assertEquals(6L, state.toInteger(2))
-        assertEquals(2L, state.toInteger(3))
-        assertEquals(2L, state.toInteger(4))
-        assertEquals(6L, state.toInteger(5))
-        assertEquals(7L, state.toInteger(6))
-        assertTrue(state.isNil(7))
-        assertEquals(7L, state.toInteger(8))
+        assertEquals(5L, state.toInteger(2))
+        assertEquals(6L, state.toInteger(3))
+        assertEquals(6L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(5L, state.toInteger(6))
+        assertEquals(2L, state.toInteger(7))
+        assertEquals(5L, state.toInteger(8))
+        assertEquals(6L, state.toInteger(9))
+        assertEquals(6L, state.toInteger(10))
+        assertEquals(7L, state.toInteger(11))
+        assertEquals(7L, state.toInteger(12))
+        assertTrue(state.isNil(13))
+        assertEquals(7L, state.toInteger(14))
+        assertEquals(7L, state.toInteger(15))
     }
 
     @Test

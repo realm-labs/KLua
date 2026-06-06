@@ -101,13 +101,7 @@ internal object LuaUtf8Library {
         val codePointIndex = codePointIndexAtOrContaining(byteOffsets, codePoints, position, byteLength)
             ?: return LuaReturn.of(null)
         if (offset == 0L) {
-            return LuaReturn.of(
-                if (codePointIndex == codePoints.size) {
-                    byteLength + 1L
-                } else {
-                    byteOffsets[codePointIndex]
-                },
-            )
+            return utf8OffsetResult(byteOffsets, codePoints, codePointIndex, byteLength)
         }
         if (codePointIndex < codePoints.size && position != byteOffsets[codePointIndex]) {
             throw LuaRuntimeException("bad argument #3 to 'utf8.offset' (initial position is a continuation byte)")
@@ -119,13 +113,7 @@ internal object LuaUtf8Library {
         if (targetIndex < 0L || targetIndex > codePoints.size.toLong()) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(
-            if (targetIndex == codePoints.size.toLong()) {
-                byteLength + 1L
-            } else {
-                byteOffsets[targetIndex.toInt()]
-            },
-        )
+        return utf8OffsetResult(byteOffsets, codePoints, targetIndex.toInt(), byteLength)
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
@@ -275,6 +263,20 @@ internal object LuaUtf8Library {
 
     private fun isUtf8StartBytePosition(byteOffsets: List<Long>, bytePosition: Long): Boolean {
         return byteOffsets.any { byteOffset -> byteOffset == bytePosition }
+    }
+
+    private fun utf8OffsetResult(
+        byteOffsets: List<Long>,
+        codePoints: IntArray,
+        codePointIndex: Int,
+        byteLength: Long,
+    ): LuaReturn {
+        if (codePointIndex == codePoints.size) {
+            return LuaReturn.of(byteLength + 1L, byteLength + 1L)
+        }
+        val start = byteOffsets[codePointIndex]
+        val end = start + utf8ByteLength(codePoints[codePointIndex]).toLong() - 1L
+        return LuaReturn.of(start, end)
     }
 
     private fun truncatedCodePointStart(
