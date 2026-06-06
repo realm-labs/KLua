@@ -8,4 +8,5 @@ data class LuaFunctionDebugInfo(
     val parameterCount: Int,
     val isVararg: Boolean,
     val activeLines: List<Int>,
+    val parameterNames: List<String>,
 )

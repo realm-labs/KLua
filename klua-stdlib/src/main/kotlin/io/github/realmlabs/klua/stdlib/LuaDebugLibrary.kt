@@ -144,6 +144,14 @@ internal object LuaDebugLibrary {
     }
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
+        if (context.typeName(1) == "function") {
+            val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+            if (index <= 0) {
+                return LuaReturn.of(null)
+            }
+            val info = context.getFunctionDebugInfo(1) ?: return LuaReturn.of(null)
+            return LuaReturn.of(info.parameterNames.getOrNull(index - 1))
+        }
         val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
         val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
         if (index <= 0) {

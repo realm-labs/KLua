@@ -1147,6 +1147,7 @@ class LuaState private constructor(
                 parameterCount = info.parameterCount,
                 isVararg = info.isVararg,
                 activeLines = info.activeLines,
+                parameterNames = info.parameterNames,
             )
         }
 

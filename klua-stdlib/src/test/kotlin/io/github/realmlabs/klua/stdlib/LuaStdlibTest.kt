@@ -475,6 +475,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal returns function parameter names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function fixed(first, second)
+                    return first, second
+                end
+                local function vararg(head, ...)
+                    return head, ...
+                end
+
+                local fixedFirst = debug.getlocal(fixed, 1)
+                local fixedSecond = debug.getlocal(fixed, 2)
+                local fixedMissing = debug.getlocal(fixed, 3)
+                local fixedInvalid = debug.getlocal(fixed, 0)
+                local varargFirst = debug.getlocal(vararg, 1)
+                local varargSecond = debug.getlocal(vararg, 2)
+                local hostMissing = debug.getlocal(print, 1)
+                return fixedFirst, fixedSecond, fixedMissing, fixedInvalid,
+                    varargFirst, varargSecond, hostMissing
+                """.trimIndent(),
+                "debug-getlocal-function.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("first", state.toString(1))
+        assertEquals("second", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+        assertEquals("head", state.toString(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+    }
+
+    @Test
     fun `debug setlocal mutates active lua locals`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

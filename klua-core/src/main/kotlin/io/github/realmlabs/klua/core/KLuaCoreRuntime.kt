@@ -125,6 +125,9 @@ public object KLuaCoreRuntime {
             parameterCount = closure.prototype.numParams,
             isVararg = closure.prototype.isVararg,
             activeLines = closure.prototype.validBreakpointLines.toList(),
+            parameterNames = closure.prototype.localVars
+                .take(closure.prototype.numParams)
+                .map { local -> local.name },
         )
     }
 
@@ -404,6 +407,7 @@ public data class KLuaCoreFunctionDebugInfo(
     public val parameterCount: Int,
     public val isVararg: Boolean,
     public val activeLines: List<Int>,
+    public val parameterNames: List<String>,
 )
 
 public data class KLuaCoreDebugHook(
