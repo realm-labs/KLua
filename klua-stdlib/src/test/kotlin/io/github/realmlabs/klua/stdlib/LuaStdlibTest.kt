@@ -3234,6 +3234,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `next reports invalid key errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return next({name = "klua"}, "missing")""", "next-invalid-key.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("invalid key to 'next'", state.toString(-1))
+    }
+
+    @Test
     fun `rawequal compares primitive values and table identity`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
