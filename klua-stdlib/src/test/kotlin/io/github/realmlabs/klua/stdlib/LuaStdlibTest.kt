@@ -1010,12 +1010,20 @@ class LuaStdlibTest {
                 local leftAgain = make("left-again")
                 local right = make("right")
 
+                local okGetFunction, getFunctionMessage = pcall(debug.getupvalue, "not-function", 1)
+                local okGetIndex, getIndexMessage = pcall(debug.getupvalue, left, "not-index")
+                local okSetupFunction, setupFunctionMessage = pcall(debug.setupvalue, "not-function", 1, "value")
+                local okSetupIndex, setupIndexMessage = pcall(debug.setupvalue, left, "not-index", "value")
                 local okFunction, functionMessage = pcall(debug.upvalueid, "not-function", 1)
                 local okIdIndex, idIndexMessage = pcall(debug.upvalueid, left, 99)
                 local okJoinFunction, joinFunctionMessage = pcall(debug.upvaluejoin, "not-function", 1, leftAgain, 1)
                 local okJoinOtherFunction, joinOtherFunctionMessage = pcall(debug.upvaluejoin, left, 1, "not-function", 1)
                 local okJoinTarget, joinTargetMessage = pcall(debug.upvaluejoin, left, 99, leftAgain, 1)
-                return okFunction, functionMessage,
+                return okGetFunction, getFunctionMessage,
+                    okGetIndex, getIndexMessage,
+                    okSetupFunction, setupFunctionMessage,
+                    okSetupIndex, setupIndexMessage,
+                    okFunction, functionMessage,
                     okIdIndex, idIndexMessage,
                     okJoinFunction, joinFunctionMessage,
                     okJoinOtherFunction, joinOtherFunctionMessage,
@@ -1027,15 +1035,23 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.upvalueid' (function expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'debug.getupvalue' (function expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #2 to 'debug.upvalueid' (invalid upvalue index)", state.toString(4))
+        assertEquals("bad argument #2 to 'debug.getupvalue' (number expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #1 to 'debug.upvaluejoin' (function expected)", state.toString(6))
+        assertEquals("bad argument #1 to 'debug.setupvalue' (function expected)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #3 to 'debug.upvaluejoin' (function expected)", state.toString(8))
+        assertEquals("bad argument #2 to 'debug.setupvalue' (number expected)", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertEquals("bad argument #2 to 'debug.upvaluejoin' (invalid upvalue index)", state.toString(10))
+        assertEquals("bad argument #1 to 'debug.upvalueid' (function expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #2 to 'debug.upvalueid' (invalid upvalue index)", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("bad argument #1 to 'debug.upvaluejoin' (function expected)", state.toString(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("bad argument #3 to 'debug.upvaluejoin' (function expected)", state.toString(16))
+        assertFalse(state.toBoolean(17))
+        assertEquals("bad argument #2 to 'debug.upvaluejoin' (invalid upvalue index)", state.toString(18))
     }
 
     @Test

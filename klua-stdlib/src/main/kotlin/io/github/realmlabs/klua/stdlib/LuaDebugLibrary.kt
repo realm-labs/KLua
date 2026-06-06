@@ -212,7 +212,8 @@ internal object LuaDebugLibrary {
     }
 
     private fun getUpvalue(context: LuaCallContext): LuaReturn {
-        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+        requireFunction(context, 1, "debug.getupvalue")
+        val index = requiredUpvalueLookupIndex(context, 2, "debug.getupvalue")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -220,7 +221,8 @@ internal object LuaDebugLibrary {
     }
 
     private fun setupUpvalue(context: LuaCallContext): LuaReturn {
-        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+        requireFunction(context, 1, "debug.setupvalue")
+        val index = requiredUpvalueLookupIndex(context, 2, "debug.setupvalue")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -263,6 +265,11 @@ internal object LuaDebugLibrary {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid upvalue index)")
         }
         return upvalueIndex
+    }
+
+    private fun requiredUpvalueLookupIndex(context: LuaCallContext, index: Int, functionName: String): Int {
+        return context.toInteger(index)?.toInt()
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
     }
 
     private fun requiredStackLevel(context: LuaCallContext, functionName: String): Int {
