@@ -2411,9 +2411,10 @@ class LuaStdlibTest {
             state.load(
                 """
                 local count = select("#", "a", "b", "c")
+                local prefixedCount = select("#extra", "a", "b", "c")
                 local second, third = select(2, "a", "b", "c")
                 local last = select(-1, "a", "b", "c")
-                return count, second, third, last
+                return count, prefixedCount, second, third, last
                 """.trimIndent(),
                 "select.lua",
             ),
@@ -2421,9 +2422,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(3L, state.toInteger(1))
-        assertEquals("b", state.toString(2))
-        assertEquals("c", state.toString(3))
+        assertEquals(3L, state.toInteger(2))
+        assertEquals("b", state.toString(3))
         assertEquals("c", state.toString(4))
+        assertEquals("c", state.toString(5))
     }
 
     @Test
@@ -2472,6 +2474,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'select' (index out of range)", state.toString(-1))
+    }
+
+    @Test
+    fun `select rejects non hash string indexes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return select("", "a")""", "select-string-index.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'select' (number expected)", state.toString(-1))
     }
 
     @Test
