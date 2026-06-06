@@ -2922,7 +2922,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `pairs and ipairs defer non table errors to iterators`() {
+    fun `pairs defers non table errors and ipairs ends non table iteration`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
@@ -2950,8 +2950,47 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(6))
         assertEquals("not-table", state.toString(7))
         assertEquals(0L, state.toInteger(8))
-        assertFalse(state.toBoolean(9))
-        assertEquals("bad argument #1 to 'ipairs iterator' (table expected)", state.toString(10))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.isNil(10))
+    }
+
+    @Test
+    fun `ipairs uses index metamethod values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __index = function(_, index)
+                        if index <= 2 then
+                            return index * 10
+                        end
+                        return nil
+                    end,
+                })
+                local firstIndex, firstValue
+                local secondIndex, secondValue
+                for index, value in ipairs(values) do
+                    if index == 1 then
+                        firstIndex, firstValue = index, value
+                    else
+                        secondIndex, secondValue = index, value
+                    end
+                end
+                return firstIndex, firstValue, secondIndex, secondValue
+                """.trimIndent(),
+                "ipairs-index-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(10L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(20L, state.toInteger(4))
     }
 
     @Test

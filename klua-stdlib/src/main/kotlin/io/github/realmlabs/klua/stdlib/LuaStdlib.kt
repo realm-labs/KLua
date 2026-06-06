@@ -245,10 +245,10 @@ public object LuaStdlib {
         requireAnyArgument(context, "ipairs")
         val iterator = LuaFunction { iteratorContext ->
             if (!iteratorContext.isTable(1)) {
-                throw LuaRuntimeException("bad argument #1 to 'ipairs iterator' (table expected)")
+                return@LuaFunction LuaReturn.of(null)
             }
             val nextIndex = requiredNumberIndex(iteratorContext, 2, "ipairs iterator") + 1L
-            val value = iteratorContext.getTableValue(1, nextIndex)
+            val value = tableIndexValue(iteratorContext, 1, nextIndex)
             if (value == null) {
                 LuaReturn.of(null)
             } else {
@@ -256,6 +256,19 @@ public object LuaStdlib {
             }
         }
         return LuaReturn.ofValues(listOf(iterator, argumentValue(context, 1), 0L))
+    }
+
+    private fun tableIndexValue(context: LuaCallContext, tableIndex: Int, key: Any?): Any? {
+        val rawValue = context.getTableValue(tableIndex, key)
+        if (rawValue != null) {
+            return rawValue
+        }
+        val index = context.getTableField(context.getMetatable(tableIndex), "__index") ?: return null
+        return try {
+            context.call(index, listOf(argumentValue(context, tableIndex), key)).get(1)
+        } catch (_: IllegalArgumentException) {
+            context.getTableField(index, key)
+        }
     }
 
     private fun next(context: LuaCallContext): LuaReturn {
