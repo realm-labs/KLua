@@ -15,6 +15,8 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_setlocal") { context -> setLocal(context) }
         state.register("klua_debug_getupvalue") { context -> getUpvalue(context) }
         state.register("klua_debug_setupvalue") { context -> setupUpvalue(context) }
+        state.register("klua_debug_getmetatable") { context -> getMetatable(context) }
+        state.register("klua_debug_setmetatable") { context -> setMetatable(context) }
         state.register("klua_debug_sethook") { context -> setHook(context) }
         state.register("klua_debug_gethook") { context -> context.getDebugHook() }
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
@@ -187,6 +189,24 @@ internal object LuaDebugLibrary {
         return LuaReturn.of(context.setUpvalue(1, index, context.get(3)))
     }
 
+    private fun getMetatable(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            return LuaReturn.of(null)
+        }
+        return LuaReturn.of(context.getMetatable(1))
+    }
+
+    private fun setMetatable(context: LuaCallContext): LuaReturn {
+        if (!context.isTable(1)) {
+            throw LuaRuntimeException("bad argument #1 to 'debug.setmetatable' (table expected)")
+        }
+        if (!context.isNone(2) && !context.isNil(2) && !context.isTable(2)) {
+            throw LuaRuntimeException("bad argument #2 to 'debug.setmetatable' (nil or table expected)")
+        }
+        context.setMetatable(1, context.getTable(2))
+        return LuaReturn.of(context.getTable(1))
+    }
+
     private fun setHook(context: LuaCallContext): LuaReturn {
         val mask = context.toString(2) ?: ""
         if (mask.any { event -> event !in "crl" }) {
@@ -232,6 +252,14 @@ internal object LuaDebugLibrary {
 
         function debug.setupvalue(func, index, value)
             return klua_debug_setupvalue(func, index, value)
+        end
+
+        function debug.getmetatable(value)
+            return klua_debug_getmetatable(value)
+        end
+
+        function debug.setmetatable(value, metatable)
+            return klua_debug_setmetatable(value, metatable)
         end
 
         function debug.sethook(hook, mask, count)

@@ -2349,6 +2349,80 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug metatable functions bypass base metatable protection for tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local object = {}
+                local marker = {name = "locked"}
+                local hidden = {
+                    __index = {name = "hidden"},
+                    __metatable = marker
+                }
+                setmetatable(object, hidden)
+
+                local visible = getmetatable(object)
+                local raw = debug.getmetatable(object)
+                local replacement = {__index = {name = "replacement"}}
+                local returned = debug.setmetatable(object, replacement)
+                local after = debug.getmetatable(object)
+                local replacedName = object.name
+                local cleared = debug.setmetatable(object, nil)
+                return visible == marker,
+                    raw == hidden,
+                    raw.__metatable == marker,
+                    returned == object,
+                    after == replacement,
+                    replacedName,
+                    cleared == object,
+                    debug.getmetatable(object)
+                """.trimIndent(),
+                "debug-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("replacement", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.isNil(8))
+    }
+
+    @Test
+    fun `debug metatable functions report unsupported value errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missing = debug.getmetatable("text")
+                local okTable, tableMessage = pcall(debug.setmetatable, "text", {})
+                local okMeta, metaMessage = pcall(debug.setmetatable, {}, "not-table")
+                return missing, okTable, tableMessage, okMeta, metaMessage
+                """.trimIndent(),
+                "debug-metatable-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("bad argument #1 to 'debug.setmetatable' (table expected)", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #2 to 'debug.setmetatable' (nil or table expected)", state.toString(5))
+    }
+
+    @Test
     fun `getmetatable returns nil for values without metatables`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
