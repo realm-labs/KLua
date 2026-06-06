@@ -58,6 +58,69 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring uses table tostring metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local named = setmetatable({name = "value"}, {
+                    __tostring = function(value)
+                        return "table:" .. value.name
+                    end,
+                })
+                local numeric = setmetatable({}, {
+                    __tostring = function()
+                        return 42
+                    end,
+                })
+                local protected = setmetatable({}, {
+                    __metatable = "locked",
+                    __tostring = function()
+                        return "hidden"
+                    end,
+                })
+                return tostring(named), tostring(numeric), tostring(protected), getmetatable(protected)
+                """.trimIndent(),
+                "tostring-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table:value", state.toString(1))
+        assertEquals("42", state.toString(2))
+        assertEquals("hidden", state.toString(3))
+        assertEquals("locked", state.toString(4))
+    }
+
+    @Test
+    fun `tostring reports invalid table tostring metamethod results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = setmetatable({}, {
+                    __tostring = function()
+                        return {}
+                    end,
+                })
+                return tostring(value)
+                """.trimIndent(),
+                "tostring-metamethod-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("'__tostring' must return a string", state.toString(-1))
+    }
+
+    @Test
     fun `openBase installs global environment table`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

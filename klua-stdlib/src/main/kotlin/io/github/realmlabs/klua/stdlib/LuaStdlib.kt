@@ -573,8 +573,24 @@ public object LuaStdlib {
             "thread" -> context.get(index)?.let { value ->
                 "thread: ${System.identityHashCode(value).toString(16)}"
             } ?: "thread"
+            "table" -> tableToLuaString(context, index)
             "userdata" -> context.get(index)?.toString() ?: "userdata"
             else -> context.typeName(index)
+        }
+    }
+
+    private fun tableToLuaString(context: LuaCallContext, index: Int): String {
+        val metamethod = context.getTableField(context.getMetatable(index), "__tostring")
+            ?: return context.typeName(index)
+        return when (val result = context.call(metamethod, listOf(argumentValue(context, index))).get(1)) {
+            is Byte -> result.toLong().toString()
+            is Short -> result.toLong().toString()
+            is Int -> result.toLong().toString()
+            is Long -> result.toString()
+            is Float -> result.toDouble().toString()
+            is Double -> result.toString()
+            is CharSequence -> result.toString()
+            else -> throw LuaRuntimeException("'__tostring' must return a string")
         }
     }
 
