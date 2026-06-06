@@ -57,7 +57,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathAbs(context: LuaCallContext): LuaReturn {
-        val integer = context.toInteger(1)
+        val integer = integerSubtype(context, 1)
         if (integer != null) {
             return LuaReturn.of(integer.absoluteValue)
         }

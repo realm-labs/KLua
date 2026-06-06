@@ -4454,6 +4454,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math abs preserves subtype only for numeric integer arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local integer = math.abs(-5)
+                local stringInteger = math.abs("-5")
+                local hexStringInteger = math.abs("-0x10")
+                return integer, math.type(integer),
+                    stringInteger, math.type(stringInteger),
+                    hexStringInteger, math.type(hexStringInteger)
+                """.trimIndent(),
+                "math-abs-subtype.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(5L, state.toInteger(1))
+        assertEquals("integer", state.toString(2))
+        assertEquals(5.0, state.toNumber(3))
+        assertEquals("float", state.toString(4))
+        assertEquals(16.0, state.toNumber(5))
+        assertEquals("float", state.toString(6))
+    }
+
+    @Test
     fun `math floor and ceil preserve numeric subtype by range`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
