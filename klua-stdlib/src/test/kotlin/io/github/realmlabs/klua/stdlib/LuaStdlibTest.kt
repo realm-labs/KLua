@@ -6587,6 +6587,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table concat reports invalid value types`() {
+        val nilState = LuaState.create()
+        LuaStdlib.openTable(nilState)
+
+        assertEquals(
+            LuaStatus.OK,
+            nilState.load("""return table.concat({"a", nil, "c"}, "", 1, 3)""", "table-concat-nil-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, nilState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(nilState.getLastError())
+        assertEquals("invalid value (nil) at index 2 in table for 'concat'", nilState.toString(-1))
+
+        val booleanState = LuaState.create()
+        LuaStdlib.openTable(booleanState)
+
+        assertEquals(
+            LuaStatus.OK,
+            booleanState.load("""return table.concat({"a", true}, "", 1, 2)""", "table-concat-boolean-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, booleanState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(booleanState.getLastError())
+        assertEquals("invalid value (boolean) at index 2 in table for 'concat'", booleanState.toString(-1))
+    }
+
+    @Test
     fun `table create returns an empty table`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

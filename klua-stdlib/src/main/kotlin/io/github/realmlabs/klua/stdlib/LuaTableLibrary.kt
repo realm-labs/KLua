@@ -72,7 +72,20 @@ internal object LuaTableLibrary {
             is Float -> value.toDouble().toString()
             is Double -> value.toString()
             is CharSequence -> value.toString()
-            else -> throw LuaRuntimeException("invalid value at index $index in table for 'concat'")
+            else -> throw LuaRuntimeException(
+                "invalid value (${tableConcatTypeName(value)}) at index $index in table for 'concat'",
+            )
+        }
+    }
+
+    private fun tableConcatTypeName(value: Any?): String {
+        return when (value) {
+            null -> "nil"
+            is Boolean -> "boolean"
+            is Number -> "number"
+            is CharSequence -> "string"
+            is LuaFunction -> "function"
+            else -> "table"
         }
     }
 
