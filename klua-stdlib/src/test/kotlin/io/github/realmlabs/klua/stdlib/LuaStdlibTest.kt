@@ -5056,13 +5056,14 @@ class LuaStdlibTest {
                 """
                 local firstSeed, secondSeed = math.randomseed(123, 456)
                 local first = math.random(100)
+                math.randomseed(0, 0)
                 local generatedFirstSeed, generatedSecondSeed = math.randomseed()
                 local generated = math.random(100)
                 math.randomseed(123, 456)
                 local repeated = math.random(100)
                 local singleFirstSeed, singleSecondSeed = math.randomseed(789)
                 return firstSeed, secondSeed, first == repeated,
-                    generatedFirstSeed ~= nil, generatedSecondSeed == 0, generated >= 1 and generated <= 100,
+                    generatedFirstSeed ~= nil, generatedSecondSeed ~= 0, generated >= 1 and generated <= 100,
                     singleFirstSeed, singleSecondSeed
                 """.trimIndent(),
                 "math-randomseed.lua",

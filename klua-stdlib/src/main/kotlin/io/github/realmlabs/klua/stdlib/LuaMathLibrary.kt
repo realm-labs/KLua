@@ -239,15 +239,16 @@ internal object LuaMathLibrary {
     }
 
     private fun mathRandomSeed(context: LuaCallContext, randomState: MathRandomState): LuaReturn {
-        val firstSeed = if (context.argumentCount == 0) {
-            System.nanoTime() xor Random().nextLong()
+        val (firstSeed, secondSeed) = if (context.argumentCount == 0) {
+            (System.nanoTime() xor Random().nextLong()) to randomState.random.nextLong()
         } else {
-            requiredInteger(context, 1, "math.randomseed")
-        }
-        val secondSeed = if (context.argumentCount < 2) {
-            0L
-        } else {
-            requiredInteger(context, 2, "math.randomseed")
+            val first = requiredInteger(context, 1, "math.randomseed")
+            val second = if (context.argumentCount < 2) {
+                0L
+            } else {
+                requiredInteger(context, 2, "math.randomseed")
+            }
+            first to second
         }
         randomState.random = Random(combineSeeds(firstSeed, secondSeed))
         return LuaReturn.of(firstSeed, secondSeed)
