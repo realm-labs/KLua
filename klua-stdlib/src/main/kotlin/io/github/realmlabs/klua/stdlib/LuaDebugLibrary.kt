@@ -176,7 +176,7 @@ internal object LuaDebugLibrary {
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
         if (context.typeName(1) == "function") {
-            val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+            val index = requiredLocalIndex(context, 2, "debug.getlocal")
             if (index <= 0) {
                 return LuaReturn.of(null)
             }
@@ -184,7 +184,7 @@ internal object LuaDebugLibrary {
             return LuaReturn.of(info.parameterNames.getOrNull(index - 1))
         }
         val level = requiredStackLevel(context, "debug.getlocal")
-        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+        val index = requiredLocalIndex(context, 2, "debug.getlocal")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -199,7 +199,7 @@ internal object LuaDebugLibrary {
 
     private fun setLocal(context: LuaCallContext): LuaReturn {
         val level = requiredStackLevel(context, "debug.setlocal")
-        val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
+        val index = requiredLocalIndex(context, 2, "debug.setlocal")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -268,6 +268,11 @@ internal object LuaDebugLibrary {
     }
 
     private fun requiredUpvalueLookupIndex(context: LuaCallContext, index: Int, functionName: String): Int {
+        return context.toInteger(index)?.toInt()
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+    }
+
+    private fun requiredLocalIndex(context: LuaCallContext, index: Int, functionName: String): Int {
         return context.toInteger(index)?.toInt()
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
     }

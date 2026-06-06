@@ -744,6 +744,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal reports non numeric local index errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function target(first)
+                    return first
+                end
+                local function probe()
+                    local okStack, stackMessage = pcall(debug.getlocal, 1, "not-index")
+                    local okFunction, functionMessage = pcall(debug.getlocal, target, "not-index")
+                    return okStack, stackMessage, okFunction, functionMessage
+                end
+
+                return probe()
+                """.trimIndent(),
+                "debug-getlocal-index-type-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(4))
+    }
+
+    @Test
     fun `debug getlocal returns function parameter names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -863,6 +894,31 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #1 to 'debug.setlocal' (number expected)", state.toString(2))
+    }
+
+    @Test
+    fun `debug setlocal reports non numeric local index errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe()
+                    local ok, message = pcall(debug.setlocal, 1, "not-index", "ignored")
+                    return ok, message
+                end
+
+                return probe()
+                """.trimIndent(),
+                "debug-setlocal-index-type-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.setlocal' (number expected)", state.toString(2))
     }
 
     @Test
