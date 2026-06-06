@@ -7574,7 +7574,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(sequenceState.getLastError())
         assertEquals(
-            "bad argument #1 to 'table.create' (non-negative integer expected)",
+            "bad argument #1 to 'table.create' (out of range)",
             sequenceState.toString(-1),
         )
 
@@ -7586,8 +7586,38 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(recordState.getLastError())
         assertEquals(
-            "bad argument #2 to 'table.create' (non-negative integer expected)",
+            "bad argument #2 to 'table.create' (out of range)",
             recordState.toString(-1),
+        )
+
+        val largeSequenceState = LuaState.create()
+        LuaStdlib.openTable(largeSequenceState)
+
+        assertEquals(
+            LuaStatus.OK,
+            largeSequenceState.load("""return table.create(2147483648)""", "table-create-large-seq-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, largeSequenceState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(largeSequenceState.getLastError())
+        assertEquals(
+            "bad argument #1 to 'table.create' (out of range)",
+            largeSequenceState.toString(-1),
+        )
+
+        val largeRecordState = LuaState.create()
+        LuaStdlib.openTable(largeRecordState)
+
+        assertEquals(
+            LuaStatus.OK,
+            largeRecordState.load("""return table.create(0, 2147483648)""", "table-create-large-rec-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, largeRecordState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(largeRecordState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'table.create' (out of range)",
+            largeRecordState.toString(-1),
         )
     }
 

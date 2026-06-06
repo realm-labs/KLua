@@ -106,9 +106,9 @@ internal object LuaTableLibrary {
     }
 
     private fun tableCreate(context: LuaCallContext): LuaReturn {
-        requiredNonNegativeInteger(context, 1, "table.create")
+        requiredTableCreateSize(context, 1)
         if (!context.isNone(2) && !context.isNil(2)) {
-            requiredNonNegativeInteger(context, 2, "table.create")
+            requiredTableCreateSize(context, 2)
         }
         return LuaReturn.of(linkedMapOf<Any, Any?>())
     }
@@ -395,10 +395,10 @@ internal object LuaTableLibrary {
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
     }
 
-    private fun requiredNonNegativeInteger(context: LuaCallContext, index: Int, functionName: String): Long {
-        val value = requiredInteger(context, index, functionName)
-        if (value < 0) {
-            throw LuaRuntimeException("bad argument #$index to '$functionName' (non-negative integer expected)")
+    private fun requiredTableCreateSize(context: LuaCallContext, index: Int): Long {
+        val value = requiredInteger(context, index, "table.create")
+        if (value < 0 || value > Int.MAX_VALUE) {
+            throw LuaRuntimeException("bad argument #$index to 'table.create' (out of range)")
         }
         return value
     }
