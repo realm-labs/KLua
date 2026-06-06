@@ -1097,6 +1097,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook nil clears hook without validating mask`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.sethook(function() end, "l", 0)
+                debug.sethook(nil, "x", -1)
+                local hook, mask, count = debug.gethook()
+                return hook, mask, count
+                """.trimIndent(),
+                "debug-sethook-nil-clear.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+    }
+
+    @Test
     fun `package searchpath returns first readable template match`() {
         val root = Files.createTempDirectory("klua-searchpath")
         Files.createDirectories(root.resolve("alpha"))

@@ -270,6 +270,10 @@ internal object LuaDebugLibrary {
     }
 
     private fun setHook(context: LuaCallContext): LuaReturn {
+        if (context.isNone(1) || context.isNil(1)) {
+            context.setDebugHook(1, "", 0)
+            return LuaReturn.of()
+        }
         val mask = context.toString(2) ?: ""
         if (mask.any { event -> event !in "crl" }) {
             throw LuaRuntimeException("bad argument #2 to 'debug.sethook' (invalid hook mask)")
