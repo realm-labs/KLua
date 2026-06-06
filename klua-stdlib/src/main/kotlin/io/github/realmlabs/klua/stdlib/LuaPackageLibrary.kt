@@ -102,6 +102,13 @@ internal object LuaPackageLibrary {
         }
 
         function require(name)
+            local nameType = searcherResultType(name)
+            if nameType == "number" then
+                name = name .. ""
+            elseif nameType ~= "string" then
+                error("bad argument #1 to 'require' (string expected)")
+            end
+
             local loaded = package.loaded
             local value = loaded[name]
             if value ~= nil and value ~= false then

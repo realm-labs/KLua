@@ -1554,6 +1554,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require normalizes numeric module names and rejects non string names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.preload["1"] = function(name)
+                    return "loaded:" .. name
+                end
+                local loaded = require(1)
+                local nilOk, nilMessage = pcall(require, nil)
+                local booleanOk, booleanMessage = pcall(require, false)
+                local tableOk, tableMessage = pcall(require, {})
+                return loaded, package.loaded["1"],
+                    nilOk, nilMessage,
+                    booleanOk, booleanMessage,
+                    tableOk, tableMessage
+                """.trimIndent(),
+                "require-name-types.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("loaded:1", state.toString(1))
+        assertEquals("loaded:1", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(8))
+    }
+
+    @Test
     fun `require reports missing preload modules`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
