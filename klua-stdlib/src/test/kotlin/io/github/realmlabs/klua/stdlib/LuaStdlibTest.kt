@@ -5541,6 +5541,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format string conversion uses table tostring metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = setmetatable({name = "formatted"}, {
+                    __tostring = function(target)
+                        return "table:" .. target.name
+                    end,
+                })
+                local formatted = string.format("%s", value)
+                local ok, message = pcall(string.format, "%q", value)
+                return formatted, ok, message
+                """.trimIndent(),
+                "string-format-tostring-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table:formatted", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("bad argument #2 to 'string.format' (value has no literal form)", state.toString(3))
+    }
+
+    @Test
     fun `string format quotes primitive literals`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

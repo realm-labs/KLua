@@ -673,7 +673,23 @@ internal object LuaStringLibrary {
             "string",
             -> context.toString(index) ?: context.typeName(index)
             "userdata" -> context.get(index)?.toString() ?: "userdata"
+            "table" -> tableToLuaString(context, index)
             else -> context.typeName(index)
+        }
+    }
+
+    private fun tableToLuaString(context: LuaCallContext, index: Int): String {
+        val metamethod = context.getTableField(context.getMetatable(index), "__tostring")
+            ?: return context.typeName(index)
+        return when (val result = context.call(metamethod, listOf(context.getTable(index))).get(1)) {
+            is Byte -> result.toLong().toString()
+            is Short -> result.toLong().toString()
+            is Int -> result.toLong().toString()
+            is Long -> result.toString()
+            is Float -> result.toDouble().toString()
+            is Double -> result.toString()
+            is CharSequence -> result.toString()
+            else -> throw LuaRuntimeException("'__tostring' must return a string")
         }
     }
 
