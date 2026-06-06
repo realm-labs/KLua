@@ -154,7 +154,7 @@ internal object LuaMathLibrary {
 
     private fun mathLog(context: LuaCallContext): LuaReturn {
         val value = ln(requiredNumber(context, 1, "math.log"))
-        if (context.argumentCount < 2) {
+        if (context.argumentCount < 2 || context.isNil(2)) {
             return LuaReturn.of(value)
         }
         return LuaReturn.of(value / ln(requiredNumber(context, 2, "math.log")))
