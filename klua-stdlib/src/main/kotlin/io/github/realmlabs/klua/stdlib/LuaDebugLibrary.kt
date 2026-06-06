@@ -78,6 +78,7 @@ internal object LuaDebugLibrary {
                     table["nparams"] = frame.parameterCount.toLong()
                     table["isvararg"] = frame.isVararg
                 }
+                'L' -> table["activelines"] = activeLinesTable(frame.activeLines)
             }
         }
     }
@@ -101,6 +102,7 @@ internal object LuaDebugLibrary {
                         table["nparams"] = 0L
                         table["isvararg"] = true
                     }
+                    'L' -> Unit
                 }
             }
         }
@@ -121,8 +123,13 @@ internal object LuaDebugLibrary {
                     table["nparams"] = info.parameterCount.toLong()
                     table["isvararg"] = info.isVararg
                 }
+                'L' -> table["activelines"] = activeLinesTable(info.activeLines)
             }
         }
+    }
+
+    private fun activeLinesTable(lines: List<Int>): Map<Long, Boolean> {
+        return lines.associate { line -> line.toLong() to true }
     }
 
     private fun debugInfoTable(

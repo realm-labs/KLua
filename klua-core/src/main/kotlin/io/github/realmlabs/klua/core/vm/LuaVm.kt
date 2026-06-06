@@ -359,6 +359,7 @@ internal class LuaVm(
                     frame.prototype.upvalues.size,
                     frame.prototype.numParams,
                     frame.prototype.isVararg,
+                    frame.prototype.validBreakpointLines.toList(),
                     activeLocals(frame, pc),
                 )
             }

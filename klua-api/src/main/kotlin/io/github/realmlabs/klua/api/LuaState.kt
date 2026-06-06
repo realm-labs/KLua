@@ -1043,6 +1043,7 @@ class LuaState private constructor(
                 frame.upvalueCount,
                 frame.parameterCount,
                 frame.isVararg,
+                frame.activeLines,
                 frame.locals.map { local ->
                     LuaLocalVariable(
                         local.name,
@@ -1145,6 +1146,7 @@ class LuaState private constructor(
                 upvalueCount = info.upvalueCount,
                 parameterCount = info.parameterCount,
                 isVararg = info.isVararg,
+                activeLines = info.activeLines,
             )
         }
 

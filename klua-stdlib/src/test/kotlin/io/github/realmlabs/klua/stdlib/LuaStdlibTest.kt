@@ -395,6 +395,54 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo returns active line metadata`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe(value)
+                    local frameInfo = debug.getinfo(1, "L")
+                    if value then
+                        value = value + 1
+                    end
+                    return frameInfo.activelines
+                end
+
+                local functionInfo = debug.getinfo(probe, "L")
+                local hostInfo = debug.getinfo(print, "L")
+                local frameLines = probe(1)
+                return functionInfo.activelines[1],
+                    functionInfo.activelines[2],
+                    functionInfo.activelines[3],
+                    functionInfo.activelines[4],
+                    functionInfo.activelines[5],
+                    functionInfo.activelines[6],
+                    functionInfo.activelines[7],
+                    frameLines[2],
+                    frameLines[4],
+                    hostInfo.activelines
+                """.trimIndent(),
+                "debug-getinfo-activelines.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.isNil(10))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

@@ -124,6 +124,7 @@ public object KLuaCoreRuntime {
             upvalueCount = closure.prototype.upvalues.size,
             parameterCount = closure.prototype.numParams,
             isVararg = closure.prototype.isVararg,
+            activeLines = closure.prototype.validBreakpointLines.toList(),
         )
     }
 
@@ -381,6 +382,7 @@ public data class KLuaCoreStackFrame(
     public val upvalueCount: Int = 0,
     public val parameterCount: Int = 0,
     public val isVararg: Boolean = false,
+    public val activeLines: List<Int> = emptyList(),
     public val locals: List<KLuaCoreLocalVariable> = emptyList(),
 )
 
@@ -401,6 +403,7 @@ public data class KLuaCoreFunctionDebugInfo(
     public val upvalueCount: Int,
     public val parameterCount: Int,
     public val isVararg: Boolean,
+    public val activeLines: List<Int>,
 )
 
 public data class KLuaCoreDebugHook(
@@ -680,6 +683,7 @@ private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaC
             frame.upvalueCount,
             frame.parameterCount,
             frame.isVararg,
+            frame.activeLines,
             frame.locals.map { local ->
                 KLuaCoreLocalVariable(
                     local.name,

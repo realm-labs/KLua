@@ -7,4 +7,5 @@ data class LuaFunctionDebugInfo(
     val upvalueCount: Int,
     val parameterCount: Int,
     val isVararg: Boolean,
+    val activeLines: List<Int>,
 )
