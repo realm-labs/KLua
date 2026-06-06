@@ -274,11 +274,7 @@ internal object LuaTableLibrary {
             return compareTableSortValues(left, right) < 0
         }
 
-        val leftBeforeRight = context.call(2, listOf(left, right)).get(1).isLuaTruthy()
-        if (leftBeforeRight && context.call(2, listOf(right, left)).get(1).isLuaTruthy()) {
-            throw LuaRuntimeException("invalid order function for sorting")
-        }
-        return leftBeforeRight
+        return context.call(2, listOf(left, right)).get(1).isLuaTruthy()
     }
 
     private fun compareTableSortValues(left: Any?, right: Any?): Int {

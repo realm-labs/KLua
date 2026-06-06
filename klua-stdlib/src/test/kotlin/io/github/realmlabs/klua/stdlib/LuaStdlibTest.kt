@@ -7096,6 +7096,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort does not add reverse comparator calls`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {3, 1, 2}
+                local trueComparisons = {}
+                local sawReverseCall = false
+                table.sort(values, function(a, b)
+                    if trueComparisons[b .. ":" .. a] then
+                        sawReverseCall = true
+                    end
+                    local result = a < b
+                    if result then
+                        trueComparisons[a .. ":" .. b] = true
+                    end
+                    return result
+                end)
+                return values[1], values[2], values[3], sawReverseCall
+                """.trimIndent(),
+                "table-sort-no-reverse-comparator-call.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(3L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+    }
+
+    @Test
     fun `table sort reports argument errors`() {
         val tableState = LuaState.create()
         LuaStdlib.openTable(tableState)
@@ -7117,21 +7152,25 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `table sort rejects invalid comparator order`() {
+    fun `table sort does not reject short invalid comparator order`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return table.sort({1, 2}, function(a, b) return true end)""",
-                "table-sort-invalid-order-error.lua",
+                """
+                local values = {1, 2}
+                table.sort(values, function(a, b) return true end)
+                return values[1], values[2]
+                """.trimIndent(),
+                "table-sort-short-invalid-order.lua",
             ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("invalid order function for sorting", state.toString(-1))
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
     }
 
     @Test
