@@ -664,12 +664,15 @@ public object LuaStdlib {
         if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
             return null
         }
-        val parsed = digits.toULongOrNull(16) ?: return null
-        return when {
-            sign < 0 && parsed <= Long.MIN_VALUE.toULong() -> -parsed.toLong()
-            sign > 0 && parsed <= Long.MAX_VALUE.toULong() -> parsed.toLong()
-            else -> null
+        var value = BigInteger.ZERO
+        val radix = BigInteger.valueOf(16L)
+        for (digit in digits) {
+            value = value.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
         }
+        if (sign < 0) {
+            value = value.negate()
+        }
+        return value.mod(UINT64_MODULUS).toLong()
     }
 
     private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)

@@ -1761,8 +1761,12 @@ class LuaStdlibTest {
                     tonumber("+0Xff"),
                     tonumber("-0x10"),
                     tonumber("-0x8000000000000000"),
+                    tonumber("0xFFFFFFFFFFFFFFFF"),
+                    tonumber("0x8000000000000000"),
+                    tonumber("0x10000000000000000"),
+                    tonumber("-0xFFFFFFFFFFFFFFFF"),
                     tonumber("0x"),
-                    tonumber("0x10000000000000000")
+                    tonumber("0x1p2")
                 """.trimIndent(),
                 "tonumber-hex.lua",
             ),
@@ -1773,8 +1777,12 @@ class LuaStdlibTest {
         assertEquals(255L, state.toInteger(2))
         assertEquals(-16L, state.toInteger(3))
         assertEquals(Long.MIN_VALUE, state.toInteger(4))
-        assertTrue(state.isNil(5))
-        assertTrue(state.isNil(6))
+        assertEquals(-1L, state.toInteger(5))
+        assertEquals(Long.MIN_VALUE, state.toInteger(6))
+        assertEquals(0L, state.toInteger(7))
+        assertEquals(1L, state.toInteger(8))
+        assertTrue(state.isNil(9))
+        assertEquals(4.0, state.toNumber(10))
     }
 
     @Test
