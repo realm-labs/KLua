@@ -29,6 +29,25 @@ class LuaStateStackJavaTest {
     }
 
     @Test
+    void convertsNumericStringsToIntegers() {
+        LuaState state = LuaState.create();
+
+        state.pushString("3.0");
+        state.pushString("3.5");
+        state.pushString("0x10");
+        state.pushString("0x1.8p1");
+        state.pushString("0xFFFFFFFFFFFFFFFF");
+        state.pushString("0x10000000000000000");
+
+        assertEquals(3L, state.toInteger(1));
+        assertNull(state.toInteger(2));
+        assertEquals(16L, state.toInteger(3));
+        assertEquals(3L, state.toInteger(4));
+        assertEquals(-1L, state.toInteger(5));
+        assertEquals(0L, state.toInteger(6));
+    }
+
+    @Test
     void popRemovesValuesFromTheTop() {
         LuaState state = LuaState.create();
         state.pushInteger(1);

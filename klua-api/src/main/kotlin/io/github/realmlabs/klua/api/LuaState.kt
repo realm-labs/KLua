@@ -15,6 +15,7 @@ import io.github.realmlabs.klua.core.KLuaCoreUserDataGetter
 import io.github.realmlabs.klua.core.KLuaCoreUserDataMethod
 import io.github.realmlabs.klua.core.KLuaCoreUserDataSetter
 import io.github.realmlabs.klua.core.KLuaCoreValue
+import java.math.BigInteger
 import java.util.IdentityHashMap
 import java.util.function.Consumer
 
@@ -388,7 +389,7 @@ class LuaState private constructor(
         return when (val value = valueAt(index)) {
             is LuaStackValue.IntegerValue -> value.value
             is LuaStackValue.NumberValue -> integerFromNumber(value.value)
-            is LuaStackValue.StringValue -> value.value.toLongOrNull()
+            is LuaStackValue.StringValue -> integerFromString(value.value)
             else -> null
         }
     }
@@ -1015,6 +1016,41 @@ class LuaState private constructor(
         return if (integer.toDouble() == value) integer else null
     }
 
+    private fun integerFromString(value: String): Long? {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) {
+            return null
+        }
+        return hexIntegerFromString(trimmed)
+            ?: trimmed.toLongOrNull()
+            ?: trimmed.toDoubleOrNull()?.let(::integerFromNumber)
+    }
+
+    private fun hexIntegerFromString(value: String): Long? {
+        val sign = when {
+            value.startsWith("-") -> -1
+            value.startsWith("+") -> 1
+            else -> 1
+        }
+        val digitsStart = if (value.startsWith("-") || value.startsWith("+")) 1 else 0
+        if (!value.regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)) {
+            return null
+        }
+        val digits = value.substring(digitsStart + 2)
+        if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
+            return null
+        }
+        var parsed = BigInteger.ZERO
+        val radix = BigInteger.valueOf(16L)
+        for (digit in digits) {
+            parsed = parsed.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
+        }
+        if (sign < 0) {
+            parsed = parsed.negate()
+        }
+        return parsed.mod(UINT64_MODULUS).toLong()
+    }
+
     private fun stackTypeName(value: LuaStackValue?): String {
         return when (value) {
             null -> "none"
@@ -1295,7 +1331,7 @@ class LuaState private constructor(
             return when (val value = valueAt(index)) {
                 is LuaStackValue.IntegerValue -> value.value
                 is LuaStackValue.NumberValue -> integerFromNumber(value.value)
-                is LuaStackValue.StringValue -> value.value.toLongOrNull()
+                is LuaStackValue.StringValue -> integerFromString(value.value)
                 else -> null
             }
         }
@@ -1381,6 +1417,8 @@ class LuaState private constructor(
         ) : LuaStackValue
     }
 }
+
+private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
 private fun String?.toNativeFrames(): List<String> {
     return if (this == null) emptyList() else listOf(this)

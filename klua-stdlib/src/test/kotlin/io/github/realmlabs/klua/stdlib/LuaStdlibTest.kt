@@ -4766,6 +4766,10 @@ class LuaStdlibTest {
                 return math.tointeger(3.0),
                     math.tointeger(3.5),
                     math.tointeger("42"),
+                    math.tointeger("3.0"),
+                    math.tointeger("0x10"),
+                    math.tointeger("0x1.8p1"),
+                    math.tointeger("3.5"),
                     math.ult(0, -1),
                     math.ult(-1, 0),
                     math.ult(math.mininteger, math.maxinteger)
@@ -4778,9 +4782,13 @@ class LuaStdlibTest {
         assertEquals(3L, state.toInteger(1))
         assertTrue(state.isNil(2))
         assertEquals(42L, state.toInteger(3))
-        assertTrue(state.toBoolean(4))
-        assertFalse(state.toBoolean(5))
-        assertFalse(state.toBoolean(6))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals(16L, state.toInteger(5))
+        assertEquals(3L, state.toInteger(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.toBoolean(8))
+        assertFalse(state.toBoolean(9))
+        assertFalse(state.toBoolean(10))
     }
 
     @Test
