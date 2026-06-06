@@ -551,6 +551,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports non numeric stack level errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.getinfo, "not-level")
+                return ok, message
+                """.trimIndent(),
+                "debug-getinfo-level-type-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'debug.getinfo' (number expected)", state.toString(2))
+    }
+
+    @Test
     fun `debug getinfo returns active line metadata`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -658,6 +679,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal reports non numeric stack level errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.getlocal, "not-level", 1)
+                return ok, message
+                """.trimIndent(),
+                "debug-getlocal-level-type-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'debug.getlocal' (number expected)", state.toString(2))
+    }
+
+    @Test
     fun `debug getlocal returns function parameter names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -756,6 +798,27 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(2))
         assertEquals("bad argument #1 to 'debug.setlocal' (level out of range)", state.toString(3))
         assertEquals(12L, state.toInteger(4))
+    }
+
+    @Test
+    fun `debug setlocal reports non numeric stack level errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.setlocal, "not-level", 1, "ignored")
+                return ok, message
+                """.trimIndent(),
+                "debug-setlocal-level-type-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'debug.setlocal' (number expected)", state.toString(2))
     }
 
     @Test

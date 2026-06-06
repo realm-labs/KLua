@@ -60,7 +60,10 @@ internal object LuaDebugLibrary {
             return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
         }
         val what = context.toString(2) ?: DEFAULT_GETINFO_OPTIONS
-        val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
+        val level = requiredStackLevel(context, "debug.getinfo")
+        if (level < 0) {
+            return LuaReturn.of(null)
+        }
         val frame = context.luaFrames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
         return LuaReturn.of(frameInfoTable(frame, what))
     }
@@ -175,10 +178,13 @@ internal object LuaDebugLibrary {
             val info = context.getFunctionDebugInfo(1) ?: return LuaReturn.of(null)
             return LuaReturn.of(info.parameterNames.getOrNull(index - 1))
         }
-        val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
+        val level = requiredStackLevel(context, "debug.getlocal")
         val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
         if (index <= 0) {
             return LuaReturn.of(null)
+        }
+        if (level < 0) {
+            throw LuaRuntimeException("bad argument #1 to 'debug.getlocal' (level out of range)")
         }
         val frame = context.luaFrames.drop(level).firstOrNull()
             ?: throw LuaRuntimeException("bad argument #1 to 'debug.getlocal' (level out of range)")
@@ -187,10 +193,13 @@ internal object LuaDebugLibrary {
     }
 
     private fun setLocal(context: LuaCallContext): LuaReturn {
-        val level = context.toInteger(1)?.toInt()?.coerceAtLeast(0) ?: 1
+        val level = requiredStackLevel(context, "debug.setlocal")
         val index = context.toInteger(2)?.toInt() ?: return LuaReturn.of(null)
         if (index <= 0) {
             return LuaReturn.of(null)
+        }
+        if (level < 0) {
+            throw LuaRuntimeException("bad argument #1 to 'debug.setlocal' (level out of range)")
         }
         context.luaFrames.drop(level).firstOrNull()
             ?: throw LuaRuntimeException("bad argument #1 to 'debug.setlocal' (level out of range)")
@@ -249,6 +258,11 @@ internal object LuaDebugLibrary {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid upvalue index)")
         }
         return upvalueIndex
+    }
+
+    private fun requiredStackLevel(context: LuaCallContext, functionName: String): Int {
+        return context.toInteger(1)?.toInt()
+            ?: throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
     }
 
     private fun getMetatable(context: LuaCallContext): LuaReturn {
