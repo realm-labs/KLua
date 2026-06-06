@@ -672,20 +672,20 @@ internal object LuaStringLibrary {
 
     private fun quoteString(value: String): String {
         val result = StringBuilder("\"")
-        for (char in value) {
+        for ((index, char) in value.withIndex()) {
             when (char) {
                 '\\' -> result.append("\\\\")
                 '"' -> result.append("\\\"")
-                '\u0007' -> result.append("\\a")
-                '\b' -> result.append("\\b")
-                '\u000C' -> result.append("\\f")
-                '\n' -> result.append("\\n")
-                '\r' -> result.append("\\r")
-                '\t' -> result.append("\\t")
-                '\u000B' -> result.append("\\v")
+                '\n' -> result.append("\\\n")
                 in '\u0000'..'\u001F',
                 '\u007F',
-                -> result.append("\\").append(char.code.toString().padStart(3, '0'))
+                -> {
+                    val nextIsDigit = value.getOrNull(index + 1)?.isDigit() == true
+                    val escaped = char.code.toString().let { digits ->
+                        if (nextIsDigit) digits.padStart(3, '0') else digits
+                    }
+                    result.append("\\").append(escaped)
+                }
                 else -> result.append(char)
             }
         }
