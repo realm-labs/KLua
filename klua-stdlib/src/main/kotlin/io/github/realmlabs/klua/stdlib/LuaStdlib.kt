@@ -403,18 +403,18 @@ public object LuaStdlib {
 
     private fun tonumber(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "tonumber")
-        val value = argumentValue(context, 1) ?: return LuaReturn.of(null)
         if (!context.isNone(2) && !context.isNil(2)) {
             val base = context.toInteger(2)
                 ?: throw LuaRuntimeException("bad argument #2 to 'tonumber' (number expected)")
             if (base !in 2L..36L) {
                 throw LuaRuntimeException("bad argument #2 to 'tonumber' (base out of range)")
             }
-            return when (value) {
+            return when (val value = argumentValue(context, 1)) {
                 is CharSequence -> LuaReturn.of(parseBasedInteger(value.toString(), base.toInt()))
                 else -> throw LuaRuntimeException("bad argument #1 to 'tonumber' (string expected)")
             }
         }
+        val value = argumentValue(context, 1) ?: return LuaReturn.of(null)
         return when (value) {
             is Byte -> LuaReturn.of(value.toLong())
             is Short -> LuaReturn.of(value.toLong())

@@ -1669,6 +1669,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber explicit base requires string input before nil conversion`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local plainNil = tonumber(nil)
+                local nilBase = tonumber(nil, nil)
+                local ok, message = pcall(tonumber, nil, 10)
+                return plainNil, nilBase, ok, message
+                """.trimIndent(),
+                "tonumber-nil-base.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'tonumber' (string expected)", state.toString(4))
+    }
+
+    @Test
     fun `tonumber reports missing and base conversion argument errors`() {
         val missingState = LuaState.create()
         LuaStdlib.openBase(missingState)
