@@ -36,6 +36,7 @@ internal object LuaStringLibrary {
 
     private fun stringByte(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "string.byte")
+        val bytes = text.toByteArray(StandardCharsets.UTF_8)
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
         } else {
@@ -46,11 +47,11 @@ internal object LuaStringLibrary {
         } else {
             requiredInteger(context, 3, "string.byte")
         }
-        val range = text.luaIndexRange(start, end)
+        val range = bytes.luaIndexRange(start, end)
         if (range.isEmpty()) {
             return LuaReturn.none()
         }
-        return LuaReturn.ofValues(range.map { index -> text[index - 1].code.toLong() })
+        return LuaReturn.ofValues(range.map { index -> (bytes[index - 1].toInt() and 0xff).toLong() })
     }
 
     private fun stringChar(context: LuaCallContext): LuaReturn {
@@ -717,6 +718,29 @@ internal object LuaStringLibrary {
 
     private fun String.luaByteLength(): Long {
         return toByteArray(StandardCharsets.UTF_8).size.toLong()
+    }
+
+    private fun ByteArray.luaIndexRange(start: Long, end: Long): IntRange {
+        val normalizedStart = normalizeByteIndex(start)
+        val normalizedEnd = normalizeByteIndex(end)
+        if (normalizedStart > normalizedEnd) {
+            return IntRange.EMPTY
+        }
+        val first = normalizedStart.coerceIn(1, size + 1)
+        val last = normalizedEnd.coerceIn(0, size)
+        if (first > last) {
+            return IntRange.EMPTY
+        }
+        return first..last
+    }
+
+    private fun ByteArray.normalizeByteIndex(index: Long): Int {
+        return when {
+            index > Int.MAX_VALUE -> Int.MAX_VALUE
+            index < Int.MIN_VALUE -> Int.MIN_VALUE
+            index >= 0L -> index.toInt()
+            else -> (size + index + 1L).coerceIn(Int.MIN_VALUE.toLong(), Int.MAX_VALUE.toLong()).toInt()
+        }
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
