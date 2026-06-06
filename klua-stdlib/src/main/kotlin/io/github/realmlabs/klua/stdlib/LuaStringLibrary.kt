@@ -321,11 +321,13 @@ internal object LuaStringLibrary {
         if (count <= 0L) {
             return LuaReturn.of("")
         }
-        if (count > Int.MAX_VALUE) {
-            throw LuaRuntimeException("bad argument #2 to 'string.rep' (repeat count too large)")
+        val resultLength = stringRepResultLength(text, separator, count)
+        if (resultLength == 0) {
+            return LuaReturn.of("")
         }
         return LuaReturn.of(
             buildString {
+                ensureCapacity(resultLength)
                 repeat(count.toInt()) { index ->
                     if (index > 0) {
                         append(separator)
@@ -334,6 +336,20 @@ internal object LuaStringLibrary {
                 }
             },
         )
+    }
+
+    private fun stringRepResultLength(text: String, separator: String, count: Long): Int {
+        val copyLength = text.length.toLong() + separator.length.toLong()
+        val repeatedLength = try {
+            java.lang.Math.multiplyExact(copyLength, count)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("resulting string too large")
+        }
+        val resultLength = repeatedLength - separator.length.toLong()
+        if (resultLength > Int.MAX_VALUE) {
+            throw LuaRuntimeException("resulting string too large")
+        }
+        return resultLength.toInt()
     }
 
     private fun stringReverse(context: LuaCallContext): LuaReturn {

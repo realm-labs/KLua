@@ -5504,12 +5504,28 @@ class LuaStdlibTest {
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return string.rep("ha", 3, "-"), string.rep("ha", 0, "-")""", "string-rep.lua"),
+            state.load(
+                """return string.rep("ha", 3, "-"), string.rep("ha", 0, "-"), string.rep("", 2147483648)""",
+                "string-rep.lua",
+            ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals("ha-ha-ha", state.toString(1))
         assertEquals("", state.toString(2))
+        assertEquals("", state.toString(3))
+    }
+
+    @Test
+    fun `string rep reports large result errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.rep("x", 2147483648)""", "string-rep-large-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("resulting string too large", state.toString(-1))
     }
 
     @Test
