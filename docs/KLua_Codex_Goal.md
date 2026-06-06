@@ -79,7 +79,7 @@ Implementation starts clean. There is no requirement to preserve old project API
 ## Language Target Policy
 
 - Lua 5.5 is the only supported source-language target.
-- Do not add old-version compatibility profiles, flags, aliases, shims, or runtime selection APIs.
+- Do not add old-version runtime modes, flags, aliases, shims, or source-version selection APIs.
 - Do not support official PUC Lua `.luac` bytecode in v1.
 - Use one internal KLua bytecode format.
 - Compiled prototypes should not expose a language-version field. Future bytecode packages may carry a fixed Lua 5.5 marker for validation and diagnostics, but this must not become a public version-selection API.

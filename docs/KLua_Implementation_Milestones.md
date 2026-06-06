@@ -1049,7 +1049,7 @@ commands:
 - A DAP client can request stack frames and variables.
 - Coroutines appear as debugger threads.
 - Large tables do not freeze the debugger UI.
-- Debugger can be disabled completely in production builds or production profiles.
+- Debugger can be disabled completely through production runtime configuration.
 
 ### Risks
 
@@ -1195,7 +1195,7 @@ breakpoint stepping
 
 ### Goal
 
-Move from “Lua-like” toward reliable Lua 5.5 behavior without carrying old-version compatibility profiles.
+Move from “Lua-like” toward reliable Lua 5.5 behavior without carrying old Lua-version modes.
 
 ### Tasks
 
@@ -1264,7 +1264,7 @@ Do not attempt these yet unless the core runtime is already stable:
 official PUC .luac binary loading
 native Lua C module compatibility
 perfect LuaJIT FFI compatibility
-old Lua-version compatibility profiles
+old Lua-version runtime selection
 mixing multiple source-language versions inside one LuaState
 ```
 
@@ -1460,10 +1460,10 @@ CLI debugger MVP
 ```text
 bytecode packaging
 instruction limits
-sandbox profiles
+sandbox configuration
 module loader
 host API permissions
-production debug profile
+production debug opt-out
 ```
 
 ### v0.7: Performance Release
@@ -1645,8 +1645,9 @@ KLua should be easy to embed first, correct second, fast third, and JVM-JIT-clev
 
 ## References
 
-These are useful compatibility references while planning milestones:
+These are useful Lua 5.5 conformance references while planning milestones:
 
+- Local official Lua 5.5 source: `~/Downloads/lua-lua-a5522f0`
 - Lua version history: https://www.lua.org/versions.html
 - Lua download/current release page: https://www.lua.org/download.html
 - Lua reference manuals: https://www.lua.org/manual/

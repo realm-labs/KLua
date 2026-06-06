@@ -1211,17 +1211,14 @@ debug.sethook(hook, mask, count)
 debug.gethook()
 ```
 
-Use profiles:
+Expose debug support through explicit runtime configuration:
 
 ```text
-Development:
+Development/test:
   full debug library enabled
 
-Test:
-  traceback + getinfo enabled
-
 Production:
-  traceback only, or debug library disabled
+  debug library disabled
 ```
 
 The debug library can inspect and mutate runtime internals, so it should be disabled or restricted by default in sandboxed game-server environments.
@@ -1810,8 +1807,9 @@ Make it clever third.
 
 ## References
 
-These are useful compatibility references while implementing KLua:
+These are useful Lua 5.5 conformance references while implementing KLua:
 
+- Local official Lua 5.5 source: `~/Downloads/lua-lua-a5522f0`
 - Lua version history: https://www.lua.org/versions.html
 - Lua download/current release page: https://www.lua.org/download.html
 - Lua reference manuals: https://www.lua.org/manual/
