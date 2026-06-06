@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.api.continueWith
 import io.github.realmlabs.klua.api.withContinuation
 import java.io.IOException
 import java.math.BigInteger
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.function.Consumer
@@ -379,7 +380,7 @@ public object LuaStdlib {
 
     private fun rawlen(context: LuaCallContext): LuaReturn {
         return when {
-            context.typeName(1) == "string" -> LuaReturn.of(requiredString(context, 1, "rawlen").length.toLong())
+            context.typeName(1) == "string" -> LuaReturn.of(requiredString(context, 1, "rawlen").luaByteLength())
             context.isTable(1) -> LuaReturn.of(context.tableLength(1) ?: 0L)
             else -> throw LuaRuntimeException("bad argument #1 to 'rawlen' (table or string expected)")
         }
@@ -758,6 +759,10 @@ public object LuaStdlib {
 
     private fun standardOutput(): Consumer<String> {
         return Consumer { line -> println(line) }
+    }
+
+    private fun String.luaByteLength(): Long {
+        return toByteArray(StandardCharsets.UTF_8).size.toLong()
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {

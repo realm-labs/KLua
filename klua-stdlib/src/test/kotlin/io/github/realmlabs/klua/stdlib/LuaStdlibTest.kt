@@ -3404,7 +3404,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 local values = {"a", "b"}
-                return rawlen("KLua"), rawlen(values)
+                return rawlen("KLua"), rawlen(values), rawlen("é")
                 """.trimIndent(),
                 "rawlen.lua",
             ),
@@ -3413,6 +3413,7 @@ class LuaStdlibTest {
 
         assertEquals(4L, state.toInteger(1))
         assertEquals(2L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
     }
 
     @Test
@@ -5440,7 +5441,7 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return string.len("hello"), string.lower("HeLLo"), string.upper("HeLLo"),
+                return string.len("hello"), string.len("é"), string.lower("HeLLo"), string.upper("HeLLo"),
                     string.reverse("abc"), string.rep("ha", 3), string.sub("abcdef", 2, 4),
                     string.sub("abcdef", -3, -1), string.sub("abcdef", 4, 2)
                 """.trimIndent(),
@@ -5450,13 +5451,14 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(5L, state.toInteger(1))
-        assertEquals("hello", state.toString(2))
-        assertEquals("HELLO", state.toString(3))
-        assertEquals("cba", state.toString(4))
-        assertEquals("hahaha", state.toString(5))
-        assertEquals("bcd", state.toString(6))
-        assertEquals("def", state.toString(7))
-        assertEquals("", state.toString(8))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("hello", state.toString(3))
+        assertEquals("HELLO", state.toString(4))
+        assertEquals("cba", state.toString(5))
+        assertEquals("hahaha", state.toString(6))
+        assertEquals("bcd", state.toString(7))
+        assertEquals("def", state.toString(8))
+        assertEquals("", state.toString(9))
     }
 
     @Test

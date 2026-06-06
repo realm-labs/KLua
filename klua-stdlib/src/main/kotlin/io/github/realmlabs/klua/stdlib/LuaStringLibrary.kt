@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.math.BigInteger
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 internal object LuaStringLibrary {
@@ -65,7 +66,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringLen(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "string.len").length.toLong())
+        return LuaReturn.of(requiredString(context, 1, "string.len").luaByteLength())
     }
 
     private fun stringGsub(context: LuaCallContext): LuaReturn {
@@ -712,6 +713,10 @@ internal object LuaStringLibrary {
 
     private fun Any.typedPointerString(typeName: String): String {
         return "$typeName: ${System.identityHashCode(this).toString(16)}"
+    }
+
+    private fun String.luaByteLength(): Long {
+        return toByteArray(StandardCharsets.UTF_8).size.toLong()
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
