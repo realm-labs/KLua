@@ -150,10 +150,18 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineClose(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val coroutine = requiredCoroutine(context, 1, "coroutine.close")
+        val coroutine = optionalCurrentCoroutine(context, runtime, "coroutine.close")
+        if (coroutine.isMain) {
+            if (isRunningCoroutine(coroutine, runtime)) {
+                throw LuaRuntimeException("cannot close main thread")
+            }
+            throw LuaRuntimeException("cannot close a normal coroutine")
+        }
         if (coroutine.status == CoroutineStatus.RUNNING) {
-            val kind = if (isRunningCoroutine(coroutine, runtime)) "running" else "normal"
-            return LuaReturn.of(false, "cannot close $kind coroutine")
+            if (!isRunningCoroutine(coroutine, runtime)) {
+                throw LuaRuntimeException("cannot close a normal coroutine")
+            }
+            return LuaReturn.of(false, "cannot close running coroutine")
         }
         coroutine.status = CoroutineStatus.DEAD
         return LuaReturn.of(true)
@@ -208,6 +216,18 @@ internal object LuaCoroutineLibrary {
     ): LuaCoroutine {
         return context.toUserData(index, LuaCoroutine::class.java)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (thread expected)")
+    }
+
+    private fun optionalCurrentCoroutine(
+        context: LuaCallContext,
+        runtime: CoroutineRuntime,
+        functionName: String,
+    ): LuaCoroutine {
+        return if (context.isNone(1)) {
+            runtime.running ?: runtime.main
+        } else {
+            requiredCoroutine(context, 1, functionName)
+        }
     }
 
     private fun argumentValue(context: LuaCallContext, index: Int): Any? {

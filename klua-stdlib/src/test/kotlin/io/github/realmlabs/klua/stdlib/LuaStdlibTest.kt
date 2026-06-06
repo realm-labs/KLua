@@ -4001,6 +4001,7 @@ class LuaStdlibTest {
     @Test
     fun `coroutine status reports main thread as normal inside resumed coroutine`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openCoroutine(state)
 
         assertEquals(
@@ -4009,16 +4010,17 @@ class LuaStdlibTest {
                 """
                 local mainThread = coroutine.running()
                 local beforeStatus = coroutine.status(mainThread)
-                local beforeCloseOk, beforeCloseMessage = coroutine.close(mainThread)
+                local defaultCloseOk, defaultCloseMessage = pcall(coroutine.close)
+                local beforeCloseOk, beforeCloseMessage = pcall(coroutine.close, mainThread)
                 local co = coroutine.create(function()
                     local running, isMain = coroutine.running()
                     local mainStatus = coroutine.status(mainThread)
-                    local closeOk, closeMessage = coroutine.close(mainThread)
+                    local closeOk, closeMessage = pcall(coroutine.close, mainThread)
                     return running ~= mainThread, isMain, mainStatus, closeOk, closeMessage
                 end)
                 local ok, differentThread, coroutineIsMain, duringStatus, duringCloseOk, duringCloseMessage =
                     coroutine.resume(co)
-                return beforeStatus, beforeCloseOk, beforeCloseMessage,
+                return beforeStatus, defaultCloseOk, defaultCloseMessage, beforeCloseOk, beforeCloseMessage,
                     ok, differentThread, coroutineIsMain, duringStatus, duringCloseOk, duringCloseMessage,
                     coroutine.status(mainThread)
                 """.trimIndent(),
@@ -4029,14 +4031,16 @@ class LuaStdlibTest {
 
         assertEquals("running", state.toString(1))
         assertFalse(state.toBoolean(2))
-        assertEquals("cannot close running coroutine", state.toString(3))
-        assertTrue(state.toBoolean(4))
-        assertTrue(state.toBoolean(5))
-        assertFalse(state.toBoolean(6))
-        assertEquals("normal", state.toString(7))
+        assertEquals("cannot close main thread", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("cannot close main thread", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
         assertFalse(state.toBoolean(8))
-        assertEquals("cannot close normal coroutine", state.toString(9))
-        assertEquals("running", state.toString(10))
+        assertEquals("normal", state.toString(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("cannot close a normal coroutine", state.toString(11))
+        assertEquals("running", state.toString(12))
     }
 
     @Test
@@ -4489,6 +4493,7 @@ class LuaStdlibTest {
     @Test
     fun `coroutine close reports normal coroutine`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openCoroutine(state)
 
         assertEquals(
@@ -4498,7 +4503,7 @@ class LuaStdlibTest {
                 local outer
                 outer = coroutine.create(function()
                     local inner = coroutine.create(function()
-                        local closeOk, message = coroutine.close(outer)
+                        local closeOk, message = pcall(coroutine.close, outer)
                         return closeOk, message, coroutine.status(outer)
                     end)
                     return coroutine.resume(inner)
@@ -4514,7 +4519,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(1))
         assertTrue(state.toBoolean(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("cannot close normal coroutine", state.toString(4))
+        assertEquals("cannot close a normal coroutine", state.toString(4))
         assertEquals("normal", state.toString(5))
         assertEquals("dead", state.toString(6))
     }
