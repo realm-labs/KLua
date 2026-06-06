@@ -2448,15 +2448,23 @@ class LuaStdlibTest {
             state.load(
                 """
                 local running = collectgarbage("isrunning")
-                collectgarbage("stop")
+                local defaultCount, defaultResult = select("#", collectgarbage()), collectgarbage()
+                local collectCount, collectResult = select("#", collectgarbage("collect")), collectgarbage("collect")
+                local stopCount, stopResult = select("#", collectgarbage("stop")), collectgarbage("stop")
                 local stopped = collectgarbage("isrunning")
-                collectgarbage("restart")
+                local restartCount, restartResult = select("#", collectgarbage("restart")), collectgarbage("restart")
                 local restarted = collectgarbage("isrunning")
                 local countType = type(collectgarbage("count"))
                 local stepDone = collectgarbage("step")
                 local previousMode = collectgarbage("generational")
                 local restoredMode = collectgarbage("incremental")
-                return running, stopped, restarted, countType, stepDone, previousMode, restoredMode
+                return running,
+                    defaultCount, defaultResult,
+                    collectCount, collectResult,
+                    stopCount, stopResult,
+                    stopped,
+                    restartCount, restartResult,
+                    restarted, countType, stepDone, previousMode, restoredMode
                 """.trimIndent(),
                 "collectgarbage.lua",
             ),
@@ -2465,12 +2473,20 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, status, state.toString(-1))
 
         assertTrue(state.toBoolean(1))
-        assertFalse(state.toBoolean(2))
-        assertTrue(state.toBoolean(3))
-        assertEquals("number", state.toString(4))
-        assertTrue(state.toBoolean(5))
-        assertEquals("incremental", state.toString(6))
-        assertEquals("generational", state.toString(7))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(0L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(0L, state.toInteger(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals("number", state.toString(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("incremental", state.toString(14))
+        assertEquals("generational", state.toString(15))
     }
 
     @Test

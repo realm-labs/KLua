@@ -144,10 +144,10 @@ public object LuaStdlib {
         return when (val option = optionalString(context, 1, "collect", "collectgarbage")) {
             "collect" -> {
                 System.gc()
-                GarbageCollectorResult(running, mode, LuaReturn.none())
+                GarbageCollectorResult(running, mode, LuaReturn.of(0L))
             }
-            "stop" -> GarbageCollectorResult(false, mode, LuaReturn.none())
-            "restart" -> GarbageCollectorResult(true, mode, LuaReturn.none())
+            "stop" -> GarbageCollectorResult(false, mode, LuaReturn.of(0L))
+            "restart" -> GarbageCollectorResult(true, mode, LuaReturn.of(0L))
             "count" -> GarbageCollectorResult(running, mode, LuaReturn.of(usedMemoryKilobytes()))
             "step" -> {
                 if (!context.isNone(2) && !context.isNil(2)) {
