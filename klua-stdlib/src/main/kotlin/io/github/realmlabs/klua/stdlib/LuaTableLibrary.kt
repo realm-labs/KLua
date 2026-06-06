@@ -172,13 +172,13 @@ internal object LuaTableLibrary {
         if (sameTable && target > first && target <= last) {
             var offset = count - 1L
             while (offset >= 0L) {
-                context.setTableValue(destinationIndex, target + offset, context.getTableValue(1, first + offset))
+                context.setTableValue(destinationIndex, target + offset, tableIndexValue(context, first + offset))
                 offset--
             }
         } else {
             var offset = 0L
             while (offset < count) {
-                context.setTableValue(destinationIndex, target + offset, context.getTableValue(1, first + offset))
+                context.setTableValue(destinationIndex, target + offset, tableIndexValue(context, first + offset))
                 offset++
             }
         }

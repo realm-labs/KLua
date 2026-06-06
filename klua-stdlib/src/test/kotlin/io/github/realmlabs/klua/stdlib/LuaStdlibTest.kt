@@ -7651,6 +7651,7 @@ class LuaStdlibTest {
     @Test
     fun `table move copies ranges and returns destination table`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openTable(state)
 
         assertEquals(
@@ -7661,7 +7662,15 @@ class LuaStdlibTest {
                 local destination = {"x"}
                 local returned = table.move(source, 1, 2, 2, destination)
                 returned[4] = "tail"
-                return destination[1], destination[2], destination[3], destination[4], returned == destination
+                local fallback = setmetatable({}, {
+                    __index = function(_, index)
+                        return ({ "meta-a", "meta-b" })[index]
+                    end,
+                })
+                local fallbackDestination = {}
+                local fallbackReturned = table.move(fallback, 1, 2, 1, fallbackDestination)
+                return destination[1], destination[2], destination[3], destination[4], returned == destination,
+                    fallbackDestination[1], fallbackDestination[2], fallbackReturned == fallbackDestination
                 """.trimIndent(),
                 "table-move-destination.lua",
             ),
@@ -7673,6 +7682,9 @@ class LuaStdlibTest {
         assertEquals("b", state.toString(3))
         assertEquals("tail", state.toString(4))
         assertTrue(state.toBoolean(5))
+        assertEquals("meta-a", state.toString(6))
+        assertEquals("meta-b", state.toString(7))
+        assertTrue(state.toBoolean(8))
     }
 
     @Test
