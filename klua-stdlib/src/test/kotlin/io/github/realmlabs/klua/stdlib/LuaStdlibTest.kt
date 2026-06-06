@@ -6122,6 +6122,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns enforce lua 55 capture limit`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local allowedCount = select("#", string.match("", string.rep("()", 32)))
+                local ok, message = pcall(string.match, "", string.rep("()", 33))
+                return allowedCount, ok, message
+                """.trimIndent(),
+                "string-pattern-capture-limit.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(32L, state.toInteger(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("too many captures", state.toString(3))
+    }
+
+    @Test
     fun `string patterns support backreferences`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

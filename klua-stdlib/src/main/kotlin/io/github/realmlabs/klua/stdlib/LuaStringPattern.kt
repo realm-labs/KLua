@@ -70,7 +70,7 @@ internal class LuaStringPattern private constructor(
                 textIndex,
                 patternTokens,
                 tokenIndex + 1,
-                captureStarts + (token.index to textIndex),
+                captureStarts + (checkCaptureLimit(token.index) to textIndex),
                 captures,
             )
             is Token.CaptureEnd -> {
@@ -91,7 +91,7 @@ internal class LuaStringPattern private constructor(
                 patternTokens,
                 tokenIndex + 1,
                 captureStarts,
-                captures + (token.index to (textIndex + 1L)),
+                captures + (checkCaptureLimit(token.index) to (textIndex + 1L)),
             )
             is Token.BackReference -> {
                 val capture = captures[token.index] as? String ?: return null
@@ -184,7 +184,16 @@ internal class LuaStringPattern private constructor(
         return null
     }
 
+    private fun checkCaptureLimit(index: Int): Int {
+        if (index >= MAX_CAPTURES) {
+            throw LuaRuntimeException("too many captures")
+        }
+        return index
+    }
+
     internal companion object {
+        private const val MAX_CAPTURES = 32
+
         fun literal(pattern: String): LuaStringPattern {
             return LuaStringPattern(pattern, tokens = null)
         }
