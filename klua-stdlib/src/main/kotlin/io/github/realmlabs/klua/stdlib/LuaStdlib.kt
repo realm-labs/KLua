@@ -169,6 +169,7 @@ public object LuaStdlib {
     }
 
     private fun getmetatable(context: LuaCallContext): LuaReturn {
+        requireAnyArgument(context, "getmetatable")
         if (!context.isTable(1)) {
             return LuaReturn.of(null)
         }
@@ -384,6 +385,9 @@ public object LuaStdlib {
     private fun setmetatable(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'setmetatable' (table expected)")
+        }
+        if (context.isNone(2)) {
+            throw LuaRuntimeException("bad argument #2 to 'setmetatable' (nil or table expected)")
         }
         if (!context.isNone(2) && !context.isNil(2) && !context.isTable(2)) {
             throw LuaRuntimeException("bad argument #2 to 'setmetatable' (nil or table expected)")

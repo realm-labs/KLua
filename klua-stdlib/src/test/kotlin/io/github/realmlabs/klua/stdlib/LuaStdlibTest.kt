@@ -3366,6 +3366,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `getmetatable reports missing argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return getmetatable()""", "getmetatable-missing-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'getmetatable' (value expected)", state.toString(-1))
+    }
+
+    @Test
     fun `setmetatable reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -3375,6 +3387,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'setmetatable' (table expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `setmetatable reports missing metatable argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return setmetatable({})""", "setmetatable-missing-meta-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(-1))
     }
 
     @Test
