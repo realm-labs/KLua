@@ -48,6 +48,23 @@ class LuaStateStackJavaTest {
     }
 
     @Test
+    void convertsNumericStringsToNumbers() {
+        LuaState state = LuaState.create();
+
+        state.pushString("3.5");
+        state.pushString("0x10");
+        state.pushString("0x1.8p1");
+        state.pushString("NaN");
+        state.pushString("Infinity");
+
+        assertEquals(3.5, state.toNumber(1));
+        assertEquals(16.0, state.toNumber(2));
+        assertEquals(3.0, state.toNumber(3));
+        assertNull(state.toNumber(4));
+        assertNull(state.toNumber(5));
+    }
+
+    @Test
     void popRemovesValuesFromTheTop() {
         LuaState state = LuaState.create();
         state.pushInteger(1);

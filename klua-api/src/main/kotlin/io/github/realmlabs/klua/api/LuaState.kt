@@ -398,7 +398,7 @@ class LuaState private constructor(
         return when (val value = valueAt(index)) {
             is LuaStackValue.IntegerValue -> value.value.toDouble()
             is LuaStackValue.NumberValue -> value.value
-            is LuaStackValue.StringValue -> value.value.toDoubleOrNull()
+            is LuaStackValue.StringValue -> numberFromString(value.value)
             else -> null
         }
     }
@@ -1026,6 +1026,17 @@ class LuaState private constructor(
             ?: trimmed.toDoubleOrNull()?.let(::integerFromNumber)
     }
 
+    private fun numberFromString(value: String): Double? {
+        val trimmed = value.trim()
+        if (trimmed.isEmpty()) {
+            return null
+        }
+        val parsed = hexIntegerFromString(trimmed)?.toDouble()
+            ?: trimmed.toDoubleOrNull()
+            ?: return null
+        return parsed.takeIf { number -> number.isFinite() }
+    }
+
     private fun hexIntegerFromString(value: String): Long? {
         val sign = when {
             value.startsWith("-") -> -1
@@ -1340,7 +1351,7 @@ class LuaState private constructor(
             return when (val value = valueAt(index)) {
                 is LuaStackValue.IntegerValue -> value.value.toDouble()
                 is LuaStackValue.NumberValue -> value.value
-                is LuaStackValue.StringValue -> value.value.toDoubleOrNull()
+                is LuaStackValue.StringValue -> numberFromString(value.value)
                 else -> null
             }
         }

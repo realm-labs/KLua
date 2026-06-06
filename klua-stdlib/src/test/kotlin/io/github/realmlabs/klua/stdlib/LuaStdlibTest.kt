@@ -4507,6 +4507,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math number arguments accept hexadecimal integer strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(math.sin, "nan")
+                return math.sin("0x10"), math.sin("0x1p2"), ok, message
+                """.trimIndent(),
+                "math-hex-string-number.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(kotlin.math.sin(16.0), state.toNumber(1) ?: error("missing hex int sine result"), 1e-12)
+        assertEquals(kotlin.math.sin(4.0), state.toNumber(2) ?: error("missing hex float sine result"), 1e-12)
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'math.sin' (number expected)", state.toString(4))
+    }
+
+    @Test
     fun `openMath installs inverse trigonometric functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
