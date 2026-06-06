@@ -215,7 +215,7 @@ public object LuaStdlib {
         } else {
             requiredString(context, 2, "load")
         }
-        val mode = optionalString(context, 3, "bt", "load")
+        val mode = loadMode(context, 3, "load")
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
         }
@@ -244,7 +244,7 @@ public object LuaStdlib {
 
     private fun loadfile(context: LuaCallContext): LuaReturn {
         val filename = requiredString(context, 1, "loadfile")
-        val mode = optionalString(context, 2, "bt", "loadfile")
+        val mode = loadMode(context, 2, "loadfile")
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
         }
@@ -597,6 +597,14 @@ public object LuaStdlib {
         } else {
             requiredString(context, index, functionName)
         }
+    }
+
+    private fun loadMode(context: LuaCallContext, index: Int, functionName: String): String {
+        val mode = optionalString(context, index, "bt", functionName)
+        if ('B' in mode) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid mode)")
+        }
+        return mode
     }
 
     private fun textChunkModeError(mode: String): String {

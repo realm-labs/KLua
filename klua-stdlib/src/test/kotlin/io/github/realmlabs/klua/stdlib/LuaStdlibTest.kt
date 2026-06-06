@@ -2861,7 +2861,8 @@ class LuaStdlibTest {
                 local textChunk = load("return 42", "text.lua", "t")
                 local defaultChunk = load("return 24", "default.lua", nil)
                 local binaryChunk, message = load("return 12", "binary.lua", "b")
-                return textChunk(), defaultChunk(), binaryChunk, message
+                local invalidModeOk, invalidModeMessage = pcall(load, "return 1", "invalid.lua", "B")
+                return textChunk(), defaultChunk(), binaryChunk, message, invalidModeOk, invalidModeMessage
                 """.trimIndent(),
                 "load-mode.lua",
             ),
@@ -2872,6 +2873,8 @@ class LuaStdlibTest {
         assertEquals(24L, state.toInteger(2))
         assertTrue(state.isNil(3))
         assertEquals("attempt to load a text chunk (mode is 'b')", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'load' (invalid mode)", state.toString(6))
     }
 
     @Test
@@ -2888,7 +2891,8 @@ class LuaStdlibTest {
                     """
                     local textChunk = loadfile("${file.luaPath()}", "t")
                     local binaryChunk, message = loadfile("${file.luaPath()}", "b")
-                    return textChunk(), binaryChunk, message
+                    local invalidModeOk, invalidModeMessage = pcall(loadfile, "${file.luaPath()}", "B")
+                    return textChunk(), binaryChunk, message, invalidModeOk, invalidModeMessage
                     """.trimIndent(),
                     "loadfile-mode.lua",
                 ),
@@ -2898,6 +2902,8 @@ class LuaStdlibTest {
             assertEquals(42L, state.toInteger(1))
             assertTrue(state.isNil(2))
             assertEquals("attempt to load a text chunk (mode is 'b')", state.toString(3))
+            assertFalse(state.toBoolean(4))
+            assertEquals("bad argument #2 to 'loadfile' (invalid mode)", state.toString(5))
         } finally {
             Files.deleteIfExists(file)
         }
