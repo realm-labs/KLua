@@ -3075,6 +3075,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `rawget reports missing key argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawget({})""", "rawget-key-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'rawget' (value expected)", state.toString(-1))
+    }
+
+    @Test
     fun `rawget returns nil for nil keys`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -3177,6 +3189,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #3 to 'rawset' (value expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `rawset reports missing key argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return rawset({})""", "rawset-missing-key-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'rawset' (value expected)", state.toString(-1))
     }
 
     @Test

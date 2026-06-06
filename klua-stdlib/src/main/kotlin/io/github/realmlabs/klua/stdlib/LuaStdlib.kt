@@ -338,6 +338,7 @@ public object LuaStdlib {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'rawget' (table expected)")
         }
+        requireArgument(context, 2, "rawget")
         return LuaReturn.of(context.getTableValue(1, argumentValue(context, 2)))
     }
 
@@ -353,6 +354,7 @@ public object LuaStdlib {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'rawset' (table expected)")
         }
+        requireArgument(context, 2, "rawset")
         if (context.isNone(3)) {
             throw LuaRuntimeException("bad argument #3 to 'rawset' (value expected)")
         }
