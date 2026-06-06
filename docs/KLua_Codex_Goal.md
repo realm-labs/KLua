@@ -25,6 +25,8 @@ Use this prompt to bootstrap Codex work sessions for this repository:
 
 Update this prompt only when the execution rules in this document materially change.
 
+For behavior-sensitive language, VM, and standard-library work, treat the local official Lua 5.5 source tree at `~/Downloads/lua-lua-a5522f0` as part of the execution brief. Inspect the relevant C source path before implementing or changing semantics.
+
 ## Project Goal
 
 KLua is a greenfield pure Kotlin Lua runtime for JVM 17+. It should provide:
@@ -89,7 +91,8 @@ Implementation starts clean. There is no requirement to preserve old project API
 
 - For behavior-sensitive implementation work, inspect the official Lua 5.5 source code in `~/Downloads/lua-lua-a5522f0` before deciding semantics.
 - Use the local `lua5.5` executable for observable behavior checks, but use the Lua 5.5 source code to understand the actual control flow, coercion rules, error paths, and edge-case logic behind that behavior.
-- When the manual, local tests, or existing KLua behavior are ambiguous, treat the Lua 5.5 source code as the implementation reference and document any intentional KLua deviation as a conformance gap.
+- The manual and local `lua5.5` checks explain observable behavior; the official source explains the logic that KLua should mirror in Kotlin.
+- When the manual, local tests, or existing KLua behavior are ambiguous or incomplete, treat the Lua 5.5 source code as the implementation reference and document any intentional KLua deviation as a conformance gap.
 - Prefer focused tests derived from the reference source path being implemented. When helpful, note the relevant Lua source file or function in the test name, commit message, or implementation comment.
 
 ## Public API Concepts
