@@ -3283,6 +3283,92 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math frexp splits numbers into mantissa and exponent`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local positiveMantissa, positiveExponent = math.frexp(8)
+                local negativeMantissa, negativeExponent = math.frexp(-6)
+                local zeroMantissa, zeroExponent = math.frexp(0)
+                local infiniteMantissa, infiniteExponent = math.frexp(math.huge)
+                local subnormal = math.ldexp(0.5, -1073)
+                local subnormalMantissa, subnormalExponent = math.frexp(subnormal)
+                return positiveMantissa, positiveExponent,
+                    negativeMantissa, negativeExponent,
+                    zeroMantissa, zeroExponent,
+                    infiniteMantissa == math.huge, infiniteExponent,
+                    subnormalMantissa, subnormalExponent
+                """.trimIndent(),
+                "math-frexp.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0.5, state.toNumber(1) ?: error("missing positive mantissa"), 0.0)
+        assertEquals(4L, state.toInteger(2))
+        assertEquals(-0.75, state.toNumber(3) ?: error("missing negative mantissa"), 0.0)
+        assertEquals(3L, state.toInteger(4))
+        assertEquals(0.0, state.toNumber(5) ?: error("missing zero mantissa"), 0.0)
+        assertEquals(0L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals(0L, state.toInteger(8))
+        assertEquals(0.5, state.toNumber(9) ?: error("missing subnormal mantissa"), 0.0)
+        assertEquals(-1073L, state.toInteger(10))
+    }
+
+    @Test
+    fun `math ldexp scales mantissa by binary exponent`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return math.ldexp(0.5, 4),
+                    math.ldexp(-0.75, 3),
+                    math.ldexp(1, -1),
+                    math.ldexp(1, 2048),
+                    math.ldexp(1, -2048)
+                """.trimIndent(),
+                "math-ldexp.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(8.0, state.toNumber(1) ?: error("missing positive ldexp result"), 0.0)
+        assertEquals(-6.0, state.toNumber(2) ?: error("missing negative ldexp result"), 0.0)
+        assertEquals(0.5, state.toNumber(3) ?: error("missing fractional ldexp result"), 0.0)
+        assertTrue((state.toNumber(4) ?: error("missing overflow ldexp result")).isInfinite())
+        assertEquals(0.0, state.toNumber(5) ?: error("missing underflow ldexp result"), 0.0)
+    }
+
+    @Test
+    fun `math frexp and ldexp report argument errors`() {
+        val frexpState = LuaState.create()
+        LuaStdlib.openMath(frexpState)
+
+        assertEquals(LuaStatus.OK, frexpState.load("""return math.frexp("x")""", "math-frexp-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, frexpState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(frexpState.getLastError())
+        assertEquals("bad argument #1 to 'math.frexp' (number expected)", frexpState.toString(-1))
+
+        val ldexpState = LuaState.create()
+        LuaStdlib.openMath(ldexpState)
+
+        assertEquals(LuaStatus.OK, ldexpState.load("""return math.ldexp(1, "x")""", "math-ldexp-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, ldexpState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(ldexpState.getLastError())
+        assertEquals("bad argument #2 to 'math.ldexp' (integer expected)", ldexpState.toString(-1))
+    }
+
+    @Test
     fun `math modf preserves integer subtype for integer parts`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)

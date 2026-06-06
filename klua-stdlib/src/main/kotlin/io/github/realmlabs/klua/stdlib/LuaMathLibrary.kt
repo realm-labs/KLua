@@ -33,6 +33,8 @@ internal object LuaMathLibrary {
         setFunctionField(state, "exp", ::mathExp)
         setFunctionField(state, "floor", ::mathFloor)
         setFunctionField(state, "fmod", ::mathFmod)
+        setFunctionField(state, "frexp", ::mathFrexp)
+        setFunctionField(state, "ldexp", ::mathLdexp)
         setFunctionField(state, "log", ::mathLog)
         setFunctionField(state, "max", ::mathMax)
         setFunctionField(state, "min", ::mathMin)
@@ -123,6 +125,30 @@ internal object LuaMathLibrary {
         val dividend = requiredNumber(context, 1, "math.fmod")
         val divisor = requiredNumber(context, 2, "math.fmod")
         return LuaReturn.of(dividend % divisor)
+    }
+
+    private fun mathFrexp(context: LuaCallContext): LuaReturn {
+        val value = requiredNumber(context, 1, "math.frexp")
+        if (value == 0.0 || !value.isFinite()) {
+            return LuaReturn.of(value, 0L)
+        }
+
+        var normalized = value
+        var exponentOffset = 0
+        if (value.absoluteValue < java.lang.Double.MIN_NORMAL) {
+            normalized = java.lang.Math.scalb(value, SUBNORMAL_SCALE_BITS)
+            exponentOffset = -SUBNORMAL_SCALE_BITS
+        }
+
+        val exponent = java.lang.Math.getExponent(normalized) + 1
+        val mantissa = java.lang.Math.scalb(normalized, -exponent)
+        return LuaReturn.of(mantissa, (exponent + exponentOffset).toLong())
+    }
+
+    private fun mathLdexp(context: LuaCallContext): LuaReturn {
+        val mantissa = requiredNumber(context, 1, "math.ldexp")
+        val exponent = requiredInteger(context, 2, "math.ldexp").coerceInIntRange()
+        return LuaReturn.of(java.lang.Math.scalb(mantissa, exponent))
     }
 
     private fun mathLog(context: LuaCallContext): LuaReturn {
@@ -335,6 +361,14 @@ internal object LuaMathLibrary {
         return firstSeed xor java.lang.Long.rotateLeft(secondSeed, 32)
     }
 
+    private fun Long.coerceInIntRange(): Int {
+        return when {
+            this > Int.MAX_VALUE -> Int.MAX_VALUE
+            this < Int.MIN_VALUE -> Int.MIN_VALUE
+            else -> toInt()
+        }
+    }
+
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
         state.pushFunction(function)
         state.setField(-2, name)
@@ -353,4 +387,6 @@ internal object LuaMathLibrary {
     private data class MathRandomState(
         var random: Random = Random(),
     )
+
+    private const val SUBNORMAL_SCALE_BITS = 54
 }
