@@ -5752,6 +5752,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string find and match allow empty matches at string end`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local plainStart, plainEnd = string.find("abc", "", 4, true)
+                local patternStart, patternEnd = string.find("abc", "", 4)
+                local matched = string.match("abc", "", 4)
+                return plainStart, plainEnd, patternStart, patternEnd, matched
+                """.trimIndent(),
+                "string-search-empty-at-end.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(4L, state.toInteger(1))
+        assertEquals(3L, state.toInteger(2))
+        assertEquals(4L, state.toInteger(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals("", state.toString(5))
+    }
+
+    @Test
     fun `string find reports unsupported patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
