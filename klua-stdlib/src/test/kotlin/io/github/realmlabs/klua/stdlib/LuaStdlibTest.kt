@@ -7968,6 +7968,7 @@ class LuaStdlibTest {
     @Test
     fun `table sort orders numeric and string lists`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openTable(state)
 
         assertEquals(
@@ -7976,9 +7977,17 @@ class LuaStdlibTest {
                 """
                 local numbers = {3, 1, 2}
                 local names = {"beta", "alpha", "gamma"}
+                local fallback = setmetatable({}, {
+                    __len = function() return 3 end,
+                    __index = function(_, index)
+                        return ({ 3, 1, 2 })[index]
+                    end,
+                })
                 table.sort(numbers)
                 table.sort(names)
-                return numbers[1], numbers[2], numbers[3], names[1], names[2], names[3]
+                table.sort(fallback)
+                return numbers[1], numbers[2], numbers[3], names[1], names[2], names[3],
+                    rawget(fallback, 1), rawget(fallback, 2), rawget(fallback, 3)
                 """.trimIndent(),
                 "table-sort.lua",
             ),
@@ -7991,6 +8000,9 @@ class LuaStdlibTest {
         assertEquals("alpha", state.toString(4))
         assertEquals("beta", state.toString(5))
         assertEquals("gamma", state.toString(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals(3L, state.toInteger(9))
     }
 
     @Test
@@ -8070,11 +8082,62 @@ class LuaStdlibTest {
         val comparatorState = LuaState.create()
         LuaStdlib.openTable(comparatorState)
 
-        assertEquals(LuaStatus.OK, comparatorState.load("""return table.sort({1}, true)""", "table-sort-comparator-error.lua"))
+        assertEquals(
+            LuaStatus.OK,
+            comparatorState.load("""return table.sort({2, 1}, true)""", "table-sort-comparator-error.lua"),
+        )
         assertEquals(LuaStatus.RUNTIME_ERROR, comparatorState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(comparatorState.getLastError())
         assertEquals("bad argument #2 to 'table.sort' (function expected)", comparatorState.toString(-1))
+    }
+
+    @Test
+    fun `table sort skips comparator validation for short lists`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local empty = {}
+                local single = {1}
+                table.sort(empty, true)
+                table.sort(single, true)
+                return #empty, single[1]
+                """.trimIndent(),
+                "table-sort-short-comparator.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+    }
+
+    @Test
+    fun `table sort reports array size errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function() return 2147483647 end,
+                })
+                return table.sort(values)
+                """.trimIndent(),
+                "table-sort-array-size-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'table.sort' (array too big)", state.toString(-1))
     }
 
     @Test

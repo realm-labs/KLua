@@ -251,16 +251,22 @@ internal object LuaTableLibrary {
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'table.sort' (table expected)")
         }
+        val length = tableLength(context, 1)
+        if (length <= 1L) {
+            return LuaReturn.none()
+        }
+        if (length >= Int.MAX_VALUE) {
+            throw LuaRuntimeException("bad argument #1 to 'table.sort' (array too big)")
+        }
         val hasComparator = !(context.isNone(2) || context.isNil(2))
         if (hasComparator && context.typeName(2) != "function") {
             throw LuaRuntimeException("bad argument #2 to 'table.sort' (function expected)")
         }
 
-        val length = context.tableLength(1) ?: 0L
         val values = mutableListOf<Any?>()
         var index = 1L
         while (index <= length) {
-            values += context.getTableValue(1, index)
+            values += tableIndexValue(context, index)
             index++
         }
 
