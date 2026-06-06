@@ -206,6 +206,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug traceback reports non numeric level errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.traceback, "boom", "not-level")
+                return ok, message
+                """.trimIndent(),
+                "debug-traceback-level-type-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.traceback' (number expected)", state.toString(2))
+    }
+
+    @Test
+    fun `debug traceback negative level omits lua stack frames`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    return debug.traceback("boom", -1)
+                end
+
+                return leaf()
+                """.trimIndent(),
+                "debug-traceback-negative-level.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("boom\nstack traceback:", state.toString(1))
+    }
+
+    @Test
     fun `debug traceback returns non string messages unchanged`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

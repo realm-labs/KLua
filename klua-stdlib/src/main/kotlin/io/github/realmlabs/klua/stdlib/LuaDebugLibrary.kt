@@ -31,8 +31,13 @@ internal object LuaDebugLibrary {
         } else {
             context.toString(1)
         }
-        val level = context.toInteger(2)?.toInt()?.coerceAtLeast(0) ?: 1
-        return formatTraceback(message, context.luaFrames.drop(level))
+        val level = optionalStackLevel(context, 2, 1, "debug.traceback")
+        val frames = if (level < 0) {
+            emptyList()
+        } else {
+            context.luaFrames.drop(level)
+        }
+        return formatTraceback(message, frames)
     }
 
     private fun formatTraceback(message: String?, frames: List<LuaStackFrame>): String {
@@ -263,6 +268,20 @@ internal object LuaDebugLibrary {
     private fun requiredStackLevel(context: LuaCallContext, functionName: String): Int {
         return context.toInteger(1)?.toInt()
             ?: throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
+    }
+
+    private fun optionalStackLevel(
+        context: LuaCallContext,
+        index: Int,
+        default: Int,
+        functionName: String,
+    ): Int {
+        return if (context.isNone(index) || context.isNil(index)) {
+            default
+        } else {
+            context.toInteger(index)?.toInt()
+                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+        }
     }
 
     private fun getMetatable(context: LuaCallContext): LuaReturn {
