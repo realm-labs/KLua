@@ -646,7 +646,7 @@ internal object LuaStringLibrary {
         }
         val widthDigits = specifier.substring(widthStart, cursor)
         if (widthDigits.length > 2) {
-            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+            throw invalidConversionSpecification(specifier)
         }
         val width = widthDigits.takeIf { it.isNotEmpty() }?.toInt()
         val precision = if (cursor < specifier.lastIndex && specifier[cursor] == '.') {
@@ -657,16 +657,20 @@ internal object LuaStringLibrary {
             }
             val precisionDigits = specifier.substring(precisionStart, cursor)
             if (precisionDigits.length > 2) {
-                throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+                throw invalidConversionSpecification(specifier)
             }
             precisionDigits.takeIf { it.isNotEmpty() }?.toInt() ?: 0
         } else {
             null
         }
         if (cursor != specifier.lastIndex) {
-            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+            throw invalidConversionSpecification(specifier)
         }
         return FormatSpecifier(flags, width, precision)
+    }
+
+    private fun invalidConversionSpecification(specifier: String): LuaRuntimeException {
+        return LuaRuntimeException("invalid conversion specification: '$specifier'")
     }
 
     private fun unsignedIntegerValue(value: Long): BigInteger {

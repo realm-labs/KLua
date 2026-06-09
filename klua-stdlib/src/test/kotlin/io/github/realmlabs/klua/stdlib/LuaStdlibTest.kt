@@ -6861,7 +6861,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, integerState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(integerState.getLastError())
-        assertEquals("invalid option '%100d' to 'string.format'", integerState.toString(-1))
+        assertEquals("invalid conversion specification: '%100d'", integerState.toString(-1))
 
         val floatState = LuaState.create()
         LuaStdlib.openString(floatState)
@@ -6870,7 +6870,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, floatState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(floatState.getLastError())
-        assertEquals("invalid option '%.100f' to 'string.format'", floatState.toString(-1))
+        assertEquals("invalid conversion specification: '%.100f'", floatState.toString(-1))
 
         val stringState = LuaState.create()
         LuaStdlib.openString(stringState)
@@ -6879,7 +6879,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, stringState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(stringState.getLastError())
-        assertEquals("invalid option '%100s' to 'string.format'", stringState.toString(-1))
+        assertEquals("invalid conversion specification: '%100s'", stringState.toString(-1))
     }
 
     @Test
