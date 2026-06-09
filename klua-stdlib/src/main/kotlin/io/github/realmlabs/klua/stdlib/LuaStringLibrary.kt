@@ -437,8 +437,8 @@ internal object LuaStringLibrary {
             'a',
             'A',
             -> {
-                validateFormatSize(specifier)
-                specifier.formatWith(requiredNumber(context, index, "string.format"))
+                val parsed = validateFormatSize(specifier)
+                parsed.toJavaSpecifier(conversion).formatWith(requiredNumber(context, index, "string.format"))
             }
             'c' -> {
                 validateCharacterFormatSpecifier(specifier)
@@ -464,16 +464,8 @@ internal object LuaStringLibrary {
         return java.lang.String.format(Locale.ROOT, this, value)
     }
 
-    private fun String.javaIntegerSpecifier(conversion: Char): String {
-        return if (conversion == 'i' || conversion == 'u') {
-            dropLast(1) + 'd'
-        } else {
-            this
-        }
-    }
-
-    private fun validateFormatSize(specifier: String) {
-        parseFormatSpecifier(specifier)
+    private fun validateFormatSize(specifier: String): FormatSpecifier {
+        return parseFormatSpecifier(specifier)
     }
 
     private fun formatPointerValue(
@@ -546,7 +538,7 @@ internal object LuaStringLibrary {
         if ('\u0000' in value) {
             throw LuaRuntimeException("bad argument #$index to 'string.format' (string contains zeros)")
         }
-        return specifier.formatWith(value)
+        return parseFormatSpecifier(specifier).toJavaSpecifier('s').formatWith(value)
     }
 
     private fun formatIntegerValue(
@@ -560,12 +552,13 @@ internal object LuaStringLibrary {
         validateIntegerFormatFlags(specifier, conversion, parsed)
         if (parsed.precision == null) {
             val formatValue = if (conversion == 'u') unsignedIntegerValue(value) else value
-            val javaSpecifier = if (value == 0L && '#' in parsed.flags && conversion in "oxX") {
-                specifier.withoutAlternateFormatFlag()
+            val javaConversion = if (conversion == 'i' || conversion == 'u') 'd' else conversion
+            val javaFlags = if (value == 0L && '#' in parsed.flags && conversion in "oxX") {
+                parsed.flags.replace("#", "")
             } else {
-                specifier
+                parsed.flags
             }
-            return javaSpecifier.javaIntegerSpecifier(conversion).formatWith(formatValue)
+            return parsed.copy(flags = javaFlags).toJavaSpecifier(javaConversion).formatWith(formatValue)
         }
 
         val unsigned = conversion == 'o' || conversion == 'u' || conversion == 'x' || conversion == 'X'
@@ -640,11 +633,6 @@ internal object LuaStringLibrary {
         }
     }
 
-    private fun String.withoutAlternateFormatFlag(): String {
-        val hashIndex = indexOf('#')
-        return if (hashIndex >= 0) removeRange(hashIndex, hashIndex + 1) else this
-    }
-
     private fun parseFormatSpecifier(specifier: String): FormatSpecifier {
         var cursor = 1
         val flagsStart = cursor
@@ -695,6 +683,15 @@ internal object LuaStringLibrary {
         val width: Int?,
         val precision: Int?,
     )
+
+    private fun FormatSpecifier.toJavaSpecifier(conversion: Char): String {
+        val normalizedFlags = FORMAT_FLAGS.filter { flag ->
+            flag in flags && (width != null || flag != '-' && flag != '0')
+        }
+        val widthText = width?.toString() ?: ""
+        val precisionText = precision?.let { precision -> ".$precision" } ?: ""
+        return "%$normalizedFlags$widthText$precisionText$conversion"
+    }
 
     private fun quoteString(value: String): String {
         val result = StringBuilder("\"")

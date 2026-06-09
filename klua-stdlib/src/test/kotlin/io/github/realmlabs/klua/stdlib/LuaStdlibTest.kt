@@ -6609,6 +6609,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format accepts repeated valid flags`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%--5s|%++5d|%005d|%--.1f|%##5x", "ab", 7, 7, 1.25, 255)""",
+                "string-format-repeated-flags.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("ab   |   +7|00007|1.3| 0xff", state.toString(1))
+    }
+
+    @Test
     fun `string format preserves zeros for unmodified string conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
