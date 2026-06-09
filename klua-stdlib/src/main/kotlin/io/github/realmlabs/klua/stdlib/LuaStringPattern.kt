@@ -212,7 +212,12 @@ internal class LuaStringPattern private constructor(
             val bodyEnd = if (endAnchored) pattern.length - 1 else pattern.length
             val body = pattern.substring(bodyStart, bodyEnd)
             val tokens = tokenize(body)
-            return LuaStringPattern(pattern, tokens = tokens ?: body.map { Token.Literal(it) }, startAnchored, endAnchored)
+            val patternTokens = if (tokens != null || startAnchored || endAnchored) {
+                tokens ?: body.map { Token.Literal(it) }
+            } else {
+                null
+            }
+            return LuaStringPattern(pattern, tokens = patternTokens, startAnchored, endAnchored)
         }
 
         private fun hasEndAnchor(pattern: String, startAnchored: Boolean): Boolean {

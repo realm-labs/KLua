@@ -6300,6 +6300,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns honor anchors around literal bodies`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local startFirst, startLast = string.find("abc", "^ab")
+                local startMissing = string.match("xabc", "^ab")
+                local endFirst, endLast = string.find("abc", "bc$")
+                local endMissing = string.match("abcy", "bc$")
+                local whole = string.match("abc", "^abc$")
+                local emptyStart, emptyEnd = string.find("abc", "^")
+                local emptyAtEndStart, emptyAtEndEnd = string.find("abc", "$")
+                return startFirst, startLast, startMissing, endFirst, endLast, endMissing, whole,
+                    emptyStart, emptyEnd, emptyAtEndStart, emptyAtEndEnd
+                """.trimIndent(),
+                "string-pattern-literal-anchors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals(3L, state.toInteger(5))
+        assertTrue(state.isNil(6))
+        assertEquals("abc", state.toString(7))
+        assertEquals(1L, state.toInteger(8))
+        assertEquals(0L, state.toInteger(9))
+        assertEquals(4L, state.toInteger(10))
+        assertEquals(3L, state.toInteger(11))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
