@@ -183,6 +183,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathLessThan(context: LuaCallContext, leftIndex: Int, rightIndex: Int): Boolean {
+        context.lessThan(leftIndex, rightIndex)?.let { result -> return result }
         val leftType = context.typeName(leftIndex)
         val rightType = context.typeName(rightIndex)
         if (leftType == "number" && rightType == "number") {

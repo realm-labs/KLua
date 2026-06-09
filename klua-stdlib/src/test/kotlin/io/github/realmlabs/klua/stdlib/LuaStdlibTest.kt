@@ -5246,6 +5246,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math min and max use table less than metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local metatable = {
+                    __lt = function(left, right)
+                        return left.rank < right.rank
+                    end,
+                }
+                local low = setmetatable({ rank = 1 }, metatable)
+                local high = setmetatable({ rank = 5 }, metatable)
+                local minValue = math.min(high, low)
+                local maxValue = math.max(low, high)
+                return minValue == low, maxValue == high
+                """.trimIndent(),
+                "math-min-max-lt-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+    }
+
+    @Test
     fun `math min and max report comparison errors`() {
         val minState = LuaState.create()
         LuaStdlib.openMath(minState)

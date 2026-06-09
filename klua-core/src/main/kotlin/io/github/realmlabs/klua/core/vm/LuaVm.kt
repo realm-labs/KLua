@@ -48,6 +48,10 @@ internal class LuaVm(
         return returnedValues(callValue(callee, arguments))
     }
 
+    internal fun lessThan(left: LuaValue, right: LuaValue): Boolean {
+        return compare(left, right, Comparison.LT)
+    }
+
     internal fun callYieldable(callee: LuaValue, arguments: List<LuaValue>): LuaExecutionResult {
         return callValue(callee, arguments)
     }
@@ -959,6 +963,9 @@ internal class LuaVm(
             }
             if (left is LuaString && right is LuaString) {
                 return left.value.compareTo(right.value)
+            }
+            if (typeName(left) == typeName(right)) {
+                throw LuaVmException("attempt to compare two ${typeName(left)} values")
             }
             throw LuaVmException("attempt to compare ${typeName(left)} with ${typeName(right)}")
         }

@@ -20,6 +20,8 @@ interface LuaCallContext {
 
     fun getLuaValue(index: Int): Any? = get(index)
 
+    fun lessThan(leftIndex: Int, rightIndex: Int): Boolean? = null
+
     fun call(index: Int, arguments: List<Any?>): LuaReturn
 
     fun call(function: Any?, arguments: List<Any?>): LuaReturn

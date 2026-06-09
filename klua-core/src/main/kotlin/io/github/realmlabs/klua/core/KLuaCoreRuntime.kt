@@ -83,6 +83,30 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun lessThan(
+        left: KLuaCoreValue,
+        right: KLuaCoreValue,
+        globals: KLuaCoreGlobals,
+    ): KLuaCoreComparison {
+        val tableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>()
+        val luaLeft = left.toLuaValueOrNull(globals, tableCache)
+            ?: return KLuaCoreComparison.RuntimeError("cannot compare ${left.publicTypeName()}")
+        val luaRight = right.toLuaValueOrNull(globals, tableCache)
+            ?: return KLuaCoreComparison.RuntimeError("cannot compare ${right.publicTypeName()}")
+        return try {
+            KLuaCoreComparison.Success(LuaVm(globals.table).lessThan(luaLeft, luaRight))
+        } catch (error: LuaVmException) {
+            KLuaCoreComparison.RuntimeError(
+                error.message ?: "runtime error",
+                error.sourceName,
+                error.line,
+                error.rootCause(),
+                error.luaFrames.toCoreStackFrames(),
+                error.errorObject?.let { toPublicValue(it, globals) },
+            )
+        }
+    }
+
     public fun canCreateCoroutine(function: KLuaCoreValue.FunctionValue): Boolean {
         return function.sourceFunction != null
     }
@@ -423,6 +447,23 @@ public sealed interface KLuaCoreExecution {
         public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
         public val errorObject: KLuaCoreValue? = null,
     ) : KLuaCoreExecution {
+        public val traceback: String = formatCoreTraceback(message, luaFrames)
+    }
+}
+
+public sealed interface KLuaCoreComparison {
+    public data class Success(
+        public val value: Boolean,
+    ) : KLuaCoreComparison
+
+    public data class RuntimeError(
+        public val message: String,
+        public val sourceName: String? = null,
+        public val line: Int? = null,
+        public val cause: Throwable? = null,
+        public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
+        public val errorObject: KLuaCoreValue? = null,
+    ) : KLuaCoreComparison {
         public val traceback: String = formatCoreTraceback(message, luaFrames)
     }
 }

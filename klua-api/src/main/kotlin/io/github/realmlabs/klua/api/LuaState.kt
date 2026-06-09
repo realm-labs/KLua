@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.api
 
 import io.github.realmlabs.klua.core.KLuaCoreChunk
 import io.github.realmlabs.klua.core.KLuaCoreCallResult
+import io.github.realmlabs.klua.core.KLuaCoreComparison
 import io.github.realmlabs.klua.core.KLuaCoreContinuation
 import io.github.realmlabs.klua.core.KLuaCoreCoroutine
 import io.github.realmlabs.klua.core.KLuaCoreCoroutineExecution
@@ -1190,6 +1191,24 @@ class LuaState private constructor(
 
         override fun getLuaValue(index: Int): Any? {
             return valueAt(index)?.toPublicCallReturnValue()
+        }
+
+        override fun lessThan(leftIndex: Int, rightIndex: Int): Boolean? {
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            val left = valueAt(leftIndex)?.toCoreValue(tableCache) ?: KLuaCoreValue.Nil
+            val right = valueAt(rightIndex)?.toCoreValue(tableCache) ?: KLuaCoreValue.Nil
+            return when (val comparison = KLuaCoreRuntime.lessThan(left, right, coreGlobals)) {
+                is KLuaCoreComparison.Success -> comparison.value
+                is KLuaCoreComparison.RuntimeError -> throw LuaRuntimeException(
+                    comparison.message,
+                    sourceName = comparison.sourceName,
+                    line = comparison.line,
+                    cause = comparison.cause,
+                    luaFrames = toApiStackFrames(comparison.luaFrames),
+                    errorObject = comparison.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                    hasErrorObject = comparison.errorObject != null,
+                )
+            }
         }
 
         override fun call(index: Int, arguments: List<Any?>): LuaReturn {
