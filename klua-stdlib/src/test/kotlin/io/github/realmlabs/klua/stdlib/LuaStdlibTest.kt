@@ -5929,6 +5929,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns treat escaped trailing dollars as literals`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, last = string.find("cost $ later", "%${'$'}")
+                local matched = string.match("cost $ later", "%${'$'}")
+                local replaced, count = string.gsub("a${'$'}b${'$'}", "%${'$'}", "x")
+                local iterator = string.gmatch("a${'$'}b${'$'}", "%${'$'}")
+                return first, last, matched, replaced, count, iterator(), iterator(), iterator()
+                """.trimIndent(),
+                "string-pattern-escaped-dollar.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(6L, state.toInteger(1))
+        assertEquals(6L, state.toInteger(2))
+        assertEquals("$", state.toString(3))
+        assertEquals("axbx", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals("$", state.toString(6))
+        assertEquals("$", state.toString(7))
+        assertTrue(state.isNil(8))
+    }
+
+    @Test
     fun `string patterns support optional items`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
