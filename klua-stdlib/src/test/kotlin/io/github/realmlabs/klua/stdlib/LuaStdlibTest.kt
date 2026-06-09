@@ -6818,7 +6818,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, hashState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(hashState.getLastError())
-        assertEquals("invalid option '%#d' to 'string.format'", hashState.toString(-1))
+        assertEquals("invalid conversion specification: '%#d'", hashState.toString(-1))
 
         val plusState = LuaState.create()
         LuaStdlib.openString(plusState)
@@ -6827,7 +6827,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(plusState.getLastError())
-        assertEquals("invalid option '%+u' to 'string.format'", plusState.toString(-1))
+        assertEquals("invalid conversion specification: '%+u'", plusState.toString(-1))
 
         val spaceState = LuaState.create()
         LuaStdlib.openString(spaceState)
@@ -6836,7 +6836,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, spaceState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(spaceState.getLastError())
-        assertEquals("invalid option '% x' to 'string.format'", spaceState.toString(-1))
+        assertEquals("invalid conversion specification: '% x'", spaceState.toString(-1))
     }
 
     @Test
@@ -6884,7 +6884,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(plusState.getLastError())
-        assertEquals("invalid option '%+s' to 'string.format'", plusState.toString(-1))
+        assertEquals("invalid conversion specification: '%+s'", plusState.toString(-1))
 
         val zeroState = LuaState.create()
         LuaStdlib.openString(zeroState)
@@ -6893,7 +6893,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, zeroState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(zeroState.getLastError())
-        assertEquals("invalid option '%05s' to 'string.format'", zeroState.toString(-1))
+        assertEquals("invalid conversion specification: '%05s'", zeroState.toString(-1))
     }
 
     @Test
@@ -6992,7 +6992,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(plusState.getLastError())
-        assertEquals("invalid option '%+c' to 'string.format'", plusState.toString(-1))
+        assertEquals("invalid conversion specification: '%+c'", plusState.toString(-1))
 
         val zeroState = LuaState.create()
         LuaStdlib.openString(zeroState)
@@ -7001,7 +7001,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, zeroState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(zeroState.getLastError())
-        assertEquals("invalid option '%05c' to 'string.format'", zeroState.toString(-1))
+        assertEquals("invalid conversion specification: '%05c'", zeroState.toString(-1))
 
         val precisionState = LuaState.create()
         LuaStdlib.openString(precisionState)
@@ -7010,7 +7010,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, precisionState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(precisionState.getLastError())
-        assertEquals("invalid option '%.1c' to 'string.format'", precisionState.toString(-1))
+        assertEquals("invalid conversion specification: '%.1c'", precisionState.toString(-1))
     }
 
     @Test
@@ -7050,7 +7050,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, plusState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(plusState.getLastError())
-        assertEquals("invalid option '%+p' to 'string.format'", plusState.toString(-1))
+        assertEquals("invalid conversion specification: '%+p'", plusState.toString(-1))
 
         val zeroState = LuaState.create()
         LuaStdlib.openString(zeroState)
@@ -7059,7 +7059,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, zeroState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(zeroState.getLastError())
-        assertEquals("invalid option '%05p' to 'string.format'", zeroState.toString(-1))
+        assertEquals("invalid conversion specification: '%05p'", zeroState.toString(-1))
 
         val precisionState = LuaState.create()
         LuaStdlib.openString(precisionState)
@@ -7068,7 +7068,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, precisionState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(precisionState.getLastError())
-        assertEquals("invalid option '%.1p' to 'string.format'", precisionState.toString(-1))
+        assertEquals("invalid conversion specification: '%.1p'", precisionState.toString(-1))
     }
 
     @Test

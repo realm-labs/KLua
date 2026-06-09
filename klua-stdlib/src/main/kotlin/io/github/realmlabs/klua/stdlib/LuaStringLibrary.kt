@@ -483,7 +483,7 @@ internal object LuaStringLibrary {
     ): String {
         val parsed = parseFormatSpecifier(specifier)
         if (parsed.flags.any { flag -> flag != '-' } || parsed.precision != null) {
-            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+            throw invalidConversionSpecification(specifier)
         }
         val pointer = when (context.typeName(index)) {
             "nil",
@@ -522,14 +522,14 @@ internal object LuaStringLibrary {
     private fun validateCharacterFormatSpecifier(specifier: String) {
         val parsed = parseFormatSpecifier(specifier)
         if (parsed.flags.any { flag -> flag != '-' } || parsed.precision != null) {
-            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+            throw invalidConversionSpecification(specifier)
         }
     }
 
     private fun validateStringFormatSpecifier(specifier: String) {
         val parsed = parseFormatSpecifier(specifier)
         if (parsed.flags.any { flag -> flag != '-' }) {
-            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+            throw invalidConversionSpecification(specifier)
         }
     }
 
@@ -636,7 +636,7 @@ internal object LuaStringLibrary {
             else -> ""
         }
         if (parsed.flags.any { flag -> flag !in allowedFlags }) {
-            throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+            throw invalidConversionSpecification(specifier)
         }
     }
 
