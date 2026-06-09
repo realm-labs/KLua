@@ -444,10 +444,7 @@ internal object LuaStringLibrary {
             'c' -> {
                 validateCharacterFormatSpecifier(specifier)
                 val code = requiredInteger(context, index, "string.format")
-                if (code !in 0L..255L) {
-                    throw LuaRuntimeException("bad argument #$index to 'string.format' (value out of range)")
-                }
-                specifier.formatWith(code.toInt())
+                specifier.formatWith(code.toInt() and 0xff)
             }
             'p' -> formatPointerValue(context, index, specifier)
             'q' -> {

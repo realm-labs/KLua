@@ -6701,13 +6701,13 @@ class LuaStdlibTest {
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return string.format("%3c|%-3c", 65, 66)""",
+                """return string.format("%3c|%-3c|%c|%c", 65, 66, 256, -1)""",
                 "string-format-char-width.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals("  A|B  ", state.toString(1))
+        assertEquals("  A|B  |\u0000|\u00FF", state.toString(1))
     }
 
     @Test
@@ -6943,15 +6943,15 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string format reports char range errors`() {
+    fun `string format reports char argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.format("%c", 256)""", "string-format-char-error.lua"))
+        assertEquals(LuaStatus.OK, state.load("""return string.format("%c", "bad")""", "string-format-char-error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.format' (value out of range)", state.toString(-1))
+        assertEquals("bad argument #2 to 'string.format' (integer expected)", state.toString(-1))
     }
 
     @Test
