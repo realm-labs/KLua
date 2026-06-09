@@ -7572,6 +7572,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codes returns generic for iterator triple`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local positions = {}
+                local codepoints = {}
+                for position, codepoint in utf8.codes("A" .. utf8.char(128512) .. "Z") do
+                    positions[#positions + 1] = position
+                    codepoints[#codepoints + 1] = codepoint
+                end
+                return positions[1], codepoints[1],
+                    positions[2], codepoints[2],
+                    positions[3], codepoints[3],
+                    positions[4]
+                """.trimIndent(),
+                "utf8-codes-for.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(65L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(128512L, state.toInteger(4))
+        assertEquals(6L, state.toInteger(5))
+        assertEquals(90L, state.toInteger(6))
+        assertTrue(state.isNil(7))
+    }
+
+    @Test
     fun `utf8 charpattern matches utf8 characters`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

@@ -65,7 +65,7 @@ internal object LuaUtf8Library {
                 LuaReturn.of(byteOffsets[index - 1], codePoints[index - 1].toLong())
             }
         }
-        return LuaReturn.of(iterator)
+        return LuaReturn.ofValues(listOf(iterator, context.get(1), 0L))
     }
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
