@@ -153,7 +153,7 @@ internal object LuaUtf8Library {
         }
         val normalized = if (position < 0L) length + position + 1L else position
         if (normalized < 1L) {
-            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (out of bounds)")
         }
         return normalized
     }
@@ -172,7 +172,7 @@ internal object LuaUtf8Library {
         }
         val normalized = if (position < 0L) length + position + 1L else position
         if (normalized < 0L || normalized > length) {
-            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (out of bounds)")
         }
         return normalized
     }
@@ -191,7 +191,7 @@ internal object LuaUtf8Library {
         }
         val normalized = if (position < 0L) length + position + 1L else position
         if (normalized < 1L || normalized > length + 1L) {
-            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (initial position out of bounds)")
         }
         return normalized
     }
@@ -210,7 +210,7 @@ internal object LuaUtf8Library {
         }
         val normalized = if (position < 0L) length + position + 1L else position
         if (normalized < 0L || normalized > length) {
-            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (final position out of bounds)")
         }
         return normalized
     }
@@ -312,7 +312,7 @@ internal object LuaUtf8Library {
         }
         val normalized = if (position < 0L) length + position + 1L else position
         if (normalized < 1L || normalized > length + 1L) {
-            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of range)")
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (position out of bounds)")
         }
         return normalized
     }

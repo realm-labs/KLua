@@ -7542,6 +7542,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codepoint reports range position errors`() {
+        val startState = LuaState.create()
+        LuaStdlib.openUtf8(startState)
+
+        assertEquals(LuaStatus.OK, startState.load("""return utf8.codepoint("abc", -4)""", "utf8-codepoint-start-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, startState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(startState.getLastError())
+        assertEquals("bad argument #2 to 'utf8.codepoint' (out of bounds)", startState.toString(-1))
+
+        val endState = LuaState.create()
+        LuaStdlib.openUtf8(endState)
+
+        assertEquals(LuaStatus.OK, endState.load("""return utf8.codepoint("abc", 1, 4)""", "utf8-codepoint-end-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, endState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(endState.getLastError())
+        assertEquals("bad argument #3 to 'utf8.codepoint' (out of bounds)", endState.toString(-1))
+    }
+
+    @Test
     fun `utf8 codes returns codepoint iterator`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
@@ -7733,7 +7754,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, startState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(startState.getLastError())
-        assertEquals("bad argument #2 to 'utf8.len' (position out of range)", startState.toString(-1))
+        assertEquals("bad argument #2 to 'utf8.len' (initial position out of bounds)", startState.toString(-1))
 
         val endState = LuaState.create()
         LuaStdlib.openUtf8(endState)
@@ -7742,7 +7763,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, endState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(endState.getLastError())
-        assertEquals("bad argument #3 to 'utf8.len' (position out of range)", endState.toString(-1))
+        assertEquals("bad argument #3 to 'utf8.len' (final position out of bounds)", endState.toString(-1))
     }
 
     @Test
@@ -7824,7 +7845,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'utf8.offset' (position out of range)", state.toString(-1))
+        assertEquals("bad argument #3 to 'utf8.offset' (position out of bounds)", state.toString(-1))
     }
 
     @Test
