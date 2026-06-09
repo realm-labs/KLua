@@ -6285,6 +6285,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns report invalid capture close errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local unmatchedOk, unmatchedMessage = pcall(string.match, "abc", "a)")
+                return unmatchedOk, unmatchedMessage
+                """.trimIndent(),
+                "string-pattern-invalid-capture-close.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("invalid pattern capture", state.toString(2))
+    }
+
+    @Test
     fun `string patterns support balanced matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

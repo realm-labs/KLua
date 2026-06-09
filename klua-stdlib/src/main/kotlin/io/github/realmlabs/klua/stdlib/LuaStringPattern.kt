@@ -263,7 +263,7 @@ internal class LuaStringPattern private constructor(
                     }
                     ')' -> {
                         if (captureStack.isEmpty()) {
-                            throw LuaRuntimeException("string patterns are not supported")
+                            throw LuaRuntimeException("invalid pattern capture")
                         }
                         val captureIndex = captureStack.removeAt(captureStack.lastIndex)
                         tokens += Token.CaptureEnd(captureIndex)
