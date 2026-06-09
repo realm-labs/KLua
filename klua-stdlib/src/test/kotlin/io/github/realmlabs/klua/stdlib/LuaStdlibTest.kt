@@ -7205,6 +7205,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gmatch treats leading caret as literal`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local literal = string.gmatch("a ^abc ^abc", "^abc")
+                local anchoredEnd = string.gmatch("abc abc", "abc$")
+                return literal(), literal(), literal(), anchoredEnd(), anchoredEnd()
+                """.trimIndent(),
+                "string-gmatch-caret-literal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("^abc", state.toString(1))
+        assertEquals("^abc", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("abc", state.toString(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
     fun `string gmatch supports empty patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

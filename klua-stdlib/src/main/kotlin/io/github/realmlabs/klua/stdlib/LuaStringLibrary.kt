@@ -230,7 +230,7 @@ internal object LuaStringLibrary {
         } else {
             requiredInteger(context, 3, "string.gmatch")
         }
-        val compiledPattern = LuaStringPattern.compile(pattern)
+        val compiledPattern = LuaStringPattern.compileGmatch(pattern)
         var cursor = text.luaByteSearchStartToCharIndex(start)
         val iterator = LuaFunction { _ ->
             if (cursor > text.length) {

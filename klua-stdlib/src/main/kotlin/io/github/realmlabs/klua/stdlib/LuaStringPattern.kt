@@ -206,7 +206,15 @@ internal class LuaStringPattern private constructor(
         }
 
         fun compile(pattern: String): LuaStringPattern {
-            val startAnchored = pattern.startsWith('^')
+            return compile(pattern, allowStartAnchor = true)
+        }
+
+        fun compileGmatch(pattern: String): LuaStringPattern {
+            return compile(pattern, allowStartAnchor = false)
+        }
+
+        private fun compile(pattern: String, allowStartAnchor: Boolean): LuaStringPattern {
+            val startAnchored = allowStartAnchor && pattern.startsWith('^')
             val endAnchored = hasEndAnchor(pattern, startAnchored)
             val bodyStart = if (startAnchored) 1 else 0
             val bodyEnd = if (endAnchored) pattern.length - 1 else pattern.length
