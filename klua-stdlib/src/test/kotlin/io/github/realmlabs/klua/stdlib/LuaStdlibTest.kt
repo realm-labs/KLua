@@ -6888,6 +6888,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub applies start anchors once`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local replaced, count = string.gsub("abcabc", "^abc", "x")
+                local missing, missingCount = string.gsub("xabc", "^abc", "x")
+                local empty, emptyCount = string.gsub("abc", "^", "|")
+                return replaced, count, missing, missingCount, empty, emptyCount
+                """.trimIndent(),
+                "string-gsub-start-anchor.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("xabc", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals("xabc", state.toString(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals("|abc", state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+    }
+
+    @Test
     fun `string gsub supports empty patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

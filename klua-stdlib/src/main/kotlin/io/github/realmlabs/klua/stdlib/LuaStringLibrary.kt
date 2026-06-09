@@ -109,6 +109,9 @@ internal object LuaStringLibrary {
                 match.endIndex
             }
             replacements++
+            if (compiledPattern.startAnchored) {
+                break
+            }
         }
         if (cursor <= text.length) {
             result.append(text, cursor, text.length)

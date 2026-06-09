@@ -16,7 +16,7 @@ private data class PatternResult(
 internal class LuaStringPattern private constructor(
     private val pattern: String,
     private val tokens: List<Token>?,
-    private val startAnchored: Boolean = false,
+    internal val startAnchored: Boolean = false,
     private val endAnchored: Boolean = false,
 ) {
     fun find(text: String, startIndex: Int): LuaPatternMatch? {
