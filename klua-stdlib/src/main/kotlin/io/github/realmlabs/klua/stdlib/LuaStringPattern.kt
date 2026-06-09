@@ -323,7 +323,7 @@ internal class LuaStringPattern private constructor(
                 }
             }
             if (captureStack.isNotEmpty()) {
-                throw LuaRuntimeException("string patterns are not supported")
+                throw LuaRuntimeException("unfinished capture")
             }
             return if (hasPatternToken) tokens else null
         }

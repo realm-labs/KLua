@@ -6295,7 +6295,8 @@ class LuaStdlibTest {
             state.load(
                 """
                 local unmatchedOk, unmatchedMessage = pcall(string.match, "abc", "a)")
-                return unmatchedOk, unmatchedMessage
+                local unfinishedOk, unfinishedMessage = pcall(string.match, "abc", "(a")
+                return unmatchedOk, unmatchedMessage, unfinishedOk, unfinishedMessage
                 """.trimIndent(),
                 "string-pattern-invalid-capture-close.lua",
             ),
@@ -6304,6 +6305,8 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("invalid pattern capture", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("unfinished capture", state.toString(4))
     }
 
     @Test
