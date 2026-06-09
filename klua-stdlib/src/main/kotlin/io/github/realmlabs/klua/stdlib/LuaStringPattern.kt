@@ -276,7 +276,7 @@ internal class LuaStringPattern private constructor(
                     }
                     '%' -> {
                         if (index + 1 >= pattern.length) {
-                            throw LuaRuntimeException("string patterns are not supported")
+                            throw LuaRuntimeException("malformed pattern (ends with '%')")
                         }
                         val next = pattern[index + 1]
                         if (next in '0'..'9') {
@@ -375,7 +375,7 @@ internal class LuaStringPattern private constructor(
                 }
                 if (start == '%') {
                     if (index + 1 >= pattern.length) {
-                        throw LuaRuntimeException("string patterns are not supported")
+                        throw LuaRuntimeException("malformed pattern (ends with '%')")
                     }
                     val token = percentToken(pattern[index + 1])
                     if (token == null) {

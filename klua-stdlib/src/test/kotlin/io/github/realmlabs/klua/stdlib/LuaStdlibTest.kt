@@ -6380,6 +6380,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns report dangling percent errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local trailingOk, trailingMessage = pcall(string.match, "abc", "%")
+                local bracketOk, bracketMessage = pcall(string.match, "abc", "[%")
+                return trailingOk, trailingMessage, bracketOk, bracketMessage
+                """.trimIndent(),
+                "string-pattern-dangling-percent.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("malformed pattern (ends with '%')", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("malformed pattern (ends with '%')", state.toString(4))
+    }
+
+    @Test
     fun `string patterns honor anchors around literal bodies`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
