@@ -5478,6 +5478,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random reports extra argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(math.random, 1, 2, 3)
+                return ok, message
+                """.trimIndent(),
+                "math-random-extra-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("wrong number of arguments", state.toString(2))
+    }
+
+    @Test
     fun `math randomseed ignores extra seed arguments`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)

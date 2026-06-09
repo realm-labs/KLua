@@ -235,7 +235,7 @@ internal object LuaMathLibrary {
                 val upper = requiredInteger(context, 2, "math.random")
                 LuaReturn.of(randomInteger(randomState, lower, upper))
             }
-            else -> throw LuaRuntimeException("wrong number of arguments to 'math.random'")
+            else -> throw LuaRuntimeException("wrong number of arguments")
         }
     }
 
