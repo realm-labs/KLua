@@ -6891,7 +6891,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, stringState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(stringState.getLastError())
-        assertEquals("invalid option '%ls' to 'string.format'", stringState.toString(-1))
+        assertEquals("invalid conversion '%l' to 'format'", stringState.toString(-1))
 
         val integerState = LuaState.create()
         LuaStdlib.openString(integerState)
@@ -6900,7 +6900,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, integerState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(integerState.getLastError())
-        assertEquals("invalid option '%Ld' to 'string.format'", integerState.toString(-1))
+        assertEquals("invalid conversion '%L' to 'format'", integerState.toString(-1))
 
         val hexState = LuaState.create()
         LuaStdlib.openString(hexState)
@@ -6909,7 +6909,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, hexState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(hexState.getLastError())
-        assertEquals("invalid option '%hhx' to 'string.format'", hexState.toString(-1))
+        assertEquals("invalid conversion '%h' to 'format'", hexState.toString(-1))
     }
 
     @Test

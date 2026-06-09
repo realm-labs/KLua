@@ -12,6 +12,7 @@ import java.util.Locale
 internal object LuaStringLibrary {
     private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcaApqs"
     private const val FORMAT_FLAGS = "-+ #0"
+    private const val FORMAT_SPECIFIER_PREFIX = "$FORMAT_FLAGS.123456789"
     private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
@@ -277,7 +278,7 @@ internal object LuaStringLibrary {
 
             val specStart = cursor
             cursor++
-            while (cursor < format.length && format[cursor] !in FORMAT_CONVERSIONS) {
+            while (cursor < format.length && format[cursor] in FORMAT_SPECIFIER_PREFIX) {
                 cursor++
             }
             if (cursor >= format.length) {
@@ -455,8 +456,12 @@ internal object LuaStringLibrary {
                 }
                 quoteValue(context, index)
             }
-            else -> throw LuaRuntimeException("invalid option '%$conversion' to 'string.format'")
+            else -> throw invalidFormatConversion(specifier)
         }
+    }
+
+    private fun invalidFormatConversion(specifier: String): LuaRuntimeException {
+        return LuaRuntimeException("invalid conversion '$specifier' to 'format'")
     }
 
     private fun String.formatWith(value: Any): String {
