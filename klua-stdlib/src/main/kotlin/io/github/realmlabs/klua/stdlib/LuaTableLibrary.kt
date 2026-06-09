@@ -88,21 +88,43 @@ internal object LuaTableLibrary {
     }
 
     private fun tableSetValue(context: LuaCallContext, tableIndex: Int, key: Any?, value: Any?) {
-        if (context.getTableValue(tableIndex, key) != null) {
-            context.setTableValue(tableIndex, key, value)
+        tableSetValue(context, context.getTable(tableIndex), key, value, identitySet())
+    }
+
+    private fun tableSetValue(
+        context: LuaCallContext,
+        table: Any?,
+        key: Any?,
+        value: Any?,
+        visited: MutableSet<Any>,
+    ) {
+        if (table != null && !visited.add(table)) {
+            throw LuaRuntimeException("cycle in __newindex chain")
+        }
+        if (context.getTableField(table, key) != null) {
+            context.setTableField(table, key, value)
             return
         }
 
-        val newIndex = context.getTableField(context.getMetatable(tableIndex), "__newindex")
+        val newIndex = context.getTableField(context.getTableMetatable(table), "__newindex")
         if (newIndex == null) {
-            context.setTableValue(tableIndex, key, value)
+            context.setTableField(table, key, value)
+            return
+        }
+
+        if (context.isTableValue(newIndex)) {
+            tableSetValue(context, newIndex, key, value, visited)
             return
         }
         try {
-            context.call(newIndex, listOf(context.getTable(tableIndex), key, value))
+            context.call(newIndex, listOf(table, key, value))
         } catch (_: IllegalArgumentException) {
-            context.setTableValue(tableIndex, key, value)
+            context.setTableField(table, key, value)
         }
+    }
+
+    private fun identitySet(): MutableSet<Any> {
+        return java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
     }
 
     private fun tableConcatTypeName(value: Any?): String {

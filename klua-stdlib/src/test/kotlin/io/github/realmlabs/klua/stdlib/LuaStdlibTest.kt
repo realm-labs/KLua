@@ -8234,6 +8234,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert follows table newindex metamethod chains`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = {}
+                local proxy = setmetatable({}, {
+                    __len = function()
+                        return 0
+                    end,
+                    __newindex = setmetatable({}, {
+                        __newindex = target,
+                    }),
+                })
+                table.insert(proxy, "value")
+                return target[1], rawget(proxy, 1)
+                """.trimIndent(),
+                "table-insert-table-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("value", state.toString(1))
+        assertTrue(state.isNil(2))
+    }
+
+    @Test
     fun `table insert reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -8414,6 +8445,34 @@ class LuaStdlibTest {
         assertTrue(state.isNil(6))
         assertTrue(state.isNil(7))
         assertTrue(state.isNil(8))
+    }
+
+    @Test
+    fun `table move follows table newindex metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = {}
+                local destination = setmetatable({}, {
+                    __newindex = target,
+                })
+                table.move({"a", "b"}, 1, 2, 1, destination)
+                return target[1], target[2], rawget(destination, 1), rawget(destination, 2)
+                """.trimIndent(),
+                "table-move-table-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("b", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
     }
 
     @Test
@@ -8614,6 +8673,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table remove follows table newindex metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = {}
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = function(_, index)
+                        return ({ "a", "b" })[index]
+                    end,
+                    __newindex = target,
+                })
+                local removed = table.remove(values, 1)
+                return removed, target[1], target[2], rawget(values, 1), rawget(values, 2)
+                """.trimIndent(),
+                "table-remove-table-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("b", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
     fun `table remove reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -8777,6 +8871,70 @@ class LuaStdlibTest {
         assertTrue(state.isNil(5))
         assertTrue(state.isNil(6))
         assertTrue(state.isNil(7))
+    }
+
+    @Test
+    fun `table sort follows table newindex metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = {}
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 3
+                    end,
+                    __index = function(_, index)
+                        return ({ 3, 1, 2 })[index]
+                    end,
+                    __newindex = target,
+                })
+                table.sort(values)
+                return target[1], target[2], target[3], rawget(values, 1), rawget(values, 2), rawget(values, 3)
+                """.trimIndent(),
+                "table-sort-table-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(3L, state.toInteger(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
+    fun `table insert reports cyclic table newindex chains`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local proxy = {}
+                setmetatable(proxy, {
+                    __len = function()
+                        return 0
+                    end,
+                    __newindex = proxy,
+                })
+                return table.insert(proxy, "value")
+                """.trimIndent(),
+                "table-insert-newindex-cycle.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("cycle in __newindex chain", state.toString(-1))
     }
 
     @Test

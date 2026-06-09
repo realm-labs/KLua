@@ -233,6 +233,19 @@ public class KLuaCoreGlobals internal constructor(
         )
     }
 
+    public fun setTableField(tableValue: KLuaCoreValue.TableValue, key: KLuaCoreValue, value: KLuaCoreValue) {
+        val luaKey = key.toLuaValueOrNull(this)
+            ?: throw LuaVmException("cannot use ${key.publicTypeName()} as Lua table key")
+        val luaValue = value.toLuaValueOrNull(this)
+            ?: throw LuaVmException("cannot use ${value.publicTypeName()} as Lua table value")
+        if (value == KLuaCoreValue.Nil) {
+            tableValue.fields.remove(key)
+        } else {
+            tableValue.fields[key] = value
+        }
+        tableValue.sourceTable?.rawSet(luaKey, luaValue)
+    }
+
     public fun <T : Any> setUserDataMethod(
         type: Class<T>,
         name: String,

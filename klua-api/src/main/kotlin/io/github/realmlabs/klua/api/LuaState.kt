@@ -994,7 +994,9 @@ class LuaState private constructor(
         tableCache: MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>,
     ) {
         tableCache[stackTable] = coreTable
-        coreTable.fields.clear()
+        if (stackTable.coreValue == null) {
+            coreTable.fields.clear()
+        }
         coreTable.fields.putAll(
             stackTable.fields.map { (fieldKey, fieldValue) ->
                 fieldKey.toCoreTableFieldValue(tableCache) to fieldValue.toCoreTableFieldValue(tableCache)
@@ -1167,6 +1169,8 @@ class LuaState private constructor(
 
         override fun isTable(index: Int): Boolean = valueAt(index) is LuaStackValue.TableValue
 
+        override fun isTableValue(value: Any?): Boolean = value is LuaStackValue.TableValue
+
         override fun typeName(index: Int): String = stackTypeName(valueAt(index))
 
         override fun get(index: Int): Any? {
@@ -1303,6 +1307,16 @@ class LuaState private constructor(
         override fun setTableValue(index: Int, key: Any?, value: Any?) {
             val table = valueAt(index) as? LuaStackValue.TableValue
                 ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            setStackTableValue(table, key, value)
+        }
+
+        override fun setTableField(table: Any?, key: Any?, value: Any?) {
+            val tableValue = table as? LuaStackValue.TableValue
+                ?: throw IllegalArgumentException("value is not a table")
+            setStackTableValue(tableValue, key, value)
+        }
+
+        private fun setStackTableValue(table: LuaStackValue.TableValue, key: Any?, value: Any?) {
             val stackKey = key.toStackValue()
             val stackValue = value.toStackValue()
             if (stackValue == LuaStackValue.Nil) {
@@ -1310,12 +1324,25 @@ class LuaState private constructor(
             } else {
                 table.fields[stackKey] = stackValue
             }
+            val coreTable = table.coreValue ?: return
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            tableCache[table] = coreTable
+            coreGlobals.setTableField(
+                coreTable,
+                stackKey.toCoreTableFieldValue(tableCache),
+                stackValue.toCoreTableFieldValue(tableCache),
+            )
         }
 
         override fun getMetatable(index: Int): Any? {
             val table = valueAt(index) as? LuaStackValue.TableValue
                 ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
             return table.metatable
+        }
+
+        override fun getTableMetatable(table: Any?): Any? {
+            val tableValue = table as? LuaStackValue.TableValue ?: return null
+            return tableValue.metatable
         }
 
         override fun setMetatable(index: Int, metatable: Any?) {

@@ -12,6 +12,8 @@ interface LuaCallContext {
 
     fun isTable(index: Int): Boolean
 
+    fun isTableValue(value: Any?): Boolean = false
+
     fun typeName(index: Int): String
 
     fun get(index: Int): Any?
@@ -50,7 +52,13 @@ interface LuaCallContext {
 
     fun setTableValue(index: Int, key: Any?, value: Any?)
 
+    fun setTableField(table: Any?, key: Any?, value: Any?) {
+        throw IllegalArgumentException("value is not a table")
+    }
+
     fun getMetatable(index: Int): Any?
+
+    fun getTableMetatable(table: Any?): Any? = null
 
     fun setMetatable(index: Int, metatable: Any?)
 
