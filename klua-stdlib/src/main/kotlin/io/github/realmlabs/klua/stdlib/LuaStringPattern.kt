@@ -285,7 +285,7 @@ internal class LuaStringPattern private constructor(
                             index += 2
                         } else if (next == 'b') {
                             if (index + 3 >= pattern.length) {
-                                throw LuaRuntimeException("string patterns are not supported")
+                                throw LuaRuntimeException("malformed pattern (missing arguments to '%b')")
                             }
                             tokens += Token.Balanced(pattern[index + 2], pattern[index + 3])
                             hasPatternToken = true

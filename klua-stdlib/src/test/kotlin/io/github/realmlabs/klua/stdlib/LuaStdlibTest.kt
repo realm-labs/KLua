@@ -6294,6 +6294,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns report malformed balanced match arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missingBothOk, missingBothMessage = pcall(string.match, "abc", "%b")
+                local missingCloseOk, missingCloseMessage = pcall(string.match, "abc", "%b(")
+                return missingBothOk, missingBothMessage, missingCloseOk, missingCloseMessage
+                """.trimIndent(),
+                "string-pattern-balanced-malformed.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("malformed pattern (missing arguments to '%b')", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("malformed pattern (missing arguments to '%b')", state.toString(4))
+    }
+
+    @Test
     fun `string patterns support frontier matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
