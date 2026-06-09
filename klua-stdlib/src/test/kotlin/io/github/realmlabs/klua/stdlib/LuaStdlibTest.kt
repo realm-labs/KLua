@@ -8206,6 +8206,28 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'table.insert' (table expected)", state.toString(-1))
+
+        val arityState = LuaState.create()
+        LuaStdlib.openBase(arityState)
+        LuaStdlib.openTable(arityState)
+
+        assertEquals(
+            LuaStatus.OK,
+            arityState.load(
+                """
+                local missingOk, missingMessage = pcall(table.insert, {})
+                local extraOk, extraMessage = pcall(table.insert, {}, 1, "x", "extra")
+                return missingOk, missingMessage, extraOk, extraMessage
+                """.trimIndent(),
+                "table-insert-arity-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, arityState.pcall(0, -1), arityState.toString(-1))
+
+        assertFalse(arityState.toBoolean(1))
+        assertEquals("wrong number of arguments to 'insert'", arityState.toString(2))
+        assertFalse(arityState.toBoolean(3))
+        assertEquals("wrong number of arguments to 'insert'", arityState.toString(4))
     }
 
     @Test

@@ -129,7 +129,7 @@ internal object LuaTableLibrary {
                 position = requiredInteger(context, 2, "table.insert")
                 valueIndex = 3
             }
-            else -> throw LuaRuntimeException("wrong number of arguments to 'table.insert'")
+            else -> throw LuaRuntimeException("wrong number of arguments to 'insert'")
         }
         if (position !in 1L..(length + 1L)) {
             throw LuaRuntimeException("bad argument #2 to 'table.insert' (position out of bounds)")
