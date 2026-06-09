@@ -7215,11 +7215,12 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local fallback, fallbackCount = string.gsub("abc", "a", "%1")
+                local whole, wholeCount = string.gsub("abc", "a", "%0")
+                local firstOk, firstMessage = pcall(string.gsub, "abc", "a", "%1")
                 local captureOk, captureMessage = pcall(string.gsub, "abc", "a", "%2")
                 local letterOk, letterMessage = pcall(string.gsub, "abc", "a", "%x")
                 local danglingOk, danglingMessage = pcall(string.gsub, "abc", "a", "%")
-                return fallback, fallbackCount, captureOk, captureMessage,
+                return whole, wholeCount, firstOk, firstMessage, captureOk, captureMessage,
                     letterOk, letterMessage, danglingOk, danglingMessage
                 """.trimIndent(),
                 "string-gsub-replacement-captures.lua",
@@ -7230,11 +7231,13 @@ class LuaStdlibTest {
         assertEquals("abc", state.toString(1))
         assertEquals(1L, state.toInteger(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("invalid capture index %2", state.toString(4))
+        assertEquals("invalid capture index %1", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("invalid use of '%' in replacement string", state.toString(6))
+        assertEquals("invalid capture index %2", state.toString(6))
         assertFalse(state.toBoolean(7))
         assertEquals("invalid use of '%' in replacement string", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("invalid use of '%' in replacement string", state.toString(10))
     }
 
     @Test

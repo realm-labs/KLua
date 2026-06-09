@@ -181,7 +181,7 @@ internal object LuaStringLibrary {
                 '0' -> result.append(wholeMatch)
                 in '1'..'9' -> {
                     val captureIndex = next.digitToInt()
-                    result.append(replacementCapture(captures, captureIndex, wholeMatch))
+                    result.append(replacementCapture(captures, captureIndex))
                 }
                 else -> throw LuaRuntimeException("invalid use of '%' in replacement string")
             }
@@ -190,10 +190,7 @@ internal object LuaStringLibrary {
         return result.toString()
     }
 
-    private fun replacementCapture(captures: List<Any?>, captureIndex: Int, wholeMatch: String): Any? {
-        if (captures.isEmpty() && captureIndex == 1) {
-            return wholeMatch
-        }
+    private fun replacementCapture(captures: List<Any?>, captureIndex: Int): Any? {
         return captures.getOrNull(captureIndex - 1)
             ?: throw LuaRuntimeException("invalid capture index %$captureIndex")
     }
