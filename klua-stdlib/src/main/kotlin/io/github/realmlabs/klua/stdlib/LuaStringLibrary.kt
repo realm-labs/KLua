@@ -451,7 +451,7 @@ internal object LuaStringLibrary {
             'p' -> formatPointerValue(context, index, specifier)
             'q' -> {
                 if (specifier != "%q") {
-                    throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
+                    throw LuaRuntimeException("specifier '%q' cannot have modifiers")
                 }
                 quoteValue(context, index)
             }

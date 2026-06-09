@@ -7021,7 +7021,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("invalid option '%5q' to 'string.format'", state.toString(-1))
+        assertEquals("specifier '%q' cannot have modifiers", state.toString(-1))
     }
 
     @Test
