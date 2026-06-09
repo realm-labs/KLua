@@ -6355,6 +6355,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns report malformed frontier arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missingSetOk, missingSetMessage = pcall(string.match, "abc", "%f")
+                local missingBracketOk, missingBracketMessage = pcall(string.match, "abc", "%fa")
+                return missingSetOk, missingSetMessage, missingBracketOk, missingBracketMessage
+                """.trimIndent(),
+                "string-pattern-frontier-malformed.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("missing '[' after '%f' in pattern", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("missing '[' after '%f' in pattern", state.toString(4))
+    }
+
+    @Test
     fun `string patterns honor anchors around literal bodies`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

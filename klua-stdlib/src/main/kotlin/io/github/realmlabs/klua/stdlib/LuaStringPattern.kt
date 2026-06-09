@@ -292,7 +292,7 @@ internal class LuaStringPattern private constructor(
                             index += 4
                         } else if (next == 'f') {
                             if (index + 2 >= pattern.length || pattern[index + 2] != '[') {
-                                throw LuaRuntimeException("string patterns are not supported")
+                                throw LuaRuntimeException("missing '[' after '%f' in pattern")
                             }
                             val (token, nextIndex) = bracketClassToken(pattern, index + 2)
                             tokens += Token.Frontier(token)
