@@ -399,7 +399,7 @@ internal class LuaStringPattern private constructor(
                 }
             }
 
-            throw LuaRuntimeException("string patterns are not supported")
+            throw LuaRuntimeException("malformed pattern (missing ']')")
         }
 
         private fun percentToken(char: Char): Token? {

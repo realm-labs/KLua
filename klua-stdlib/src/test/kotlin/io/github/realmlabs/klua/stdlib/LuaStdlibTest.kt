@@ -5891,6 +5891,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string bracket patterns report missing closing brackets`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local plainOk, plainMessage = pcall(string.match, "abc", "[abc")
+                local negatedOk, negatedMessage = pcall(string.match, "abc", "[^abc")
+                return plainOk, plainMessage, negatedOk, negatedMessage
+                """.trimIndent(),
+                "string-bracket-missing-close.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("malformed pattern (missing ']')", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("malformed pattern (missing ']')", state.toString(4))
+    }
+
+    @Test
     fun `string patterns support escaped punctuation literals`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
