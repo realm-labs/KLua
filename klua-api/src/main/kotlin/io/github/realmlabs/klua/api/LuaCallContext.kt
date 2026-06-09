@@ -22,6 +22,8 @@ interface LuaCallContext {
 
     fun lessThan(leftIndex: Int, rightIndex: Int): Boolean? = null
 
+    fun lessThanValues(left: Any?, right: Any?): Boolean? = null
+
     fun call(index: Int, arguments: List<Any?>): LuaReturn
 
     fun call(function: Any?, arguments: List<Any?>): LuaReturn

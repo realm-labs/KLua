@@ -8931,6 +8931,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort default comparison uses less than metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local metatable = {
+                    __lt = function(left, right)
+                        return left.rank < right.rank
+                    end,
+                }
+                local low = setmetatable({ rank = 1, name = "low" }, metatable)
+                local middle = setmetatable({ rank = 3, name = "middle" }, metatable)
+                local high = setmetatable({ rank = 5, name = "high" }, metatable)
+                local values = { high, low, middle }
+                table.sort(values)
+                return values[1] == low, values[2] == middle, values[3] == high,
+                    values[1].name, values[2].name, values[3].name
+                """.trimIndent(),
+                "table-sort-lt-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("low", state.toString(4))
+        assertEquals("middle", state.toString(5))
+        assertEquals("high", state.toString(6))
+    }
+
+    @Test
     fun `table sort does not add reverse comparator calls`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

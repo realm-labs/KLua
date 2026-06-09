@@ -1197,6 +1197,18 @@ class LuaState private constructor(
             val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
             val left = valueAt(leftIndex)?.toCoreValue(tableCache) ?: KLuaCoreValue.Nil
             val right = valueAt(rightIndex)?.toCoreValue(tableCache) ?: KLuaCoreValue.Nil
+            return lessThanCoreValues(left, right)
+        }
+
+        override fun lessThanValues(left: Any?, right: Any?): Boolean? {
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            return lessThanCoreValues(
+                left.toStackValue().toCoreValue(tableCache),
+                right.toStackValue().toCoreValue(tableCache),
+            )
+        }
+
+        private fun lessThanCoreValues(left: KLuaCoreValue, right: KLuaCoreValue): Boolean {
             return when (val comparison = KLuaCoreRuntime.lessThan(left, right, coreGlobals)) {
                 is KLuaCoreComparison.Success -> comparison.value
                 is KLuaCoreComparison.RuntimeError -> throw LuaRuntimeException(

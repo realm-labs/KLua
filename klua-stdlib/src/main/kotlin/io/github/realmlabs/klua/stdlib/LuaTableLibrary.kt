@@ -333,7 +333,8 @@ internal object LuaTableLibrary {
         hasComparator: Boolean,
     ): Boolean {
         if (!hasComparator) {
-            return compareTableSortValues(left, right) < 0
+            return context.lessThanValues(left, right)
+                ?: (compareTableSortValues(left, right) < 0)
         }
 
         return context.call(2, listOf(left, right)).get(1).isLuaTruthy()
