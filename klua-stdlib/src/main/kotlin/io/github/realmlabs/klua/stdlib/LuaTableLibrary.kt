@@ -87,6 +87,24 @@ internal object LuaTableLibrary {
         }
     }
 
+    private fun tableSetValue(context: LuaCallContext, tableIndex: Int, key: Any?, value: Any?) {
+        if (context.getTableValue(tableIndex, key) != null) {
+            context.setTableValue(tableIndex, key, value)
+            return
+        }
+
+        val newIndex = context.getTableField(context.getMetatable(tableIndex), "__newindex")
+        if (newIndex == null) {
+            context.setTableValue(tableIndex, key, value)
+            return
+        }
+        try {
+            context.call(newIndex, listOf(context.getTable(tableIndex), key, value))
+        } catch (_: IllegalArgumentException) {
+            context.setTableValue(tableIndex, key, value)
+        }
+    }
+
     private fun tableConcatTypeName(value: Any?): String {
         return when (value) {
             null -> "nil"
@@ -137,10 +155,10 @@ internal object LuaTableLibrary {
 
         var index = length
         while (index >= position) {
-            context.setTableValue(1, index + 1L, tableIndexValue(context, index))
+            tableSetValue(context, 1, index + 1L, tableIndexValue(context, index))
             index--
         }
-        context.setTableValue(1, position, argumentValue(context, valueIndex))
+        tableSetValue(context, 1, position, argumentValue(context, valueIndex))
         return LuaReturn.none()
     }
 
@@ -179,13 +197,13 @@ internal object LuaTableLibrary {
         if (sameTable && target > first && target <= last) {
             var offset = count - 1L
             while (offset >= 0L) {
-                context.setTableValue(destinationIndex, target + offset, tableIndexValue(context, first + offset))
+                tableSetValue(context, destinationIndex, target + offset, tableIndexValue(context, first + offset))
                 offset--
             }
         } else {
             var offset = 0L
             while (offset < count) {
-                context.setTableValue(destinationIndex, target + offset, tableIndexValue(context, first + offset))
+                tableSetValue(context, destinationIndex, target + offset, tableIndexValue(context, first + offset))
                 offset++
             }
         }
@@ -240,10 +258,10 @@ internal object LuaTableLibrary {
         val removed = tableIndexValue(context, position)
         var index = position
         while (index < length) {
-            context.setTableValue(1, index, tableIndexValue(context, index + 1L))
+            tableSetValue(context, 1, index, tableIndexValue(context, index + 1L))
             index++
         }
-        context.setTableValue(1, length, null)
+        tableSetValue(context, 1, length, null)
         return LuaReturn.of(removed)
     }
 
@@ -281,7 +299,7 @@ internal object LuaTableLibrary {
         }
 
         for (valueIndex in values.indices) {
-            context.setTableValue(1, valueIndex.toLong() + 1L, values[valueIndex])
+            tableSetValue(context, 1, valueIndex.toLong() + 1L, values[valueIndex])
         }
         return LuaReturn.none()
     }

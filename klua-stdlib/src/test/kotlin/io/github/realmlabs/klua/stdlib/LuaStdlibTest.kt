@@ -8197,6 +8197,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert writes missing slots through newindex metamethod`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = function(_, index)
+                        return ({ "a", "b" })[index]
+                    end,
+                    __newindex = function(_, key, value)
+                        writes[#writes + 1] = key .. ":" .. tostring(value)
+                    end,
+                })
+                table.insert(values, 2, "inserted")
+                return #writes, writes[1], writes[2], rawget(values, 2), rawget(values, 3)
+                """.trimIndent(),
+                "table-insert-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals("3:b", state.toString(2))
+        assertEquals("2:inserted", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
     fun `table insert reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -8342,6 +8379,41 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(1))
         assertTrue(state.toBoolean(2))
         assertEquals("inner", state.toString(3))
+    }
+
+    @Test
+    fun `table move writes missing destination slots through newindex metamethod`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                local destination = setmetatable({}, {
+                    __newindex = function(_, key, value)
+                        writes[#writes + 1] = key .. ":" .. tostring(value)
+                    end,
+                })
+                local returned = table.move({"a", nil, "c"}, 1, 3, 1, destination)
+                return returned == destination, #writes, writes[1], writes[2], writes[3],
+                    rawget(destination, 1), rawget(destination, 2), rawget(destination, 3)
+                """.trimIndent(),
+                "table-move-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(3L, state.toInteger(2))
+        assertEquals("1:a", state.toString(3))
+        assertEquals("2:nil", state.toString(4))
+        assertEquals("3:c", state.toString(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.isNil(8))
     }
 
     @Test
@@ -8504,6 +8576,44 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table remove writes missing slots through newindex metamethod`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = function(_, index)
+                        return ({ "a", "b" })[index]
+                    end,
+                    __newindex = function(_, key, value)
+                        writes[#writes + 1] = key .. ":" .. tostring(value)
+                    end,
+                })
+                local removed = table.remove(values, 1)
+                return removed, #writes, writes[1], writes[2], rawget(values, 1), rawget(values, 2)
+                """.trimIndent(),
+                "table-remove-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("1:b", state.toString(3))
+        assertEquals("2:nil", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `table remove reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -8628,6 +8738,45 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(2))
         assertEquals(3L, state.toInteger(3))
         assertFalse(state.toBoolean(4))
+    }
+
+    @Test
+    fun `table sort writes missing slots through newindex metamethod`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 3
+                    end,
+                    __index = function(_, index)
+                        return ({ 3, 1, 2 })[index]
+                    end,
+                    __newindex = function(_, key, value)
+                        writes[#writes + 1] = key .. ":" .. tostring(value)
+                    end,
+                })
+                table.sort(values)
+                return #writes, writes[1], writes[2], writes[3], rawget(values, 1), rawget(values, 2), rawget(values, 3)
+                """.trimIndent(),
+                "table-sort-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("1:1", state.toString(2))
+        assertEquals("2:2", state.toString(3))
+        assertEquals("3:3", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
     }
 
     @Test
