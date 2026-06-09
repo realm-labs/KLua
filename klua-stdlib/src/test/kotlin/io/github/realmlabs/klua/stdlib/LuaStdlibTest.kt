@@ -6609,6 +6609,20 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format preserves zeros for unmodified string conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return string.format("%s", "a" .. string.char(0) .. "b")""", "string-format-string-zero.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("a\u0000b", state.toString(1))
+    }
+
+    @Test
     fun `string format string conversion uses table tostring metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -6880,6 +6894,21 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(zeroState.getLastError())
         assertEquals("invalid option '%05s' to 'string.format'", zeroState.toString(-1))
+    }
+
+    @Test
+    fun `string format rejects modified string conversions containing zeros`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return string.format("%5s", "a" .. string.char(0) .. "b")""", "string-format-string-zero-modifier-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'string.format' (string contains zeros)", state.toString(-1))
     }
 
     @Test

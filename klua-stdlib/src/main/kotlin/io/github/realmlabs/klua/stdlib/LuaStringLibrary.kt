@@ -419,8 +419,7 @@ internal object LuaStringLibrary {
     ): String {
         return when (conversion) {
             's' -> {
-                validateStringFormatSpecifier(specifier)
-                specifier.formatWith(toLuaString(context, index))
+                formatStringValue(context, index, specifier)
             }
             'd',
             'i',
@@ -532,6 +531,22 @@ internal object LuaStringLibrary {
         if (parsed.flags.any { flag -> flag != '-' }) {
             throw LuaRuntimeException("invalid option '$specifier' to 'string.format'")
         }
+    }
+
+    private fun formatStringValue(
+        context: LuaCallContext,
+        index: Int,
+        specifier: String,
+    ): String {
+        validateStringFormatSpecifier(specifier)
+        val value = toLuaString(context, index)
+        if (specifier == "%s") {
+            return value
+        }
+        if ('\u0000' in value) {
+            throw LuaRuntimeException("bad argument #$index to 'string.format' (string contains zeros)")
+        }
+        return specifier.formatWith(value)
     }
 
     private fun formatIntegerValue(
