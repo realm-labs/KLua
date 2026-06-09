@@ -7627,6 +7627,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codes iterator state is coerced string argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator, stateValue, control = utf8.codes(123)
+                local position, codepoint = iterator(stateValue, control)
+                return stateValue, control, position, codepoint
+                """.trimIndent(),
+                "utf8-codes-coerced-state.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("123", state.toString(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(49L, state.toInteger(4))
+    }
+
+    @Test
     fun `utf8 charpattern matches utf8 characters`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

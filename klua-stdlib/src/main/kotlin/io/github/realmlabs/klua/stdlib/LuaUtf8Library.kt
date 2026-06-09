@@ -54,7 +54,8 @@ internal object LuaUtf8Library {
     }
 
     private fun utf8Codes(context: LuaCallContext): LuaReturn {
-        val codePoints = requiredString(context, 1, "utf8.codes").codePoints().toArray()
+        val text = requiredString(context, 1, "utf8.codes")
+        val codePoints = text.codePoints().toArray()
         val byteOffsets = utf8ByteOffsets(codePoints)
         var index = 0
         val iterator = LuaFunction {
@@ -65,7 +66,7 @@ internal object LuaUtf8Library {
                 LuaReturn.of(byteOffsets[index - 1], codePoints[index - 1].toLong())
             }
         }
-        return LuaReturn.ofValues(listOf(iterator, context.get(1), 0L))
+        return LuaReturn.ofValues(listOf(iterator, text, 0L))
     }
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
