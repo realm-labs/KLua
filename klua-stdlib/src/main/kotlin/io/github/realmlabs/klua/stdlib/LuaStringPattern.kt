@@ -37,7 +37,7 @@ internal class LuaStringPattern private constructor(
     }
 
     private fun findPattern(text: String, startIndex: Int, patternTokens: List<Token>): LuaPatternMatch? {
-        var index = if (startAnchored) 0 else startIndex
+        var index = startIndex
         while (index <= text.length) {
             val result = matchEnd(text, index, patternTokens, tokenIndex = 0, captureStarts = emptyMap(), captures = emptyMap())
             if (index >= startIndex && result != null) {

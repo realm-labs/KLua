@@ -6337,6 +6337,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns apply start anchors at init positions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, last = string.find("xxabc", "^abc", 3)
+                local missing = string.match("xxabc", "^abc", 2)
+                local matched = string.match("xxabc", "^abc", -3)
+                local emptyFirst, emptyLast = string.find("abc", "^", 2)
+                return first, last, missing, matched, emptyFirst, emptyLast
+                """.trimIndent(),
+                "string-pattern-anchor-init.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals(5L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+        assertEquals("abc", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+    }
+
+    @Test
     fun `string format renders common conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
