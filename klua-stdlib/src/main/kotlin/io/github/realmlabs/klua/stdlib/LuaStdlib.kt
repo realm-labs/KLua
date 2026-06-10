@@ -417,8 +417,7 @@ public object LuaStdlib {
             return LuaReturn.of((context.argumentCount - 1).toLong())
         }
 
-        val index = context.toInteger(1)
-            ?: throw LuaRuntimeException("bad argument #1 to 'select' (number expected)")
+        val index = requiredNumberIndex(context, 1, "select")
         val start = when {
             index > 0L -> index + 1L
             index < 0L -> context.argumentCount + index + 1L
@@ -644,7 +643,11 @@ public object LuaStdlib {
 
     private fun requiredNumberIndex(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+            ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number has no integer representation)")
+            } else {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+            }
     }
 
     private fun requiredIntegerLikeLuaL(context: LuaCallContext, index: Int, functionName: String): Long {

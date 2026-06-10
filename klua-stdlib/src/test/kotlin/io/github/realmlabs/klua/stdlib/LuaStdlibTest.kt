@@ -2067,6 +2067,21 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #2 to 'error' (number expected)", state.toString(-1))
+
+        val fractionalState = LuaState.create()
+        LuaStdlib.openBase(fractionalState)
+
+        assertEquals(
+            LuaStatus.OK,
+            fractionalState.load("""return error("boom", 1.5)""", "error-level-fractional-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(fractionalState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'error' (number has no integer representation)",
+            fractionalState.toString(-1),
+        )
     }
 
     @Test
@@ -2530,6 +2545,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'select' (number expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `select reports fractional number index errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return select(1.5, "a")""", "select-fractional-index.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'select' (number has no integer representation)", state.toString(-1))
     }
 
     @Test
@@ -3330,7 +3357,8 @@ class LuaStdlibTest {
                 local iterator, values = ipairs({10, 20})
                 local okNil, nilMessage = pcall(iterator, values, nil)
                 local okString, stringMessage = pcall(iterator, values, "not-index")
-                return okNil, nilMessage, okString, stringMessage
+                local okFractional, fractionalMessage = pcall(iterator, values, 0.5)
+                return okNil, nilMessage, okString, stringMessage, okFractional, fractionalMessage
                 """.trimIndent(),
                 "ipairs-iterator-index-error.lua",
             ),
@@ -3341,6 +3369,11 @@ class LuaStdlibTest {
         assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals(
+            "bad argument #2 to 'ipairs iterator' (number has no integer representation)",
+            state.toString(6),
+        )
     }
 
     @Test
