@@ -6176,6 +6176,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string find treats plain flag by lua truthiness`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numericStart, numericEnd = string.find("a.c", ".", 1, 1)
+                local zeroStart, zeroEnd = string.find("a.c", ".", 1, 0)
+                local stringStart, stringEnd = string.find("a.c", ".", 1, "plain")
+                local tableStart, tableEnd = string.find("a.c", ".", 1, {})
+                local falseStart, falseEnd = string.find("a.c", ".", 1, false)
+                local nilStart, nilEnd = string.find("a.c", ".", 1, nil)
+                return numericStart, numericEnd, zeroStart, zeroEnd, stringStart, stringEnd,
+                    tableStart, tableEnd, falseStart, falseEnd, nilStart, nilEnd
+                """.trimIndent(),
+                "string-find-plain-truthiness.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals(2L, state.toInteger(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(1L, state.toInteger(10))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals(1L, state.toInteger(12))
+    }
+
+    @Test
     fun `string find and match allow empty matches at string end`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
