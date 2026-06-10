@@ -312,8 +312,6 @@ internal class LuaStringPattern private constructor(
                         index = addToken(tokens, token, pattern, nextIndex)
                         hasPatternToken = true
                     }
-                    in UNSUPPORTED_MAGIC,
-                    -> throw LuaRuntimeException("string patterns are not supported")
                     else -> {
                         if (index + 1 < pattern.length && pattern[index + 1] in "?*+-") {
                             hasPatternToken = true
@@ -509,8 +507,6 @@ private sealed interface Token {
         override fun matches(char: Char): Boolean = token.matches(char)
     }
 }
-
-private const val UNSUPPORTED_MAGIC = "*+-?"
 
 private fun Char.isAsciiPunctuation(): Boolean {
     return this in '!'..'/' || this in ':'..'@' || this in '['..'`' || this in '{'..'~'

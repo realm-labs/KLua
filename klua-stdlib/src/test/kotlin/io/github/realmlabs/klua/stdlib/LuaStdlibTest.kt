@@ -6425,6 +6425,54 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns treat standalone repetition suffixes as literals`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local starStart, starEnd = string.find("a* + - ?", "*")
+                local plusStart, plusEnd = string.find("a* + - ?", "+")
+                local minusStart, minusEnd = string.find("a* + - ?", "-")
+                local questionStart, questionEnd = string.find("a* + - ?", "?")
+                local replaced, count = string.gsub("*+ -?", "[*+%-?]", "x")
+                local iterator = string.gmatch("* + - ?", "[*+%-?]")
+                return starStart, starEnd,
+                    plusStart, plusEnd,
+                    minusStart, minusEnd,
+                    questionStart, questionEnd,
+                    replaced, count,
+                    string.match("ab", "a*b"),
+                    string.match("ab", "*b"),
+                    iterator(), iterator(), iterator(), iterator(), iterator()
+                """.trimIndent(),
+                "string-pattern-standalone-suffixes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(4L, state.toInteger(3))
+        assertEquals(4L, state.toInteger(4))
+        assertEquals(6L, state.toInteger(5))
+        assertEquals(6L, state.toInteger(6))
+        assertEquals(8L, state.toInteger(7))
+        assertEquals(8L, state.toInteger(8))
+        assertEquals("xx xx", state.toString(9))
+        assertEquals(4L, state.toInteger(10))
+        assertEquals("ab", state.toString(11))
+        assertTrue(state.isNil(12))
+        assertEquals("*", state.toString(13))
+        assertEquals("+", state.toString(14))
+        assertEquals("-", state.toString(15))
+        assertEquals("?", state.toString(16))
+        assertTrue(state.isNil(17))
+    }
+
+    @Test
     fun `string patterns support greedy repetitions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
