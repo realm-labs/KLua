@@ -2611,6 +2611,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `select hash branch ignores tostring metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = setmetatable({}, {
+                    __tostring = function()
+                        return "#not-a-string"
+                    end,
+                })
+                local ok, message = pcall(select, value, "a", "b")
+                return ok, message
+                """.trimIndent(),
+                "select-hash-tostring-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'select' (number expected)", state.toString(2))
+    }
+
+    @Test
     fun `select reports fractional number index errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
