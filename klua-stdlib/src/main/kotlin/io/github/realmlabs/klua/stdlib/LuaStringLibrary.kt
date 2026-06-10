@@ -411,6 +411,15 @@ internal object LuaStringLibrary {
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
     }
 
+    private fun requiredFormatInteger(context: LuaCallContext, index: Int): Long {
+        return context.toInteger(index)
+            ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
+                throw LuaRuntimeException("bad argument #$index to 'string.format' (number has no integer representation)")
+            } else {
+                throw LuaRuntimeException("bad argument #$index to 'string.format' (integer expected)")
+            }
+    }
+
     private fun formatValue(
         context: LuaCallContext,
         index: Int,
@@ -442,7 +451,7 @@ internal object LuaStringLibrary {
             }
             'c' -> {
                 validateCharacterFormatSpecifier(specifier)
-                val code = requiredInteger(context, index, "string.format")
+                val code = requiredFormatInteger(context, index)
                 specifier.formatWith(code.toInt() and 0xff)
             }
             'p' -> formatPointerValue(context, index, specifier)
@@ -547,7 +556,7 @@ internal object LuaStringLibrary {
         specifier: String,
         conversion: Char,
     ): String {
-        val value = requiredInteger(context, index, "string.format")
+        val value = requiredFormatInteger(context, index)
         val parsed = parseFormatSpecifier(specifier)
         validateIntegerFormatFlags(specifier, conversion, parsed)
         if (parsed.precision == null) {

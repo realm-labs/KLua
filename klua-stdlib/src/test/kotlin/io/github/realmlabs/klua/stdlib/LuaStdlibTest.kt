@@ -6978,6 +6978,21 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #2 to 'string.format' (integer expected)", state.toString(-1))
+
+        val fractionalState = LuaState.create()
+        LuaStdlib.openString(fractionalState)
+
+        assertEquals(
+            LuaStatus.OK,
+            fractionalState.load("""return string.format("%d", 1.5)""", "string-format-integer-fractional-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(fractionalState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'string.format' (number has no integer representation)",
+            fractionalState.toString(-1),
+        )
     }
 
     @Test
@@ -7110,6 +7125,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #2 to 'string.format' (integer expected)", state.toString(-1))
+
+        val fractionalState = LuaState.create()
+        LuaStdlib.openString(fractionalState)
+
+        assertEquals(LuaStatus.OK, fractionalState.load("""return string.format("%c", 1.5)""", "string-format-char-fractional-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(fractionalState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'string.format' (number has no integer representation)",
+            fractionalState.toString(-1),
+        )
     }
 
     @Test
