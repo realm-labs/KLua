@@ -8609,6 +8609,76 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table integer arguments report fractional number errors`() {
+        fun assertFractionalIntegerError(source: String, chunkName: String, expected: String) {
+            val state = LuaState.create()
+            LuaStdlib.openTable(state)
+
+            assertEquals(LuaStatus.OK, state.load(source, chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals(expected, state.toString(-1))
+        }
+
+        assertFractionalIntegerError(
+            """return table.concat({"a"}, "", 1.5)""",
+            "table-concat-fractional-start.lua",
+            "bad argument #3 to 'table.concat' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.concat({"a"}, "", 1, 1.5)""",
+            "table-concat-fractional-end.lua",
+            "bad argument #4 to 'table.concat' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.create(1.5)""",
+            "table-create-fractional-sequence.lua",
+            "bad argument #1 to 'table.create' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.create(1, 1.5)""",
+            "table-create-fractional-record.lua",
+            "bad argument #2 to 'table.create' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.insert({}, 1.5, "x")""",
+            "table-insert-fractional-position.lua",
+            "bad argument #2 to 'table.insert' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.move({}, 1.5, 1, 1)""",
+            "table-move-fractional-first.lua",
+            "bad argument #2 to 'table.move' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.move({}, 1, 1.5, 1)""",
+            "table-move-fractional-last.lua",
+            "bad argument #3 to 'table.move' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.move({}, 1, 1, 1.5)""",
+            "table-move-fractional-target.lua",
+            "bad argument #4 to 'table.move' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.remove({}, 1.5)""",
+            "table-remove-fractional-position.lua",
+            "bad argument #2 to 'table.remove' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.unpack({}, 1.5)""",
+            "table-unpack-fractional-start.lua",
+            "bad argument #2 to 'table.unpack' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return table.unpack({}, 1, 1.5)""",
+            "table-unpack-fractional-end.lua",
+            "bad argument #3 to 'table.unpack' (number has no integer representation)",
+        )
+    }
+
+    @Test
     fun `table insert mutates list values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
