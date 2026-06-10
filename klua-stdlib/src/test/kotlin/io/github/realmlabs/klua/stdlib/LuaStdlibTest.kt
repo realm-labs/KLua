@@ -10522,6 +10522,91 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table unpack follows nested index metamethod tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = setmetatable({}, {
+                        __index = {
+                            [1] = "a",
+                            [2] = "b",
+                        },
+                    }),
+                })
+                return table.unpack(values)
+                """.trimIndent(),
+                "table-unpack-nested-index-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("b", state.toString(2))
+    }
+
+    @Test
+    fun `table unpack reports bad index metamethod chains`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numberValues = setmetatable({}, {
+                    __len = function() return 1 end,
+                    __index = 1,
+                })
+                local numberOk, numberMessage = pcall(table.unpack, numberValues)
+
+                local booleanValues = setmetatable({}, {
+                    __len = function() return 1 end,
+                    __index = true,
+                })
+                local booleanOk, booleanMessage = pcall(table.unpack, booleanValues)
+
+                local loopValues = {}
+                setmetatable(loopValues, {
+                    __len = function() return 1 end,
+                    __index = loopValues,
+                })
+                local loopOk, loopMessage = pcall(table.unpack, loopValues)
+
+                local stringValues = setmetatable({}, {
+                    __len = function() return 1 end,
+                    __index = "x",
+                })
+                local stringOk, stringValue = pcall(table.unpack, stringValues)
+
+                return numberOk, numberMessage, booleanOk, booleanMessage,
+                    loopOk, loopMessage, stringOk, stringValue
+                """.trimIndent(),
+                "table-unpack-bad-index-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to index a number value", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to index a boolean value", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("'__index' chain too long; possible loop", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.isNil(8))
+    }
+
+    @Test
     fun `table unpack reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
