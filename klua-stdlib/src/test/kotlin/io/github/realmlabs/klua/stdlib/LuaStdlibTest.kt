@@ -7243,6 +7243,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format string conversion formats numbers like lua`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numeric = setmetatable({}, {
+                    __tostring = function()
+                        return 1e15
+                    end,
+                })
+                return string.format("%s|%s|%s|%s|%s", 1e14, 1e15, 1e-5, 1 / 0, numeric)
+                """.trimIndent(),
+                "string-format-string-number-format.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("100000000000000.0|1e+15|1e-05|inf|1e+15", state.toString(1))
+    }
+
+    @Test
     fun `string format string conversion reports table and function identities`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
