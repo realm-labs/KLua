@@ -259,9 +259,6 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #1 to 'table.remove' (table expected)")
         }
         val length = tableLength(context, 1)
-        if (length == 0L && (context.isNone(2) || context.isNil(2))) {
-            return LuaReturn.of(null)
-        }
         val position = if (context.isNone(2) || context.isNil(2)) {
             length
         } else {
@@ -274,6 +271,7 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #2 to 'table.remove' (position out of bounds)")
         }
         if (position > length || position == 0L) {
+            tableSetValue(context, 1, position, null)
             return LuaReturn.of(null)
         }
 

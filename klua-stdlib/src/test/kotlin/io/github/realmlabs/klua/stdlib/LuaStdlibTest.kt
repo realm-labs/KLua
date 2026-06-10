@@ -8943,6 +8943,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table remove writes nil at zero for empty table removals`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                local values = setmetatable({}, {
+                    __newindex = function(_, key, value)
+                        writes[#writes + 1] = key .. ":" .. tostring(value)
+                    end,
+                })
+                local defaultRemoved = table.remove(values)
+                local zeroRemoved = table.remove(values, 0)
+                local afterEndRemoved = table.remove(values, 1)
+                return defaultRemoved, zeroRemoved, afterEndRemoved, #writes, writes[1], writes[2], writes[3]
+                """.trimIndent(),
+                "table-remove-empty-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals("0:nil", state.toString(5))
+        assertEquals("0:nil", state.toString(6))
+        assertEquals("1:nil", state.toString(7))
+    }
+
+    @Test
     fun `table remove reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
