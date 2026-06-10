@@ -10299,7 +10299,41 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("cycle in __newindex chain", state.toString(-1))
+        assertEquals("'__newindex' chain too long; possible loop", state.toString(-1))
+    }
+
+    @Test
+    fun `table insert reports nonindexable newindex values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numberValues = setmetatable({}, { __newindex = 1 })
+                local numberOk, numberMessage = pcall(table.insert, numberValues, "value")
+
+                local booleanValues = setmetatable({}, { __newindex = true })
+                local booleanOk, booleanMessage = pcall(table.insert, booleanValues, "value")
+
+                local stringValues = setmetatable({}, { __newindex = "x" })
+                local stringOk, stringMessage = pcall(table.insert, stringValues, "value")
+
+                return numberOk, numberMessage, booleanOk, booleanMessage, stringOk, stringMessage
+                """.trimIndent(),
+                "table-insert-newindex-nonindexable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to index a number value", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to index a boolean value", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("attempt to index a string value", state.toString(6))
     }
 
     @Test

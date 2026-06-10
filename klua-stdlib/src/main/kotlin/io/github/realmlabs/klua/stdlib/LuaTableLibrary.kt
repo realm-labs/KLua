@@ -148,7 +148,7 @@ internal object LuaTableLibrary {
         visited: MutableSet<Any>,
     ) {
         if (table != null && !visited.add(table)) {
-            throw LuaRuntimeException("cycle in __newindex chain")
+            throw LuaRuntimeException("'__newindex' chain too long; possible loop")
         }
         if (context.getTableField(table, key) != null) {
             context.setTableField(table, key, value)
@@ -165,11 +165,13 @@ internal object LuaTableLibrary {
             tableSetValue(context, newIndex, key, value, visited)
             return
         }
-        try {
+
+        if (context.isFunctionValue(newIndex)) {
             context.call(newIndex, listOf(table, key, value))
-        } catch (_: IllegalArgumentException) {
-            context.setTableField(table, key, value)
+            return
         }
+
+        throw LuaRuntimeException("attempt to index a ${context.valueTypeName(newIndex)} value")
     }
 
     private fun identitySet(): MutableSet<Any> {
