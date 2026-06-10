@@ -6388,6 +6388,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns treat unknown percent escapes as literals`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first, last = string.find("xq", "%q")
+                local matched = string.match("xq", "%q")
+                local replaced, count = string.gsub("xq q", "%q", "Q")
+                local iterator = string.gmatch("q q", "%q")
+                return first, last, matched, replaced, count,
+                    iterator(), iterator(), iterator(),
+                    string.match("xq", "[%q]"),
+                    string.match("xq", "[^%q]")
+                """.trimIndent(),
+                "string-pattern-unknown-percent-escape.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("q", state.toString(3))
+        assertEquals("xQ Q", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals("q", state.toString(6))
+        assertEquals("q", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals("q", state.toString(9))
+        assertEquals("x", state.toString(10))
+    }
+
+    @Test
     fun `string patterns support optional items`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

@@ -424,7 +424,7 @@ internal class LuaStringPattern private constructor(
                 'X' -> Token.CharClass { value -> !value.isLuaHexDigit() }
                 'z' -> Token.CharClass { value -> value == '\u0000' }
                 'Z' -> Token.CharClass { value -> value != '\u0000' }
-                else -> if (!char.isLetterOrDigit()) Token.Literal(char) else null
+                else -> Token.Literal(char)
             }
         }
     }
