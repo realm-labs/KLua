@@ -4,7 +4,7 @@
 **Runtime:** Pure Kotlin Lua implementation for JVM 17+  
 **Primary goals:** Lua 5.5 conformance, Java/Kotlin-friendly embedding, good performance, and future JVM JIT optimization potential.
 
-**Reference implementation:** Official Lua 5.5 source is available locally at `~/Downloads/lua-lua-a5522f0`. Use it to confirm actual semantic logic before implementing behavior-sensitive parser, VM, coroutine, debug, and standard-library details.
+**Reference implementation:** Official Lua 5.5 source is available locally at `~/Downloads/lua-lua-a5522f0`. Use it as the primary reference for actual semantic logic before implementing behavior-sensitive parser, VM, coroutine, debug, and standard-library details. Local `lua5.5` probes and manuals are useful for observable checks, but the source tree owns the edge-case control flow.
 
 ---
 
@@ -1204,6 +1204,7 @@ Move from “Lua-like” toward reliable Lua 5.5 behavior without carrying old L
 - Keep `LuaConfig` focused on runtime options rather than source-version selection.
 - Keep compiled `Prototype` metadata free of language-version selection; future bytecode packages can carry a fixed Lua 5.5 marker for validation.
 - Inspect the relevant official Lua 5.5 source files under `~/Downloads/lua-lua-a5522f0` before hardening behavior-sensitive semantics.
+- Follow helper functions in that source tree far enough to capture actual logic behavior, including argument checks, conversions, stack effects, metamethod lookup, yield/continuation handling, table boundary behavior, formatting, and error-message construction.
 - Add Lua 5.5 syntax and semantic conformance tests as features land.
 - Add Lua 5.5 standard-library conformance tests for base, table, string, math, utf8, coroutine, package, and debug behavior.
 - Add bytecode package header checks that reject unsupported KLua bytecode formats without exposing a public language-version selector.
@@ -1248,7 +1249,7 @@ stdlib edge cases
 ### Success criteria
 
 - Lua 5.5 remains the only public runtime target.
-- Official-source-derived or reference-behavior tests are grouped by language, stdlib, coroutine, debug, and tooling area.
+- Official-source-derived or source-verified behavior tests are grouped by language, stdlib, coroutine, debug, and tooling area.
 - Known conformance gaps are documented.
 - Common Lua 5.5 scripts run with minimal changes.
 - Unsupported bytecode formats are rejected before execution.

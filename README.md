@@ -130,7 +130,7 @@ See [docs/KLua_Implementation_Milestones.md](docs/KLua_Implementation_Milestones
 
 Before making implementation changes, read [docs/KLua_Codex_Goal.md](docs/KLua_Codex_Goal.md). It defines the module boundaries, delivery rules, language target policy, implementation order, testing requirements, and definition of done for this repository.
 
-For behavior-sensitive Lua 5.5 work, inspect the local official Lua 5.5 source tree at `~/Downloads/lua-lua-a5522f0` before deciding semantics.
+For behavior-sensitive Lua 5.5 work, inspect the local official Lua 5.5 source tree at `~/Downloads/lua-lua-a5522f0` before deciding semantics. Use that source as the primary reference for actual logic behavior; manuals and local `lua5.5` probes are supporting checks.
 
 ## License
 

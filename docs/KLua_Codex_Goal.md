@@ -12,6 +12,7 @@ Reference documents:
 Reference implementation:
 
 - Official Lua 5.5 source code is available locally at `~/Downloads/lua-lua-a5522f0`.
+- Treat the local source tree as the primary reference for actual Lua 5.5 logic behavior. The manual, local `lua5.5` probes, and existing KLua tests are useful evidence, but they do not replace reading the relevant C implementation.
 
 Do not duplicate those documents here. Use them for deeper rationale and feature detail when a milestone needs more context.
 
@@ -20,7 +21,7 @@ Do not duplicate those documents here. Use them for deeper rationale and feature
 Use this prompt to bootstrap Codex work sessions for this repository:
 
 ```text
-/goal Follow docs/KLua_Codex_Goal.md to continue implementing KLua as a pure Kotlin Lua 5.5 runtime for JVM 17+. Use the current repository state as authoritative. For behavior-sensitive parser, VM, coroutine, debug, and standard-library work, inspect the official Lua 5.5 source code at ~/Downloads/lua-lua-a5522f0 before deciding semantics. Work in small verifiable milestone-aligned steps, run the relevant verification for each step, commit each completed verified step with a Conventional Commit message, and keep moving through the remaining gaps without redefining the overall goal as complete.
+/goal Follow docs/KLua_Codex_Goal.md to continue implementing KLua as a pure Kotlin Lua 5.5 runtime for JVM 17+. Use the current repository state as authoritative. For behavior-sensitive parser, VM, coroutine, debug, and standard-library work, inspect the official Lua 5.5 source code at ~/Downloads/lua-lua-a5522f0 before deciding semantics, and use that source as the primary reference for actual logic behavior. Work in small verifiable milestone-aligned steps, run the relevant verification for each step, commit each completed verified step with a Conventional Commit message, and keep moving through the remaining gaps without redefining the overall goal as complete.
 ```
 
 Update this prompt only when the execution rules in this document materially change.
@@ -31,7 +32,7 @@ Behavior-sensitive language, VM, coroutine, debug, and standard-library work mus
 ~/Downloads/lua-lua-a5522f0
 ```
 
-Treat that source tree as part of the execution brief. Inspect the relevant C source file and function before implementing or changing observable behavior, and prefer the source logic over assumptions from existing KLua behavior.
+Treat that source tree as part of the execution brief. Inspect the relevant C source file, owning function, and helper chain before implementing or changing observable behavior, and prefer the source logic over assumptions from existing KLua behavior, old Lua-version memory, or manual examples that omit edge-case control flow.
 
 ## Project Goal
 
@@ -97,10 +98,12 @@ Implementation starts clean. There is no requirement to preserve old project API
 
 - For behavior-sensitive implementation work, inspect the official Lua 5.5 source code in `~/Downloads/lua-lua-a5522f0` before deciding semantics.
 - Start from the source file that owns the behavior, for example parser logic in `lparser.c`, VM execution in `lvm.c`, table behavior in `ltable.c`, coroutine behavior in `lcorolib.c`, package loading in `loadlib.c`, and standard-library functions in the matching `l*.c` library file.
+- Follow the relevant helper functions far enough to understand the real logic. This includes `luaL_*` argument checks, conversion helpers, metamethod dispatch helpers, string/number formatting helpers, table boundary helpers, stack discipline, and error-message construction.
 - Treat the source implementation as the primary reference for actual logic: argument coercion, integer conversion, stack effects, metamethod lookup order, continuation/yield rules, error construction, boundary cases, and library-specific special cases.
-- When changing a behavior copied from or checked against Lua, record the relevant official source file and function in working notes or tests when that context would make the change easier to audit.
+- When changing behavior copied from or checked against Lua, record the relevant official source file and function in working notes, tests, commit messages, or concise implementation comments when that context would make the change easier to audit.
 - Use the local `lua5.5` executable for observable behavior checks, but use the Lua 5.5 source code to understand the actual control flow, coercion rules, error paths, and edge-case logic behind that behavior.
 - The manual and local `lua5.5` checks explain observable behavior; the official source explains the logic that KLua should mirror in Kotlin.
+- Do not infer final behavior from existing KLua tests, older Lua manuals, internet examples, or memory when the local official Lua 5.5 source can be inspected.
 - When the manual, local tests, or existing KLua behavior are ambiguous or incomplete, treat the Lua 5.5 source code as the implementation reference and document any intentional KLua deviation as a conformance gap.
 - Prefer focused tests derived from the reference source path being implemented. When helpful, note the relevant Lua source file or function in the test name, commit message, or implementation comment.
 - Existing KLua tests are not authoritative when they conflict with official Lua 5.5 source behavior; update those tests as part of the conformance fix.
