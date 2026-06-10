@@ -8772,6 +8772,26 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table concat formats numbers like lua`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return table.concat({1, 1.0, 1.25, 1e14, 1e15, 1e-5, 0/0, 1/0, -1/0}, "|")
+                """.trimIndent(),
+                "table-concat-number-format.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1|1.0|1.25|100000000000000.0|1e+15|1e-05|nan|inf|-inf", state.toString(1))
+    }
+
+    @Test
     fun `table concat default range respects raw sequence length`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
