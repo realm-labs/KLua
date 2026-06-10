@@ -404,26 +404,26 @@ internal class LuaStringPattern private constructor(
 
         private fun percentToken(char: Char): Token? {
             return when (char) {
-                'a' -> Token.CharClass { value -> value.isLetter() }
-                'A' -> Token.CharClass { value -> !value.isLetter() }
+                'a' -> Token.CharClass { value -> value.isLuaAlpha() }
+                'A' -> Token.CharClass { value -> !value.isLuaAlpha() }
                 'c' -> Token.CharClass { value -> value.code in 0..31 || value.code == 127 }
                 'C' -> Token.CharClass { value -> value.code !in 0..31 && value.code != 127 }
-                'd' -> Token.CharClass { value -> value.isDigit() }
-                'D' -> Token.CharClass { value -> !value.isDigit() }
-                'g' -> Token.CharClass { value -> !value.isWhitespace() && value.code !in 0..31 && value.code != 127 }
-                'G' -> Token.CharClass { value -> value.isWhitespace() || value.code in 0..31 || value.code == 127 }
-                'l' -> Token.CharClass { value -> value.isLowerCase() }
-                'L' -> Token.CharClass { value -> !value.isLowerCase() }
+                'd' -> Token.CharClass { value -> value.isLuaDigit() }
+                'D' -> Token.CharClass { value -> !value.isLuaDigit() }
+                'g' -> Token.CharClass { value -> value.isLuaGraph() }
+                'G' -> Token.CharClass { value -> !value.isLuaGraph() }
+                'l' -> Token.CharClass { value -> value.isLuaLower() }
+                'L' -> Token.CharClass { value -> !value.isLuaLower() }
                 'p' -> Token.CharClass { value -> value.isAsciiPunctuation() }
                 'P' -> Token.CharClass { value -> !value.isAsciiPunctuation() }
-                's' -> Token.CharClass { value -> value.isWhitespace() }
-                'S' -> Token.CharClass { value -> !value.isWhitespace() }
-                'u' -> Token.CharClass { value -> value.isUpperCase() }
-                'U' -> Token.CharClass { value -> !value.isUpperCase() }
-                'w' -> Token.CharClass { value -> value.isLetterOrDigit() }
-                'W' -> Token.CharClass { value -> !value.isLetterOrDigit() }
-                'x' -> Token.CharClass { value -> value.isDigit() || value in 'a'..'f' || value in 'A'..'F' }
-                'X' -> Token.CharClass { value -> !(value.isDigit() || value in 'a'..'f' || value in 'A'..'F') }
+                's' -> Token.CharClass { value -> value.isLuaSpace() }
+                'S' -> Token.CharClass { value -> !value.isLuaSpace() }
+                'u' -> Token.CharClass { value -> value.isLuaUpper() }
+                'U' -> Token.CharClass { value -> !value.isLuaUpper() }
+                'w' -> Token.CharClass { value -> value.isLuaAlphaNumeric() }
+                'W' -> Token.CharClass { value -> !value.isLuaAlphaNumeric() }
+                'x' -> Token.CharClass { value -> value.isLuaHexDigit() }
+                'X' -> Token.CharClass { value -> !value.isLuaHexDigit() }
                 'z' -> Token.CharClass { value -> value == '\u0000' }
                 'Z' -> Token.CharClass { value -> value != '\u0000' }
                 else -> if (!char.isLetterOrDigit()) Token.Literal(char) else null
@@ -514,4 +514,36 @@ private const val UNSUPPORTED_MAGIC = "]*+-?"
 
 private fun Char.isAsciiPunctuation(): Boolean {
     return this in '!'..'/' || this in ':'..'@' || this in '['..'`' || this in '{'..'~'
+}
+
+private fun Char.isLuaAlpha(): Boolean {
+    return isLuaLower() || isLuaUpper()
+}
+
+private fun Char.isLuaAlphaNumeric(): Boolean {
+    return isLuaAlpha() || isLuaDigit()
+}
+
+private fun Char.isLuaDigit(): Boolean {
+    return this in '0'..'9'
+}
+
+private fun Char.isLuaGraph(): Boolean {
+    return this in '!'..'~'
+}
+
+private fun Char.isLuaHexDigit(): Boolean {
+    return isLuaDigit() || this in 'a'..'f' || this in 'A'..'F'
+}
+
+private fun Char.isLuaLower(): Boolean {
+    return this in 'a'..'z'
+}
+
+private fun Char.isLuaSpace(): Boolean {
+    return this == ' ' || this in '\t'..'\r'
+}
+
+private fun Char.isLuaUpper(): Boolean {
+    return this in 'A'..'Z'
 }

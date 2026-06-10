@@ -6193,6 +6193,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pattern classes use lua ascii locale semantics`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local e = string.char(195, 169)
+                local upperE = string.char(195, 137)
+                local arabicDigit = string.char(217, 163)
+                local nbsp = string.char(194, 160)
+                return string.match(e, "%a"),
+                    string.match(e, "%w"),
+                    string.match(e, "%l"),
+                    string.match(upperE, "%u"),
+                    string.match(arabicDigit, "%d"),
+                    string.match(arabicDigit, "%x"),
+                    string.match(nbsp, "%s"),
+                    string.match(e, "%g"),
+                    string.match(e, "%A"),
+                    string.match(e, "%W")
+                """.trimIndent(),
+                "string-pattern-ascii-classes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.isNil(8))
+        assertEquals("é", state.toString(9))
+        assertEquals("é", state.toString(10))
+    }
+
+    @Test
     fun `string bracket patterns support percent classes`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
