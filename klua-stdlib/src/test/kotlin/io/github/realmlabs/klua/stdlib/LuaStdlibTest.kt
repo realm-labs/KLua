@@ -3169,8 +3169,10 @@ class LuaStdlibTest {
                 local pairOk, pairMessage = pcall(pairIterator, pairState, pairKey)
                 local ipairsIterator, ipairsState, ipairsIndex = ipairs("not-table")
                 local ipairsOk, ipairsMessage = pcall(ipairsIterator, ipairsState, ipairsIndex)
+                local ipairsIndexOk, ipairsIndexMessage = pcall(ipairsIterator, ipairsState, "not-index")
                 return type(pairIterator), pairState, pairKey, pairOk, pairMessage,
-                    type(ipairsIterator), ipairsState, ipairsIndex, ipairsOk, ipairsMessage
+                    type(ipairsIterator), ipairsState, ipairsIndex, ipairsOk, ipairsMessage,
+                    ipairsIndexOk, ipairsIndexMessage
                 """.trimIndent(),
                 "pairs-ipairs-non-table.lua",
             ),
@@ -3187,6 +3189,8 @@ class LuaStdlibTest {
         assertEquals(0L, state.toInteger(8))
         assertTrue(state.toBoolean(9))
         assertTrue(state.isNil(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(12))
     }
 
     @Test
@@ -3251,6 +3255,28 @@ class LuaStdlibTest {
         assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(4))
+    }
+
+    @Test
+    fun `ipairs iterator reports non indexable state errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator, values, index = ipairs(42)
+                local ok, message = pcall(iterator, values, index)
+                return ok, message
+                """.trimIndent(),
+                "ipairs-iterator-state-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to index a number value", state.toString(2))
     }
 
     @Test

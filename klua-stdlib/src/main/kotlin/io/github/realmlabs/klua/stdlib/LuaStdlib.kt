@@ -275,11 +275,12 @@ public object LuaStdlib {
     private fun ipairs(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "ipairs")
         val iterator = LuaFunction { iteratorContext ->
-            if (!iteratorContext.isTable(1)) {
-                return@LuaFunction LuaReturn.of(null)
-            }
             val nextIndex = requiredNumberIndex(iteratorContext, 2, "ipairs iterator") + 1L
-            val value = tableIndexValue(iteratorContext, 1, nextIndex)
+            val value = when {
+                iteratorContext.isTable(1) -> tableIndexValue(iteratorContext, 1, nextIndex)
+                iteratorContext.typeName(1) == "string" -> null
+                else -> throw LuaRuntimeException("attempt to index a ${iteratorContext.typeName(1)} value")
+            }
             if (value == null) {
                 LuaReturn.of(null)
             } else {
