@@ -6134,15 +6134,22 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string find reports unsupported patterns`() {
+    fun `string find treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.find("abc", "a]")""", "string-find-pattern.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.find("abc", "a]"), string.find("a]b", "a]")""",
+                "string-find-closing-bracket.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("string patterns are not supported", state.toString(-1))
+        assertTrue(state.isNil(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
     }
 
     @Test
@@ -7664,15 +7671,27 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string gsub reports unsupported patterns`() {
+    fun `string gsub treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.gsub("abc", "a]", "x")""", "string-gsub-pattern.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missing, missingCount = string.gsub("abc", "a]", "x")
+                local replaced, replacedCount = string.gsub("a]b", "a]", "x")
+                return missing, missingCount, replaced, replacedCount
+                """.trimIndent(),
+                "string-gsub-closing-bracket.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("string patterns are not supported", state.toString(-1))
+        assertEquals("abc", state.toString(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals("xb", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
     }
 
     @Test
@@ -7885,7 +7904,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string gmatch reports unsupported patterns`() {
+    fun `string gmatch treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
@@ -7893,16 +7912,19 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local iterator = string.gmatch("abc", "a]")
-                return iterator()
+                local missing = string.gmatch("abc", "a]")
+                local iterator = string.gmatch("a] a]", "a]")
+                return missing(), iterator(), iterator(), iterator()
                 """.trimIndent(),
-                "string-gmatch-pattern.lua",
+                "string-gmatch-closing-bracket.lua",
             ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("string patterns are not supported", state.toString(-1))
+        assertTrue(state.isNil(1))
+        assertEquals("a]", state.toString(2))
+        assertEquals("a]", state.toString(3))
+        assertTrue(state.isNil(4))
     }
 
     @Test
@@ -8422,15 +8444,18 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string match reports unsupported patterns`() {
+    fun `string match treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.match("abc", "a]")""", "string-match-pattern.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return string.match("abc", "a]"), string.match("a]b", "a]")""", "string-match-closing-bracket.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("string patterns are not supported", state.toString(-1))
+        assertTrue(state.isNil(1))
+        assertEquals("a]", state.toString(2))
     }
 
     @Test

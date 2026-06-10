@@ -510,7 +510,7 @@ private sealed interface Token {
     }
 }
 
-private const val UNSUPPORTED_MAGIC = "]*+-?"
+private const val UNSUPPORTED_MAGIC = "*+-?"
 
 private fun Char.isAsciiPunctuation(): Boolean {
     return this in '!'..'/' || this in ':'..'@' || this in '['..'`' || this in '{'..'~'
