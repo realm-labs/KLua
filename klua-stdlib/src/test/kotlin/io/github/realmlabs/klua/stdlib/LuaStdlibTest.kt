@@ -96,6 +96,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring formats numbers like lua`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numeric = setmetatable({}, {
+                    __tostring = function()
+                        return 1e15
+                    end,
+                })
+                return tostring(1),
+                    tostring(1.0),
+                    tostring(1.25),
+                    tostring(1e14),
+                    tostring(1e15),
+                    tostring(1e-5),
+                    tostring(0 / 0),
+                    tostring(1 / 0),
+                    tostring(-1 / 0),
+                    tostring(numeric)
+                """.trimIndent(),
+                "tostring-number-format.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1", state.toString(1))
+        assertEquals("1.0", state.toString(2))
+        assertEquals("1.25", state.toString(3))
+        assertEquals("100000000000000.0", state.toString(4))
+        assertEquals("1e+15", state.toString(5))
+        assertEquals("1e-05", state.toString(6))
+        assertEquals("nan", state.toString(7))
+        assertEquals("inf", state.toString(8))
+        assertEquals("-inf", state.toString(9))
+        assertEquals("1e+15", state.toString(10))
+    }
+
+    @Test
     fun `tostring reports table and function identities`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

@@ -15,6 +15,7 @@ import java.math.BigInteger
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
 import java.util.function.Consumer
 
 public object LuaStdlib {
@@ -684,9 +685,8 @@ public object LuaStdlib {
         return when (context.typeName(index)) {
             "nil" -> "nil"
             "boolean" -> context.toBoolean(index).toString()
-            "number",
-            "string",
-            -> context.toString(index) ?: context.typeName(index)
+            "number" -> luaNumberToString(context.get(index))
+            "string" -> context.toString(index) ?: context.typeName(index)
             "thread" -> context.get(index)?.let { value ->
                 "thread: ${System.identityHashCode(value).toString(16)}"
             } ?: "thread"
@@ -705,11 +705,55 @@ public object LuaStdlib {
             is Short -> result.toLong().toString()
             is Int -> result.toLong().toString()
             is Long -> result.toString()
-            is Float -> result.toDouble().toString()
-            is Double -> result.toString()
+            is Float -> luaFloatToString(result.toDouble())
+            is Double -> luaFloatToString(result)
             is CharSequence -> result.toString()
             else -> throw LuaRuntimeException("'__tostring' must return a string")
         }
+    }
+
+    private fun luaNumberToString(value: Any?): String {
+        return when (value) {
+            is Byte -> value.toLong().toString()
+            is Short -> value.toLong().toString()
+            is Int -> value.toLong().toString()
+            is Long -> value.toString()
+            is Float -> luaFloatToString(value.toDouble())
+            is Double -> luaFloatToString(value)
+            else -> value?.toString() ?: "number"
+        }
+    }
+
+    private fun luaFloatToString(value: Double): String {
+        if (value.isNaN()) {
+            return "nan"
+        }
+        if (value == Double.POSITIVE_INFINITY) {
+            return "inf"
+        }
+        if (value == Double.NEGATIVE_INFINITY) {
+            return "-inf"
+        }
+        val formatted = String.format(Locale.ROOT, "%.15g", value).lowercase(Locale.ROOT)
+        val exponentIndex = formatted.indexOf('e')
+        return if (exponentIndex >= 0) {
+            val mantissa = formatted.substring(0, exponentIndex).trimLuaFloatTrailingZeros()
+            mantissa + formatted.substring(exponentIndex)
+        } else {
+            val decimal = formatted.trimLuaFloatTrailingZeros()
+            if (value.isFiniteWholeNumber() && '.' !in decimal) "$decimal.0" else decimal
+        }
+    }
+
+    private fun String.trimLuaFloatTrailingZeros(): String {
+        if ('.' !in this) {
+            return this
+        }
+        return trimEnd('0').trimEnd('.')
+    }
+
+    private fun Double.isFiniteWholeNumber(): Boolean {
+        return isFinite() && this % 1.0 == 0.0
     }
 
     private fun Any.typedPointerString(typeName: String): String {
