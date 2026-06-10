@@ -1921,6 +1921,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber rejects non integer numeric base`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return tonumber("10", 1.5)""", "tonumber-non-integer-base.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'tonumber' (number has no integer representation)", state.toString(-1))
+    }
+
+    @Test
     fun `assert returns arguments when condition is truthy`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

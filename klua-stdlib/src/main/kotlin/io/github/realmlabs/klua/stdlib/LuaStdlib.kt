@@ -460,8 +460,7 @@ public object LuaStdlib {
     private fun tonumber(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "tonumber")
         if (!context.isNone(2) && !context.isNil(2)) {
-            val base = context.toInteger(2)
-                ?: throw LuaRuntimeException("bad argument #2 to 'tonumber' (number expected)")
+            val base = requiredTonumberBase(context)
             if (base !in 2L..36L) {
                 throw LuaRuntimeException("bad argument #2 to 'tonumber' (base out of range)")
             }
@@ -481,6 +480,15 @@ public object LuaStdlib {
             is CharSequence -> LuaReturn.of(parseNumber(value.toString()))
             else -> LuaReturn.of(null)
         }
+    }
+
+    private fun requiredTonumberBase(context: LuaCallContext): Long {
+        return context.toInteger(2)
+            ?: if (context.toNumber(2) != null || context.typeName(2) == "number") {
+                throw LuaRuntimeException("bad argument #2 to 'tonumber' (number has no integer representation)")
+            } else {
+                throw LuaRuntimeException("bad argument #2 to 'tonumber' (number expected)")
+            }
     }
 
     private fun tostring(context: LuaCallContext): LuaReturn {
