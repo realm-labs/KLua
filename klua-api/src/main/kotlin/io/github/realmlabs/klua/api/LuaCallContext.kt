@@ -14,6 +14,8 @@ interface LuaCallContext {
 
     fun isTableValue(value: Any?): Boolean = false
 
+    fun isFunctionValue(value: Any?): Boolean = value is LuaFunction
+
     fun typeName(index: Int): String
 
     fun get(index: Int): Any?

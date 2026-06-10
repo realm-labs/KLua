@@ -131,11 +131,11 @@ internal object LuaStringLibrary {
             "string" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures)
             "function" -> {
                 val result = context.call(3, replacementArguments(wholeMatch, captures)).get(1)
-                replacementValueToString(result, wholeMatch)
+                replacementValueToString(context, result, wholeMatch)
             }
             "table" -> {
                 val result = context.getTableValue(3, replacementArguments(wholeMatch, captures).first())
-                replacementValueToString(result, wholeMatch)
+                replacementValueToString(context, result, wholeMatch)
             }
             else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/number/function/table expected)")
         }
@@ -145,7 +145,7 @@ internal object LuaStringLibrary {
         return captures.ifEmpty { listOf(wholeMatch) }
     }
 
-    private fun replacementValueToString(value: Any?, wholeMatch: String): String {
+    private fun replacementValueToString(context: LuaCallContext, value: Any?, wholeMatch: String): String {
         return when (value) {
             null -> wholeMatch
             false -> wholeMatch
@@ -157,7 +157,29 @@ internal object LuaStringLibrary {
             is Double,
             -> luaNumberToString(value)
             is CharSequence -> value.toString()
-            else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (invalid replacement value)")
+            else -> throw LuaRuntimeException("invalid replacement value (a ${gsubReplacementTypeName(context, value)})")
+        }
+    }
+
+    private fun gsubReplacementTypeName(context: LuaCallContext, value: Any?): String {
+        if (context.isTableValue(value)) {
+            return "table"
+        }
+        if (context.isFunctionValue(value)) {
+            return "function"
+        }
+        return when (value) {
+            null -> "nil"
+            is Boolean -> "boolean"
+            is Byte,
+            is Short,
+            is Int,
+            is Long,
+            is Float,
+            is Double,
+            -> "number"
+            is CharSequence -> "string"
+            else -> "userdata"
         }
     }
 
