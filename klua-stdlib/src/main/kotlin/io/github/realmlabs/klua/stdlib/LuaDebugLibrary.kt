@@ -259,8 +259,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun requiredPositiveUpvalueIndex(context: LuaCallContext, index: Int, functionName: String): Int {
-        val upvalueIndex = context.toInteger(index)?.toInt()
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+        val upvalueIndex = requiredIntegerArgument(context, index, functionName)
         if (upvalueIndex <= 0) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid upvalue index)")
         }
@@ -268,18 +267,15 @@ internal object LuaDebugLibrary {
     }
 
     private fun requiredUpvalueLookupIndex(context: LuaCallContext, index: Int, functionName: String): Int {
-        return context.toInteger(index)?.toInt()
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+        return requiredIntegerArgument(context, index, functionName)
     }
 
     private fun requiredLocalIndex(context: LuaCallContext, index: Int, functionName: String): Int {
-        return context.toInteger(index)?.toInt()
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+        return requiredIntegerArgument(context, index, functionName)
     }
 
     private fun requiredStackLevel(context: LuaCallContext, functionName: String): Int {
-        return context.toInteger(1)?.toInt()
-            ?: throw LuaRuntimeException("bad argument #1 to '$functionName' (number expected)")
+        return requiredIntegerArgument(context, 1, functionName)
     }
 
     private fun optionalStackLevel(
@@ -291,8 +287,7 @@ internal object LuaDebugLibrary {
         return if (context.isNone(index) || context.isNil(index)) {
             default
         } else {
-            context.toInteger(index)?.toInt()
-                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+            requiredIntegerArgument(context, index, functionName)
         }
     }
 
@@ -340,9 +335,17 @@ internal object LuaDebugLibrary {
         return if (context.isNone(index) || context.isNil(index)) {
             default
         } else {
-            context.toInteger(index)
-                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+            requiredIntegerArgument(context, index, functionName).toLong()
         }
+    }
+
+    private fun requiredIntegerArgument(context: LuaCallContext, index: Int, functionName: String): Int {
+        return context.toInteger(index)?.toInt()
+            ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number has no integer representation)")
+            } else {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+            }
     }
 
     private fun optionalString(

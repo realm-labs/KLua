@@ -1428,6 +1428,69 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug integer arguments report fractional number errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = "upvalue"
+                local function closure()
+                    return value
+                end
+                local _, tracebackMessage = pcall(debug.traceback, "boom", 1.5)
+                local _, getinfoMessage = pcall(debug.getinfo, 1.5)
+                local _, getlocalLevelMessage = pcall(debug.getlocal, 1.5, 1)
+                local _, getlocalIndexMessage = pcall(debug.getlocal, 1, 1.5)
+                local _, setlocalLevelMessage = pcall(debug.setlocal, 1.5, 1, "x")
+                local _, setlocalIndexMessage = pcall(debug.setlocal, 1, 1.5, "x")
+                local _, getupvalueMessage = pcall(debug.getupvalue, closure, 1.5)
+                local _, setupvalueMessage = pcall(debug.setupvalue, closure, 1.5, "x")
+                local _, upvalueidMessage = pcall(debug.upvalueid, closure, 1.5)
+                local _, upvaluejoinTargetMessage = pcall(debug.upvaluejoin, closure, 1.5, closure, 1)
+                local _, upvaluejoinSourceMessage = pcall(debug.upvaluejoin, closure, 1, closure, 1.5)
+                local _, sethookMessage = pcall(debug.sethook, function() end, "", 1.5)
+                return tracebackMessage,
+                    getinfoMessage,
+                    getlocalLevelMessage,
+                    getlocalIndexMessage,
+                    setlocalLevelMessage,
+                    setlocalIndexMessage,
+                    getupvalueMessage,
+                    setupvalueMessage,
+                    upvalueidMessage,
+                    upvaluejoinTargetMessage,
+                    upvaluejoinSourceMessage,
+                    sethookMessage
+                """.trimIndent(),
+                "debug-fractional-integer-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("bad argument #2 to 'debug.traceback' (number has no integer representation)", state.toString(1))
+        assertEquals("bad argument #1 to 'debug.getinfo' (number has no integer representation)", state.toString(2))
+        assertEquals("bad argument #1 to 'debug.getlocal' (number has no integer representation)", state.toString(3))
+        assertEquals("bad argument #2 to 'debug.getlocal' (number has no integer representation)", state.toString(4))
+        assertEquals("bad argument #1 to 'debug.setlocal' (number has no integer representation)", state.toString(5))
+        assertEquals("bad argument #2 to 'debug.setlocal' (number has no integer representation)", state.toString(6))
+        assertEquals("bad argument #2 to 'debug.getupvalue' (number has no integer representation)", state.toString(7))
+        assertEquals("bad argument #2 to 'debug.setupvalue' (number has no integer representation)", state.toString(8))
+        assertEquals("bad argument #2 to 'debug.upvalueid' (number has no integer representation)", state.toString(9))
+        assertEquals(
+            "bad argument #2 to 'debug.upvaluejoin' (number has no integer representation)",
+            state.toString(10),
+        )
+        assertEquals(
+            "bad argument #4 to 'debug.upvaluejoin' (number has no integer representation)",
+            state.toString(11),
+        )
+        assertEquals("bad argument #3 to 'debug.sethook' (number has no integer representation)", state.toString(12))
+    }
+
+    @Test
     fun `debug sethook nil clears hook without validating mask`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
