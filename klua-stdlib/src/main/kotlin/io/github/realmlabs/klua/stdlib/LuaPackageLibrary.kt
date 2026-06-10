@@ -47,8 +47,8 @@ internal object LuaPackageLibrary {
             }
             missingPaths += candidate
         }
-        return LuaReturn.of(null, missingPaths.joinToString(separator = "") { candidate ->
-            "\n\tno file '$candidate'"
+        return LuaReturn.of(null, missingPaths.joinToString(separator = "\n\t") { candidate ->
+            "no file '$candidate'"
         })
     }
 
@@ -91,7 +91,7 @@ internal object LuaPackageLibrary {
             function(name)
                 local filename, searchError = package.searchpath(name, package.path)
                 if filename == nil then
-                    return nil, searchError
+                    return nil, "\n\t" .. searchError
                 end
                 local loader, loadError = loadfile(filename)
                 if loader == nil then

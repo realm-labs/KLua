@@ -1521,6 +1521,7 @@ class LuaStdlibTest {
 
         assertTrue(state.isNil(1))
         val message = state.toString(2) ?: ""
+        assertTrue(message.startsWith("no file '${root}/alpha/beta.lua'"))
         assertTrue(message.contains("no file '${root}/alpha/beta.lua'"))
         assertTrue(message.contains("no file '${root}/alpha/beta/init.lua'"))
     }
