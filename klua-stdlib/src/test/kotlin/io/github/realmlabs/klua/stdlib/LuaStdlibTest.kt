@@ -2686,7 +2686,8 @@ class LuaStdlibTest {
                 local sizedStep = collectgarbage("step", 0)
                 local countType = type(collectgarbage("count", "ignored"))
                 local ok, message = pcall(collectgarbage, "step", "not-size")
-                return nilStep, sizedStep, countType, ok, message
+                local integerOk, integerMessage = pcall(collectgarbage, "step", 1.5)
+                return nilStep, sizedStep, countType, ok, message, integerOk, integerMessage
                 """.trimIndent(),
                 "collectgarbage-step-size.lua",
             ),
@@ -2698,6 +2699,8 @@ class LuaStdlibTest {
         assertEquals("number", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertEquals("bad argument #2 to 'collectgarbage' (number expected)", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("bad argument #2 to 'collectgarbage' (number has no integer representation)", state.toString(7))
     }
 
     @Test
@@ -2766,6 +2769,21 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(valueState.getLastError())
         assertEquals("bad argument #3 to 'collectgarbage' (number expected)", valueState.toString(-1))
+
+        val integerState = LuaState.create()
+        LuaStdlib.openBase(integerState)
+
+        assertEquals(
+            LuaStatus.OK,
+            integerState.load("""return collectgarbage("param", "pause", 1.5)""", "collectgarbage-param-integer.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, integerState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(integerState.getLastError())
+        assertEquals(
+            "bad argument #3 to 'collectgarbage' (number has no integer representation)",
+            integerState.toString(-1),
+        )
     }
 
     @Test

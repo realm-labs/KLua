@@ -163,7 +163,7 @@ public object LuaStdlib {
             "count" -> GarbageCollectorResult(running, mode, LuaReturn.of(usedMemoryKilobytes()))
             "step" -> {
                 if (!context.isNone(2) && !context.isNil(2)) {
-                    requiredNumber(context, 2, "collectgarbage")
+                    requiredIntegerLikeLuaL(context, 2, "collectgarbage")
                 }
                 System.gc()
                 GarbageCollectorResult(running, mode, LuaReturn.of(true))
@@ -176,7 +176,7 @@ public object LuaStdlib {
                 val previous = params[parameter]
                     ?: throw LuaRuntimeException("bad argument #2 to 'collectgarbage' (invalid option '$parameter')")
                 if (!context.isNone(3) && !context.isNil(3)) {
-                    val value = requiredNumberIndex(context, 3, "collectgarbage")
+                    val value = requiredIntegerLikeLuaL(context, 3, "collectgarbage")
                     if (value != -1L) {
                         params[parameter] = value
                     }
@@ -645,6 +645,15 @@ public object LuaStdlib {
     private fun requiredNumberIndex(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+    }
+
+    private fun requiredIntegerLikeLuaL(context: LuaCallContext, index: Int, functionName: String): Long {
+        return context.toInteger(index)
+            ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number has no integer representation)")
+            } else {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+            }
     }
 
     private fun requireAnyArgument(context: LuaCallContext, functionName: String) {
