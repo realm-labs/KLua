@@ -117,6 +117,9 @@ internal object LuaPackageLibrary {
 
             local errors = ""
             local searchers = package.searchers
+            if searcherResultType(searchers) ~= "table" then
+                error("'package.searchers' must be a table")
+            end
             local index = 1
             while true do
                 local searcher = searchers[index]

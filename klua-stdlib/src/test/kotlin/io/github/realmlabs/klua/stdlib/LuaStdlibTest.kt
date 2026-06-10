@@ -1668,6 +1668,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require reports non table searchers`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.searchers = false
+                return pcall(require, "custom")
+                """.trimIndent(),
+                "require-searchers-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("'package.searchers' must be a table", state.toString(2))
+    }
+
+    @Test
     fun `require loads Lua files found on package path`() {
         val root = Files.createTempDirectory("klua-require-file")
         Files.createDirectories(root.resolve("alpha"))
