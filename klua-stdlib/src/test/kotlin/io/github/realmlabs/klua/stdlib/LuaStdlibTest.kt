@@ -7865,7 +7865,15 @@ class LuaStdlibTest {
                 """
                 local integerReplacement, integerCount = string.gsub("a1b2", "%d", 7)
                 local floatReplacement, floatCount = string.gsub("a b", "%s", 1.5)
-                return integerReplacement, integerCount, floatReplacement, floatCount
+                local exponentReplacement = string.gsub("a b", "%s", 1e15)
+                local functionReplacement = string.gsub("a b", "%s", function()
+                    return 1e-5
+                end)
+                local tableReplacement = string.gsub("a b", "%s", {
+                    [" "] = 1 / 0,
+                })
+                return integerReplacement, integerCount, floatReplacement, floatCount,
+                    exponentReplacement, functionReplacement, tableReplacement
                 """.trimIndent(),
                 "string-gsub-number-replacement.lua",
             ),
@@ -7876,6 +7884,9 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(2))
         assertEquals("a1.5b", state.toString(3))
         assertEquals(1L, state.toInteger(4))
+        assertEquals("a1e+15b", state.toString(5))
+        assertEquals("a1e-05b", state.toString(6))
+        assertEquals("ainfb", state.toString(7))
     }
 
     @Test

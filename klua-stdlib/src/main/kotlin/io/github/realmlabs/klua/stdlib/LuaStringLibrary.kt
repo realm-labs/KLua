@@ -127,7 +127,7 @@ internal object LuaStringLibrary {
         captures: List<Any?>,
     ): String {
         return when (replacementType) {
-            "number" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures)
+            "number" -> expandReplacement(luaNumberToString(context.get(3)), wholeMatch, captures)
             "string" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures)
             "function" -> {
                 val result = context.call(3, replacementArguments(wholeMatch, captures)).get(1)
@@ -149,12 +149,13 @@ internal object LuaStringLibrary {
         return when (value) {
             null -> wholeMatch
             false -> wholeMatch
-            is Byte -> value.toString()
-            is Short -> value.toString()
-            is Int -> value.toString()
-            is Long -> value.toString()
-            is Float -> value.toString()
-            is Double -> value.toString()
+            is Byte,
+            is Short,
+            is Int,
+            is Long,
+            is Float,
+            is Double,
+            -> luaNumberToString(value)
             is CharSequence -> value.toString()
             else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (invalid replacement value)")
         }
