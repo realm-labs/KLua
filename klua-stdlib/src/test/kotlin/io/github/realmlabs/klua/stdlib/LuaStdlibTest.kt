@@ -10406,6 +10406,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort reports nil and boolean comparison errors`() {
+        val nilState = LuaState.create()
+        LuaStdlib.openBase(nilState)
+        LuaStdlib.openTable(nilState)
+
+        assertEquals(
+            LuaStatus.OK,
+            nilState.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = "x",
+                })
+                return table.sort(values)
+                """.trimIndent(),
+                "table-sort-two-nils-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, nilState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(nilState.getLastError())
+        assertEquals("attempt to compare two nil values", nilState.toString(-1))
+
+        val booleanState = LuaState.create()
+        LuaStdlib.openTable(booleanState)
+
+        assertEquals(
+            LuaStatus.OK,
+            booleanState.load("""return table.sort({true, false})""", "table-sort-two-booleans-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, booleanState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(booleanState.getLastError())
+        assertEquals("attempt to compare two boolean values", booleanState.toString(-1))
+    }
+
+    @Test
     fun `table sort skips comparator validation for short lists`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
