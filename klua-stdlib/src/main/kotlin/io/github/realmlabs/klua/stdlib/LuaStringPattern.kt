@@ -361,11 +361,13 @@ internal class LuaStringPattern private constructor(
 
             val ranges = mutableListOf<CharRange>()
             val tokens = mutableListOf<Token>()
+            var sawItem = false
             while (index < pattern.length) {
                 val start = pattern[index]
                 if (start == ']') {
-                    if (ranges.isEmpty() && tokens.isEmpty()) {
+                    if (!sawItem) {
                         ranges += start..start
+                        sawItem = true
                         index++
                         continue
                     }
@@ -380,6 +382,7 @@ internal class LuaStringPattern private constructor(
                         throw LuaRuntimeException("string patterns are not supported")
                     }
                     tokens += token
+                    sawItem = true
                     index += 2
                     continue
                 }
@@ -387,14 +390,17 @@ internal class LuaStringPattern private constructor(
                 index++
                 if (index + 1 < pattern.length && pattern[index] == '-' && pattern[index + 1] != ']') {
                     val end = pattern[index + 1]
-                    if (end == '%' || start > end) {
+                    if (end == '%') {
                         throw LuaRuntimeException("string patterns are not supported")
                     }
-                    ranges += start..end
+                    if (start <= end) {
+                        ranges += start..end
+                    }
                     index += 2
                 } else {
                     ranges += start..start
                 }
+                sawItem = true
             }
 
             throw LuaRuntimeException("malformed pattern (missing ']')")

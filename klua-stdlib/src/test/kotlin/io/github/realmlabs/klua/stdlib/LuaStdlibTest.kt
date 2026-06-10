@@ -6268,6 +6268,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string bracket patterns treat reversed ranges as empty`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local findStart, findEnd = string.find("abc", "[z-a]")
+                local replaced, count = string.gsub("abc", "[z-a]", "x")
+                local negated, negatedCount = string.gsub("abc", "[^z-a]", "x")
+                return string.match("m", "[z-a]"),
+                    string.match("m", "[^z-a]"),
+                    findStart,
+                    findEnd,
+                    replaced,
+                    count,
+                    negated,
+                    negatedCount
+                """.trimIndent(),
+                "string-bracket-reversed-range.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("m", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+        assertEquals("abc", state.toString(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals("xxx", state.toString(7))
+        assertEquals(3L, state.toInteger(8))
+    }
+
+    @Test
     fun `string bracket patterns support leading closing brackets`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
