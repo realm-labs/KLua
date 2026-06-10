@@ -370,13 +370,13 @@ internal object LuaTableLibrary {
     ): Boolean {
         if (!hasComparator) {
             return context.lessThanValues(left, right)
-                ?: (compareTableSortValues(left, right) < 0)
+                ?: (compareTableSortValues(context, left, right) < 0)
         }
 
         return context.call(2, listOf(left, right)).get(1).isLuaTruthy()
     }
 
-    private fun compareTableSortValues(left: Any?, right: Any?): Int {
+    private fun compareTableSortValues(context: LuaCallContext, left: Any?, right: Any?): Int {
         val leftNumber = left.asLuaNumber()
         val rightNumber = right.asLuaNumber()
         if (leftNumber != null && rightNumber != null) {
@@ -385,7 +385,7 @@ internal object LuaTableLibrary {
         if (left is CharSequence && right is CharSequence) {
             return left.toString().compareTo(right.toString())
         }
-        throw LuaRuntimeException("attempt to compare ${tableSortTypeName(left)} with ${tableSortTypeName(right)}")
+        throw LuaRuntimeException("attempt to compare ${context.valueTypeName(left)} with ${context.valueTypeName(right)}")
     }
 
     private fun Any?.asLuaNumber(): Double? {
@@ -402,17 +402,6 @@ internal object LuaTableLibrary {
 
     private fun Any?.isLuaTruthy(): Boolean {
         return this != null && this != false
-    }
-
-    private fun tableSortTypeName(value: Any?): String {
-        return when (value) {
-            null -> "nil"
-            is Boolean -> "boolean"
-            is Number -> "number"
-            is CharSequence -> "string"
-            is LuaFunction -> "function"
-            else -> "table"
-        }
     }
 
     private fun tableUnpack(context: LuaCallContext): LuaReturn {

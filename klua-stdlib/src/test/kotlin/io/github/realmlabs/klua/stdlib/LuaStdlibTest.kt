@@ -10327,6 +10327,21 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort reports function comparison errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return table.sort({function() end, 1})""", "table-sort-function-compare-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("attempt to compare number with function", state.toString(-1))
+    }
+
+    @Test
     fun `table sort skips comparator validation for short lists`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
