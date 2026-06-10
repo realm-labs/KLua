@@ -5150,6 +5150,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(ldexpState.getLastError())
         assertEquals("bad argument #2 to 'math.ldexp' (integer expected)", ldexpState.toString(-1))
+
+        val fractionalState = LuaState.create()
+        LuaStdlib.openMath(fractionalState)
+
+        assertEquals(LuaStatus.OK, fractionalState.load("""return math.ldexp(1, 1.5)""", "math-ldexp-fractional-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(fractionalState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'math.ldexp' (number has no integer representation)",
+            fractionalState.toString(-1),
+        )
     }
 
     @Test
@@ -5251,6 +5263,33 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'math.tointeger' (value expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `math ult reports non integer argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.ult(1.5, 2)""", "math-ult-fractional-left.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals(
+            "bad argument #1 to 'math.ult' (number has no integer representation)",
+            state.toString(-1),
+        )
+
+        val rightState = LuaState.create()
+        LuaStdlib.openMath(rightState)
+
+        assertEquals(LuaStatus.OK, rightState.load("""return math.ult(1, 2.5)""", "math-ult-fractional-right.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, rightState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(rightState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'math.ult' (number has no integer representation)",
+            rightState.toString(-1),
+        )
     }
 
     @Test
@@ -5620,6 +5659,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random reports non integer interval errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.random(1.5)""", "math-random-fractional-upper.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals(
+            "bad argument #1 to 'math.random' (number has no integer representation)",
+            state.toString(-1),
+        )
+
+        val upperState = LuaState.create()
+        LuaStdlib.openMath(upperState)
+
+        assertEquals(LuaStatus.OK, upperState.load("""return math.random(1, 2.5)""", "math-random-fractional-upper-bound.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, upperState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(upperState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'math.random' (number has no integer representation)",
+            upperState.toString(-1),
+        )
+    }
+
+    @Test
     fun `math random reports extra argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -5664,6 +5730,36 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(1))
         assertEquals(2L, state.toInteger(2))
         assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `math randomseed reports non integer seed errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return math.randomseed(1.5)""", "math-randomseed-fractional.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals(
+            "bad argument #1 to 'math.randomseed' (number has no integer representation)",
+            state.toString(-1),
+        )
+
+        val secondSeedState = LuaState.create()
+        LuaStdlib.openMath(secondSeedState)
+
+        assertEquals(
+            LuaStatus.OK,
+            secondSeedState.load("""return math.randomseed(1, 2.5)""", "math-randomseed-fractional-second.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, secondSeedState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(secondSeedState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'math.randomseed' (number has no integer representation)",
+            secondSeedState.toString(-1),
+        )
     }
 
     @Test

@@ -309,7 +309,11 @@ internal object LuaMathLibrary {
 
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+            ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number has no integer representation)")
+            } else {
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+            }
     }
 
     private fun requireMathArguments(context: LuaCallContext, functionName: String) {
