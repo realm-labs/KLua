@@ -1540,9 +1540,10 @@ class LuaStdlibTest {
                     return { name = name, calls = calls }
                 end
 
-                local first = require("demo")
-                local second = require("demo")
-                return first.name, first.calls, first == second, package.loaded.demo == first
+                local first, firstExtra = require("demo")
+                local second, secondExtra = require("demo")
+                return first.name, first.calls, firstExtra, first == second,
+                    package.loaded.demo == first, secondExtra == nil
                 """.trimIndent(),
                 "require-preload-cache.lua",
             ),
@@ -1551,8 +1552,10 @@ class LuaStdlibTest {
 
         assertEquals("demo", state.toString(1))
         assertEquals(1L, state.toInteger(2))
-        assertTrue(state.toBoolean(3))
+        assertEquals(":preload:", state.toString(3))
         assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
     }
 
     @Test
@@ -1565,7 +1568,9 @@ class LuaStdlibTest {
             state.load(
                 """
                 package.preload.empty = function() end
-                return require("empty"), package.loaded.empty
+                local loaded, extra = require("empty")
+                local cached, cachedExtra = require("empty")
+                return loaded, extra, package.loaded.empty, cached, cachedExtra == nil
                 """.trimIndent(),
                 "require-preload-nil.lua",
             ),
@@ -1573,7 +1578,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertTrue(state.toBoolean(1))
-        assertTrue(state.toBoolean(2))
+        assertEquals(":preload:", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
     }
 
     @Test
@@ -1678,10 +1686,10 @@ class LuaStdlibTest {
             state.load(
                 """
                 package.path = "${root.luaPath()}/?.lua"
-                local first = require("alpha.beta")
-                local second = require("alpha.beta")
-                return first.name, first.filename,
-                    first == second, package.loaded["alpha.beta"] == first
+                local first, firstExtra = require("alpha.beta")
+                local second, secondExtra = require("alpha.beta")
+                return first.name, first.filename, firstExtra,
+                    first == second, package.loaded["alpha.beta"] == first, secondExtra == nil
                 """.trimIndent(),
                 "require-file.lua",
             ),
@@ -1690,8 +1698,10 @@ class LuaStdlibTest {
 
         assertEquals("alpha.beta", state.toString(1))
         assertTrue(state.toString(2)?.endsWith("beta.lua") == true)
-        assertTrue(state.toBoolean(3))
+        assertTrue(state.toString(3)?.endsWith("beta.lua") == true)
         assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
     }
 
     @Test

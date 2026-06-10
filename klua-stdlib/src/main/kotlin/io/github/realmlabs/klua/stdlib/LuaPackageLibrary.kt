@@ -136,7 +136,7 @@ internal object LuaPackageLibrary {
                         value = true
                         loaded[name] = value
                     end
-                    return value
+                    return value, extra
                 end
                 if loaderType == "string" then
                     errors = errors .. loader
