@@ -8270,6 +8270,71 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string integer arguments report fractional number errors`() {
+        fun assertFractionalIntegerError(source: String, chunkName: String, expected: String) {
+            val state = LuaState.create()
+            LuaStdlib.openString(state)
+
+            assertEquals(LuaStatus.OK, state.load(source, chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals(expected, state.toString(-1))
+        }
+
+        assertFractionalIntegerError(
+            """return string.rep("x", 1.5)""",
+            "string-rep-fractional-count.lua",
+            "bad argument #2 to 'string.rep' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.sub("abc", 1.5)""",
+            "string-sub-fractional-start.lua",
+            "bad argument #2 to 'string.sub' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.sub("abc", 1, 2.5)""",
+            "string-sub-fractional-end.lua",
+            "bad argument #3 to 'string.sub' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.byte("abc", 1.5)""",
+            "string-byte-fractional-start.lua",
+            "bad argument #2 to 'string.byte' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.byte("abc", 1, 2.5)""",
+            "string-byte-fractional-end.lua",
+            "bad argument #3 to 'string.byte' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.char(65.5)""",
+            "string-char-fractional.lua",
+            "bad argument #1 to 'string.char' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.find("abc", "a", 1.5, true)""",
+            "string-find-fractional-start.lua",
+            "bad argument #3 to 'string.find' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.match("abc", "a", 1.5)""",
+            "string-match-fractional-start.lua",
+            "bad argument #3 to 'string.match' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.gmatch("abc", "a", 1.5)""",
+            "string-gmatch-fractional-start.lua",
+            "bad argument #3 to 'string.gmatch' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return string.gsub("abc", "a", "x", 1.5)""",
+            "string-gsub-fractional-limit.lua",
+            "bad argument #4 to 'string.gsub' (number has no integer representation)",
+        )
+    }
+
+    @Test
     fun `string char reports byte range errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
