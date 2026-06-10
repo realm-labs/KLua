@@ -10342,6 +10342,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort reports same type comparison errors`() {
+        val functionState = LuaState.create()
+        LuaStdlib.openTable(functionState)
+
+        assertEquals(
+            LuaStatus.OK,
+            functionState.load(
+                """return table.sort({function() end, function() end})""",
+                "table-sort-two-functions-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, functionState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(functionState.getLastError())
+        assertEquals("attempt to compare two function values", functionState.toString(-1))
+
+        val tableState = LuaState.create()
+        LuaStdlib.openTable(tableState)
+
+        assertEquals(
+            LuaStatus.OK,
+            tableState.load("""return table.sort({{}, {}})""", "table-sort-two-tables-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, tableState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(tableState.getLastError())
+        assertEquals("attempt to compare two table values", tableState.toString(-1))
+    }
+
+    @Test
     fun `table sort skips comparator validation for short lists`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

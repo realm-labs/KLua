@@ -385,7 +385,17 @@ internal object LuaTableLibrary {
         if (left is CharSequence && right is CharSequence) {
             return left.toString().compareTo(right.toString())
         }
-        throw LuaRuntimeException("attempt to compare ${context.valueTypeName(left)} with ${context.valueTypeName(right)}")
+        throw LuaRuntimeException(tableSortComparisonError(context, left, right))
+    }
+
+    private fun tableSortComparisonError(context: LuaCallContext, left: Any?, right: Any?): String {
+        val leftType = context.valueTypeName(left)
+        val rightType = context.valueTypeName(right)
+        return if (leftType == rightType) {
+            "attempt to compare two $leftType values"
+        } else {
+            "attempt to compare $leftType with $rightType"
+        }
     }
 
     private fun Any?.asLuaNumber(): Double? {
