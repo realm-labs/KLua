@@ -2875,6 +2875,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load converts numeric source arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local chunk, message = load(123)
+                local booleanOk, booleanMessage = pcall(load, false)
+                return chunk, message, booleanOk, booleanMessage
+                """.trimIndent(),
+                "load-number-source.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.toString(2)?.contains("123") == true)
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'load' (string or function expected)", state.toString(4))
+    }
+
+    @Test
     fun `load rejects non string reader function results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
