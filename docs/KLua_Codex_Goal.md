@@ -25,7 +25,13 @@ Use this prompt to bootstrap Codex work sessions for this repository:
 
 Update this prompt only when the execution rules in this document materially change.
 
-For behavior-sensitive language, VM, and standard-library work, treat the local official Lua 5.5 source tree at `~/Downloads/lua-lua-a5522f0` as part of the execution brief. Inspect the relevant C source path before implementing or changing semantics.
+Behavior-sensitive language, VM, coroutine, debug, and standard-library work must refer to the official Lua 5.5 source tree before deciding semantics. The local source checkout is:
+
+```text
+~/Downloads/lua-lua-a5522f0
+```
+
+Treat that source tree as part of the execution brief. Inspect the relevant C source file and function before implementing or changing observable behavior, and prefer the source logic over assumptions from existing KLua behavior.
 
 ## Project Goal
 
@@ -90,10 +96,12 @@ Implementation starts clean. There is no requirement to preserve old project API
 ## Reference Behavior Policy
 
 - For behavior-sensitive implementation work, inspect the official Lua 5.5 source code in `~/Downloads/lua-lua-a5522f0` before deciding semantics.
+- Start from the source file that owns the behavior, for example parser logic in `lparser.c`, VM execution in `lvm.c`, table behavior in `ltable.c`, coroutine behavior in `lcorolib.c`, package loading in `loadlib.c`, and standard-library functions in the matching `l*.c` library file.
 - Use the local `lua5.5` executable for observable behavior checks, but use the Lua 5.5 source code to understand the actual control flow, coercion rules, error paths, and edge-case logic behind that behavior.
 - The manual and local `lua5.5` checks explain observable behavior; the official source explains the logic that KLua should mirror in Kotlin.
 - When the manual, local tests, or existing KLua behavior are ambiguous or incomplete, treat the Lua 5.5 source code as the implementation reference and document any intentional KLua deviation as a conformance gap.
 - Prefer focused tests derived from the reference source path being implemented. When helpful, note the relevant Lua source file or function in the test name, commit message, or implementation comment.
+- Existing KLua tests are not authoritative when they conflict with official Lua 5.5 source behavior; update those tests as part of the conformance fix.
 
 ## Public API Concepts
 
@@ -230,6 +238,7 @@ A feature is done only when:
 - Errors include useful source context when the feature can fail at compile time or runtime.
 - The implementation follows the file-size and responsibility rules.
 - Behavior is implemented as Lua 5.5 semantics; deviations and incomplete Lua 5.5 features are documented as conformance gaps.
+- Behavior-sensitive changes have been checked against the relevant official Lua 5.5 source file under `~/Downloads/lua-lua-a5522f0`.
 
 ## Engineering Defaults
 
