@@ -1994,6 +1994,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber explicit base rejects non ascii surrounding spaces`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local emSpace = "\226\128\131"
+                return tonumber(emSpace .. "10", 10), tonumber("10" .. emSpace, 10)
+                """.trimIndent(),
+                "tonumber-base-ascii-spaces.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+    }
+
+    @Test
     fun `tonumber explicit base requires string input before nil conversion`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
