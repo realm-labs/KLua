@@ -166,25 +166,7 @@ internal object LuaStringLibrary {
     }
 
     private fun gsubReplacementTypeName(context: LuaCallContext, value: Any?): String {
-        if (context.isTableValue(value)) {
-            return "table"
-        }
-        if (context.isFunctionValue(value)) {
-            return "function"
-        }
-        return when (value) {
-            null -> "nil"
-            is Boolean -> "boolean"
-            is Byte,
-            is Short,
-            is Int,
-            is Long,
-            is Float,
-            is Double,
-            -> "number"
-            is CharSequence -> "string"
-            else -> "userdata"
-        }
+        return context.valueTypeName(value)
     }
 
     private fun gsubTableReplacementValue(context: LuaCallContext, table: Any?, key: Any?): Any? {
@@ -207,8 +189,12 @@ internal object LuaStringLibrary {
         val index = context.getTableField(context.getTableMetatable(table), "__index") ?: return null
         return if (context.isFunctionValue(index)) {
             context.call(index, listOf(table, key)).get(1)
-        } else {
+        } else if (context.isTableValue(index)) {
             gsubTableReplacementValue(context, index, key, visited)
+        } else if (index is CharSequence) {
+            null
+        } else {
+            throw LuaRuntimeException("attempt to index a ${context.valueTypeName(index)} value")
         }
     }
 

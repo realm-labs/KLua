@@ -16,6 +16,25 @@ interface LuaCallContext {
 
     fun isFunctionValue(value: Any?): Boolean = value is LuaFunction
 
+    fun valueTypeName(value: Any?): String {
+        return when (value) {
+            null -> "nil"
+            is Boolean -> "boolean"
+            is Byte,
+            is Short,
+            is Int,
+            is Long,
+            is Float,
+            is Double,
+            -> "number"
+            is CharSequence -> "string"
+            is LuaFunction -> "function"
+            is Map<*, *> -> "table"
+            is LuaTypedValue -> value.luaTypeName
+            else -> "userdata"
+        }
+    }
+
     fun typeName(index: Int): String
 
     fun get(index: Int): Any?

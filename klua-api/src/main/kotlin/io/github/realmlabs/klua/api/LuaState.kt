@@ -1174,6 +1174,16 @@ class LuaState private constructor(
 
         override fun isFunctionValue(value: Any?): Boolean = value is LuaStackValue.NativeFunctionValue || value is LuaFunction
 
+        override fun valueTypeName(value: Any?): String {
+            return when (value) {
+                is LuaStackValue.TableValue -> "table"
+                is LuaStackValue.NativeFunctionValue -> "function"
+                is LuaStackValue.UserDataValue -> (value.value as? LuaTypedValue)?.luaTypeName ?: "userdata"
+                is LuaStackValue -> stackTypeName(value)
+                else -> super.valueTypeName(value)
+            }
+        }
+
         override fun typeName(index: Int): String = stackTypeName(valueAt(index))
 
         override fun get(index: Int): Any? {

@@ -8072,6 +8072,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub table replacement index reports nonindexable values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numberTable = setmetatable({}, { __index = 1 })
+                local numberOk, numberMessage = pcall(string.gsub, "a", "a", numberTable)
+
+                local booleanTable = setmetatable({}, { __index = true })
+                local booleanOk, booleanMessage = pcall(string.gsub, "a", "a", booleanTable)
+
+                local stringTable = setmetatable({}, { __index = "x" })
+                local stringResult, stringCount = string.gsub("a", "a", stringTable)
+
+                return numberOk, numberMessage, booleanOk, booleanMessage, stringResult, stringCount
+                """.trimIndent(),
+                "string-gsub-table-replacement-bad-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to index a number value", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to index a boolean value", state.toString(4))
+        assertEquals("a", state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+    }
+
+    @Test
     fun `string gsub treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
