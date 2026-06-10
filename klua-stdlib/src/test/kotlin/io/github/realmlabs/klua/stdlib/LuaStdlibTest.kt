@@ -7414,6 +7414,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format reports incomplete conversion errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missingOk, missingMessage = pcall(string.format, "%")
+                local percentOk, percentMessage = pcall(string.format, "%", 1)
+                local widthOk, widthMessage = pcall(string.format, "%100", 1)
+                local precisionOk, precisionMessage = pcall(string.format, "%.", 1)
+                return missingOk, missingMessage,
+                    percentOk, percentMessage,
+                    widthOk, widthMessage,
+                    precisionOk, precisionMessage
+                """.trimIndent(),
+                "string-format-incomplete-conversion-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'string.format' (no value)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("invalid conversion '%' to 'format'", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("invalid conversion '%100' to 'format'", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("invalid conversion '%.' to 'format'", state.toString(8))
+    }
+
+    @Test
     fun `string format rejects invalid string modifiers`() {
         val plusState = LuaState.create()
         LuaStdlib.openString(plusState)

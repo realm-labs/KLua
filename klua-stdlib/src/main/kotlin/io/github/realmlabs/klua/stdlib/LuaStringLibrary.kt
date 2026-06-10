@@ -267,10 +267,7 @@ internal object LuaStringLibrary {
                 continue
             }
 
-            if (cursor + 1 >= format.length) {
-                throw LuaRuntimeException("invalid option '%' to 'string.format'")
-            }
-            if (format[cursor + 1] == '%') {
+            if (cursor + 1 < format.length && format[cursor + 1] == '%') {
                 result.append('%')
                 cursor += 2
                 continue
@@ -281,14 +278,18 @@ internal object LuaStringLibrary {
             while (cursor < format.length && format[cursor] in FORMAT_SPECIFIER_PREFIX) {
                 cursor++
             }
-            if (cursor >= format.length) {
-                throw LuaRuntimeException("invalid option '%' to 'string.format'")
+            val specifier = if (cursor < format.length) {
+                format.substring(specStart, cursor + 1)
+            } else {
+                format.substring(specStart)
             }
-            val conversion = format[cursor]
-            val specifier = format.substring(specStart, cursor + 1)
             if (argument > context.argumentCount) {
                 throw LuaRuntimeException("bad argument #$argument to 'string.format' (no value)")
             }
+            if (cursor >= format.length) {
+                throw invalidFormatConversion(specifier)
+            }
+            val conversion = format[cursor]
             result.append(formatValue(context, argument, specifier, conversion))
             argument++
             cursor++
