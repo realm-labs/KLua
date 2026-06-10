@@ -447,12 +447,13 @@ internal object LuaStringLibrary {
             'E',
             'g',
             'G',
-            'a',
-            'A',
             -> {
                 val parsed = validateFormatSize(specifier)
                 parsed.toJavaSpecifier(conversion).formatWith(requiredNumber(context, index, "string.format"))
             }
+            'a',
+            'A',
+            -> formatHexFloatValue(context, index, specifier, conversion)
             'c' -> {
                 validateCharacterFormatSpecifier(specifier)
                 val code = requiredFormatInteger(context, index)
@@ -521,6 +522,88 @@ internal object LuaStringLibrary {
             value.padEnd(width, ' ')
         } else {
             value.padStart(width, ' ')
+        }
+    }
+
+    private fun formatHexFloatValue(
+        context: LuaCallContext,
+        index: Int,
+        specifier: String,
+        conversion: Char,
+    ): String {
+        val parsed = validateFormatSize(specifier)
+        val value = requiredNumber(context, index, "string.format")
+        val base = parsed.copy(width = null)
+            .toJavaSpecifier(conversion)
+            .formatWith(value)
+            .withLuaHexExponentSign()
+            .withLuaHexPrecision(parsed)
+        return applyHexFloatWidth(base, parsed)
+    }
+
+    private fun String.withLuaHexExponentSign(): String {
+        val exponentIndex = maxOf(lastIndexOf('p'), lastIndexOf('P'))
+        if (exponentIndex < 0 || exponentIndex + 1 >= length) {
+            return this
+        }
+        val exponentSign = this[exponentIndex + 1]
+        return if (exponentSign == '+' || exponentSign == '-') {
+            this
+        } else {
+            substring(0, exponentIndex + 1) + "+" + substring(exponentIndex + 1)
+        }
+    }
+
+    private fun String.withLuaHexPrecision(parsed: FormatSpecifier): String {
+        if (parsed.precision != 0) {
+            return this
+        }
+        val exponentIndex = maxOf(lastIndexOf('p'), lastIndexOf('P'))
+        if (exponentIndex < 0) {
+            return this
+        }
+        val dotIndex = lastIndexOf('.', startIndex = exponentIndex)
+        val keepDot = '#' in parsed.flags
+        if (dotIndex >= 0) {
+            val significandEnd = if (keepDot) dotIndex + 1 else dotIndex
+            return substring(0, significandEnd) + substring(exponentIndex)
+        }
+        return if (keepDot) {
+            substring(0, exponentIndex) + "." + substring(exponentIndex)
+        } else {
+            this
+        }
+    }
+
+    private fun applyHexFloatWidth(
+        value: String,
+        parsed: FormatSpecifier,
+    ): String {
+        val width = parsed.width ?: return value
+        if (value.length >= width) {
+            return value
+        }
+        val padding = width - value.length
+        if ('-' in parsed.flags) {
+            return value + " ".repeat(padding)
+        }
+        if ('0' !in parsed.flags || !value.containsHexFloatExponent()) {
+            return " ".repeat(padding) + value
+        }
+        val prefixLength = value.hexFloatZeroPaddingPrefixLength()
+        return value.substring(0, prefixLength) + "0".repeat(padding) + value.substring(prefixLength)
+    }
+
+    private fun String.containsHexFloatExponent(): Boolean {
+        return lastIndexOf('p') >= 0 || lastIndexOf('P') >= 0
+    }
+
+    private fun String.hexFloatZeroPaddingPrefixLength(): Int {
+        val signLength = if (startsWith("-") || startsWith("+") || startsWith(" ")) 1 else 0
+        return if (startsWith("0x", signLength) || startsWith("0X", signLength)) {
+            signLength + 2
+        } else {
+            signLength
         }
     }
 

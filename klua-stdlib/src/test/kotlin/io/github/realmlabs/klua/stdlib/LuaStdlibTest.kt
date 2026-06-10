@@ -7255,13 +7255,13 @@ class LuaStdlibTest {
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return string.format("%a|%A|%.2a|%12a", 1.5, 1.5, 1.5, 1.5)""",
+                """return string.format("%a|%A|%.2a|%12a|%012a|%+12a|%.0a|%#.0a", 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5)""",
                 "string-format-hex-float.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals("0x1.8p0|0X1.8P0|0x1.80p0|     0x1.8p0", state.toString(1))
+        assertEquals("0x1.8p+0|0X1.8P+0|0x1.80p+0|    0x1.8p+0|0x00001.8p+0|   +0x1.8p+0|0x1p+0|0x1.p+0", state.toString(1))
     }
 
     @Test
