@@ -6202,6 +6202,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string search functions clamp zero and far negative init positions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zeroStart, zeroEnd = string.find("abc", "a", 0)
+                local farStart, farEnd = string.find("abc", "a", -99)
+                local plainZeroStart, plainZeroEnd = string.find("abc", "a", 0, true)
+                local matched = string.match("abc", "a", 0)
+                local farMatched = string.match("abc", "a", -99)
+                local iterator = string.gmatch("abc", ".", 0)
+                return zeroStart, zeroEnd, farStart, farEnd, plainZeroStart, plainZeroEnd,
+                    matched, farMatched, iterator()
+                """.trimIndent(),
+                "string-search-clamped-init.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals("a", state.toString(7))
+        assertEquals("a", state.toString(8))
+        assertEquals("a", state.toString(9))
+    }
+
+    @Test
     fun `string find treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
