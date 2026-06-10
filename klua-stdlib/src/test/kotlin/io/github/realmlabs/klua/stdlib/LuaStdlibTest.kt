@@ -7874,6 +7874,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 integer arguments report fractional number errors`() {
+        fun assertFractionalIntegerError(source: String, chunkName: String, expected: String) {
+            val state = LuaState.create()
+            LuaStdlib.openUtf8(state)
+
+            assertEquals(LuaStatus.OK, state.load(source, chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals(expected, state.toString(-1))
+        }
+
+        assertFractionalIntegerError(
+            """return utf8.char(65.5)""",
+            "utf8-char-fractional.lua",
+            "bad argument #1 to 'utf8.char' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return utf8.codepoint("abc", 1.5)""",
+            "utf8-codepoint-fractional-start.lua",
+            "bad argument #2 to 'utf8.codepoint' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return utf8.codepoint("abc", 1, 2.5)""",
+            "utf8-codepoint-fractional-end.lua",
+            "bad argument #3 to 'utf8.codepoint' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return utf8.len("abc", 1.5)""",
+            "utf8-len-fractional-start.lua",
+            "bad argument #2 to 'utf8.len' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return utf8.len("abc", 1, 2.5)""",
+            "utf8-len-fractional-end.lua",
+            "bad argument #3 to 'utf8.len' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return utf8.offset("abc", 1.5)""",
+            "utf8-offset-fractional-offset.lua",
+            "bad argument #2 to 'utf8.offset' (number has no integer representation)",
+        )
+        assertFractionalIntegerError(
+            """return utf8.offset("abc", 1, 1.5)""",
+            "utf8-offset-fractional-position.lua",
+            "bad argument #3 to 'utf8.offset' (number has no integer representation)",
+        )
+    }
+
+    @Test
     fun `utf8 codes returns codepoint iterator`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
