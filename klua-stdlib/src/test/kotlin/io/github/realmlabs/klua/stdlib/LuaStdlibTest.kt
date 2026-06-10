@@ -6304,6 +6304,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string bracket patterns support percent range endings`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(function()
+                    return string.match("a", "[a-%]")
+                end)
+                return string.match("d", "[a-%d]"),
+                    string.match("5", "[a-%d]"),
+                    string.match("%", "[!-%]]"),
+                    string.match("]", "[!-%]]"),
+                    string.match("a", "[!-%]]"),
+                    ok,
+                    message
+                """.trimIndent(),
+                "string-bracket-percent-range-ending.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("d", state.toString(1))
+        assertTrue(state.isNil(2))
+        assertEquals("%", state.toString(3))
+        assertEquals("]", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertEquals(false, state.toBoolean(6))
+        assertEquals("malformed pattern (missing ']')", state.toString(7))
+    }
+
+    @Test
     fun `string bracket patterns support leading closing brackets`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

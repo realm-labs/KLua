@@ -390,13 +390,19 @@ internal class LuaStringPattern private constructor(
                 index++
                 if (index + 1 < pattern.length && pattern[index] == '-' && pattern[index + 1] != ']') {
                     val end = pattern[index + 1]
-                    if (end == '%') {
-                        throw LuaRuntimeException("string patterns are not supported")
-                    }
                     if (start <= end) {
                         ranges += start..end
                     }
-                    index += 2
+                    val nextIndex = index + 2
+                    if (end == '%' && nextIndex < pattern.length && pattern[nextIndex] == ']') {
+                        if (pattern.indexOf(']', startIndex = nextIndex + 1) < 0) {
+                            throw LuaRuntimeException("malformed pattern (missing ']')")
+                        }
+                        ranges += ']'..']'
+                        index = nextIndex + 1
+                    } else {
+                        index = nextIndex
+                    }
                 } else {
                     ranges += start..start
                 }
