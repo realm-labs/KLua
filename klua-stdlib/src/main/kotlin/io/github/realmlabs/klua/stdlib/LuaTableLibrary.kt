@@ -70,7 +70,7 @@ internal object LuaTableLibrary {
             is Double -> luaFloatToString(value)
             is CharSequence -> value.toString()
             else -> throw LuaRuntimeException(
-                "invalid value (${tableConcatTypeName(value)}) at index $index in table for 'concat'",
+                "invalid value (${context.valueTypeName(value)}) at index $index in table for 'concat'",
             )
         }
     }
@@ -108,15 +108,31 @@ internal object LuaTableLibrary {
     }
 
     private fun tableIndexValue(context: LuaCallContext, key: Any?): Any? {
-        val rawValue = context.getTableValue(1, key)
+        return tableIndexValue(context, context.getTable(1), key, identitySet())
+    }
+
+    private fun tableIndexValue(
+        context: LuaCallContext,
+        table: Any?,
+        key: Any?,
+        visited: MutableSet<Any>,
+    ): Any? {
+        if (table != null && !visited.add(table)) {
+            throw LuaRuntimeException("'__index' chain too long; possible loop")
+        }
+        val rawValue = context.getTableField(table, key)
         if (rawValue != null) {
             return rawValue
         }
-        val index = context.getTableField(context.getMetatable(1), "__index") ?: return null
-        return try {
-            context.call(index, listOf(context.getTable(1), key)).get(1)
-        } catch (_: IllegalArgumentException) {
-            context.getTableField(index, key)
+        val index = context.getTableField(context.getTableMetatable(table), "__index") ?: return null
+        return if (context.isFunctionValue(index)) {
+            context.call(index, listOf(table, key)).get(1)
+        } else if (context.isTableValue(index)) {
+            tableIndexValue(context, index, key, visited)
+        } else if (index is CharSequence) {
+            null
+        } else {
+            throw LuaRuntimeException("attempt to index a ${context.valueTypeName(index)} value")
         }
     }
 
@@ -158,17 +174,6 @@ internal object LuaTableLibrary {
 
     private fun identitySet(): MutableSet<Any> {
         return java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
-    }
-
-    private fun tableConcatTypeName(value: Any?): String {
-        return when (value) {
-            null -> "nil"
-            is Boolean -> "boolean"
-            is Number -> "number"
-            is CharSequence -> "string"
-            is LuaFunction -> "function"
-            else -> "table"
-        }
     }
 
     private fun tableLength(context: LuaCallContext, index: Int): Long {
