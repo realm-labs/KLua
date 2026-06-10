@@ -8009,6 +8009,69 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub table replacements use index metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local direct = setmetatable({ a = "R" }, {
+                    __index = function()
+                        error("should not call")
+                    end,
+                })
+                local directResult, directCount = string.gsub("a", "%a", direct)
+
+                local tableIndexed = setmetatable({}, {
+                    __index = {
+                        a = "A",
+                        b = false,
+                    },
+                })
+                local tableResult, tableCount = string.gsub("abc", "%a", tableIndexed)
+
+                local functionIndexed = setmetatable({}, {
+                    __index = function(_, key)
+                        if key == "a" then
+                            return "F"
+                        elseif key == "b" then
+                            return false
+                        end
+                    end,
+                })
+                local functionResult, functionCount = string.gsub("abc", "%a", functionIndexed)
+
+                local nested = setmetatable({}, {
+                    __index = setmetatable({}, {
+                        __index = {
+                            a = "N",
+                        },
+                    }),
+                })
+                local nestedResult, nestedCount = string.gsub("abc", "%a", nested)
+
+                return directResult, directCount, tableResult, tableCount,
+                    functionResult, functionCount, nestedResult, nestedCount
+                """.trimIndent(),
+                "string-gsub-table-replacement-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("R", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals("Abc", state.toString(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals("Fbc", state.toString(5))
+        assertEquals(3L, state.toInteger(6))
+        assertEquals("Nbc", state.toString(7))
+        assertEquals(3L, state.toInteger(8))
+    }
+
+    @Test
     fun `string gsub treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

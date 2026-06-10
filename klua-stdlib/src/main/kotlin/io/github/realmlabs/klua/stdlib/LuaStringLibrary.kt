@@ -134,7 +134,11 @@ internal object LuaStringLibrary {
                 replacementValueToString(context, result, wholeMatch)
             }
             "table" -> {
-                val result = context.getTableValue(3, replacementArguments(wholeMatch, captures).first())
+                val result = gsubTableReplacementValue(
+                    context,
+                    context.getTable(3),
+                    replacementArguments(wholeMatch, captures).first(),
+                )
                 replacementValueToString(context, result, wholeMatch)
             }
             else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/number/function/table expected)")
@@ -181,6 +185,35 @@ internal object LuaStringLibrary {
             is CharSequence -> "string"
             else -> "userdata"
         }
+    }
+
+    private fun gsubTableReplacementValue(context: LuaCallContext, table: Any?, key: Any?): Any? {
+        return gsubTableReplacementValue(context, table, key, identitySet())
+    }
+
+    private fun gsubTableReplacementValue(
+        context: LuaCallContext,
+        table: Any?,
+        key: Any?,
+        visited: MutableSet<Any>,
+    ): Any? {
+        if (table != null && !visited.add(table)) {
+            throw LuaRuntimeException("'__index' chain too long; possible loop")
+        }
+        val rawValue = context.getTableField(table, key)
+        if (rawValue != null) {
+            return rawValue
+        }
+        val index = context.getTableField(context.getTableMetatable(table), "__index") ?: return null
+        return if (context.isFunctionValue(index)) {
+            context.call(index, listOf(table, key)).get(1)
+        } else {
+            gsubTableReplacementValue(context, index, key, visited)
+        }
+    }
+
+    private fun identitySet(): MutableSet<Any> {
+        return java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
     }
 
     private fun expandReplacement(
