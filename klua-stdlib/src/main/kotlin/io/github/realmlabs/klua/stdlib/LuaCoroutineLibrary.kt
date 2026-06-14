@@ -243,13 +243,26 @@ internal object LuaCoroutineLibrary {
     private fun throwCoroutineWrapError(context: LuaCallContext, errorValue: Any?): Nothing {
         val message = errorValue?.toString() ?: "cannot resume coroutine"
         if (errorValue is CharSequence) {
-            throw LuaRuntimeException(message)
+            throw LuaRuntimeException(locationPrefixedWrapError(context, message))
         }
         throw LuaRuntimeException(
             context.valueTypeName(errorValue),
             errorObject = errorValue,
             hasErrorObject = true,
         )
+    }
+
+    private fun locationPrefixedWrapError(context: LuaCallContext, message: String): String {
+        val frame = context.luaFrames.firstOrNull() ?: return message
+        return buildString {
+            append(frame.sourceName)
+            if (frame.line > 0) {
+                append(':')
+                append(frame.line)
+            }
+            append(": ")
+            append(message)
+        }
     }
 
     private fun requiredCoroutine(

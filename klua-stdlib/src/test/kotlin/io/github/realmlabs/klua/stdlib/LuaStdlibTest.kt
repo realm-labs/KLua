@@ -6887,18 +6887,30 @@ class LuaStdlibTest {
                 local sum, samePayload, payloadName = wrapped(20, 22, payload)
                 local resumeValue = wrapped("done")
                 local deadOk, deadMessage = pcall(wrapped)
+                local function callDead()
+                    return wrapped()
+                end
+                local nestedDeadOk, nestedDeadMessage = pcall(callDead)
 
                 local failing = coroutine.wrap(function()
                     error("boom")
                 end)
                 local failOk, failMessage = pcall(failing)
+                local failingNested = coroutine.wrap(function()
+                    error("boom")
+                end)
+                local function callFail()
+                    return failingNested()
+                end
+                local nestedFailOk, nestedFailMessage = pcall(callFail)
                 local marker = {name = "marker"}
                 local failingObject = coroutine.wrap(function()
                     error(marker)
                 end)
                 local objectFailOk, objectError = pcall(failingObject)
                 return sum, samePayload, payloadName, resumeValue,
-                    deadOk, deadMessage, failOk, failMessage,
+                    deadOk, deadMessage, nestedDeadOk, nestedDeadMessage,
+                    failOk, failMessage, nestedFailOk, nestedFailMessage,
                     objectFailOk, objectError == marker, objectError.name
                 """.trimIndent(),
                 "coroutine-wrap.lua",
@@ -6913,10 +6925,14 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertEquals("cannot resume dead coroutine", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("coroutine-wrap.lua:11: boom", state.toString(8))
+        assertEquals("coroutine-wrap.lua:10: cannot resume dead coroutine", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertTrue(state.toBoolean(10))
-        assertEquals("marker", state.toString(11))
+        assertEquals("coroutine-wrap.lua:15: boom", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("coroutine-wrap.lua:22: coroutine-wrap.lua:19: boom", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertTrue(state.toBoolean(14))
+        assertEquals("marker", state.toString(15))
     }
 
     @Test
