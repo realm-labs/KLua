@@ -40,7 +40,7 @@ internal object LuaPackageLibrary {
             name.replace(separator, replacement)
         }
         val missingPaths = mutableListOf<String>()
-        for (template in path.split(';')) {
+        for (template in searchPathTemplates(path)) {
             val candidate = template.replace("?", normalizedName)
             if (Files.isRegularFile(Path.of(candidate))) {
                 return LuaReturn.of(candidate)
@@ -50,6 +50,19 @@ internal object LuaPackageLibrary {
         return LuaReturn.of(null, missingPaths.joinToString(separator = "\n\t") { candidate ->
             "no file '$candidate'"
         })
+    }
+
+    private fun searchPathTemplates(path: String): List<String> {
+        val templates = mutableListOf<String>()
+        var start = 0
+        for (index in path.indices) {
+            if (path[index] == ';') {
+                templates += path.substring(start, index)
+                start = index + 1
+            }
+        }
+        templates += path.substring(start)
+        return templates
     }
 
     private fun searcherResultType(context: LuaCallContext): LuaReturn {

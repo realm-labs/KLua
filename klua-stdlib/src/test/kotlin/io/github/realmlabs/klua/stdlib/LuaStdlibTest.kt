@@ -1915,6 +1915,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package searchpath preserves empty path templates in diagnostics`() {
+        val root = Files.createTempDirectory("klua-searchpath-empty-template")
+        val template = "${root.luaPath()}/?.lua;;${root.luaPath()}/?/init.lua;"
+
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return package.searchpath("alpha.beta", "$template", ".", "/")
+                """.trimIndent(),
+                "package-searchpath-empty-template.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertEquals(
+            "no file '${root}/alpha/beta.lua'\n\t" +
+                "no file ''\n\t" +
+                "no file '${root}/alpha/beta/init.lua'\n\t" +
+                "no file ''",
+            state.toString(2),
+        )
+    }
+
+    @Test
     fun `package searchpath reports registered argument names`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
