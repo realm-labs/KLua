@@ -723,6 +723,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo rejects private function option`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok1, message1 = pcall(debug.getinfo, 1, ">")
+                local ok2, message2 = pcall(debug.getinfo, function() end, ">S")
+                return ok1, message1, ok2, message2
+                """.trimIndent(),
+                "debug-getinfo-private-option.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option '>')", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option '>')", state.toString(4))
+    }
+
+    @Test
     fun `debug getinfo reports non string what errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

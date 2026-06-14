@@ -62,9 +62,11 @@ internal object LuaDebugLibrary {
         if (context.typeName(1) == "function") {
             val info = context.getFunctionDebugInfo(1)
             val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "debug.getinfo")
+            rejectPrivateGetInfoOption(what)
             return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
         }
         val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "debug.getinfo")
+        rejectPrivateGetInfoOption(what)
         val level = requiredStackLevel(context, "debug.getinfo")
         if (level < 0) {
             return LuaReturn.of(null)
@@ -162,6 +164,12 @@ internal object LuaDebugLibrary {
             addFields(option, table)
         }
         return table
+    }
+
+    private fun rejectPrivateGetInfoOption(what: String) {
+        if (what.startsWith(">")) {
+            throw LuaRuntimeException("bad argument #2 to 'debug.getinfo' (invalid option '>')")
+        }
     }
 
     private fun addTransferInfo(table: MutableMap<String, Any?>) {
