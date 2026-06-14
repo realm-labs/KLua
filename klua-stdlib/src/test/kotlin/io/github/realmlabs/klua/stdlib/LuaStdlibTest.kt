@@ -9864,6 +9864,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pack and unpack fixed floating point values`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local float = string.pack(">f", 1.0)
+                local floatBits = string.unpack(">I4", float)
+                local floatValue, floatPos = string.unpack(">f", float)
+                local doubleValue, doublePos = string.unpack("<d", string.pack("<d", -13.5))
+                local numberValue, numberPos = string.unpack(">n", string.pack(">n", 0.25))
+                return floatBits, floatValue, floatPos, doubleValue, doublePos, numberValue, numberPos
+                """.trimIndent(),
+                "string-pack-unpack-fixed-floating.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0x3f800000L, state.toInteger(1))
+        assertEquals(1.0, state.toNumber(2) ?: error("missing float result"), 0.0)
+        assertEquals(5L, state.toInteger(3))
+        assertEquals(-13.5, state.toNumber(4) ?: error("missing double result"), 0.0)
+        assertEquals(9L, state.toInteger(5))
+        assertEquals(0.25, state.toNumber(6) ?: error("missing number result"), 0.0)
+        assertEquals(9L, state.toInteger(7))
+    }
+
+    @Test
     fun `string pack and unpack report fixed integer errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -9876,7 +9906,7 @@ class LuaStdlibTest {
                 local signedOk, signedMessage = pcall(string.pack, "b", 128)
                 local unsignedOk, unsignedMessage = pcall(string.pack, "B", 256)
                 local shortOk, shortMessage = pcall(string.unpack, "I4", "a")
-                local unsupportedOk, unsupportedMessage = pcall(string.pack, "f", 1.0)
+                local unsupportedOk, unsupportedMessage = pcall(string.pack, "s", "a")
                 return signedOk, signedMessage,
                     unsignedOk, unsignedMessage,
                     shortOk, shortMessage,
@@ -9894,7 +9924,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("format option 'f' is not supported yet", state.toString(8))
+        assertEquals("format option 's' is not supported yet", state.toString(8))
     }
 
     @Test

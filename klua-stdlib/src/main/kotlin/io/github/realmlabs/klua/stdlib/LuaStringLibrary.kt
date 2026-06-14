@@ -7,6 +7,8 @@ import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.io.ByteArrayOutputStream
 import java.math.BigInteger
+import java.nio.ByteBuffer
+import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 
@@ -411,10 +413,18 @@ internal object LuaStringLibrary {
                         output.write(0)
                     }
                 }
-                LuaStringPackFormat.PackOption.Float,
+                LuaStringPackFormat.PackOption.Float -> {
+                    val value = requiredNumber(context, argumentIndex, "pack")
+                    writePackedFloat(output, value, details.littleEndian)
+                    argumentIndex++
+                }
                 LuaStringPackFormat.PackOption.Number,
                 LuaStringPackFormat.PackOption.Double,
-                -> throw unsupportedPackOption(details.option)
+                -> {
+                    val value = requiredNumber(context, argumentIndex, "pack")
+                    writePackedDouble(output, value, details.littleEndian)
+                    argumentIndex++
+                }
                 LuaStringPackFormat.PackOption.String,
                 LuaStringPackFormat.PackOption.ZeroTerminatedString,
                 -> throw unsupportedPackOption(details.option)
@@ -460,10 +470,14 @@ internal object LuaStringLibrary {
                 LuaStringPackFormat.PackOption.AlignPadding,
                 LuaStringPackFormat.PackOption.NoOp,
                 -> Unit
-                LuaStringPackFormat.PackOption.Float,
+                LuaStringPackFormat.PackOption.Float -> {
+                    results += unpackFloat(data, position.toInt(), details.littleEndian)
+                }
                 LuaStringPackFormat.PackOption.Number,
                 LuaStringPackFormat.PackOption.Double,
-                -> throw unsupportedPackOption(details.option)
+                -> {
+                    results += unpackDouble(data, position.toInt(), details.littleEndian)
+                }
                 LuaStringPackFormat.PackOption.String,
                 LuaStringPackFormat.PackOption.ZeroTerminatedString,
                 -> throw unsupportedPackOption(details.option)
@@ -531,6 +545,22 @@ internal object LuaStringLibrary {
         output.write(bytes)
     }
 
+    private fun writePackedFloat(output: ByteArrayOutputStream, value: Double, littleEndian: Boolean) {
+        val bytes = ByteBuffer.allocate(Float.SIZE_BYTES)
+            .order(byteOrder(littleEndian))
+            .putFloat(value.toFloat())
+            .array()
+        output.write(bytes)
+    }
+
+    private fun writePackedDouble(output: ByteArrayOutputStream, value: Double, littleEndian: Boolean) {
+        val bytes = ByteBuffer.allocate(Double.SIZE_BYTES)
+            .order(byteOrder(littleEndian))
+            .putDouble(value)
+            .array()
+        output.write(bytes)
+    }
+
     private fun normalizeUnpackPosition(position: Long, length: Int): Long {
         val normalized = if (position >= 0L) {
             position
@@ -579,6 +609,23 @@ internal object LuaStringLibrary {
             }
         }
         return result
+    }
+
+    private fun unpackFloat(data: ByteArray, position: Int, littleEndian: Boolean): Double {
+        return ByteBuffer.wrap(data, position, Float.SIZE_BYTES)
+            .order(byteOrder(littleEndian))
+            .float
+            .toDouble()
+    }
+
+    private fun unpackDouble(data: ByteArray, position: Int, littleEndian: Boolean): Double {
+        return ByteBuffer.wrap(data, position, Double.SIZE_BYTES)
+            .order(byteOrder(littleEndian))
+            .double
+    }
+
+    private fun byteOrder(littleEndian: Boolean): ByteOrder {
+        return if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
     }
 
     private fun unsupportedPackOption(option: LuaStringPackFormat.PackOption): LuaRuntimeException {
