@@ -115,7 +115,7 @@ internal class Parser private constructor(
         return when (attribute.literal as String) {
             "const" -> LocalAttribute.CONST
             "close" -> LocalAttribute.CLOSE
-            else -> throw errorAt(attribute, "unknown local attribute")
+            else -> throw errorAt(attribute, "unknown attribute '${attribute.literal}'")
         }
     }
 

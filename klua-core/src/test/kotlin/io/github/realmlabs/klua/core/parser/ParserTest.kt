@@ -92,6 +92,24 @@ class ParserTest {
     }
 
     @Test
+    fun `reports unknown postfix local attribute names`() {
+        val error = assertFailsWith<ParserException> {
+            Parser.parse("local x <foo> = 1", "attribute.lua")
+        }
+
+        assertEquals("attribute.lua:1:10: unknown attribute 'foo'", error.message)
+    }
+
+    @Test
+    fun `reports unknown prefixed local attribute names`() {
+        val error = assertFailsWith<ParserException> {
+            Parser.parse("local <foo> x = 1", "prefixed-attribute.lua")
+        }
+
+        assertEquals("prefixed-attribute.lua:1:8: unknown attribute 'foo'", error.message)
+    }
+
+    @Test
     fun `parses if elseif else blocks`() {
         val chunk = Parser.parse(
             """
