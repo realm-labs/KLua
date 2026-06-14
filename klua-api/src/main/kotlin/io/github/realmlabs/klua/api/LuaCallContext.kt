@@ -112,4 +112,8 @@ interface LuaCallContext {
     fun toUserData(index: Int): Any?
 
     fun <T : Any> toUserData(index: Int, type: Class<T>): T?
+
+    fun getUserValue(index: Int, userValueIndex: Int): LuaReturn? = null
+
+    fun setUserValue(index: Int, userValueIndex: Int, value: Any?): Boolean = false
 }

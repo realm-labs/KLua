@@ -26,6 +26,7 @@ class LuaState private constructor(
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
+    private val userValues = IdentityHashMap<Any, LuaStackValue>()
     private val coreBackedNativeGlobals = mutableSetOf<String>()
     private var lastError: LuaException? = null
 
@@ -1541,6 +1542,24 @@ class LuaState private constructor(
         override fun <T : Any> toUserData(index: Int, type: Class<T>): T? {
             val value = toUserData(index) ?: return null
             return if (type.isInstance(value)) type.cast(value) else null
+        }
+
+        override fun getUserValue(index: Int, userValueIndex: Int): LuaReturn? {
+            val userData = valueAt(index) as? LuaStackValue.UserDataValue ?: return null
+            if (userValueIndex != 1) {
+                return null
+            }
+            val userValue = userValues[userData.value] ?: LuaStackValue.Nil
+            return LuaReturn.of(userValue.toPublicCallReturnValue(), true)
+        }
+
+        override fun setUserValue(index: Int, userValueIndex: Int, value: Any?): Boolean {
+            val userData = valueAt(index) as? LuaStackValue.UserDataValue ?: return false
+            if (userValueIndex != 1) {
+                return false
+            }
+            userValues[userData.value] = value.toStackValue()
+            return true
         }
 
         private fun valueAt(index: Int): LuaStackValue? {

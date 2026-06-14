@@ -17,6 +17,8 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_setupvalue") { context -> setupUpvalue(context) }
         state.register("klua_debug_upvalueid") { context -> upvalueId(context) }
         state.register("klua_debug_upvaluejoin") { context -> upvalueJoin(context) }
+        state.register("klua_debug_getuservalue") { context -> getUserValue(context) }
+        state.register("klua_debug_setuservalue") { context -> setUserValue(context) }
         state.register("klua_debug_getmetatable") { context -> getMetatable(context) }
         state.register("klua_debug_setmetatable") { context -> setMetatable(context) }
         state.register("klua_debug_sethook") { context -> setHook(context) }
@@ -264,6 +266,27 @@ internal object LuaDebugLibrary {
         return LuaReturn.none()
     }
 
+    private fun getUserValue(context: LuaCallContext): LuaReturn {
+        val index = optionalInteger(context, 2, 1, "getuservalue").toInt()
+        if (context.typeName(1) != "userdata") {
+            return LuaReturn.of(null)
+        }
+        return context.getUserValue(1, index) ?: LuaReturn.of(null)
+    }
+
+    private fun setUserValue(context: LuaCallContext): LuaReturn {
+        val index = optionalInteger(context, 3, 1, "setuservalue").toInt()
+        if (context.typeName(1) != "userdata") {
+            throw LuaRuntimeException("bad argument #1 to 'setuservalue' (userdata expected)")
+        }
+        requireValueArgument(context, 2, "setuservalue")
+        return if (context.setUserValue(1, index, context.getLuaValue(2))) {
+            LuaReturn.of(context.getLuaValue(1))
+        } else {
+            LuaReturn.of(null)
+        }
+    }
+
     private fun requireFunction(context: LuaCallContext, index: Int, functionName: String) {
         if (context.typeName(index) != "function") {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (function expected)")
@@ -431,6 +454,19 @@ internal object LuaDebugLibrary {
 
         function debug.upvaluejoin(func1, index1, func2, index2)
             return klua_debug_upvaluejoin(func1, index1, func2, index2)
+        end
+
+        function debug.getuservalue(userdata, index)
+            return klua_debug_getuservalue(userdata, index)
+        end
+
+        function debug.setuservalue(userdata, ...)
+            local count = select("#", ...)
+            if count == 0 then
+                return klua_debug_setuservalue(userdata)
+            end
+            local value, index = ...
+            return klua_debug_setuservalue(userdata, value, index)
         end
 
         function debug.getmetatable(...)

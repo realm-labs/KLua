@@ -376,8 +376,8 @@ class LuaStdlibTest {
                 local info = debug.getinfo(1)
                 return type(debug), type(debug.traceback), type(debug.getinfo), type(debug.getlocal),
                     type(debug.setlocal), type(debug.getupvalue), type(debug.setupvalue),
-                    type(debug.upvalueid), type(debug.upvaluejoin), type(debug.getmetatable),
-                    type(debug.setmetatable), type(debug.getregistry),
+                    type(debug.upvalueid), type(debug.upvaluejoin), type(debug.getuservalue),
+                    type(debug.setuservalue), type(debug.getmetatable), type(debug.setmetatable), type(debug.getregistry),
                     type(debug.sethook), type(debug.gethook), debug.traceback("boom"),
                     type(info), info.what, info.source, info.currentline
                 """.trimIndent(),
@@ -400,11 +400,13 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(12))
         assertEquals("function", state.toString(13))
         assertEquals("function", state.toString(14))
-        assertTrue(state.toString(15)?.contains("boom\nstack traceback:") == true)
-        assertEquals("table", state.toString(16))
-        assertEquals("Lua", state.toString(17))
-        assertEquals("debug-openlibs.lua", state.toString(18))
-        assertEquals(1L, state.toInteger(19))
+        assertEquals("function", state.toString(15))
+        assertEquals("function", state.toString(16))
+        assertTrue(state.toString(17)?.contains("boom\nstack traceback:") == true)
+        assertEquals("table", state.toString(18))
+        assertEquals("Lua", state.toString(19))
+        assertEquals("debug-openlibs.lua", state.toString(20))
+        assertEquals(1L, state.toInteger(21))
     }
 
     @Test
@@ -4888,6 +4890,79 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #1 to 'getmetatable' (value expected)", state.toString(2))
         assertTrue(state.isNil(3))
+    }
+
+    @Test
+    fun `debug uservalue functions store host userdata values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("host"))
+        state.setGlobal("host")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local initialValue, initialPresent = debug.getuservalue(host)
+                local marker = {name = "marker"}
+                local returned = debug.setuservalue(host, marker)
+                local stored, storedPresent = debug.getuservalue(host)
+                stored.extra = 42
+                return initialValue, initialPresent,
+                    returned == host,
+                    stored == marker,
+                    storedPresent,
+                    marker.extra,
+                    debug.getuservalue(host, 2),
+                    debug.setuservalue(host, "ignored", 2)
+                """.trimIndent(),
+                "debug-uservalue.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals(42L, state.toInteger(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.isNil(8))
+    }
+
+    @Test
+    fun `debug uservalue functions report lua style argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("error-host"))
+        state.setGlobal("host")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nonUserValue = debug.getuservalue({})
+                local badGetIndexOk, badGetIndexMessage = pcall(debug.getuservalue, {}, "bad")
+                local badSetTargetOk, badSetTargetMessage = pcall(debug.setuservalue, {}, "value")
+                local missingValueOk, missingValueMessage = pcall(debug.setuservalue, host)
+                return nonUserValue,
+                    badGetIndexOk, badGetIndexMessage,
+                    badSetTargetOk, badSetTargetMessage,
+                    missingValueOk, missingValueMessage
+                """.trimIndent(),
+                "debug-uservalue-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("bad argument #2 to 'getuservalue' (number expected)", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #1 to 'setuservalue' (userdata expected)", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("bad argument #2 to 'setuservalue' (value expected)", state.toString(7))
     }
 
     @Test
@@ -13094,5 +13169,9 @@ class LuaStdlibTest {
         assertEquals("attempt to index a number value", indexState.toString(-1))
     }
 }
+
+private data class DebugHostObject(
+    val name: String,
+)
 
 private fun Path.luaPath(): String = toString().replace("\\", "\\\\")
