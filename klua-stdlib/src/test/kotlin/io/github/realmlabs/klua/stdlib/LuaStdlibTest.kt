@@ -3997,7 +3997,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `load accepts non table environment values like lua setupvalue`() {
+    fun `load accepts non table and nil environment values like lua setupvalue`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
@@ -4008,7 +4008,11 @@ class LuaStdlibTest {
                 local localOnly = load("local value = 42; return value", "load-boolean-env-local.lua", "t", false)
                 local globalRead = load("return missing", "load-boolean-env-global.lua", "t", false)
                 local ok, message = pcall(globalRead)
-                return type(localOnly), localOnly(), type(globalRead), ok, message
+                local nilLocalOnly = load("local value = 24; return value", "load-nil-env-local.lua", "t", nil)
+                local nilGlobalRead = load("return missing", "load-nil-env-global.lua", "t", nil)
+                local nilOk, nilMessage = pcall(nilGlobalRead)
+                return type(localOnly), localOnly(), type(globalRead), ok, message,
+                    type(nilLocalOnly), nilLocalOnly(), type(nilGlobalRead), nilOk, nilMessage
                 """.trimIndent(),
                 "load-boolean-env-driver.lua",
             ),
@@ -4021,6 +4025,11 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertTrue(state.toString(5)?.contains("attempt to index boolean") == true)
+        assertEquals("function", state.toString(6))
+        assertEquals(24L, state.toInteger(7))
+        assertEquals("function", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertTrue(state.toString(10)?.contains("attempt to index nil") == true)
     }
 
     @Test
@@ -4347,7 +4356,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `loadfile accepts non table environment values like lua setupvalue`() {
+    fun `loadfile accepts non table and nil environment values like lua setupvalue`() {
         val localFile = Files.createTempFile("klua-loadfile-boolean-env-local", ".lua")
         val globalFile = Files.createTempFile("klua-loadfile-boolean-env-global", ".lua")
         try {
@@ -4363,7 +4372,11 @@ class LuaStdlibTest {
                     local localOnly = loadfile("${localFile.luaPath()}", "t", false)
                     local globalRead = loadfile("${globalFile.luaPath()}", "t", false)
                     local ok, message = pcall(globalRead)
-                    return type(localOnly), localOnly(), type(globalRead), ok, message
+                    local nilLocalOnly = loadfile("${localFile.luaPath()}", "t", nil)
+                    local nilGlobalRead = loadfile("${globalFile.luaPath()}", "t", nil)
+                    local nilOk, nilMessage = pcall(nilGlobalRead)
+                    return type(localOnly), localOnly(), type(globalRead), ok, message,
+                        type(nilLocalOnly), nilLocalOnly(), type(nilGlobalRead), nilOk, nilMessage
                     """.trimIndent(),
                     "loadfile-boolean-env-driver.lua",
                 ),
@@ -4376,6 +4389,11 @@ class LuaStdlibTest {
             assertEquals("function", state.toString(3))
             assertFalse(state.toBoolean(4))
             assertTrue(state.toString(5)?.contains("attempt to index boolean") == true)
+            assertEquals("function", state.toString(6))
+            assertEquals(42L, state.toInteger(7))
+            assertEquals("function", state.toString(8))
+            assertFalse(state.toBoolean(9))
+            assertTrue(state.toString(10)?.contains("attempt to index nil") == true)
         } finally {
             Files.deleteIfExists(localFile)
             Files.deleteIfExists(globalFile)

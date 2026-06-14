@@ -216,10 +216,15 @@ class LuaState private constructor(
         return LuaStatus.RUNTIME_ERROR
     }
 
-    private fun loadLuaFunction(source: String, chunkName: String, environment: Any? = null): LuaReturn {
+    private fun loadLuaFunction(
+        source: String,
+        chunkName: String,
+        environment: Any? = null,
+        environmentProvided: Boolean = false,
+    ): LuaReturn {
         return when (val load = KLuaCoreRuntime.compile(source, chunkName)) {
             is KLuaCoreLoad.Success -> {
-                val loadGlobals = loadEnvironmentGlobals(environment)
+                val loadGlobals = loadEnvironmentGlobals(environment, environmentProvided)
                 val function = KLuaCoreRuntime.createChunkFunctionValue(load.chunk, loadGlobals)
                 LuaReturn.of(function.toStackValue().toPublicCallReturnValue())
             }
@@ -227,8 +232,10 @@ class LuaState private constructor(
         }
     }
 
-    private fun loadEnvironmentGlobals(environment: Any?): KLuaCoreGlobals {
-        environment ?: return coreGlobals
+    private fun loadEnvironmentGlobals(environment: Any?, environmentProvided: Boolean): KLuaCoreGlobals {
+        if (!environmentProvided) {
+            return coreGlobals
+        }
         return coreGlobals.withEnvironment(environment.toCoreReturnValue()) ?: coreGlobals
     }
 
@@ -1304,8 +1311,13 @@ class LuaState private constructor(
             throw LuaYieldException(values)
         }
 
-        override fun load(source: String, chunkName: String, environment: Any?): LuaReturn {
-            return loadLuaFunction(source, chunkName, environment)
+        override fun load(
+            source: String,
+            chunkName: String,
+            environment: Any?,
+            environmentProvided: Boolean,
+        ): LuaReturn {
+            return loadLuaFunction(source, chunkName, environment, environmentProvided)
         }
 
         override fun getFunctionDebugInfo(index: Int): LuaFunctionDebugInfo? {

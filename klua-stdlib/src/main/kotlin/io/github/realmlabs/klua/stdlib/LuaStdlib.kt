@@ -250,7 +250,8 @@ public object LuaStdlib {
                 return LuaReturn.of(null, exception.message ?: exception::class.java.simpleName)
             }
         }
-        return context.load(source, chunkName, optionalLoadEnvironment(context, 4))
+        val environment = optionalLoadEnvironment(context, 4)
+        return context.load(source, chunkName, environment.value, environment.provided)
     }
 
     private fun readChunkSource(context: LuaCallContext): String {
@@ -290,15 +291,21 @@ public object LuaStdlib {
         } catch (error: IOException) {
             return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
         }
-        return context.load(source, filename, optionalLoadEnvironment(context, 3))
+        val environment = optionalLoadEnvironment(context, 3)
+        return context.load(source, filename, environment.value, environment.provided)
     }
 
-    private fun optionalLoadEnvironment(context: LuaCallContext, index: Int): Any? {
-        if (context.isNone(index) || context.isNil(index)) {
-            return null
+    private fun optionalLoadEnvironment(context: LuaCallContext, index: Int): LoadEnvironment {
+        if (context.isNone(index)) {
+            return LoadEnvironment(null, provided = false)
         }
-        return context.getLuaValue(index)
+        return LoadEnvironment(if (context.isNil(index)) null else context.getLuaValue(index), provided = true)
     }
+
+    private data class LoadEnvironment(
+        val value: Any?,
+        val provided: Boolean,
+    )
 
     private fun dofile(context: LuaCallContext): LuaReturn {
         val loaded = loadfile(context)
