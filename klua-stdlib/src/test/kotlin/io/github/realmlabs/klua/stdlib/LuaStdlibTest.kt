@@ -378,7 +378,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `debug traceback returns non string messages unchanged`() {
+    fun `debug traceback converts number messages and preserves other non strings`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -389,10 +389,13 @@ class LuaStdlibTest {
                 local marker = {name = "marker"}
                 local returnedTable = debug.traceback(marker)
                 local returnedNumber = debug.traceback(42)
+                local returnedBoolean = debug.traceback(false)
                 return returnedTable == marker,
                     returnedTable.name,
                     returnedNumber,
-                    type(returnedNumber)
+                    type(returnedNumber),
+                    returnedBoolean,
+                    type(returnedBoolean)
                 """.trimIndent(),
                 "debug-traceback-non-string.lua",
             ),
@@ -401,8 +404,15 @@ class LuaStdlibTest {
 
         assertTrue(state.toBoolean(1))
         assertEquals("marker", state.toString(2))
-        assertEquals(42L, state.toInteger(3))
-        assertEquals("number", state.toString(4))
+        assertEquals(
+            "42\n" +
+                "stack traceback:\n" +
+                "\tdebug-traceback-non-string.lua:3",
+            state.toString(3),
+        )
+        assertEquals("string", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("boolean", state.toString(6))
     }
 
     @Test

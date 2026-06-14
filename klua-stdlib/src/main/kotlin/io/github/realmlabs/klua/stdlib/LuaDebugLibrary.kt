@@ -394,7 +394,8 @@ internal object LuaDebugLibrary {
             if message == nil then
                 return klua_debug_traceback(nil, level)
             end
-            if type(message) ~= "string" then
+            local messageType = type(message)
+            if messageType ~= "string" and messageType ~= "number" then
                 return message
             end
             return klua_debug_traceback(klua_debug_tostring(message), level)
