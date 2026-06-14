@@ -5008,6 +5008,98 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `primitive type newindex metatables handle assignments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                debug.setmetatable(1, {
+                    __newindex = function(self, key, value)
+                        writes[#writes + 1] = tostring(self) .. ":" .. key .. ":" .. value
+                    end,
+                })
+                local n = 1
+                n.x = "value"
+
+                local target = {}
+                debug.setmetatable(false, {
+                    __newindex = target,
+                })
+                local b = true
+                b.name = "truth"
+
+                return writes[1], target.name
+                """.trimIndent(),
+                "primitive-newindex-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1:x:value", state.toString(1))
+        assertEquals("truth", state.toString(2))
+    }
+
+    @Test
+    fun `table newindex metamethod accepts native functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local proxy = setmetatable({}, {
+                    __newindex = rawset,
+                })
+                proxy.answer = 42
+                return rawget(proxy, "answer")
+                """.trimIndent(),
+                "table-native-newindex-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+    }
+
+    @Test
+    fun `primitive newindex reports missing and looping metamethod errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okNil, nilMessage = pcall(function()
+                    local value = nil
+                    value.x = 1
+                end)
+                debug.setmetatable(2, {
+                    __newindex = 3,
+                })
+                local n = 2
+                local okLoop, loopMessage = pcall(function()
+                    n.x = 4
+                end)
+                return okNil, nilMessage, okLoop, loopMessage
+                """.trimIndent(),
+                "primitive-newindex-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toString(2)?.contains("attempt to index nil") == true)
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toString(4)?.contains("'__newindex' chain too long; possible loop") == true)
+    }
+
+    @Test
     fun `primitive type call metatables invoke callable values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

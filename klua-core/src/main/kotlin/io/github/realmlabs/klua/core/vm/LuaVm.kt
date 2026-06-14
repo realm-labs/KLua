@@ -685,7 +685,15 @@ internal class LuaVm(
                     ?: throw LuaVmException("attempt to set userdata field '${key.value}'")
                 callNative(setter, listOf(receiver, value))
             }
-            else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
+            else -> {
+                try {
+                    primitiveSet(receiver, key, value, mutableSetOf(), 0)
+                } catch (error: LuaTableKeyException) {
+                    throw LuaVmException(error.message ?: "invalid table key")
+                } catch (error: LuaMetatableException) {
+                    throw LuaVmException(error.message ?: "invalid metatable operation")
+                }
+            }
         }
     }
 
@@ -699,7 +707,7 @@ internal class LuaVm(
 
     private fun tableSet(table: LuaTable, key: LuaValue, value: LuaValue) {
         try {
-            tableSet(table, key, value, mutableSetOf())
+            tableSet(table, key, value, mutableSetOf(), 0)
         } catch (error: LuaTableKeyException) {
             throw LuaVmException(error.message ?: "invalid table key")
         } catch (error: LuaMetatableException) {
@@ -707,19 +715,62 @@ internal class LuaVm(
         }
     }
 
-    private fun tableSet(table: LuaTable, key: LuaValue, value: LuaValue, visited: MutableSet<LuaTable>) {
+    private fun tableSet(
+        table: LuaTable,
+        key: LuaValue,
+        value: LuaValue,
+        visited: MutableSet<LuaTable>,
+        depth: Int,
+    ) {
         if (table.rawGet(key) != LuaNil) {
             table.rawSet(key, value)
             return
         }
+        if (depth >= MAX_NEWINDEX_CHAIN_DEPTH) {
+            throw LuaMetatableException("'__newindex' chain too long; possible loop")
+        }
         if (!visited.add(table)) {
-            throw LuaMetatableException("cycle in __newindex chain")
+            throw LuaMetatableException("'__newindex' chain too long; possible loop")
         }
 
         when (val newIndex = table.metatableRawGet(NEW_INDEX_KEY)) {
-            is LuaTable -> tableSet(newIndex, key, value, visited)
-            is LuaClosure -> executeReturned(newIndex.prototype, listOf(table, key, value), newIndex.upvalues)
-            else -> table.rawSet(key, value)
+            LuaNil -> table.rawSet(key, value)
+            else -> newIndexSet(table, key, value, newIndex, visited, depth + 1)
+        }
+    }
+
+    private fun primitiveSet(
+        receiver: LuaValue,
+        key: LuaValue,
+        value: LuaValue,
+        visited: MutableSet<LuaTable>,
+        depth: Int,
+    ) {
+        if (depth >= MAX_NEWINDEX_CHAIN_DEPTH) {
+            throw LuaMetatableException("'__newindex' chain too long; possible loop")
+        }
+        val metatable = rawTypeMetatable(receiver)
+            ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
+        val newIndex = metatable.rawGet(NEW_INDEX_KEY)
+        if (newIndex == LuaNil) {
+            throw LuaVmException("attempt to index ${typeName(receiver)}")
+        }
+        newIndexSet(receiver, key, value, newIndex, visited, depth + 1)
+    }
+
+    private fun newIndexSet(
+        receiver: LuaValue,
+        key: LuaValue,
+        value: LuaValue,
+        newIndex: LuaValue,
+        visited: MutableSet<LuaTable>,
+        depth: Int,
+    ) {
+        when (newIndex) {
+            is LuaTable -> tableSet(newIndex, key, value, visited, depth)
+            is LuaClosure -> executeReturned(newIndex.prototype, listOf(receiver, key, value), newIndex.upvalues)
+            is LuaNativeFunction -> callNative(newIndex, listOf(receiver, key, value))
+            else -> primitiveSet(newIndex, key, value, visited, depth)
         }
     }
 
@@ -1178,6 +1229,7 @@ private val DIV_KEY = LuaString("__div")
 private val IDIV_KEY = LuaString("__idiv")
 private val MOD_KEY = LuaString("__mod")
 private val POW_KEY = LuaString("__pow")
+private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 200
 
 private data class DebugHookState(
