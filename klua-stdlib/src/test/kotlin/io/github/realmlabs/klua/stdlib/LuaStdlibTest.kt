@@ -2068,6 +2068,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package searchpath returns readable directory candidates like lua readable check`() {
+        val root = Files.createTempDirectory("klua-searchpath-readable-directory")
+        val moduleDirectory = root.resolve("alpha").resolve("beta.lua")
+        Files.createDirectories(moduleDirectory)
+        val fallback = root.resolve("alpha").resolve("beta").resolve("init.lua")
+        Files.createDirectories(fallback.parent)
+        Files.writeString(fallback, "return 42")
+        val template = "${root.luaPath()}/?.lua;${root.luaPath()}/?/init.lua"
+
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return package.searchpath("alpha.beta", "$template", ".", "/")
+                """.trimIndent(),
+                "package-searchpath-readable-directory.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("${root}/alpha/beta.lua", state.toString(1))
+    }
+
+    @Test
     fun `package searchpath returns missing path diagnostics`() {
         val root = Files.createTempDirectory("klua-searchpath-missing")
         val template = "${root.luaPath()}/?.lua;${root.luaPath()}/?/init.lua"

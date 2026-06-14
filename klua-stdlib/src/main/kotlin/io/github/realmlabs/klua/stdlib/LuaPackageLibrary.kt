@@ -53,7 +53,7 @@ internal object LuaPackageLibrary {
         val missingPaths = mutableListOf<String>()
         for (template in searchPathTemplates(path)) {
             val candidate = template.replace("?", normalizedName)
-            if (Files.isRegularFile(Path.of(candidate))) {
+            if (candidate.isNotEmpty() && Files.isReadable(Path.of(candidate))) {
                 return LuaReturn.of(candidate)
             }
             missingPaths += candidate
