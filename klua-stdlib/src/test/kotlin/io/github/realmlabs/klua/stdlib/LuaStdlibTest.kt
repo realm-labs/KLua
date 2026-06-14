@@ -1546,6 +1546,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook preserves negative count for event hooks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.sethook(function() end, "l", -1)
+                local lineHook, lineMask, lineCount = debug.gethook()
+                debug.sethook(function() end, "", -1)
+                local none = {debug.gethook()}
+                return type(lineHook), lineMask, lineCount, #none
+                """.trimIndent(),
+                "debug-sethook-negative-count.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("function", state.toString(1))
+        assertEquals("l", state.toString(2))
+        assertEquals(-1L, state.toInteger(3))
+        assertEquals(0L, state.toInteger(4))
+    }
+
+    @Test
     fun `debug sethook reports missing mask errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
