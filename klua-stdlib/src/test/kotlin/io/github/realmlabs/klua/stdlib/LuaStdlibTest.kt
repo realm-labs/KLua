@@ -5592,6 +5592,69 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable drives host userdata operator metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        listOf(
+            "operatorLeft",
+            "operatorRight",
+            "concatLeft",
+            "concatRight",
+            "unaryValue",
+            "bitwiseValue",
+        ).forEach { name ->
+            state.pushUserData(DebugHostObject(name))
+            state.setGlobal(name)
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(operatorLeft, {
+                    __add = function(left, right)
+                        return left == operatorLeft and right == operatorRight and "add" or "bad-add"
+                    end,
+                })
+                debug.setmetatable(operatorRight, {
+                    __band = function(left, right)
+                        return left == operatorLeft and right == operatorRight and "band" or "bad-band"
+                    end,
+                })
+                debug.setmetatable(concatRight, {
+                    __concat = function(left, right)
+                        return left == concatLeft and right == concatRight and "concat" or "bad-concat"
+                    end,
+                })
+                debug.setmetatable(unaryValue, {
+                    __unm = function(left, right)
+                        return left == unaryValue and right == unaryValue and "unm" or "bad-unm"
+                    end,
+                })
+                debug.setmetatable(bitwiseValue, {
+                    __bnot = function(left, right)
+                        return left == bitwiseValue and right == bitwiseValue and "bnot" or "bad-bnot"
+                    end,
+                })
+                return operatorLeft + operatorRight,
+                    operatorLeft & operatorRight,
+                    concatLeft .. concatRight,
+                    -unaryValue,
+                    ~bitwiseValue
+                """.trimIndent(),
+                "debug-userdata-operators.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("add", state.toString(1))
+        assertEquals("band", state.toString(2))
+        assertEquals("concat", state.toString(3))
+        assertEquals("unm", state.toString(4))
+        assertEquals("bnot", state.toString(5))
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
