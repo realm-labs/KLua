@@ -11260,6 +11260,59 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table remove reads after end and negative length positions like lua`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local afterEndWrites = {}
+                local afterEnd = setmetatable({}, {
+                    __len = function()
+                        return 1
+                    end,
+                    __index = function(_, key)
+                        return "value:" .. tostring(key)
+                    end,
+                    __newindex = function(_, key, value)
+                        afterEndWrites[#afterEndWrites + 1] = tostring(key) .. ":" .. tostring(value)
+                    end,
+                })
+                local afterEndRemoved = table.remove(afterEnd, 2)
+
+                local negativeWrites = {}
+                local negative = setmetatable({}, {
+                    __len = function()
+                        return -1
+                    end,
+                    __index = function(_, key)
+                        return "value:" .. tostring(key)
+                    end,
+                    __newindex = function(_, key, value)
+                        negativeWrites[#negativeWrites + 1] = tostring(key) .. ":" .. tostring(value)
+                    end,
+                })
+                local negativeRemoved = table.remove(negative, -2)
+
+                return afterEndRemoved, afterEndWrites[1],
+                    negativeRemoved, negativeWrites[1], negativeWrites[2]
+                """.trimIndent(),
+                "table-remove-after-end-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("value:2", state.toString(1))
+        assertEquals("2:nil", state.toString(2))
+        assertEquals("value:-2", state.toString(3))
+        assertEquals("-2:value:-1", state.toString(4))
+        assertEquals("-1:nil", state.toString(5))
+    }
+
+    @Test
     fun `table remove reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

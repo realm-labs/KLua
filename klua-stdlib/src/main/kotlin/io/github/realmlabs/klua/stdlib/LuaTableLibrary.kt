@@ -326,15 +326,8 @@ internal object LuaTableLibrary {
         } else {
             requiredInteger(context, 2, "remove")
         }
-        val validPosition = position in 1L..length ||
-            position == length + 1L ||
-            (length == 0L && position == 0L)
-        if (!validPosition) {
+        if (!validTableRemovePosition(position, length)) {
             throw LuaRuntimeException("bad argument #2 to 'remove' (position out of bounds)")
-        }
-        if (position > length || position == 0L) {
-            tableSetValue(context, 1, position, null)
-            return LuaReturn.of(null)
         }
 
         val removed = tableIndexValue(context, position)
@@ -343,8 +336,12 @@ internal object LuaTableLibrary {
             tableSetValue(context, 1, index, tableIndexValue(context, index + 1L))
             index++
         }
-        tableSetValue(context, 1, length, null)
+        tableSetValue(context, 1, index, null)
         return LuaReturn.of(removed)
+    }
+
+    private fun validTableRemovePosition(position: Long, length: Long): Boolean {
+        return position == length || java.lang.Long.compareUnsigned(position - 1L, length) <= 0
     }
 
     private fun tableSort(context: LuaCallContext): LuaReturn {
