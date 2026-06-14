@@ -280,8 +280,8 @@ public object LuaStdlib {
     }
 
     private fun loadfile(context: LuaCallContext): LuaReturn {
-        val filename = requiredString(context, 1, "loadfile")
         val mode = loadMode(context, 2, "loadfile")
+        val filename = requiredString(context, 1, "loadfile")
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
         }

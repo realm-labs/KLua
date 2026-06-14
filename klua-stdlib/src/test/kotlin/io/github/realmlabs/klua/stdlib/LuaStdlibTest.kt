@@ -4196,7 +4196,11 @@ class LuaStdlibTest {
                     local textChunk = loadfile("${file.luaPath()}", "t")
                     local binaryChunk, message = loadfile("${file.luaPath()}", "b")
                     local invalidModeOk, invalidModeMessage = pcall(loadfile, "${file.luaPath()}", "B")
-                    return textChunk(), binaryChunk, message, invalidModeOk, invalidModeMessage
+                    local invalidNilModeOk, invalidNilModeMessage = pcall(loadfile, nil, "B")
+                    local invalidNumericModeOk, invalidNumericModeMessage = pcall(loadfile, 123, "B")
+                    return textChunk(), binaryChunk, message, invalidModeOk, invalidModeMessage,
+                        invalidNilModeOk, invalidNilModeMessage,
+                        invalidNumericModeOk, invalidNumericModeMessage
                     """.trimIndent(),
                     "loadfile-mode.lua",
                 ),
@@ -4208,6 +4212,10 @@ class LuaStdlibTest {
             assertEquals("attempt to load a text chunk (mode is 'b')", state.toString(3))
             assertFalse(state.toBoolean(4))
             assertEquals("bad argument #2 to 'loadfile' (invalid mode)", state.toString(5))
+            assertFalse(state.toBoolean(6))
+            assertEquals("bad argument #2 to 'loadfile' (invalid mode)", state.toString(7))
+            assertFalse(state.toBoolean(8))
+            assertEquals("bad argument #2 to 'loadfile' (invalid mode)", state.toString(9))
         } finally {
             Files.deleteIfExists(file)
         }
