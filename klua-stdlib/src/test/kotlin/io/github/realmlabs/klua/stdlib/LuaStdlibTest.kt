@@ -890,7 +890,8 @@ class LuaStdlibTest {
                 local function leaf()
                     local missing = debug.getlocal(1, 99)
                     local ok, message = pcall(debug.getlocal, 99, 1)
-                    return missing, ok, message
+                    local okZero, zeroMessage = pcall(debug.getlocal, 99, 0)
+                    return missing, ok, message, okZero, zeroMessage
                 end
 
                 return leaf()
@@ -903,6 +904,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(1))
         assertFalse(state.toBoolean(2))
         assertEquals("bad argument #1 to 'debug.getlocal' (level out of range)", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #1 to 'debug.getlocal' (level out of range)", state.toString(5))
     }
 
     @Test
@@ -940,8 +943,9 @@ class LuaStdlibTest {
                 end
                 local function probe()
                     local okStack, stackMessage = pcall(debug.getlocal, 1, "not-index")
+                    local okLevel, levelMessage = pcall(debug.getlocal, "not-level", "not-index")
                     local okFunction, functionMessage = pcall(debug.getlocal, target, "not-index")
-                    return okStack, stackMessage, okFunction, functionMessage
+                    return okStack, stackMessage, okLevel, levelMessage, okFunction, functionMessage
                 end
 
                 return probe()
@@ -955,6 +959,8 @@ class LuaStdlibTest {
         assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(6))
     }
 
     @Test

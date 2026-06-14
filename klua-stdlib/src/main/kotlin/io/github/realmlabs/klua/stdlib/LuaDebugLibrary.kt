@@ -183,8 +183,8 @@ internal object LuaDebugLibrary {
     }
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
+        val index = requiredLocalIndex(context, 2, "debug.getlocal")
         if (context.typeName(1) == "function") {
-            val index = requiredLocalIndex(context, 2, "debug.getlocal")
             if (index <= 0) {
                 return LuaReturn.of(null)
             }
@@ -192,15 +192,14 @@ internal object LuaDebugLibrary {
             return LuaReturn.of(info.parameterNames.getOrNull(index - 1))
         }
         val level = requiredStackLevel(context, "debug.getlocal")
-        val index = requiredLocalIndex(context, 2, "debug.getlocal")
-        if (index <= 0) {
-            return LuaReturn.of(null)
-        }
         if (level < 0) {
             throw LuaRuntimeException("bad argument #1 to 'debug.getlocal' (level out of range)")
         }
         val frame = context.luaFrames.drop(level).firstOrNull()
             ?: throw LuaRuntimeException("bad argument #1 to 'debug.getlocal' (level out of range)")
+        if (index <= 0) {
+            return LuaReturn.of(null)
+        }
         val local = frame.locals.getOrNull(index - 1) ?: return LuaReturn.of(null)
         return LuaReturn.of(local.name, local.value)
     }
