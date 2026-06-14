@@ -3260,7 +3260,7 @@ class LuaStdlibTest {
         assertEquals(0L, state.toInteger(10))
         assertTrue(state.toBoolean(11))
         assertEquals("number", state.toString(12))
-        assertTrue(state.toBoolean(13))
+        assertFalse(state.toBoolean(13))
         assertEquals("incremental", state.toString(14))
         assertEquals("generational", state.toString(15))
     }
@@ -3313,8 +3313,8 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertTrue(state.toBoolean(1))
-        assertTrue(state.toBoolean(2))
+        assertFalse(state.toBoolean(1))
+        assertFalse(state.toBoolean(2))
         assertEquals("number", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertEquals("bad argument #2 to 'collectgarbage' (number expected)", state.toString(5))

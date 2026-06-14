@@ -186,7 +186,7 @@ public object LuaStdlib {
                     requiredIntegerLikeLuaL(context, 2, "collectgarbage")
                 }
                 System.gc()
-                GarbageCollectorResult(running, mode, LuaReturn.of(true))
+                GarbageCollectorResult(running, mode, LuaReturn.of(false))
             }
             "isrunning" -> GarbageCollectorResult(running, mode, LuaReturn.of(running))
             "incremental" -> GarbageCollectorResult(running, "incremental", LuaReturn.of(mode))
