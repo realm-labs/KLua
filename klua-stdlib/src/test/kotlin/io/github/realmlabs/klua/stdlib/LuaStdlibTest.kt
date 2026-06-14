@@ -10048,7 +10048,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, typeState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(typeState.getLastError())
-        assertEquals("bad argument #1 to 'table.create' (integer expected)", typeState.toString(-1))
+        assertEquals("bad argument #1 to 'table.create' (number expected)", typeState.toString(-1))
 
         val sequenceState = LuaState.create()
         LuaStdlib.openTable(sequenceState)
@@ -10102,6 +10102,71 @@ class LuaStdlibTest {
         assertEquals(
             "bad argument #2 to 'table.create' (out of range)",
             largeRecordState.toString(-1),
+        )
+    }
+
+    @Test
+    fun `table integer arguments report non numeric value errors`() {
+        fun assertNonNumericIntegerError(source: String, chunkName: String, expected: String) {
+            val state = LuaState.create()
+            LuaStdlib.openTable(state)
+
+            assertEquals(LuaStatus.OK, state.load(source, chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals(expected, state.toString(-1))
+        }
+
+        assertNonNumericIntegerError(
+            """return table.concat({"a"}, "", "bad")""",
+            "table-concat-string-start.lua",
+            "bad argument #3 to 'table.concat' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.concat({"a"}, "", 1, "bad")""",
+            "table-concat-string-end.lua",
+            "bad argument #4 to 'table.concat' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.create(1, "bad")""",
+            "table-create-string-record.lua",
+            "bad argument #2 to 'table.create' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.insert({}, "bad", "x")""",
+            "table-insert-string-position.lua",
+            "bad argument #2 to 'table.insert' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.move({}, "bad", 1, 1)""",
+            "table-move-string-first.lua",
+            "bad argument #2 to 'table.move' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.move({}, 1, "bad", 1)""",
+            "table-move-string-last.lua",
+            "bad argument #3 to 'table.move' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.move({}, 1, 1, "bad")""",
+            "table-move-string-target.lua",
+            "bad argument #4 to 'table.move' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.remove({}, "bad")""",
+            "table-remove-string-position.lua",
+            "bad argument #2 to 'table.remove' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.unpack({}, "bad")""",
+            "table-unpack-string-start.lua",
+            "bad argument #2 to 'table.unpack' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.unpack({}, 1, "bad")""",
+            "table-unpack-string-end.lua",
+            "bad argument #3 to 'table.unpack' (number expected)",
         )
     }
 

@@ -480,7 +480,7 @@ internal object LuaTableLibrary {
             ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
                 throw LuaRuntimeException("bad argument #$index to '$functionName' (number has no integer representation)")
             } else {
-                throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
             }
     }
 
