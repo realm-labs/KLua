@@ -10704,6 +10704,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert uses wrapped first empty position like lua`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                local values = setmetatable({}, {
+                    __len = function()
+                        return math.maxinteger
+                    end,
+                    __newindex = function(_, key, value)
+                        writes[#writes + 1] = tostring(key) .. ":" .. tostring(value)
+                    end,
+                })
+                table.insert(values, 1, "first")
+                table.insert(values, math.mininteger, "wrapped")
+                table.insert(values, math.maxinteger, "last")
+                return writes[1], writes[2], writes[3]
+                """.trimIndent(),
+                "table-insert-wrapped-first-empty.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1:first", state.toString(1))
+        assertEquals("-9223372036854775808:wrapped", state.toString(2))
+        assertEquals("9223372036854775807:last", state.toString(3))
+    }
+
+    @Test
     fun `table insert follows table newindex metamethod chains`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

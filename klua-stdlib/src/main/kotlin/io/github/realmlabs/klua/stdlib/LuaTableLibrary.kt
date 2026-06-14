@@ -203,11 +203,12 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #1 to 'insert' (table expected)")
         }
         val length = tableLength(context, 1)
+        val firstEmpty = length + 1L
         val position: Long
         val valueIndex: Int
         when (context.argumentCount) {
             2 -> {
-                position = length + 1L
+                position = firstEmpty
                 valueIndex = 2
             }
             3 -> {
@@ -216,17 +217,21 @@ internal object LuaTableLibrary {
             }
             else -> throw LuaRuntimeException("wrong number of arguments to 'insert'")
         }
-        if (position !in 1L..(length + 1L)) {
+        if (!validTableInsertPosition(position, firstEmpty)) {
             throw LuaRuntimeException("bad argument #2 to 'insert' (position out of bounds)")
         }
 
-        var index = length
-        while (index >= position) {
-            tableSetValue(context, 1, index + 1L, tableIndexValue(context, index))
+        var index = firstEmpty
+        while (index > position) {
+            tableSetValue(context, 1, index, tableIndexValue(context, index - 1L))
             index--
         }
         tableSetValue(context, 1, position, argumentValue(context, valueIndex))
         return LuaReturn.none()
+    }
+
+    private fun validTableInsertPosition(position: Long, firstEmpty: Long): Boolean {
+        return java.lang.Long.compareUnsigned(position - 1L, firstEmpty) < 0
     }
 
     private fun tablePack(context: LuaCallContext): LuaReturn {
