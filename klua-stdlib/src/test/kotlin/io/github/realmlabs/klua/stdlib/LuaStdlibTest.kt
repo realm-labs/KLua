@@ -5655,6 +5655,68 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable names host userdata operator errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("named"))
+        state.setGlobal("named")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(named, {__name = "NamedHost"})
+                local addOk, addMessage = pcall(function()
+                    return named + 1
+                end)
+                local bitwiseOk, bitwiseMessage = pcall(function()
+                    return named & 1
+                end)
+                local concatOk, concatMessage = pcall(function()
+                    return named .. 1
+                end)
+                local unmOk, unmMessage = pcall(function()
+                    return -named
+                end)
+                local bnotOk, bnotMessage = pcall(function()
+                    return ~named
+                end)
+                local compareOk, compareMessage = pcall(function()
+                    return named < 1
+                end)
+                return addOk,
+                    addMessage,
+                    bitwiseOk,
+                    bitwiseMessage,
+                    concatOk,
+                    concatMessage,
+                    unmOk,
+                    unmMessage,
+                    bnotOk,
+                    bnotMessage,
+                    compareOk,
+                    compareMessage
+                """.trimIndent(),
+                "debug-userdata-operator-names.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to perform arithmetic on a NamedHost value", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to perform bitwise operation on a NamedHost value", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("attempt to concatenate a NamedHost value", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("attempt to perform arithmetic on a NamedHost value", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("attempt to perform bitwise operation on a NamedHost value", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("attempt to compare NamedHost with number", state.toString(12))
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

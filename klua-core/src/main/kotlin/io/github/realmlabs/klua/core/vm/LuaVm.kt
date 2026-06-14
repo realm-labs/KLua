@@ -689,6 +689,25 @@ internal class LuaVm(
         return (metatable.rawGet(NAME_KEY) as? LuaString)?.value ?: "userdata"
     }
 
+    private fun objectTypeName(value: LuaValue): String {
+        return namedObjectTypeName(value) ?: typeName(value)
+    }
+
+    private fun operationTypeName(value: LuaValue): String {
+        val name = namedObjectTypeName(value) ?: return typeName(value)
+        return "a $name value"
+    }
+
+    private fun namedObjectTypeName(value: LuaValue): String? {
+        return when (value) {
+            is LuaTable -> (value.metatableRawGet(NAME_KEY) as? LuaString)?.value
+            is LuaUserData -> currentUserDataMetatable?.invoke(value.value)?.let { metatable ->
+                (metatable.rawGet(NAME_KEY) as? LuaString)?.value
+            }
+            else -> null
+        }
+    }
+
     private fun tableGet(table: LuaTable, key: LuaValue, visited: MutableSet<LuaTable>): LuaValue {
         val value = table.rawGet(key)
         if (value != LuaNil) {
@@ -861,7 +880,7 @@ internal class LuaVm(
         if (metamethod != null) {
             return callOperatorMetamethod(metamethod, listOf(left, right))
         }
-        throw LuaVmException("attempt to perform arithmetic on ${typeName(arithmeticErrorOperand(left, right))}")
+        throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(arithmeticErrorOperand(left, right))}")
     }
 
     private fun arithmeticErrorOperand(left: LuaValue, right: LuaValue): LuaValue {
@@ -899,7 +918,7 @@ internal class LuaVm(
                 if (metamethod != LuaNil) {
                     callOperatorMetamethod(metamethod, listOf(value, value))
                 } else {
-                    throw LuaVmException("attempt to perform arithmetic on ${typeName(value)}")
+                    throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(value)}")
                 }
             }
         }
@@ -985,9 +1004,19 @@ internal class LuaVm(
         } catch (error: LuaVmException) {
             val metamethod = binaryMetamethod(left, right, comparison.metamethodKey)
             if (metamethod == null) {
-                throw error
+                throw comparisonError(left, right)
             }
             return isTruthy(callOperatorMetamethod(metamethod, listOf(left, right)))
+        }
+    }
+
+    private fun comparisonError(left: LuaValue, right: LuaValue): LuaVmException {
+        val leftType = objectTypeName(left)
+        val rightType = objectTypeName(right)
+        return if (leftType == rightType) {
+            LuaVmException("attempt to compare two $leftType values")
+        } else {
+            LuaVmException("attempt to compare $leftType with $rightType")
         }
     }
 
@@ -1003,7 +1032,7 @@ internal class LuaVm(
                 return
             }
             val failedValue = if (left == null) leftValue else rightValue
-            throw LuaVmException("attempt to concatenate ${typeName(failedValue)}")
+            throw LuaVmException("attempt to concatenate ${operationTypeName(failedValue)}")
         }
         stack.set(register(frame, Instruction.a(instruction)), LuaString(left + right))
     }
@@ -1020,7 +1049,7 @@ internal class LuaVm(
                 return
             }
             val failedValue = if (left == null) leftValue else rightValue
-            throw LuaVmException("attempt to perform bitwise operation on ${typeName(failedValue)}")
+            throw LuaVmException("attempt to perform bitwise operation on ${operationTypeName(failedValue)}")
         }
         stack.set(register(frame, Instruction.a(instruction)), LuaInteger(operation.apply(left, right)))
     }
@@ -1034,7 +1063,7 @@ internal class LuaVm(
                 stack.set(register(frame, Instruction.a(instruction)), callOperatorMetamethod(metamethod, listOf(value, value)))
                 return
             }
-            throw LuaVmException("attempt to perform bitwise operation on ${typeName(value)}")
+            throw LuaVmException("attempt to perform bitwise operation on ${operationTypeName(value)}")
         }
         stack.set(register(frame, Instruction.a(instruction)), LuaInteger(integer.inv()))
     }
