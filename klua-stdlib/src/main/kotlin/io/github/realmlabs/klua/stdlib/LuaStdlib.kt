@@ -252,7 +252,11 @@ public object LuaStdlib {
         val source = StringBuilder()
         while (true) {
             val chunk = context.call(1, emptyList()).get(1) ?: break
-            source.append(readerChunkToString(chunk))
+            val text = readerChunkToString(chunk)
+            if (text.isEmpty()) {
+                break
+            }
+            source.append(text)
         }
         return source.toString()
     }
