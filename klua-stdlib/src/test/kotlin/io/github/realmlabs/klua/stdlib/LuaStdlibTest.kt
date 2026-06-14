@@ -2824,7 +2824,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(6))
         assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(7))
         assertFalse(state.toBoolean(8))
-        assertTrue(state.isNil(9))
+        assertEquals("<no error object>", state.toString(9))
     }
 
     @Test
@@ -2901,9 +2901,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("marker", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertTrue(state.isNil(5))
+        assertEquals("<no error object>", state.toString(5))
         assertFalse(state.toBoolean(6))
-        assertTrue(state.isNil(7))
+        assertEquals("<no error object>", state.toString(7))
         assertFalse(state.toBoolean(8))
         assertTrue(state.toBoolean(9))
     }
@@ -6092,6 +6092,34 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(9))
         assertTrue(state.toBoolean(10))
         assertEquals("marker", state.toString(11))
+    }
+
+    @Test
+    fun `coroutine resume and close normalize nil error objects`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    error(nil)
+                end)
+                local ok, err = coroutine.resume(co)
+                local closeOk, closeErr = coroutine.close(co)
+                return ok, err, closeOk, closeErr
+                """.trimIndent(),
+                "coroutine-nil-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("<no error object>", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("<no error object>", state.toString(4))
     }
 
     @Test
