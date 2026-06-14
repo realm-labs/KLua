@@ -4070,6 +4070,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pairs uses primitive type pairs metamethod`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(false, {
+                    __pairs = function(self)
+                        local emitted = false
+                        return function(state, _)
+                            if emitted then
+                                return nil
+                            end
+                            emitted = true
+                            return state, tostring(state)
+                        end, self, nil, "closing"
+                    end,
+                })
+                local iterator, pairState, pairKey, closing = pairs(true)
+                local key, value = iterator(pairState, pairKey)
+                local done = iterator(pairState, key)
+                return pairState, key, value, done, closing, select("#", pairs(false))
+                """.trimIndent(),
+                "pairs-primitive-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("true", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals("closing", state.toString(5))
+        assertEquals(4L, state.toInteger(6))
+    }
+
+    @Test
     fun `pairs and ipairs report table argument errors`() {
         val pairState = LuaState.create()
         LuaStdlib.openBase(pairState)

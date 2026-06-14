@@ -339,11 +339,9 @@ public object LuaStdlib {
 
     private fun pairs(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "pairs")
-        if (context.isTable(1)) {
-            val pairs = context.getTableField(context.getMetatable(1), "__pairs")
-            if (pairs != null) {
-                return pairsReturn(context.call(pairs, listOf(argumentValue(context, 1))))
-            }
+        val pairs = context.getTableField(context.getRawMetatable(1), "__pairs")
+        if (pairs != null) {
+            return pairsReturn(context.call(pairs, listOf(argumentValue(context, 1))))
         }
         return LuaReturn.ofValues(listOf(LuaFunction(::next), argumentValue(context, 1), null, null))
     }
