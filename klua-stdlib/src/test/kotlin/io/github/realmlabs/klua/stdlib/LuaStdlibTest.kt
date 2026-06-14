@@ -1512,18 +1512,52 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `debug sethook rejects invalid hook masks`() {
+    fun `debug sethook ignores unknown mask characters`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return debug.sethook(function() end, "x", 0)""", "debug-sethook-mask-error.lua"),
+            state.load(
+                """
+                debug.sethook(function() end, "x", 0)
+                local none = {debug.gethook()}
+                debug.sethook(function() end, "x", 2)
+                local countHook, countMask, countInterval = debug.gethook()
+                debug.sethook(function() end, "cxr", 0)
+                local eventHook, eventMask, eventInterval = debug.gethook()
+                debug.sethook()
+                return #none,
+                    type(countHook), countMask, countInterval,
+                    type(eventHook), eventMask, eventInterval
+                """.trimIndent(),
+                "debug-sethook-unknown-mask.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals("function", state.toString(2))
+        assertEquals("", state.toString(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals("function", state.toString(5))
+        assertEquals("cr", state.toString(6))
+        assertEquals(0L, state.toInteger(7))
+    }
+
+    @Test
+    fun `debug sethook reports missing mask errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return debug.sethook(function() end)""", "debug-sethook-mask-missing-error.lua"),
         )
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'debug.sethook' (invalid hook mask)", state.toString(-1))
+        assertEquals("bad argument #2 to 'debug.sethook' (string expected)", state.toString(-1))
     }
 
     @Test
@@ -1542,7 +1576,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `debug sethook reports hook function errors before mask errors`() {
+    fun `debug sethook reports hook function errors after mask validation`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -1554,6 +1588,15 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'debug.sethook' (function expected)", state.toString(-1))
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("""return debug.sethook("not-function", true, 0)""", "debug-sethook-mask-before-function-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #2 to 'debug.sethook' (string expected)", state.toString(-1))
     }
 
     @Test

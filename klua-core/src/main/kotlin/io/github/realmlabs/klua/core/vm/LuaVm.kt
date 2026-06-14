@@ -404,10 +404,16 @@ internal class LuaVm(
         if (function !is LuaClosure && function !is LuaNativeFunction) {
             throw LuaVmException("bad argument #1 to 'debug.sethook' (function expected)")
         }
+        val normalizedMask = mask.filter { event -> event == 'c' || event == 'r' || event == 'l' }
+        val normalizedCount = count.coerceAtLeast(0)
+        if (normalizedMask.isEmpty() && normalizedCount == 0) {
+            debugHook = null
+            return true
+        }
         debugHook = DebugHookState(
             function,
-            mask.filter { event -> event == 'c' || event == 'r' || event == 'l' },
-            count.coerceAtLeast(0),
+            normalizedMask,
+            normalizedCount,
         )
         return true
     }
