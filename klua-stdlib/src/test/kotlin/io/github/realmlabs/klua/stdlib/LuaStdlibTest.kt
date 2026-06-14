@@ -10137,8 +10137,24 @@ class LuaStdlibTest {
                         return ({ "x", "y" })[index]
                     end,
                 })
+                local hex = setmetatable({}, {
+                    __len = function()
+                        return "0x2"
+                    end,
+                    __index = function(_, index)
+                        return ({ "hex-a", "hex-b" })[index]
+                    end,
+                })
+                local wrapped = setmetatable({}, {
+                    __len = function()
+                        return "0x10000000000000000"
+                    end,
+                    __index = function(_, index)
+                        return ({ "wrapped-a", "wrapped-b" })[index]
+                    end,
+                })
                 local ok, message = pcall(table.concat, unicode, ",")
-                return table.concat(ascii, ","), ok, message
+                return table.concat(ascii, ","), table.concat(hex, ","), table.concat(wrapped, ","), ok, message
                 """.trimIndent(),
                 "table-concat-length-ascii-whitespace.lua",
             ),
@@ -10146,8 +10162,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("a,b", state.toString(1))
-        assertFalse(state.toBoolean(2))
-        assertEquals("object length is not an integer", state.toString(3))
+        assertEquals("hex-a,hex-b", state.toString(2))
+        assertEquals("", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("object length is not an integer", state.toString(5))
     }
 
     @Test

@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import java.math.BigInteger
 import java.util.Locale
 
 internal object LuaTableLibrary {
@@ -518,7 +519,7 @@ internal object LuaTableLibrary {
             is Float -> value.toDouble().luaInteger()
             is Double -> value.luaInteger()
             is CharSequence -> value.toString().trimLuaAsciiWhitespace().let { text ->
-                text.toLongOrNull() ?: text.toDoubleOrNull()?.luaInteger()
+                parseHexInteger(text) ?: text.toLongOrNull() ?: text.toDoubleOrNull()?.luaInteger()
             }
             else -> null
         }
@@ -526,6 +527,31 @@ internal object LuaTableLibrary {
 
     private fun String.trimLuaAsciiWhitespace(): String {
         return trim { char -> char == ' ' || char == '\u000C' || char == '\n' || char == '\r' || char == '\t' || char == '\u000B' }
+    }
+
+    private fun parseHexInteger(text: String): Long? {
+        val sign = when {
+            text.startsWith("-") -> -1
+            text.startsWith("+") -> 1
+            else -> 1
+        }
+        val digitsStart = if (text.startsWith("-") || text.startsWith("+")) 1 else 0
+        if (!text.regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)) {
+            return null
+        }
+        val digits = text.substring(digitsStart + 2)
+        if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
+            return null
+        }
+        var value = BigInteger.ZERO
+        val radix = BigInteger.valueOf(16L)
+        for (digit in digits) {
+            value = value.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
+        }
+        if (sign < 0) {
+            value = value.negate()
+        }
+        return value.mod(UINT64_MODULUS).toLong()
     }
 
     private fun Double.luaInteger(): Long? {
@@ -547,4 +573,6 @@ internal object LuaTableLibrary {
         state.pushFunction(function::invoke)
         state.setField(-2, name)
     }
+
+    private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 }
