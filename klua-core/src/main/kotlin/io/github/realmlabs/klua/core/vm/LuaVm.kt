@@ -915,6 +915,7 @@ internal class LuaVm(
         val result = when (value) {
             is LuaString -> LuaInteger(value.value.encodeToByteArray().size.toLong())
             is LuaTable -> tableLength(value)
+            is LuaUserData -> userDataLength(value)
             else -> primitiveLength(value)
         }
         stack.set(register(frame, Instruction.a(instruction)), result)
@@ -925,6 +926,16 @@ internal class LuaVm(
             LuaNil -> LuaInteger(table.rawLength())
             else -> callLengthMetamethod(table, length)
         }
+    }
+
+    private fun userDataLength(value: LuaUserData): LuaValue {
+        val metatable = currentUserDataMetatable?.invoke(value.value)
+            ?: throw LuaVmException("attempt to get length of userdata")
+        val length = metatable.rawGet(LEN_KEY)
+        if (length == LuaNil) {
+            throw LuaVmException("attempt to get length of a ${userDataObjectTypeName(metatable)} value")
+        }
+        return callLengthMetamethod(value, length)
     }
 
     private fun primitiveLength(value: LuaValue): LuaValue {

@@ -5472,6 +5472,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable drives host userdata length metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("sized"))
+        state.setGlobal("sized")
+        state.pushUserData(DebugHostObject("named"))
+        state.setGlobal("named")
+        state.pushUserData(DebugHostObject("numeric"))
+        state.setGlobal("numeric")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local lenSelf
+                debug.setmetatable(sized, {
+                    __len = function(self)
+                        lenSelf = self
+                        return 7
+                    end,
+                })
+                debug.setmetatable(named, {__name = "SizedHost"})
+                debug.setmetatable(numeric, {__name = 42})
+                local namedOk, namedMessage = pcall(function()
+                    return #named
+                end)
+                local numericOk, numericMessage = pcall(function()
+                    return #numeric
+                end)
+                return #sized,
+                    lenSelf == sized,
+                    namedOk,
+                    namedMessage,
+                    numericOk,
+                    numericMessage
+                """.trimIndent(),
+                "debug-userdata-len.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(7L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to get length of a SizedHost value", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("attempt to get length of a userdata value", state.toString(6))
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
