@@ -20,7 +20,7 @@ internal object LuaCoroutineLibrary {
         val runtime = CoroutineRuntime()
         state.newTable()
         setFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
-        setFunctionField(state, "create") { context -> coroutineCreate(context, "coroutine.create") }
+        setFunctionField(state, "create") { context -> coroutineCreate(context, "create") }
         setFunctionField(state, "isyieldable") { context -> coroutineIsYieldable(context, runtime) }
         setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
         setFunctionField(state, "running") { coroutineRunning(runtime) }
@@ -41,7 +41,7 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineResume(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val coroutine = requiredCoroutine(context, 1, "coroutine.resume")
+        val coroutine = requiredCoroutine(context, 1, "resume")
         return resumeCoroutine(
             context,
             runtime,
@@ -150,7 +150,7 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineClose(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val coroutine = optionalCurrentCoroutine(context, runtime, "coroutine.close")
+        val coroutine = optionalCurrentCoroutine(context, runtime, "close")
         if (coroutine.isMain) {
             if (isRunningCoroutine(coroutine, runtime)) {
                 throw LuaRuntimeException("cannot close main thread")
@@ -171,12 +171,12 @@ internal object LuaCoroutineLibrary {
         if (context.isNone(1)) {
             return LuaReturn.of(runtime.running != null)
         }
-        val coroutine = requiredCoroutine(context, 1, "coroutine.isyieldable")
+        val coroutine = requiredCoroutine(context, 1, "isyieldable")
         return LuaReturn.of(!coroutine.isMain)
     }
 
     private fun coroutineStatus(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val coroutine = requiredCoroutine(context, 1, "coroutine.status")
+        val coroutine = requiredCoroutine(context, 1, "status")
         return LuaReturn.of(
             when (coroutine.status) {
                 CoroutineStatus.SUSPENDED -> "suspended"
@@ -191,7 +191,7 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineWrap(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val created = coroutineCreate(context, "coroutine.wrap").getUserData(1, LuaCoroutine::class.java)
+        val created = coroutineCreate(context, "wrap").getUserData(1, LuaCoroutine::class.java)
         val wrapper = LuaFunction { wrapperContext ->
             val result = resumeCoroutine(
                 wrapperContext,

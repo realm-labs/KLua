@@ -5409,7 +5409,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, createState.load("""return coroutine.create(nil)""", "coroutine-create-error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, createState.pcall(0, -1))
         assertIs<LuaRuntimeException>(createState.getLastError())
-        assertEquals("bad argument #1 to 'coroutine.create' (function expected)", createState.toString(-1))
+        assertEquals("bad argument #1 to 'create' (function expected)", createState.toString(-1))
 
         val resumeState = LuaState.create()
         LuaStdlib.openCoroutine(resumeState)
@@ -5420,7 +5420,7 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.RUNTIME_ERROR, resumeState.pcall(0, -1))
         assertIs<LuaRuntimeException>(resumeState.getLastError())
-        assertEquals("bad argument #1 to 'coroutine.resume' (thread expected)", resumeState.toString(-1))
+        assertEquals("bad argument #1 to 'resume' (thread expected)", resumeState.toString(-1))
 
         val statusState = LuaState.create()
         LuaStdlib.openCoroutine(statusState)
@@ -5431,7 +5431,7 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.RUNTIME_ERROR, statusState.pcall(0, -1))
         assertIs<LuaRuntimeException>(statusState.getLastError())
-        assertEquals("bad argument #1 to 'coroutine.status' (thread expected)", statusState.toString(-1))
+        assertEquals("bad argument #1 to 'status' (thread expected)", statusState.toString(-1))
 
         val closeState = LuaState.create()
         LuaStdlib.openCoroutine(closeState)
@@ -5442,7 +5442,7 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.RUNTIME_ERROR, closeState.pcall(0, -1))
         assertIs<LuaRuntimeException>(closeState.getLastError())
-        assertEquals("bad argument #1 to 'coroutine.close' (thread expected)", closeState.toString(-1))
+        assertEquals("bad argument #1 to 'close' (thread expected)", closeState.toString(-1))
 
         val isYieldableState = LuaState.create()
         LuaStdlib.openCoroutine(isYieldableState)
@@ -5454,7 +5454,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, isYieldableState.pcall(0, -1))
         assertIs<LuaRuntimeException>(isYieldableState.getLastError())
         assertEquals(
-            "bad argument #1 to 'coroutine.isyieldable' (thread expected)",
+            "bad argument #1 to 'isyieldable' (thread expected)",
             isYieldableState.toString(-1),
         )
 
@@ -5464,7 +5464,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, wrapState.load("""return coroutine.wrap(nil)""", "coroutine-wrap-error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, wrapState.pcall(0, -1))
         assertIs<LuaRuntimeException>(wrapState.getLastError())
-        assertEquals("bad argument #1 to 'coroutine.wrap' (function expected)", wrapState.toString(-1))
+        assertEquals("bad argument #1 to 'wrap' (function expected)", wrapState.toString(-1))
     }
 
     @Test
