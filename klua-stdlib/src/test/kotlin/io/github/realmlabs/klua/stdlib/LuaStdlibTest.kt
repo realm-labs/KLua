@@ -2209,6 +2209,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require uses original loaded and preload tables after package field replacement`() {
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local originalLoaded = package.loaded
+                local originalPreload = package.preload
+                package.loaded = { swapped = "visible-cache" }
+                package.preload = {
+                    swapped = function()
+                        return "visible-preload"
+                    end,
+                }
+                originalPreload.swapped = function()
+                    return "registry-preload"
+                end
+
+                local first, firstExtra = require("swapped")
+                originalLoaded.swapped = "registry-cache"
+                local second, secondExtra = require("swapped")
+                return first, firstExtra, originalLoaded.swapped,
+                    package.loaded.swapped, second, secondExtra == nil
+                """.trimIndent(),
+                "require-registry-tables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("registry-preload", state.toString(1))
+        assertEquals(":preload:", state.toString(2))
+        assertEquals("registry-cache", state.toString(3))
+        assertEquals("visible-cache", state.toString(4))
+        assertEquals("registry-cache", state.toString(5))
+        assertTrue(state.toBoolean(6))
+    }
+
+    @Test
     fun `require normalizes numeric module names and rejects non string names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

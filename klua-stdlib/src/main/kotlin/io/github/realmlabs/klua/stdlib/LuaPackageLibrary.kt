@@ -113,12 +113,14 @@ internal object LuaPackageLibrary {
     private const val REQUIRE_SOURCE: String = """
         local searcherResultType = package._searcherResultType
         local moduleRoot = package._moduleRoot
+        local loadedTable = package.loaded
+        local preloadTable = package.preload
         package._searcherResultType = nil
         package._moduleRoot = nil
 
         package.searchers = {
             function(name)
-                local loader = package.preload[name]
+                local loader = preloadTable[name]
                 if loader ~= nil then
                     return loader, ":preload:"
                 end
@@ -176,7 +178,7 @@ internal object LuaPackageLibrary {
                 error("bad argument #1 to 'require' (string expected)", 0)
             end
 
-            local loaded = package.loaded
+            local loaded = loadedTable
             local value = loaded[name]
             if value ~= nil and value ~= false then
                 return value
