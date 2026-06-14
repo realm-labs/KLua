@@ -10428,6 +10428,7 @@ class LuaStdlibTest {
     fun `table integer arguments report non numeric value errors`() {
         fun assertNonNumericIntegerError(source: String, chunkName: String, expected: String) {
             val state = LuaState.create()
+            LuaStdlib.openString(state)
             LuaStdlib.openTable(state)
 
             assertEquals(LuaStatus.OK, state.load(source, chunkName))
@@ -10440,6 +10441,11 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return table.concat({"a"}, "", "bad")""",
             "table-concat-string-start.lua",
+            "bad argument #3 to 'concat' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return table.concat({"a"}, "", string.char(226, 128, 131) .. "1")""",
+            "table-concat-unicode-space-start.lua",
             "bad argument #3 to 'concat' (number expected)",
         )
         assertNonNumericIntegerError(

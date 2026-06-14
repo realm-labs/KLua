@@ -32,36 +32,55 @@ class LuaStateStackJavaTest {
     void convertsNumericStringsToIntegers() {
         LuaState state = LuaState.create();
 
+        state.pushString(" \t3\n");
         state.pushString("3.0");
         state.pushString("3.5");
         state.pushString("0x10");
         state.pushString("0x1.8p1");
         state.pushString("0xFFFFFFFFFFFFFFFF");
         state.pushString("0x10000000000000000");
+        state.pushString("\u20033");
 
         assertEquals(3L, state.toInteger(1));
-        assertNull(state.toInteger(2));
-        assertEquals(16L, state.toInteger(3));
-        assertEquals(3L, state.toInteger(4));
-        assertEquals(-1L, state.toInteger(5));
-        assertEquals(0L, state.toInteger(6));
+        assertEquals(3L, state.toInteger(2));
+        assertNull(state.toInteger(3));
+        assertEquals(16L, state.toInteger(4));
+        assertEquals(3L, state.toInteger(5));
+        assertEquals(-1L, state.toInteger(6));
+        assertEquals(0L, state.toInteger(7));
+        assertNull(state.toInteger(8));
     }
 
     @Test
     void convertsNumericStringsToNumbers() {
         LuaState state = LuaState.create();
 
+        state.pushString(" \t3.5\n");
         state.pushString("3.5");
         state.pushString("0x10");
         state.pushString("0x1.8p1");
         state.pushString("NaN");
         state.pushString("Infinity");
+        state.pushString("\u20033.5");
 
         assertEquals(3.5, state.toNumber(1));
-        assertEquals(16.0, state.toNumber(2));
-        assertEquals(3.0, state.toNumber(3));
-        assertNull(state.toNumber(4));
+        assertEquals(3.5, state.toNumber(2));
+        assertEquals(16.0, state.toNumber(3));
+        assertEquals(3.0, state.toNumber(4));
         assertNull(state.toNumber(5));
+        assertNull(state.toNumber(6));
+        assertNull(state.toNumber(7));
+    }
+
+    @Test
+    void detectsNumericStringsUsingLuaAsciiWhitespace() {
+        LuaState state = LuaState.create();
+
+        state.pushString(" \t3.5\n");
+        state.pushString("\u20033.5");
+
+        assertTrue(state.isNumber(1));
+        assertFalse(state.isNumber(2));
     }
 
     @Test
