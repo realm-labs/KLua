@@ -13109,7 +13109,15 @@ class LuaStdlibTest {
                 """
                 local packed = table.pack("a", nil, "c")
                 local count = select("#", table.unpack(packed, 1, packed.n))
-                return packed[1], packed[2], packed[3], packed.n, count
+                local nextKey, nextValue = next(packed, 1)
+                local seenNilSlot = false
+                for key in pairs(packed) do
+                    if key == 2 then
+                        seenNilSlot = true
+                    end
+                end
+                return packed[1], packed[2], packed[3], packed.n, count,
+                    nextKey, nextValue, seenNilSlot
                 """.trimIndent(),
                 "table-pack.lua",
             ),
@@ -13121,6 +13129,9 @@ class LuaStdlibTest {
         assertEquals("c", state.toString(3))
         assertEquals(3L, state.toInteger(4))
         assertEquals(3L, state.toInteger(5))
+        assertEquals(3L, state.toInteger(6))
+        assertEquals("c", state.toString(7))
+        assertFalse(state.toBoolean(8))
     }
 
     @Test

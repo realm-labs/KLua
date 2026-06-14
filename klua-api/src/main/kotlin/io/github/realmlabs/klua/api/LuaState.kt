@@ -865,7 +865,9 @@ class LuaState private constructor(
             if (key == null) {
                 throw LuaRuntimeException("table index is nil")
             }
-            fields[key.toStackValue()] = value.toStackValue()
+            if (value != null) {
+                fields[key.toStackValue()] = value.toStackValue()
+            }
         }
         return LuaStackValue.TableValue(fields)
     }
@@ -876,7 +878,9 @@ class LuaState private constructor(
             if (key == null) {
                 throw LuaRuntimeException("table index is nil")
             }
-            fields[key.toCoreReturnValue()] = value.toCoreReturnValue()
+            if (value != null) {
+                fields[key.toCoreReturnValue()] = value.toCoreReturnValue()
+            }
         }
         return KLuaCoreValue.TableValue(fields)
     }
