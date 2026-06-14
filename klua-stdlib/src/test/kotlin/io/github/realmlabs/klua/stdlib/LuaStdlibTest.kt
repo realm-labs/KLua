@@ -2307,6 +2307,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require reports non string package path`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = false
+                local falseOk, falseMessage = pcall(require, "missing")
+                package.path = nil
+                local nilOk, nilMessage = pcall(require, "missing")
+                return falseOk, falseMessage, nilOk, nilMessage
+                """.trimIndent(),
+                "require-package-path-type.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("'package.path' must be a string", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("'package.path' must be a string", state.toString(4))
+    }
+
+    @Test
     fun `require loads Lua files found on package path`() {
         val root = Files.createTempDirectory("klua-require-file")
         Files.createDirectories(root.resolve("alpha"))

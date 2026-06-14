@@ -102,6 +102,9 @@ internal object LuaPackageLibrary {
             end,
 
             function(name)
+                if searcherResultType(package.path) ~= "string" then
+                    error("'package.path' must be a string", 0)
+                end
                 local filename, searchError = package.searchpath(name, package.path)
                 if filename == nil then
                     return "\n\t" .. searchError
