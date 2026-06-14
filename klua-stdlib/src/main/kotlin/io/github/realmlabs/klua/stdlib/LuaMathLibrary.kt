@@ -60,23 +60,23 @@ internal object LuaMathLibrary {
         if (integer != null) {
             return LuaReturn.of(integer.absoluteValue)
         }
-        return LuaReturn.of(requiredNumber(context, 1, "math.abs").absoluteValue)
+        return LuaReturn.of(requiredNumber(context, 1, "abs").absoluteValue)
     }
 
     private fun mathAcos(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(acos(requiredNumber(context, 1, "math.acos")))
+        return LuaReturn.of(acos(requiredNumber(context, 1, "acos")))
     }
 
     private fun mathAsin(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(asin(requiredNumber(context, 1, "math.asin")))
+        return LuaReturn.of(asin(requiredNumber(context, 1, "asin")))
     }
 
     private fun mathAtan(context: LuaCallContext): LuaReturn {
-        val y = requiredNumber(context, 1, "math.atan")
+        val y = requiredNumber(context, 1, "atan")
         val x = if (context.argumentCount < 2 || context.isNil(2)) {
             1.0
         } else {
-            requiredNumber(context, 2, "math.atan")
+            requiredNumber(context, 2, "atan")
         }
         return LuaReturn.of(atan2(y, x))
     }
@@ -86,20 +86,20 @@ internal object LuaMathLibrary {
         if (integer != null) {
             return LuaReturn.of(integer)
         }
-        val rounded = ceil(requiredNumber(context, 1, "math.ceil"))
+        val rounded = ceil(requiredNumber(context, 1, "ceil"))
         return LuaReturn.of(numberToIntegerSubtype(rounded) ?: rounded)
     }
 
     private fun mathCos(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(cos(requiredNumber(context, 1, "math.cos")))
+        return LuaReturn.of(cos(requiredNumber(context, 1, "cos")))
     }
 
     private fun mathDeg(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredNumber(context, 1, "math.deg") * 180.0 / Math.PI)
+        return LuaReturn.of(requiredNumber(context, 1, "deg") * 180.0 / Math.PI)
     }
 
     private fun mathExp(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(exp(requiredNumber(context, 1, "math.exp")))
+        return LuaReturn.of(exp(requiredNumber(context, 1, "exp")))
     }
 
     private fun mathFloor(context: LuaCallContext): LuaReturn {
@@ -107,7 +107,7 @@ internal object LuaMathLibrary {
         if (integer != null) {
             return LuaReturn.of(integer)
         }
-        val rounded = floor(requiredNumber(context, 1, "math.floor"))
+        val rounded = floor(requiredNumber(context, 1, "floor"))
         return LuaReturn.of(numberToIntegerSubtype(rounded) ?: rounded)
     }
 
@@ -129,7 +129,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathFrexp(context: LuaCallContext): LuaReturn {
-        val value = requiredNumber(context, 1, "math.frexp")
+        val value = requiredNumber(context, 1, "frexp")
         if (value == 0.0 || !value.isFinite()) {
             return LuaReturn.of(value, 0L)
         }
@@ -211,14 +211,14 @@ internal object LuaMathLibrary {
         if (integer != null) {
             return LuaReturn.of(integer, 0.0)
         }
-        val value = requiredNumber(context, 1, "math.modf")
+        val value = requiredNumber(context, 1, "modf")
         val integerPart = if (value < 0) ceil(value) else floor(value)
         val fraction = if (value == integerPart) 0.0 else value - integerPart
         return LuaReturn.of(numberToIntegerSubtype(integerPart) ?: integerPart, fraction)
     }
 
     private fun mathRad(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredNumber(context, 1, "math.rad") * Math.PI / 180.0)
+        return LuaReturn.of(requiredNumber(context, 1, "rad") * Math.PI / 180.0)
     }
 
     private fun mathRandom(context: LuaCallContext, randomState: MathRandomState): LuaReturn {
@@ -257,15 +257,15 @@ internal object LuaMathLibrary {
     }
 
     private fun mathSin(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(sin(requiredNumber(context, 1, "math.sin")))
+        return LuaReturn.of(sin(requiredNumber(context, 1, "sin")))
     }
 
     private fun mathSqrt(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(sqrt(requiredNumber(context, 1, "math.sqrt")))
+        return LuaReturn.of(sqrt(requiredNumber(context, 1, "sqrt")))
     }
 
     private fun mathTan(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(tan(requiredNumber(context, 1, "math.tan")))
+        return LuaReturn.of(tan(requiredNumber(context, 1, "tan")))
     }
 
     private fun mathType(context: LuaCallContext): LuaReturn {

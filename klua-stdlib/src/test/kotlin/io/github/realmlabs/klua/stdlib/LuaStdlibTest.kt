@@ -5593,7 +5593,7 @@ class LuaStdlibTest {
         assertEquals(kotlin.math.sin(16.0), state.toNumber(1) ?: error("missing hex int sine result"), 1e-12)
         assertEquals(kotlin.math.sin(4.0), state.toNumber(2) ?: error("missing hex float sine result"), 1e-12)
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'math.sin' (number expected)", state.toString(4))
+        assertEquals("bad argument #1 to 'sin' (number expected)", state.toString(4))
     }
 
     @Test
@@ -5812,7 +5812,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, frexpState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(frexpState.getLastError())
-        assertEquals("bad argument #1 to 'math.frexp' (number expected)", frexpState.toString(-1))
+        assertEquals("bad argument #1 to 'frexp' (number expected)", frexpState.toString(-1))
 
         val ldexpState = LuaState.create()
         LuaStdlib.openMath(ldexpState)
@@ -6337,7 +6337,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'math.abs' (number expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'abs' (number expected)", state.toString(-1))
     }
 
     @Test
@@ -6488,15 +6488,33 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `trigonometric functions report numeric argument errors`() {
-        val state = LuaState.create()
-        LuaStdlib.openMath(state)
+    fun `unary math functions report registered argument names`() {
+        val functions = listOf(
+            "acos",
+            "asin",
+            "atan",
+            "ceil",
+            "cos",
+            "deg",
+            "exp",
+            "floor",
+            "modf",
+            "rad",
+            "sin",
+            "sqrt",
+            "tan",
+        )
 
-        assertEquals(LuaStatus.OK, state.load("""return math.sin("x")""", "math-trig-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        for (functionName in functions) {
+            val state = LuaState.create()
+            LuaStdlib.openMath(state)
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'math.sin' (number expected)", state.toString(-1))
+            assertEquals(LuaStatus.OK, state.load("""return math.$functionName("x")""", "math-$functionName-error.lua"))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals("bad argument #1 to '$functionName' (number expected)", state.toString(-1))
+        }
     }
 
     @Test
