@@ -11259,7 +11259,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, tableState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(tableState.getLastError())
-        assertEquals("bad argument #1 to 'table.sort' (table expected)", tableState.toString(-1))
+        assertEquals("bad argument #1 to 'sort' (table expected)", tableState.toString(-1))
 
         val comparatorState = LuaState.create()
         LuaStdlib.openTable(comparatorState)
@@ -11271,7 +11271,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, comparatorState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(comparatorState.getLastError())
-        assertEquals("bad argument #2 to 'table.sort' (function expected)", comparatorState.toString(-1))
+        assertEquals("bad argument #2 to 'sort' (function expected)", comparatorState.toString(-1))
     }
 
     @Test
@@ -11403,7 +11403,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'table.sort' (array too big)", state.toString(-1))
+        assertEquals("bad argument #1 to 'sort' (array too big)", state.toString(-1))
     }
 
     @Test

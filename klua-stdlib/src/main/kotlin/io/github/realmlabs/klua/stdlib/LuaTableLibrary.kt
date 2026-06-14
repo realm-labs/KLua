@@ -327,18 +327,18 @@ internal object LuaTableLibrary {
 
     private fun tableSort(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'table.sort' (table expected)")
+            throw LuaRuntimeException("bad argument #1 to 'sort' (table expected)")
         }
         val length = tableLength(context, 1)
         if (length <= 1L) {
             return LuaReturn.none()
         }
         if (length >= Int.MAX_VALUE) {
-            throw LuaRuntimeException("bad argument #1 to 'table.sort' (array too big)")
+            throw LuaRuntimeException("bad argument #1 to 'sort' (array too big)")
         }
         val hasComparator = !(context.isNone(2) || context.isNil(2))
         if (hasComparator && context.typeName(2) != "function") {
-            throw LuaRuntimeException("bad argument #2 to 'table.sort' (function expected)")
+            throw LuaRuntimeException("bad argument #2 to 'sort' (function expected)")
         }
 
         val values = mutableListOf<Any?>()
