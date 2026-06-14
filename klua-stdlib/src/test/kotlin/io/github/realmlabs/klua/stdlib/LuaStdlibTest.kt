@@ -10110,6 +10110,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table concat length metamethod trims only lua ascii whitespace`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ascii = setmetatable({}, {
+                    __len = function()
+                        return " \t2\n"
+                    end,
+                    __index = function(_, index)
+                        return ({ "a", "b" })[index]
+                    end,
+                })
+                local emSpace = string.char(226, 128, 131)
+                local unicode = setmetatable({}, {
+                    __len = function()
+                        return emSpace .. "2"
+                    end,
+                    __index = function(_, index)
+                        return ({ "x", "y" })[index]
+                    end,
+                })
+                local ok, message = pcall(table.concat, unicode, ",")
+                return table.concat(ascii, ","), ok, message
+                """.trimIndent(),
+                "table-concat-length-ascii-whitespace.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a,b", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("object length is not an integer", state.toString(3))
+    }
+
+    @Test
     fun `table concat uses index metamethod values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
