@@ -298,10 +298,11 @@ public object LuaStdlib {
         requireAnyArgument(context, "ipairs")
         val iterator = LuaFunction { iteratorContext ->
             val nextIndex = requiredNumberIndex(iteratorContext, 2, "ipairs iterator") + 1L
-            val value = when {
-                iteratorContext.isTable(1) -> tableIndexValue(iteratorContext, 1, nextIndex)
-                iteratorContext.typeName(1) == "string" -> null
-                else -> throw LuaRuntimeException("attempt to index a ${iteratorContext.typeName(1)} value")
+            val indexed = indexValue(iteratorContext, 1, nextIndex)
+            val value = if (indexed.handled) {
+                indexed.value
+            } else {
+                throw LuaRuntimeException("attempt to index a ${iteratorContext.typeName(1)} value")
             }
             if (value == null) {
                 LuaReturn.of(null)
@@ -312,18 +313,26 @@ public object LuaStdlib {
         return LuaReturn.ofValues(listOf(iterator, argumentValue(context, 1), 0L))
     }
 
-    private fun tableIndexValue(context: LuaCallContext, tableIndex: Int, key: Any?): Any? {
-        val rawValue = context.getTableValue(tableIndex, key)
-        if (rawValue != null) {
-            return rawValue
+    private fun indexValue(context: LuaCallContext, valueIndex: Int, key: Any?): IndexedValue {
+        if (context.isTable(valueIndex)) {
+            val rawValue = context.getTableValue(valueIndex, key)
+            if (rawValue != null) {
+                return IndexedValue(rawValue, handled = true)
+            }
         }
-        val index = context.getTableField(context.getMetatable(tableIndex), "__index") ?: return null
+        val index = context.getTableField(context.getRawMetatable(valueIndex), "__index")
+            ?: return IndexedValue(null, handled = context.isTable(valueIndex) || context.typeName(valueIndex) == "string")
         return try {
-            context.call(index, listOf(argumentValue(context, tableIndex), key)).get(1)
+            IndexedValue(context.call(index, listOf(argumentValue(context, valueIndex), key)).get(1), handled = true)
         } catch (_: IllegalArgumentException) {
-            context.getTableField(index, key)
+            IndexedValue(context.getTableField(index, key), handled = true)
         }
     }
+
+    private data class IndexedValue(
+        val value: Any?,
+        val handled: Boolean,
+    )
 
     private fun next(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {

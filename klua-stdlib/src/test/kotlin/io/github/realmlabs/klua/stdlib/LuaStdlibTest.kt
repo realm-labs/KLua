@@ -4206,6 +4206,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `ipairs uses primitive type index metamethod values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __index = {
+                        [1] = "one",
+                        [2] = "two",
+                    },
+                })
+                debug.setmetatable(false, {
+                    __index = function(self, index)
+                        if index <= 2 then
+                            return tostring(self) .. ":" .. index
+                        end
+                        return nil
+                    end,
+                })
+                local numberValues = {}
+                for index, value in ipairs(7) do
+                    numberValues[#numberValues + 1] = index .. ":" .. value
+                end
+                local booleanValues = {}
+                for index, value in ipairs(true) do
+                    booleanValues[#booleanValues + 1] = index .. ":" .. value
+                end
+                return table.concat(numberValues, ","),
+                    table.concat(booleanValues, ",")
+                """.trimIndent(),
+                "ipairs-primitive-index-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1:one,2:two", state.toString(1))
+        assertEquals("1:true:1,2:true:2", state.toString(2))
+    }
+
+    @Test
     fun `ipairs iterator reports index argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
