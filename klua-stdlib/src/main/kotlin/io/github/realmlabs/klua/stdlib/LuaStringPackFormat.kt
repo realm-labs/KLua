@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaRuntimeException
+import java.nio.ByteOrder
 
 internal object LuaStringPackFormat {
     private const val MAX_INT_SIZE = 16L
@@ -15,7 +16,7 @@ internal object LuaStringPackFormat {
     private const val LUA_NUMBER_SIZE = 8L
 
     fun packSize(format: String): Long {
-        val scanner = PackFormatScanner(format)
+        val scanner = PackFormatScanner(format, "string.packsize")
         var totalSize = 0L
         while (!scanner.isDone()) {
             val details = scanner.nextDetails(totalSize)
@@ -32,8 +33,12 @@ internal object LuaStringPackFormat {
         return totalSize
     }
 
-    private class PackFormatScanner(private val format: String) {
+    internal class PackFormatScanner(
+        private val format: String,
+        private val functionName: String,
+    ) {
         private var cursor = 0
+        private var littleEndian = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
         private var maxAlign = 1L
 
         fun isDone(): Boolean = cursor >= format.length
@@ -43,12 +48,12 @@ internal object LuaStringPackFormat {
             var align = option.size
             if (option.option == PackOption.AlignPadding) {
                 if (isDone()) {
-                    throw LuaRuntimeException("bad argument #1 to 'string.packsize' (invalid next option for option 'X')")
+                    throw LuaRuntimeException("bad argument #1 to '$functionName' (invalid next option for option 'X')")
                 }
                 val next = nextOption()
                 align = next.size
                 if (next.option == PackOption.Char || align == 0L) {
-                    throw LuaRuntimeException("bad argument #1 to 'string.packsize' (invalid next option for option 'X')")
+                    throw LuaRuntimeException("bad argument #1 to '$functionName' (invalid next option for option 'X')")
                 }
             }
 
@@ -58,7 +63,7 @@ internal object LuaStringPackFormat {
                 val effectiveAlign = minOf(align, maxAlign)
                 if (!effectiveAlign.isPowerOfTwo()) {
                     throw LuaRuntimeException(
-                        "bad argument #1 to 'string.packsize' (format asks for alignment not power of 2)",
+                        "bad argument #1 to '$functionName' (format asks for alignment not power of 2)",
                     )
                 }
                 alignmentPadding(totalSize, effectiveAlign)
@@ -89,16 +94,28 @@ internal object LuaStringPackFormat {
                 'x' -> PackOptionDetails(PackOption.Padding, 1L)
                 'X' -> PackOptionDetails(PackOption.AlignPadding, 0L)
                 ' ' -> PackOptionDetails(PackOption.NoOp, 0L)
-                '<',
-                '>',
-                '=',
-                -> PackOptionDetails(PackOption.NoOp, 0L)
+                '<' -> {
+                    littleEndian = true
+                    PackOptionDetails(PackOption.NoOp, 0L)
+                }
+                '>' -> {
+                    littleEndian = false
+                    PackOptionDetails(PackOption.NoOp, 0L)
+                }
+                '=' -> {
+                    littleEndian = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
+                    PackOptionDetails(PackOption.NoOp, 0L)
+                }
                 '!' -> {
                     maxAlign = readLimitedSize(NATIVE_MAX_ALIGN)
                     PackOptionDetails(PackOption.NoOp, 0L)
                 }
                 else -> throw LuaRuntimeException("invalid format option '$option'")
             }
+        }
+
+        private fun PackOptionDetails(option: PackOption, size: Long): PackOptionDetails {
+            return PackOptionDetails(option, size, littleEndian = littleEndian)
         }
 
         private fun readRequiredSizeForChar(): Long {
@@ -132,13 +149,14 @@ internal object LuaStringPackFormat {
         }
     }
 
-    private data class PackOptionDetails(
+    internal data class PackOptionDetails(
         val option: PackOption,
         val size: Long,
         val padding: Long = 0L,
+        val littleEndian: Boolean,
     )
 
-    private enum class PackOption {
+    internal enum class PackOption {
         Int,
         UInt,
         Float,

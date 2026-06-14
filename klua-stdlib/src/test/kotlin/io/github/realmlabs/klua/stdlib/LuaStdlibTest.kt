@@ -9806,6 +9806,98 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pack and unpack fixed integers`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local packed = string.pack("<bBI2", -1, 255, 0x1234)
+                local a, b, c, pos = string.unpack("<bBI2", packed)
+                local big = string.pack(">I2", 0x1234)
+                local bigValue, bigPos = string.unpack(">I2", big)
+                return a, b, c, pos, bigValue, bigPos
+                """.trimIndent(),
+                "string-pack-unpack-fixed-integers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(-1L, state.toInteger(1))
+        assertEquals(255L, state.toInteger(2))
+        assertEquals(0x1234L, state.toInteger(3))
+        assertEquals(5L, state.toInteger(4))
+        assertEquals(0x1234L, state.toInteger(5))
+        assertEquals(3L, state.toInteger(6))
+    }
+
+    @Test
+    fun `string pack and unpack honor padding alignment and fixed strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local aligned = string.pack(">xXh h", 0x1234)
+                local b1, b2, b3 = string.byte(aligned, 1, 3)
+                local value, pos = string.unpack(">xXh h", aligned)
+                local fixed = string.pack("c4", "ab")
+                local fixedValue, fixedPos = string.unpack("c4", fixed)
+                return b1, b2, b3, value, pos, fixedValue, fixedPos
+                """.trimIndent(),
+                "string-pack-unpack-padding-alignment.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(0x12L, state.toInteger(2))
+        assertEquals(0x34L, state.toInteger(3))
+        assertEquals(0x1234L, state.toInteger(4))
+        assertEquals(4L, state.toInteger(5))
+        assertEquals("ab\u0000\u0000", state.toString(6))
+        assertEquals(5L, state.toInteger(7))
+    }
+
+    @Test
+    fun `string pack and unpack report fixed integer errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local signedOk, signedMessage = pcall(string.pack, "b", 128)
+                local unsignedOk, unsignedMessage = pcall(string.pack, "B", 256)
+                local shortOk, shortMessage = pcall(string.unpack, "I4", "a")
+                local unsupportedOk, unsupportedMessage = pcall(string.pack, "f", 1.0)
+                return signedOk, signedMessage,
+                    unsignedOk, unsignedMessage,
+                    shortOk, shortMessage,
+                    unsupportedOk, unsupportedMessage
+                """.trimIndent(),
+                "string-pack-unpack-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'pack' (integer overflow)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'pack' (unsigned overflow)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("format option 'f' is not supported yet", state.toString(8))
+    }
+
+    @Test
     fun `string gsub replaces literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
