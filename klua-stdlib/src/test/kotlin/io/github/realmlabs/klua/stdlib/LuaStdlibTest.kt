@@ -1077,10 +1077,10 @@ class LuaStdlibTest {
                     local n1, v1 = debug.getlocal(1, -1)
                     local n2, v2 = debug.getlocal(1, -2)
                     local missingName, missingValue = debug.getlocal(1, -3)
-                    return n1, v1, n2, v2, missingName, missingValue
+                    return n1, v1, n2, v2 == nil, missingName, missingValue
                 end
 
-                return leaf("fixed", "left", "right")
+                return leaf("fixed", "left", nil)
                 """.trimIndent(),
                 "debug-getlocal-varargs.lua",
             ),
@@ -1090,7 +1090,7 @@ class LuaStdlibTest {
         assertEquals("(vararg)", state.toString(1))
         assertEquals("left", state.toString(2))
         assertEquals("(vararg)", state.toString(3))
-        assertEquals("right", state.toString(4))
+        assertTrue(state.toBoolean(4))
         assertTrue(state.isNil(5))
         assertTrue(state.isNil(6))
     }

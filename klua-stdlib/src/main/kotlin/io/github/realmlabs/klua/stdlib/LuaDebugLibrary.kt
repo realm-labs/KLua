@@ -201,7 +201,11 @@ internal object LuaDebugLibrary {
         val frame = context.luaFrames.drop(level).firstOrNull()
             ?: throw LuaRuntimeException("bad argument #1 to 'getlocal' (level out of range)")
         if (index < 0) {
-            val vararg = frame.varargs.getOrNull(-index - 1) ?: return LuaReturn.of(null)
+            val varargIndex = -index - 1
+            if (varargIndex !in frame.varargs.indices) {
+                return LuaReturn.of(null)
+            }
+            val vararg = frame.varargs[varargIndex]
             return LuaReturn.of(VARARG_LOCAL_NAME, vararg)
         }
         if (index == 0) {
