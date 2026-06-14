@@ -200,31 +200,21 @@ class LuaState private constructor(
         return LuaStatus.RUNTIME_ERROR
     }
 
-    private fun loadLuaFunction(source: String, chunkName: String): LuaReturn {
+    private fun loadLuaFunction(source: String, chunkName: String, environment: Any? = null): LuaReturn {
         return when (val load = KLuaCoreRuntime.compile(source, chunkName)) {
             is KLuaCoreLoad.Success -> {
-                val function = LuaFunction { context ->
-                    val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
-                    when (val result = KLuaCoreRuntime.execute(load.chunk, arguments, coreGlobals)) {
-                        is KLuaCoreExecution.Success -> LuaReturn.ofValues(
-                            result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
-                        )
-                        is KLuaCoreExecution.SyntaxError -> throw LuaSyntaxException(result.message)
-                        is KLuaCoreExecution.RuntimeError -> throw LuaRuntimeException(
-                            result.message,
-                            result.cause,
-                            sourceName = result.sourceName,
-                            line = result.line,
-                            luaFrames = toApiStackFrames(result.luaFrames),
-                            errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
-                            hasErrorObject = result.errorObject != null,
-                        )
-                    }
-                }
-                LuaReturn.of(function)
+                val loadGlobals = loadEnvironmentGlobals(environment)
+                val function = KLuaCoreRuntime.createChunkFunctionValue(load.chunk, loadGlobals)
+                LuaReturn.of(function.toStackValue().toPublicCallReturnValue())
             }
             is KLuaCoreLoad.SyntaxError -> LuaReturn.of(null, load.message)
         }
+    }
+
+    private fun loadEnvironmentGlobals(environment: Any?): KLuaCoreGlobals {
+        val table = environment as? LuaStackValue.TableValue ?: return coreGlobals
+        val tableValue = table.toCoreTableValue(IdentityHashMap())
+        return coreGlobals.withEnvironment(tableValue) ?: coreGlobals
     }
 
     fun absIndex(index: Int): Int {
@@ -1299,8 +1289,8 @@ class LuaState private constructor(
             throw LuaYieldException(values)
         }
 
-        override fun load(source: String, chunkName: String): LuaReturn {
-            return loadLuaFunction(source, chunkName)
+        override fun load(source: String, chunkName: String, environment: Any?): LuaReturn {
+            return loadLuaFunction(source, chunkName, environment)
         }
 
         override fun getFunctionDebugInfo(index: Int): LuaFunctionDebugInfo? {

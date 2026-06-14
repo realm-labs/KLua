@@ -53,7 +53,7 @@ interface LuaCallContext {
 
     fun yield(values: List<Any?>): Nothing
 
-    fun load(source: String, chunkName: String): LuaReturn
+    fun load(source: String, chunkName: String, environment: Any? = null): LuaReturn
 
     fun getFunctionDebugInfo(index: Int): LuaFunctionDebugInfo? = null
 

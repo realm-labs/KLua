@@ -3621,6 +3621,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load compiles chunks with explicit environment tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                value = 5
+                local env = {value = 40}
+                local chunk = load("local add = ...; value = value + add; return value", "load-env.lua", "t", env)
+                return chunk(2), env.value, value
+                """.trimIndent(),
+                "load-env-driver.lua",
+            ),
+        )
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(42L, state.toInteger(2))
+        assertEquals(5L, state.toInteger(3))
+    }
+
+    @Test
     fun `load compiles chunks from reader functions`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -3893,6 +3918,37 @@ class LuaStdlibTest {
 
             assertEquals(42L, state.toInteger(1))
             assertEquals(42L, state.toInteger(2))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `loadfile compiles files with explicit environment tables`() {
+        val file = Files.createTempFile("klua-loadfile-env", ".lua")
+        try {
+            Files.writeString(file, "local add = ...; value = value + add; return value")
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    value = 5
+                    local env = {value = 40}
+                    local chunk = loadfile("${file.luaPath()}", "t", env)
+                    return chunk(2), env.value, value
+                    """.trimIndent(),
+                    "loadfile-env.lua",
+                ),
+            )
+            val status = state.pcall(0, -1)
+            assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+            assertEquals(42L, state.toInteger(1))
+            assertEquals(42L, state.toInteger(2))
+            assertEquals(5L, state.toInteger(3))
         } finally {
             Files.deleteIfExists(file)
         }

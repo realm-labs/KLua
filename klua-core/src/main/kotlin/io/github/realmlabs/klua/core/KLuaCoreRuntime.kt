@@ -130,7 +130,7 @@ public object KLuaCoreRuntime {
         globals: KLuaCoreGlobals,
     ): KLuaCoreCoroutine? {
         val sourceFunction = function.sourceFunction ?: return null
-        return KLuaCoreCoroutine(sourceFunction, globals)
+        return KLuaCoreCoroutine(sourceFunction, function.sourceGlobals ?: globals)
     }
 
     public fun createFunctionValue(
@@ -151,6 +151,20 @@ public object KLuaCoreRuntime {
         }.also { functionValue ->
             functionValue.contextFunction = function
             functionValue.yieldable = yieldable
+        }
+    }
+
+    public fun createChunkFunctionValue(
+        chunk: KLuaCoreChunk,
+        globals: KLuaCoreGlobals,
+    ): KLuaCoreValue.FunctionValue {
+        val closure = LuaClosure(chunk.prototype)
+        return KLuaCoreValue.FunctionValue { arguments ->
+            callPublicLuaFunction(closure, arguments, globals)
+        }.also { functionValue ->
+            functionValue.sourceFunction = closure
+            functionValue.sourceGlobals = globals
+            functionValue.yieldable = true
         }
     }
 
@@ -321,6 +335,22 @@ public class KLuaCoreGlobals internal constructor(
 
     public fun setGlobalTable(name: String) {
         table.rawSet(LuaString(name), table)
+    }
+
+    public fun withEnvironment(environment: KLuaCoreValue.TableValue): KLuaCoreGlobals? {
+        val environmentTable = environment.toLuaValueOrNull(this) as? LuaTable ?: return null
+        return KLuaCoreGlobals(environmentTable).also { globals ->
+            userDataTypes.forEach { (type, methods) ->
+                globals.userDataTypes[type] = methods.toMutableMap()
+            }
+            userDataProperties.forEach { (type, properties) ->
+                globals.userDataProperties[type] = properties.toMutableMap()
+            }
+            globals.stringLibrary = stringLibrary
+            globals.stringMetatable = stringMetatable
+            globals.stringMetatableConfigured = stringMetatableConfigured
+            globals.rawTypeMetatables.putAll(rawTypeMetatables)
+        }
     }
 
     public fun setFunction(name: String, function: KLuaCoreFunction) {
@@ -697,6 +727,7 @@ public sealed interface KLuaCoreValue {
         public val function: KLuaCoreFunction,
     ) : KLuaCoreValue {
         internal var sourceFunction: LuaValue? = null
+        internal var sourceGlobals: KLuaCoreGlobals? = null
         internal var contextFunction: KLuaCoreContextFunction? = null
         internal var yieldable: Boolean = false
     }
@@ -746,13 +777,15 @@ private fun KLuaCoreValue.toLuaValueOrNull(
         is KLuaCoreValue.IntegerValue -> LuaInteger(value)
         is KLuaCoreValue.NumberValue -> LuaFloat(value)
         is KLuaCoreValue.StringValue -> LuaString(value)
-        is KLuaCoreValue.FunctionValue -> sourceFunction ?: LuaNativeFunction(
-            yieldable = yieldable,
-            function = { arguments -> callCoreFunction(function, arguments, globals) },
-            contextualFunction = contextFunction?.let { function ->
-                { context -> callCoreContextFunction(function, context, globals) }
-            },
-        )
+        is KLuaCoreValue.FunctionValue -> sourceFunction
+            ?.takeIf { sourceGlobals == null || sourceGlobals === globals }
+            ?: LuaNativeFunction(
+                yieldable = yieldable,
+                function = { arguments -> callCoreFunction(function, arguments, globals) },
+                contextualFunction = contextFunction?.let { function ->
+                    { context -> callCoreContextFunction(function, context, globals) }
+                },
+            )
         is KLuaCoreValue.TableValue -> {
             val cached = tableCache[this]
             if (cached != null) {
@@ -813,6 +846,7 @@ private fun toPublicValue(
             callPublicLuaFunction(value, arguments, globals)
         }.also { functionValue ->
             functionValue.sourceFunction = value
+            functionValue.sourceGlobals = globals
             functionValue.yieldable = when (value) {
                 is LuaClosure -> true
                 is LuaNativeFunction -> value.yieldable
