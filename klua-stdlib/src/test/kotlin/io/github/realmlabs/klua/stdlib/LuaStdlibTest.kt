@@ -8,6 +8,7 @@ import io.github.realmlabs.klua.api.LuaStatus
 import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.withContinuation
+import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.function.Consumer
@@ -4323,6 +4324,59 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `loadfile reads stdin when filename is nil or missing`() {
+        withStandardInput("return 41 + 1") {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local chunk = loadfile(nil)
+                    return chunk()
+                    """.trimIndent(),
+                    "loadfile-nil-stdin.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1))
+            assertEquals(42L, state.toInteger(1))
+        }
+
+        withStandardInput("return 20 + 4") {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local chunk = loadfile()
+                    return chunk()
+                    """.trimIndent(),
+                    "loadfile-missing-stdin.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1))
+            assertEquals(24L, state.toInteger(1))
+        }
+    }
+
+    @Test
+    fun `loadfile reports stdin as chunk name`() {
+        withStandardInput("local x <close> = {}") {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(LuaStatus.OK, state.load("return loadfile(nil)", "loadfile-stdin-error.lua"))
+            assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+            assertTrue(state.isNil(1))
+            assertEquals("=stdin:1:1: to-be-closed local variables are not supported", state.toString(2))
+        }
+    }
+
+    @Test
     fun `loadfile compiles files with shared globals and arguments`() {
         val file = Files.createTempFile("klua-loadfile", ".lua")
         try {
@@ -4443,6 +4497,21 @@ class LuaStdlibTest {
             assertEquals("ok", state.toString(2))
         } finally {
             Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `dofile reads stdin when filename is missing`() {
+        withStandardInput("""return 42, "stdin"""") {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(LuaStatus.OK, state.load("return dofile()", "dofile-stdin.lua"))
+            val status = state.pcall(0, -1)
+            assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+            assertEquals(42L, state.toInteger(1))
+            assertEquals("stdin", state.toString(2))
         }
     }
 
@@ -14576,3 +14645,15 @@ private data class DebugHostObject(
 )
 
 private fun Path.luaPath(): String = toString().replace("\\", "\\\\")
+
+private fun withStandardInput(source: String, block: () -> Unit) {
+    synchronized(System::class.java) {
+        val previous = System.`in`
+        try {
+            System.setIn(ByteArrayInputStream(source.toByteArray(Charsets.UTF_8)))
+            block()
+        } finally {
+            System.setIn(previous)
+        }
+    }
+}

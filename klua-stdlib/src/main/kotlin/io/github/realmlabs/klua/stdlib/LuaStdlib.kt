@@ -282,17 +282,25 @@ public object LuaStdlib {
 
     private fun loadfile(context: LuaCallContext): LuaReturn {
         val mode = loadMode(context, 2, "loadfile")
-        val filename = requiredString(context, 1, "loadfile")
+        val filename = if (context.isNone(1) || context.isNil(1)) {
+            null
+        } else {
+            requiredString(context, 1, "loadfile")
+        }
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
         }
         val source = try {
-            Files.readString(Path.of(filename))
+            if (filename == null) {
+                String(System.`in`.readBytes(), StandardCharsets.UTF_8)
+            } else {
+                Files.readString(Path.of(filename))
+            }
         } catch (error: IOException) {
             return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
         }
         val environment = optionalLoadEnvironment(context, 3)
-        return context.load(source, filename, environment.value, environment.provided)
+        return context.load(source, filename ?: "=stdin", environment.value, environment.provided)
     }
 
     private fun optionalLoadEnvironment(context: LuaCallContext, index: Int): LoadEnvironment {
