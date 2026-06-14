@@ -541,6 +541,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug traceback elides deep stacks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function dive(n)
+                    if n == 0 then
+                        return debug.traceback("boom")
+                    end
+                    local value = dive(n - 1)
+                    return value
+                end
+
+                return dive(35)
+                """.trimIndent(),
+                "debug-traceback-deep.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val lines = state.toString(1)!!.lines()
+        assertEquals("boom", lines[0])
+        assertEquals("stack traceback:", lines[1])
+        assertEquals(24, lines.size)
+        val skipped = lines.single { it.contains("skipping") }
+        assertTrue(skipped.startsWith("\t...\t(skipping "))
+        assertTrue(skipped.endsWith(" levels)"))
+        assertEquals(10, lines.indexOf(skipped) - 2)
+        assertEquals(11, lines.size - lines.indexOf(skipped) - 1)
+    }
+
+    @Test
     fun `debug traceback reports non numeric level errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

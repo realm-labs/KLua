@@ -49,14 +49,30 @@ internal object LuaDebugLibrary {
                 append('\n')
             }
             append("stack traceback:")
-            for (frame in frames) {
-                append("\n\t")
-                append(luaShortSourceName(frame.sourceName))
-                if (frame.line > 0) {
-                    append(':')
-                    append(frame.line)
+            if (frames.size > TRACEBACK_HEAD_LEVELS + TRACEBACK_TAIL_LEVELS) {
+                for (frame in frames.take(TRACEBACK_HEAD_LEVELS)) {
+                    appendTracebackFrame(frame)
+                }
+                append("\n\t...\t(skipping ")
+                append(frames.size - TRACEBACK_HEAD_LEVELS - TRACEBACK_TAIL_LEVELS)
+                append(" levels)")
+                for (frame in frames.takeLast(TRACEBACK_TAIL_LEVELS)) {
+                    appendTracebackFrame(frame)
+                }
+            } else {
+                for (frame in frames) {
+                    appendTracebackFrame(frame)
                 }
             }
+        }
+    }
+
+    private fun StringBuilder.appendTracebackFrame(frame: LuaStackFrame) {
+        append("\n\t")
+        append(luaShortSourceName(frame.sourceName))
+        if (frame.line > 0) {
+            append(':')
+            append(frame.line)
         }
     }
 
@@ -500,4 +516,6 @@ internal object LuaDebugLibrary {
     private const val GETINFO_OPTIONS = "flnSrtuL"
     private const val DEFAULT_GETINFO_OPTIONS = "flnSrtu"
     private const val VARARG_LOCAL_NAME = "(vararg)"
+    private const val TRACEBACK_HEAD_LEVELS = 10
+    private const val TRACEBACK_TAIL_LEVELS = 11
 }
