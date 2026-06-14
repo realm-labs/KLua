@@ -176,7 +176,7 @@ Current implemented areas:
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
 - `string.packsize`, `string.pack`, and `string.unpack` cover Lua 5.5 format parsing, endian directives, alignment, fixed and variable strings, integer formats, and floating-point formats.
-- Table-library conformance includes table-like primitive receivers for `table.concat`, `table.unpack`, `table.insert`, and `table.remove` when Lua 5.5 `checktab`/metamethod requirements are met.
+- Table-library conformance includes table-like primitive receivers for `table.concat`, `table.unpack`, `table.insert`, `table.remove`, `table.move`, and `table.sort` when Lua 5.5 `checktab`/metamethod requirements are met.
 - Focused parser, compiler, VM, API, Kotlin helper, conformance, and foundation tests.
 
 Remaining major gaps:
