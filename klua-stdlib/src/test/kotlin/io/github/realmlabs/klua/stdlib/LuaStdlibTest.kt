@@ -2256,6 +2256,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber rejects non ascii surrounding spaces`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local emSpace = string.char(226, 128, 131)
+                return tonumber(emSpace .. "10"), tonumber("10" .. emSpace)
+                """.trimIndent(),
+                "tonumber-ascii-spaces.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+    }
+
+    @Test
     fun `tonumber converts hexadecimal integer strings`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -2367,12 +2389,13 @@ class LuaStdlibTest {
     fun `tonumber explicit base rejects non ascii surrounding spaces`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
                 """
-                local emSpace = "\226\128\131"
+                local emSpace = string.char(226, 128, 131)
                 return tonumber(emSpace .. "10", 10), tonumber("10" .. emSpace, 10)
                 """.trimIndent(),
                 "tonumber-base-ascii-spaces.lua",

@@ -798,7 +798,7 @@ public object LuaStdlib {
     }
 
     private fun parseNumber(text: String): Number? {
-        val trimmed = text.trim()
+        val trimmed = text.trimLuaAsciiWhitespace()
         if (trimmed.isNamedFloatingPointLiteral()) {
             return null
         }
@@ -806,7 +806,7 @@ public object LuaStdlib {
     }
 
     private fun parseBasedInteger(text: String, base: Int): Long? {
-        val trimmed = text.trim()
+        val trimmed = text.trimLuaAsciiWhitespace()
         if (trimmed.isEmpty()) {
             return null
         }
@@ -835,6 +835,10 @@ public object LuaStdlib {
     private fun String.isNamedFloatingPointLiteral(): Boolean {
         val unsigned = trimStart('+', '-')
         return unsigned.equals("nan", ignoreCase = true) || unsigned.equals("infinity", ignoreCase = true)
+    }
+
+    private fun String.trimLuaAsciiWhitespace(): String {
+        return trim { char -> char == ' ' || char == '\u000C' || char == '\n' || char == '\r' || char == '\t' || char == '\u000B' }
     }
 
     private fun parseHexInteger(text: String): Long? {
