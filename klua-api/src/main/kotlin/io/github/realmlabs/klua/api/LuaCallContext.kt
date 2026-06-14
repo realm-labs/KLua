@@ -83,6 +83,10 @@ interface LuaCallContext {
 
     fun getMetatable(index: Int): Any?
 
+    fun getRawMetatable(index: Int): Any? {
+        return if (isTable(index)) getMetatable(index) else null
+    }
+
     fun getTableMetatable(table: Any?): Any? = null
 
     fun setMetatable(index: Int, metatable: Any?)

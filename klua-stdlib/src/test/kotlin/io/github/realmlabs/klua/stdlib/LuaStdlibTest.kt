@@ -4503,7 +4503,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `debug metatable functions report unsupported value errors`() {
+    fun `debug metatable functions expose string metatable and report unsupported set errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -4511,21 +4511,22 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local missing = debug.getmetatable("text")
+                local metatable = debug.getmetatable("text")
                 local okTable, tableMessage = pcall(debug.setmetatable, "text", {})
                 local okMeta, metaMessage = pcall(debug.setmetatable, {}, "not-table")
-                return missing, okTable, tableMessage, okMeta, metaMessage
+                return type(metatable), metatable.__index == string, okTable, tableMessage, okMeta, metaMessage
                 """.trimIndent(),
                 "debug-metatable-errors.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertTrue(state.isNil(1))
-        assertFalse(state.toBoolean(2))
-        assertEquals("bad argument #1 to 'setmetatable' (table expected)", state.toString(3))
-        assertFalse(state.toBoolean(4))
-        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(5))
+        assertEquals("table", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'setmetatable' (table expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(6))
     }
 
     @Test
@@ -4621,6 +4622,60 @@ class LuaStdlibTest {
 
         assertTrue(state.isNil(1))
         assertTrue(state.isNil(2))
+    }
+
+    @Test
+    fun `getmetatable exposes installed string metatable`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local baseMetatable = getmetatable("")
+                local debugMetatable = debug.getmetatable("x")
+                return type(baseMetatable),
+                    baseMetatable == debugMetatable,
+                    baseMetatable.__index == string,
+                    getmetatable(nil),
+                    debug.getmetatable(nil)
+                """.trimIndent(),
+                "string-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
+    fun `string metatable index drives string field lookup`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local metatable = getmetatable("")
+                local original = metatable.__index
+                metatable.__index = {custom = 7}
+                local custom = ("abc").custom
+                metatable.__index = original
+                return custom, ("abc"):len()
+                """.trimIndent(),
+                "string-metatable-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(7L, state.toInteger(1))
+        assertEquals(3L, state.toInteger(2))
     }
 
     @Test

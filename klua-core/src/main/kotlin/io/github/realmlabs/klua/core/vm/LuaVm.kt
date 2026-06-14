@@ -25,7 +25,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
-    private val stringLibrary: LuaTable? = null,
+    private val stringMetatable: LuaTable? = null,
 ) {
     private val thread = LuaThread()
     private var debugHook: DebugHookState? = null
@@ -581,7 +581,11 @@ internal class LuaVm(
         return when (receiver) {
             is LuaTable -> tableGet(receiver, key)
             is LuaString -> {
-                val stringLibrary = stringLibrary ?: globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
+                val metatable = stringMetatable
+                if (metatable != null) {
+                    return stringIndexGet(receiver, key, metatable)
+                }
+                val stringLibrary = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
                     ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
                 tableGet(stringLibrary, key)
             }
@@ -597,6 +601,14 @@ internal class LuaVm(
                     LuaNil
                 }
             }
+            else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
+        }
+    }
+
+    private fun stringIndexGet(receiver: LuaString, key: LuaValue, metatable: LuaTable): LuaValue {
+        return when (val index = metatable.rawGet(INDEX_KEY)) {
+            is LuaTable -> tableGet(index, key)
+            is LuaClosure -> executeReturned(index.prototype, listOf(receiver, key), index.upvalues).firstOrNull() ?: LuaNil
             else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
         }
     }

@@ -214,10 +214,7 @@ public object LuaStdlib {
 
     private fun getmetatable(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "getmetatable")
-        if (!context.isTable(1)) {
-            return LuaReturn.of(null)
-        }
-        val metatable = context.getMetatable(1) ?: return LuaReturn.of(null)
+        val metatable = context.getRawMetatable(1) ?: return LuaReturn.of(null)
         return LuaReturn.of(context.getTableField(metatable, "__metatable") ?: metatable)
     }
 

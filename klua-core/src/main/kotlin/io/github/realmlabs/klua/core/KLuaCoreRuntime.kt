@@ -68,9 +68,11 @@ public object KLuaCoreRuntime {
                 }
         }
         return try {
-            KLuaCoreExecution.Success(LuaVm(globals.table, globals.stringLibrary).execute(chunk.prototype, vmArguments).map { value ->
-                toPublicValue(value, globals)
-            })
+            KLuaCoreExecution.Success(
+                LuaVm(globals.table, globals.stringMetatable).execute(chunk.prototype, vmArguments).map { value ->
+                    toPublicValue(value, globals)
+                },
+            )
         } catch (error: LuaVmException) {
             KLuaCoreExecution.RuntimeError(
                 error.message ?: "runtime error",
@@ -94,7 +96,7 @@ public object KLuaCoreRuntime {
         val luaRight = right.toLuaValueOrNull(globals, tableCache)
             ?: return KLuaCoreComparison.RuntimeError("cannot compare ${right.publicTypeName()}")
         return try {
-            KLuaCoreComparison.Success(LuaVm(globals.table, globals.stringLibrary).lessThan(luaLeft, luaRight))
+            KLuaCoreComparison.Success(LuaVm(globals.table, globals.stringMetatable).lessThan(luaLeft, luaRight))
         } catch (error: LuaVmException) {
             KLuaCoreComparison.RuntimeError(
                 error.message ?: "runtime error",
@@ -154,6 +156,10 @@ public object KLuaCoreRuntime {
                 .take(closure.prototype.numParams)
                 .map { local -> local.name },
         )
+    }
+
+    public fun getStringMetatable(globals: KLuaCoreGlobals): KLuaCoreValue.TableValue? {
+        return globals.stringMetatable?.let { metatable -> toPublicValue(metatable, globals) as KLuaCoreValue.TableValue }
     }
 
     public fun getUpvalue(
@@ -234,6 +240,8 @@ public class KLuaCoreGlobals internal constructor(
     private val userDataProperties = linkedMapOf<Class<*>, MutableMap<String, LuaUserDataProperty>>()
     internal var stringLibrary: LuaTable? = null
         private set
+    internal var stringMetatable: LuaTable? = null
+        private set
 
     public companion object {
         @JvmStatic
@@ -247,6 +255,9 @@ public class KLuaCoreGlobals internal constructor(
         table.rawSet(LuaString(name), luaValue)
         if (name == "string" && stringLibrary == null && luaValue is LuaTable) {
             stringLibrary = luaValue
+            stringMetatable = LuaTable().also { metatable ->
+                metatable.rawSet(LuaString("__index"), luaValue)
+            }
         }
         return true
     }
@@ -520,7 +531,7 @@ public class KLuaCoreCoroutine internal constructor(
     private val function: LuaValue,
     private val globals: KLuaCoreGlobals,
 ) {
-    private val vm = LuaVm(globals.table, globals.stringLibrary)
+    private val vm = LuaVm(globals.table, globals.stringMetatable)
     private var started = false
     private var dead = false
     private var pendingContinuation: LuaYieldContinuation? = null
@@ -1116,7 +1127,7 @@ private fun callPublicLuaFunction(
             ?: return KLuaCoreCallResult.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
     }
     return try {
-        val vm = LuaVm(globals.table, globals.stringLibrary)
+        val vm = LuaVm(globals.table, globals.stringMetatable)
         vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
         KLuaCoreCallResult.RuntimeError(

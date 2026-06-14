@@ -311,10 +311,7 @@ internal object LuaDebugLibrary {
 
     private fun getMetatable(context: LuaCallContext): LuaReturn {
         requireValueArgument(context, 1, "getmetatable")
-        if (!context.isTable(1)) {
-            return LuaReturn.of(null)
-        }
-        return LuaReturn.of(context.getMetatable(1))
+        return LuaReturn.of(context.getRawMetatable(1))
     }
 
     private fun setMetatable(context: LuaCallContext): LuaReturn {

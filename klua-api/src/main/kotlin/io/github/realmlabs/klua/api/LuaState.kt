@@ -1391,6 +1391,14 @@ class LuaState private constructor(
             return table.metatable
         }
 
+        override fun getRawMetatable(index: Int): Any? {
+            return when (valueAt(index)) {
+                is LuaStackValue.TableValue -> getMetatable(index)
+                is LuaStackValue.StringValue -> KLuaCoreRuntime.getStringMetatable(coreGlobals)?.toStackValue()
+                else -> null
+            }
+        }
+
         override fun getTableMetatable(table: Any?): Any? {
             val tableValue = table as? LuaStackValue.TableValue ?: return null
             return tableValue.metatable
