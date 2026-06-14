@@ -68,7 +68,7 @@ internal class LuaVm(
     }
 
     internal fun executeYieldable(prototype: Prototype, arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
-        return executeFrame(prototype, arguments, emptyList())
+        return executeFrame(LuaClosure(prototype), arguments)
     }
 
     internal fun resumeYieldable(arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
@@ -90,7 +90,7 @@ internal class LuaVm(
         arguments: List<LuaValue>,
         upvalues: List<LuaUpvalue>,
     ): List<LuaValue> {
-        return returnedValues(executeFrame(prototype, arguments, upvalues))
+        return returnedValues(executeFrame(LuaClosure(prototype, upvalues.toMutableList()), arguments))
     }
 
     private fun returnedValues(result: LuaExecutionResult): List<LuaValue> {
@@ -104,11 +104,15 @@ internal class LuaVm(
     }
 
     private fun executeFrame(
-        prototype: Prototype,
+        function: LuaClosure,
         arguments: List<LuaValue>,
-        upvalues: List<LuaUpvalue>,
     ): LuaExecutionResult {
-        val frame = thread.pushCall(prototype, arguments, upvalues)
+        val frame = thread.pushCall(
+            function.prototype,
+            arguments,
+            function.upvalues,
+            function = function,
+        )
         return runFrameAndPopOnCompletion(frame)
     }
 
@@ -306,7 +310,7 @@ internal class LuaVm(
 
     private fun callValue(callee: LuaValue, arguments: List<LuaValue>, callMetamethodDepth: Int = 0): LuaExecutionResult {
         return when (callee) {
-            is LuaClosure -> executeFrame(callee.prototype, arguments, callee.upvalues)
+            is LuaClosure -> executeFrame(callee, arguments)
             is LuaNativeFunction -> callNativeResult(callee, arguments)
             is LuaTable -> {
                 callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callMetamethodDepth)
@@ -344,7 +348,7 @@ internal class LuaVm(
         }
         val metamethodArguments = listOf(callee) + arguments
         return when (call) {
-            is LuaClosure -> executeFrame(call.prototype, metamethodArguments, call.upvalues)
+            is LuaClosure -> executeFrame(call, metamethodArguments)
             is LuaNativeFunction -> callNativeResult(call, metamethodArguments)
             LuaNil -> throw LuaVmException("attempt to call $callErrorTypeName")
             else -> callValue(call, metamethodArguments, callMetamethodDepth + 1)
@@ -406,6 +410,7 @@ internal class LuaVm(
                     frame.prototype.numParams,
                     frame.prototype.isVararg,
                     frame.prototype.validBreakpointLines.toList(),
+                    frame.function,
                     activeLocals(frame, pc),
                 )
             }

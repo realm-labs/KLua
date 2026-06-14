@@ -31,6 +31,7 @@ data class LuaStackFrame(
     val parameterCount: Int = 0,
     val isVararg: Boolean = false,
     val activeLines: List<Int> = emptyList(),
+    val function: Any? = null,
     val locals: List<LuaLocalVariable> = emptyList(),
 )
 

@@ -1135,15 +1135,16 @@ class LuaState private constructor(
     private fun toApiStackFrames(frames: List<KLuaCoreStackFrame>): List<LuaStackFrame> {
         return frames.map { frame ->
             LuaStackFrame(
-                frame.sourceName,
-                frame.line,
-                frame.lineDefined,
-                frame.lastLineDefined,
-                frame.upvalueCount,
-                frame.parameterCount,
-                frame.isVararg,
-                frame.activeLines,
-                frame.locals.map { local ->
+                sourceName = frame.sourceName,
+                line = frame.line,
+                lineDefined = frame.lineDefined,
+                lastLineDefined = frame.lastLineDefined,
+                upvalueCount = frame.upvalueCount,
+                parameterCount = frame.parameterCount,
+                isVararg = frame.isVararg,
+                activeLines = frame.activeLines,
+                function = frame.function?.toStackValue()?.toPublicCallReturnValue(),
+                locals = frame.locals.map { local ->
                     LuaLocalVariable(
                         local.name,
                         local.value.toStackValue().toPublicCallReturnValue(),

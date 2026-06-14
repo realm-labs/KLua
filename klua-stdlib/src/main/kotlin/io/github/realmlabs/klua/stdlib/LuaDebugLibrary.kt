@@ -94,6 +94,7 @@ internal object LuaDebugLibrary {
                     table["nparams"] = frame.parameterCount.toLong()
                     table["isvararg"] = frame.isVararg
                 }
+                'f' -> table["func"] = frame.function
                 'r' -> addTransferInfo(table)
                 't' -> addTailCallInfo(table)
                 'L' -> table["activelines"] = activeLinesTable(frame.activeLines)

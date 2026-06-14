@@ -702,20 +702,26 @@ class LuaStdlibTest {
                 local function probe()
                     local frameLine = debug.getinfo(1, "l")
                     local frameSource = debug.getinfo(1, "S")
+                    local frameFunction = debug.getinfo(1, "f")
+                    local frameDefault = debug.getinfo(1)
                     return frameLine.currentline, frameLine.source,
-                        frameSource.currentline, frameSource.source
+                        frameSource.currentline, frameSource.source,
+                        frameFunction.func == probe,
+                        frameDefault.func == probe
                 end
 
                 local functionInfo = debug.getinfo(probe, "S")
                 local functionLine = debug.getinfo(probe, "l")
                 local functionValue = debug.getinfo(probe, "f")
                 local hostFunction = debug.getinfo(print, "fS")
-                local frameCurrentline, frameLineSource, frameSourceCurrentline, frameSource = probe()
+                local frameCurrentline, frameLineSource, frameSourceCurrentline, frameSource,
+                    frameFunction, frameDefaultFunction = probe()
                 return functionInfo.source, functionInfo.currentline,
                     functionLine.currentline, functionLine.source,
                     functionValue.func == probe, functionValue.source,
                     hostFunction.func == print, hostFunction.what, hostFunction.currentline,
-                    frameCurrentline, frameLineSource, frameSourceCurrentline, frameSource
+                    frameCurrentline, frameLineSource, frameSourceCurrentline, frameSource,
+                    frameFunction, frameDefaultFunction
                 """.trimIndent(),
                 "debug-getinfo-what.lua",
             ),
@@ -735,6 +741,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(11))
         assertTrue(state.isNil(12))
         assertEquals("debug-getinfo-what.lua", state.toString(13))
+        assertTrue(state.toBoolean(14))
+        assertTrue(state.toBoolean(15))
     }
 
     @Test

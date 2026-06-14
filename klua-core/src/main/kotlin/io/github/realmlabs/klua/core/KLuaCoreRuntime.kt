@@ -618,6 +618,7 @@ public data class KLuaCoreStackFrame(
     public val parameterCount: Int = 0,
     public val isVararg: Boolean = false,
     public val activeLines: List<Int> = emptyList(),
+    public val function: KLuaCoreValue? = null,
     public val locals: List<KLuaCoreLocalVariable> = emptyList(),
 )
 
@@ -925,15 +926,16 @@ private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> 
 private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaCoreGlobals): List<KLuaCoreStackFrame> {
     return map { frame ->
         KLuaCoreStackFrame(
-            frame.sourceName,
-            frame.line,
-            frame.lineDefined,
-            frame.lastLineDefined,
-            frame.upvalueCount,
-            frame.parameterCount,
-            frame.isVararg,
-            frame.activeLines,
-            frame.locals.map { local ->
+            sourceName = frame.sourceName,
+            line = frame.line,
+            lineDefined = frame.lineDefined,
+            lastLineDefined = frame.lastLineDefined,
+            upvalueCount = frame.upvalueCount,
+            parameterCount = frame.parameterCount,
+            isVararg = frame.isVararg,
+            activeLines = frame.activeLines,
+            function = frame.function?.let { function -> toPublicValue(function, globals) },
+            locals = frame.locals.map { local ->
                 KLuaCoreLocalVariable(
                     local.name,
                     toPublicValue(local.value, globals),
