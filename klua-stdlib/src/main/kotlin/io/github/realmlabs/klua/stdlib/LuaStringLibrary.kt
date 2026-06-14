@@ -459,7 +459,7 @@ internal object LuaStringLibrary {
             ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
                 throw LuaRuntimeException("bad argument #$index to '$functionName' (number has no integer representation)")
             } else {
-                throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
+                throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
             }
     }
 
@@ -468,7 +468,7 @@ internal object LuaStringLibrary {
             ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
                 throw LuaRuntimeException("bad argument #$index to 'string.format' (number has no integer representation)")
             } else {
-                throw LuaRuntimeException("bad argument #$index to 'string.format' (integer expected)")
+                throw LuaRuntimeException("bad argument #$index to 'string.format' (number expected)")
             }
     }
 

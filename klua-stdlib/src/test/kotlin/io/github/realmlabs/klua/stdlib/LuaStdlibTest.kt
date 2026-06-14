@@ -8062,7 +8062,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.format' (integer expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'string.format' (number expected)", state.toString(-1))
 
         val fractionalState = LuaState.create()
         LuaStdlib.openString(fractionalState)
@@ -8243,7 +8243,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.format' (integer expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'string.format' (number expected)", state.toString(-1))
 
         val fractionalState = LuaState.create()
         LuaStdlib.openString(fractionalState)
@@ -9613,7 +9613,57 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.rep' (integer expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'string.rep' (number expected)", state.toString(-1))
+    }
+
+    @Test
+    fun `string integer arguments report non numeric value errors`() {
+        fun assertNonNumericIntegerError(source: String, chunkName: String, expected: String) {
+            val state = LuaState.create()
+            LuaStdlib.openString(state)
+
+            assertEquals(LuaStatus.OK, state.load(source, chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals(expected, state.toString(-1))
+        }
+
+        assertNonNumericIntegerError(
+            """return string.sub("abc", "bad")""",
+            "string-sub-string-start.lua",
+            "bad argument #2 to 'string.sub' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return string.byte("abc", "bad")""",
+            "string-byte-string-start.lua",
+            "bad argument #2 to 'string.byte' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return string.char("bad")""",
+            "string-char-string.lua",
+            "bad argument #1 to 'string.char' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return string.find("abc", "a", "bad", true)""",
+            "string-find-string-start.lua",
+            "bad argument #3 to 'string.find' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return string.match("abc", "a", "bad")""",
+            "string-match-string-start.lua",
+            "bad argument #3 to 'string.match' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return string.gmatch("abc", "a", "bad")""",
+            "string-gmatch-string-start.lua",
+            "bad argument #3 to 'string.gmatch' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return string.gsub("abc", "a", "x", "bad")""",
+            "string-gsub-string-limit.lua",
+            "bad argument #4 to 'string.gsub' (number expected)",
+        )
     }
 
     @Test
