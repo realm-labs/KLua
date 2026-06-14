@@ -9207,7 +9207,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, startState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(startState.getLastError())
-        assertEquals("bad argument #2 to 'utf8.codepoint' (out of bounds)", startState.toString(-1))
+        assertEquals("bad argument #2 to 'codepoint' (out of bounds)", startState.toString(-1))
 
         val endState = LuaState.create()
         LuaStdlib.openUtf8(endState)
@@ -9216,7 +9216,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, endState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(endState.getLastError())
-        assertEquals("bad argument #3 to 'utf8.codepoint' (out of bounds)", endState.toString(-1))
+        assertEquals("bad argument #3 to 'codepoint' (out of bounds)", endState.toString(-1))
     }
 
     @Test
@@ -9235,37 +9235,37 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return utf8.char(65.5)""",
             "utf8-char-fractional.lua",
-            "bad argument #1 to 'utf8.char' (number has no integer representation)",
+            "bad argument #1 to 'char' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return utf8.codepoint("abc", 1.5)""",
             "utf8-codepoint-fractional-start.lua",
-            "bad argument #2 to 'utf8.codepoint' (number has no integer representation)",
+            "bad argument #2 to 'codepoint' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return utf8.codepoint("abc", 1, 2.5)""",
             "utf8-codepoint-fractional-end.lua",
-            "bad argument #3 to 'utf8.codepoint' (number has no integer representation)",
+            "bad argument #3 to 'codepoint' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return utf8.len("abc", 1.5)""",
             "utf8-len-fractional-start.lua",
-            "bad argument #2 to 'utf8.len' (number has no integer representation)",
+            "bad argument #2 to 'len' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return utf8.len("abc", 1, 2.5)""",
             "utf8-len-fractional-end.lua",
-            "bad argument #3 to 'utf8.len' (number has no integer representation)",
+            "bad argument #3 to 'len' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return utf8.offset("abc", 1.5)""",
             "utf8-offset-fractional-offset.lua",
-            "bad argument #2 to 'utf8.offset' (number has no integer representation)",
+            "bad argument #2 to 'offset' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return utf8.offset("abc", 1, 1.5)""",
             "utf8-offset-fractional-position.lua",
-            "bad argument #3 to 'utf8.offset' (number has no integer representation)",
+            "bad argument #3 to 'offset' (number has no integer representation)",
         )
     }
 
@@ -9285,37 +9285,37 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return utf8.char("bad")""",
             "utf8-char-string-codepoint.lua",
-            "bad argument #1 to 'utf8.char' (number expected)",
+            "bad argument #1 to 'char' (number expected)",
         )
         assertNonNumericIntegerError(
             """return utf8.codepoint("abc", "bad")""",
             "utf8-codepoint-string-start.lua",
-            "bad argument #2 to 'utf8.codepoint' (number expected)",
+            "bad argument #2 to 'codepoint' (number expected)",
         )
         assertNonNumericIntegerError(
             """return utf8.codepoint("abc", 1, "bad")""",
             "utf8-codepoint-string-end.lua",
-            "bad argument #3 to 'utf8.codepoint' (number expected)",
+            "bad argument #3 to 'codepoint' (number expected)",
         )
         assertNonNumericIntegerError(
             """return utf8.len("abc", "bad")""",
             "utf8-len-string-start.lua",
-            "bad argument #2 to 'utf8.len' (number expected)",
+            "bad argument #2 to 'len' (number expected)",
         )
         assertNonNumericIntegerError(
             """return utf8.len("abc", 1, "bad")""",
             "utf8-len-string-end.lua",
-            "bad argument #3 to 'utf8.len' (number expected)",
+            "bad argument #3 to 'len' (number expected)",
         )
         assertNonNumericIntegerError(
             """return utf8.offset("abc", "bad")""",
             "utf8-offset-string-count.lua",
-            "bad argument #2 to 'utf8.offset' (number expected)",
+            "bad argument #2 to 'offset' (number expected)",
         )
         assertNonNumericIntegerError(
             """return utf8.offset("abc", 1, "bad")""",
             "utf8-offset-string-position.lua",
-            "bad argument #3 to 'utf8.offset' (number expected)",
+            "bad argument #3 to 'offset' (number expected)",
         )
     }
 
@@ -9440,7 +9440,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'utf8.codes' (string expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'codes' (string expected)", state.toString(-1))
     }
 
     @Test
@@ -9535,7 +9535,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, startState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(startState.getLastError())
-        assertEquals("bad argument #2 to 'utf8.len' (initial position out of bounds)", startState.toString(-1))
+        assertEquals("bad argument #2 to 'len' (initial position out of bounds)", startState.toString(-1))
 
         val endState = LuaState.create()
         LuaStdlib.openUtf8(endState)
@@ -9544,7 +9544,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, endState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(endState.getLastError())
-        assertEquals("bad argument #3 to 'utf8.len' (final position out of bounds)", endState.toString(-1))
+        assertEquals("bad argument #3 to 'len' (final position out of bounds)", endState.toString(-1))
     }
 
     @Test
@@ -9614,7 +9614,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'utf8.offset' (initial position is a continuation byte)", state.toString(-1))
+        assertEquals("bad argument #3 to 'offset' (initial position is a continuation byte)", state.toString(-1))
     }
 
     @Test
@@ -9626,7 +9626,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'utf8.offset' (position out of bounds)", state.toString(-1))
+        assertEquals("bad argument #3 to 'offset' (position out of bounds)", state.toString(-1))
     }
 
     @Test
@@ -9638,7 +9638,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'utf8.char' (value out of range)", state.toString(-1))
+        assertEquals("bad argument #1 to 'char' (value out of range)", state.toString(-1))
     }
 
     @Test
