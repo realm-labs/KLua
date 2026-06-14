@@ -812,31 +812,39 @@ internal class LuaVm(
     }
 
     private fun arithmetic(left: LuaValue, right: LuaValue, operation: Arithmetic): LuaValue {
-        val metamethod = arithmeticMetamethod(left, right, operation)
+        val direct = operation.applyOrNull(left, right)
+        if (direct != null) {
+            return direct
+        }
+        val metamethod = binaryMetamethod(left, right, operation.metamethodKey)
         if (metamethod != null) {
-            return executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+            return callOperatorMetamethod(metamethod, listOf(left, right))
         }
-        return operation.apply(left, right)
+        throw LuaVmException("attempt to perform arithmetic on ${typeName(arithmeticErrorOperand(left, right))}")
     }
 
-    private fun arithmeticMetamethod(left: LuaValue, right: LuaValue, operation: Arithmetic): LuaClosure? {
-        val key = when (operation) {
-            Arithmetic.ADD -> ADD_KEY
-            Arithmetic.SUB -> SUB_KEY
-            Arithmetic.MUL -> MUL_KEY
-            Arithmetic.DIV -> DIV_KEY
-            Arithmetic.IDIV -> IDIV_KEY
-            Arithmetic.MOD -> MOD_KEY
-            Arithmetic.POW -> POW_KEY
-        }
-        return tableMetamethod(left, key) ?: tableMetamethod(right, key)
+    private fun arithmeticErrorOperand(left: LuaValue, right: LuaValue): LuaValue {
+        return if (numberValue(left) == null) left else right
     }
 
-    private fun tableMetamethod(value: LuaValue, key: LuaString): LuaClosure? {
-        if (value !is LuaTable) {
-            return null
+    private fun binaryMetamethod(left: LuaValue, right: LuaValue, key: LuaString): LuaValue? {
+        val leftMetamethod = rawMetamethod(left, key)
+        if (leftMetamethod != LuaNil) {
+            return leftMetamethod
         }
-        return value.metatableRawGet(key) as? LuaClosure
+        val rightMetamethod = rawMetamethod(right, key)
+        return if (rightMetamethod != LuaNil) rightMetamethod else null
+    }
+
+    private fun rawMetamethod(value: LuaValue, key: LuaString): LuaValue {
+        return when (value) {
+            is LuaTable -> value.metatableRawGet(key)
+            else -> rawTypeMetatable(value)?.rawGet(key) ?: LuaNil
+        }
+    }
+
+    private fun callOperatorMetamethod(metamethod: LuaValue, arguments: List<LuaValue>): LuaValue {
+        return returnedValues(callValue(metamethod, arguments)).firstOrNull() ?: LuaNil
     }
 
     private fun unaryMinus(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -845,9 +853,9 @@ internal class LuaVm(
             is LuaInteger -> LuaInteger(-value.value)
             is LuaFloat -> LuaFloat(-value.value)
             else -> {
-                val metamethod = tableMetamethod(value, UNM_KEY)
-                if (metamethod != null) {
-                    executeReturned(metamethod.prototype, listOf(value), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val metamethod = rawMetamethod(value, UNM_KEY)
+                if (metamethod != LuaNil) {
+                    callOperatorMetamethod(metamethod, listOf(value, value))
                 } else {
                     throw LuaVmException("attempt to perform arithmetic on ${typeName(value)}")
                 }
@@ -910,28 +918,22 @@ internal class LuaVm(
             if (left !is LuaTable || right !is LuaTable) {
                 return false
             }
-            val metamethod = tableMetamethod(left, EQ_KEY) ?: tableMetamethod(right, EQ_KEY)
+            val metamethod = binaryMetamethod(left, right, EQ_KEY)
             if (metamethod != null) {
-                val result = executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
+                val result = callOperatorMetamethod(metamethod, listOf(left, right))
                 return isTruthy(result)
             }
             return false
         }
-        if (comparison == Comparison.LT) {
-            val metamethod = tableMetamethod(left, LT_KEY) ?: tableMetamethod(right, LT_KEY)
-            if (metamethod != null) {
-                val result = executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
-                return isTruthy(result)
+        try {
+            return comparison.apply(left, right)
+        } catch (error: LuaVmException) {
+            val metamethod = binaryMetamethod(left, right, comparison.metamethodKey)
+            if (metamethod == null) {
+                throw error
             }
+            return isTruthy(callOperatorMetamethod(metamethod, listOf(left, right)))
         }
-        if (comparison == Comparison.LE) {
-            val metamethod = tableMetamethod(left, LE_KEY) ?: tableMetamethod(right, LE_KEY)
-            if (metamethod != null) {
-                val result = executeReturned(metamethod.prototype, listOf(left, right), metamethod.upvalues).firstOrNull() ?: LuaNil
-                return isTruthy(result)
-            }
-        }
-        return comparison.apply(left, right)
     }
 
     private fun concat(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -940,10 +942,9 @@ internal class LuaVm(
         val left = stringCoercion(leftValue)
         val right = stringCoercion(rightValue)
         if (left == null || right == null) {
-            val metamethod = tableMetamethod(leftValue, CONCAT_KEY) ?: tableMetamethod(rightValue, CONCAT_KEY)
+            val metamethod = binaryMetamethod(leftValue, rightValue, CONCAT_KEY)
             if (metamethod != null) {
-                val result = executeReturned(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
-                stack.set(register(frame, Instruction.a(instruction)), result)
+                stack.set(register(frame, Instruction.a(instruction)), callOperatorMetamethod(metamethod, listOf(leftValue, rightValue)))
                 return
             }
             val failedValue = if (left == null) leftValue else rightValue
@@ -958,10 +959,9 @@ internal class LuaVm(
         val left = integerValue(leftValue)
         val right = integerValue(rightValue)
         if (left == null || right == null) {
-            val metamethod = bitwiseMetamethod(leftValue, rightValue, operation)
+            val metamethod = binaryMetamethod(leftValue, rightValue, operation.metamethodKey)
             if (metamethod != null) {
-                val result = executeReturned(metamethod.prototype, listOf(leftValue, rightValue), metamethod.upvalues).firstOrNull() ?: LuaNil
-                stack.set(register(frame, Instruction.a(instruction)), result)
+                stack.set(register(frame, Instruction.a(instruction)), callOperatorMetamethod(metamethod, listOf(leftValue, rightValue)))
                 return
             }
             val failedValue = if (left == null) leftValue else rightValue
@@ -970,25 +970,13 @@ internal class LuaVm(
         stack.set(register(frame, Instruction.a(instruction)), LuaInteger(operation.apply(left, right)))
     }
 
-    private fun bitwiseMetamethod(left: LuaValue, right: LuaValue, operation: Bitwise): LuaClosure? {
-        val key = when (operation) {
-            Bitwise.AND -> BAND_KEY
-            Bitwise.OR -> BOR_KEY
-            Bitwise.XOR -> BXOR_KEY
-            Bitwise.SHIFT_LEFT -> SHL_KEY
-            Bitwise.SHIFT_RIGHT -> SHR_KEY
-        }
-        return tableMetamethod(left, key) ?: tableMetamethod(right, key)
-    }
-
     private fun bitwiseNot(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val value = stack.get(register(frame, Instruction.b(instruction)))
         val integer = integerValue(value)
         if (integer == null) {
-            val metamethod = tableMetamethod(value, BNOT_KEY)
-            if (metamethod != null) {
-                val result = executeReturned(metamethod.prototype, listOf(value), metamethod.upvalues).firstOrNull() ?: LuaNil
-                stack.set(register(frame, Instruction.a(instruction)), result)
+            val metamethod = rawMetamethod(value, BNOT_KEY)
+            if (metamethod != LuaNil) {
+                stack.set(register(frame, Instruction.a(instruction)), callOperatorMetamethod(metamethod, listOf(value, value)))
                 return
             }
             throw LuaVmException("attempt to perform bitwise operation on ${typeName(value)}")
@@ -1032,7 +1020,18 @@ internal class LuaVm(
         MOD,
         POW;
 
-        fun apply(left: LuaValue, right: LuaValue): LuaValue {
+        val metamethodKey: LuaString
+            get() = when (this) {
+                ADD -> ADD_KEY
+                SUB -> SUB_KEY
+                MUL -> MUL_KEY
+                DIV -> DIV_KEY
+                IDIV -> IDIV_KEY
+                MOD -> MOD_KEY
+                POW -> POW_KEY
+            }
+
+        fun applyOrNull(left: LuaValue, right: LuaValue): LuaValue? {
             if (left is LuaInteger && right is LuaInteger) {
                 return integerArithmetic(left.value, right.value)
             }
@@ -1040,7 +1039,7 @@ internal class LuaVm(
             val leftNumber = numberValue(left)
             val rightNumber = numberValue(right)
             if (leftNumber == null || rightNumber == null) {
-                throw LuaVmException("attempt to perform arithmetic on ${typeName(if (leftNumber == null) left else right)}")
+                return null
             }
 
             return when (this) {
@@ -1071,6 +1070,13 @@ internal class LuaVm(
         EQ,
         LT,
         LE;
+
+        val metamethodKey: LuaString
+            get() = when (this) {
+                EQ -> EQ_KEY
+                LT -> LT_KEY
+                LE -> LE_KEY
+            }
 
         fun apply(left: LuaValue, right: LuaValue): Boolean {
             return when (this) {
@@ -1114,6 +1120,15 @@ internal class LuaVm(
         XOR,
         SHIFT_LEFT,
         SHIFT_RIGHT;
+
+        val metamethodKey: LuaString
+            get() = when (this) {
+                AND -> BAND_KEY
+                OR -> BOR_KEY
+                XOR -> BXOR_KEY
+                SHIFT_LEFT -> SHL_KEY
+                SHIFT_RIGHT -> SHR_KEY
+            }
 
         fun apply(left: Long, right: Long): Long {
             return when (this) {

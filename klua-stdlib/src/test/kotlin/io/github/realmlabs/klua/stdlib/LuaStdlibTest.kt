@@ -5100,6 +5100,123 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `primitive type operator metatables drive fallback operations`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(false, {
+                    __add = function(left, right)
+                        return tostring(left) .. ":" .. right
+                    end,
+                    __unm = function(value, copy)
+                        return value == copy and "negated" or "wrong"
+                    end,
+                    __band = function(left, right)
+                        return tostring(left) .. "&" .. right
+                    end,
+                    __bnot = function(value, copy)
+                        return value == copy and "inverted" or "wrong"
+                    end,
+                    __lt = function(left, right)
+                        return left == false and right == true
+                    end,
+                })
+                debug.setmetatable(nil, {
+                    __concat = function(left, right)
+                        return type(left) .. "|" .. right
+                    end,
+                })
+                return true + 5,
+                    -true,
+                    false & 7,
+                    ~false,
+                    false < true,
+                    nil .. "x"
+                """.trimIndent(),
+                "primitive-operator-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("true:5", state.toString(1))
+        assertEquals("negated", state.toString(2))
+        assertEquals("false&7", state.toString(3))
+        assertEquals("inverted", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("nil|x", state.toString(6))
+    }
+
+    @Test
+    fun `operator metamethods accept native and callable values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local left = setmetatable({}, {
+                    __eq = type,
+                })
+                local right = {}
+                local callable = setmetatable({name = "sum"}, {
+                    __call = function(self, left, right)
+                        return self.name .. ":" .. tostring(left) .. ":" .. right
+                    end,
+                })
+                local value = setmetatable({}, {
+                    __add = callable,
+                })
+                debug.setmetatable(false, {
+                    __add = type,
+                })
+                return left == right, value + 3, true + 1
+                """.trimIndent(),
+                "operator-callable-native-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toString(2)?.startsWith("sum:table:") == true)
+        assertEquals("boolean", state.toString(3))
+    }
+
+    @Test
+    fun `direct operator paths bypass primitive type metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __add = function()
+                        return "bad-number"
+                    end,
+                })
+                debug.setmetatable("", {
+                    __concat = function()
+                        return "bad-string"
+                    end,
+                })
+                return 1 + 2, "a" .. "b"
+                """.trimIndent(),
+                "operator-direct-paths.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("ab", state.toString(2))
+    }
+
+    @Test
     fun `primitive type call metatables invoke callable values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
