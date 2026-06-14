@@ -20,13 +20,13 @@ internal object LuaStringPackFormat {
         while (!scanner.isDone()) {
             val details = scanner.nextDetails(totalSize)
             if (details.option == PackOption.String || details.option == PackOption.ZeroTerminatedString) {
-                throw LuaRuntimeException("bad argument #1 to 'packsize' (variable-length format)")
+                throw LuaRuntimeException("bad argument #1 to 'string.packsize' (variable-length format)")
             }
             val size = checkedAdd(details.size, details.padding) {
-                "bad argument #1 to 'packsize' (format result too large)"
+                "bad argument #1 to 'string.packsize' (format result too large)"
             }
             totalSize = checkedAdd(totalSize, size) {
-                "bad argument #1 to 'packsize' (format result too large)"
+                "bad argument #1 to 'string.packsize' (format result too large)"
             }
         }
         return totalSize
@@ -43,12 +43,12 @@ internal object LuaStringPackFormat {
             var align = option.size
             if (option.option == PackOption.AlignPadding) {
                 if (isDone()) {
-                    throw LuaRuntimeException("bad argument #1 to 'packsize' (invalid next option for option 'X')")
+                    throw LuaRuntimeException("bad argument #1 to 'string.packsize' (invalid next option for option 'X')")
                 }
                 val next = nextOption()
                 align = next.size
                 if (next.option == PackOption.Char || align == 0L) {
-                    throw LuaRuntimeException("bad argument #1 to 'packsize' (invalid next option for option 'X')")
+                    throw LuaRuntimeException("bad argument #1 to 'string.packsize' (invalid next option for option 'X')")
                 }
             }
 
@@ -58,7 +58,7 @@ internal object LuaStringPackFormat {
                 val effectiveAlign = minOf(align, maxAlign)
                 if (!effectiveAlign.isPowerOfTwo()) {
                     throw LuaRuntimeException(
-                        "bad argument #1 to 'packsize' (format asks for alignment not power of 2)",
+                        "bad argument #1 to 'string.packsize' (format asks for alignment not power of 2)",
                     )
                 }
                 alignmentPadding(totalSize, effectiveAlign)

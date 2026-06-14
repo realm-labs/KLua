@@ -8560,19 +8560,25 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'packsize' (variable-length format)", state.toString(2))
+        assertEquals("bad argument #1 to 'string.packsize' (variable-length format)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("integral size (0) out of limits [1,16]", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("integral size (17) out of limits [1,16]", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #1 to 'packsize' (format asks for alignment not power of 2)", state.toString(8))
+        assertEquals(
+            "bad argument #1 to 'string.packsize' (format asks for alignment not power of 2)",
+            state.toString(8),
+        )
         assertFalse(state.toBoolean(9))
         assertEquals("invalid format option '?'", state.toString(10))
         assertFalse(state.toBoolean(11))
         assertEquals("missing size for format option 'c'", state.toString(12))
         assertFalse(state.toBoolean(13))
-        assertEquals("bad argument #1 to 'packsize' (invalid next option for option 'X')", state.toString(14))
+        assertEquals(
+            "bad argument #1 to 'string.packsize' (invalid next option for option 'X')",
+            state.toString(14),
+        )
     }
 
     @Test
