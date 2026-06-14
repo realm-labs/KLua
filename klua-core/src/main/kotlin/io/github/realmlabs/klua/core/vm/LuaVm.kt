@@ -30,6 +30,7 @@ internal class LuaVm(
     private val currentStringMetatable: (() -> LuaTable?)? = null,
     private val isStringMetatableConfigured: (() -> Boolean)? = null,
     private val currentRawTypeMetatable: ((String) -> LuaTable?)? = null,
+    private val currentUserDataMetatable: ((Any) -> LuaTable?)? = null,
 ) {
     private val thread = LuaThread()
     private var debugHook: DebugHookState? = null
@@ -612,6 +613,14 @@ internal class LuaVm(
                 tableGet(stringLibrary, key)
             }
             is LuaUserData -> {
+                val metatable = currentUserDataMetatable?.invoke(receiver.value)
+                if (metatable != null) {
+                    val index = metatable.rawGet(INDEX_KEY)
+                    if (index == LuaNil) {
+                        throw LuaVmException("attempt to index userdata")
+                    }
+                    return metamethodIndexGet(receiver, key, index)
+                }
                 if (key is LuaString) {
                     val property = receiver.type?.property(key.value)
                     if (property?.getter != null) {
@@ -632,7 +641,11 @@ internal class LuaVm(
     }
 
     private fun primitiveIndexGet(receiver: LuaValue, key: LuaValue, metatable: LuaTable): LuaValue {
-        return when (val index = metatable.rawGet(INDEX_KEY)) {
+        return metamethodIndexGet(receiver, key, metatable.rawGet(INDEX_KEY))
+    }
+
+    private fun metamethodIndexGet(receiver: LuaValue, key: LuaValue, index: LuaValue): LuaValue {
+        return when (index) {
             is LuaTable -> tableGet(index, key)
             is LuaClosure -> executeReturned(index.prototype, listOf(receiver, key), index.upvalues).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(index, listOf(receiver, key)).firstOrNull() ?: LuaNil
@@ -678,6 +691,15 @@ internal class LuaVm(
         when (receiver) {
             is LuaTable -> tableSet(receiver, key, value)
             is LuaUserData -> {
+                val metatable = currentUserDataMetatable?.invoke(receiver.value)
+                if (metatable != null) {
+                    val newIndex = metatable.rawGet(NEW_INDEX_KEY)
+                    if (newIndex == LuaNil) {
+                        throw LuaVmException("attempt to index userdata")
+                    }
+                    newIndexSet(receiver, key, value, newIndex, mutableSetOf(), 0)
+                    return
+                }
                 if (key !is LuaString) {
                     throw LuaVmException("attempt to index userdata with ${typeName(key)}")
                 }

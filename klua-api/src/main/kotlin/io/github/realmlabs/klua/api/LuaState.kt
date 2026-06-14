@@ -1495,11 +1495,18 @@ class LuaState private constructor(
         }
 
         private fun setUserDataMetatable(userData: LuaStackValue.UserDataValue, metatable: Any?) {
-            when (val stackMetatable = metatable.toStackValue()) {
-                LuaStackValue.Nil -> userMetatables.remove(userData.value)
-                is LuaStackValue.TableValue -> userMetatables[userData.value] = stackMetatable
+            val coreMetatable = when (val stackMetatable = metatable.toStackValue()) {
+                LuaStackValue.Nil -> {
+                    userMetatables.remove(userData.value)
+                    null
+                }
+                is LuaStackValue.TableValue -> {
+                    userMetatables[userData.value] = stackMetatable
+                    stackMetatable.toCoreTableValue(IdentityHashMap())
+                }
                 else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
             }
+            KLuaCoreRuntime.setUserDataMetatable(coreGlobals, userData.value, coreMetatable)
         }
 
         private fun Any?.toCoreMetatable(): KLuaCoreValue.TableValue? {

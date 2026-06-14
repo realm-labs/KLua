@@ -5295,6 +5295,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable drives host userdata metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("host"))
+        state.setGlobal("host")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local indexSelf, indexKey
+                local writes = {}
+                debug.setmetatable(host, {
+                    __index = function(self, key)
+                        indexSelf = self
+                        indexKey = key
+                        return "from-index"
+                    end,
+                    __newindex = function(self, key, value)
+                        writes.self = self
+                        writes.key = key
+                        writes.value = value
+                    end,
+                })
+                local read = host.answer
+                host.extra = "stored"
+                return read,
+                    indexSelf == host,
+                    indexKey,
+                    writes.self == host,
+                    writes.key,
+                    writes.value
+                """.trimIndent(),
+                "debug-userdata-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("from-index", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("answer", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("extra", state.toString(5))
+        assertEquals("stored", state.toString(6))
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

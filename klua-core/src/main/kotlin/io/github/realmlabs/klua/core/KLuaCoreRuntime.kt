@@ -74,6 +74,7 @@ public object KLuaCoreRuntime {
                     currentStringMetatable = { globals.stringMetatable },
                     isStringMetatableConfigured = { globals.stringMetatableConfigured },
                     currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
+                    currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
                 ).execute(chunk.prototype, vmArguments).map { value ->
                     toPublicValue(value, globals)
                 },
@@ -107,6 +108,7 @@ public object KLuaCoreRuntime {
                     currentStringMetatable = { globals.stringMetatable },
                     isStringMetatableConfigured = { globals.stringMetatableConfigured },
                     currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
+                    currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
                 ).lessThan(luaLeft, luaRight),
             )
         } catch (error: LuaVmException) {
@@ -224,6 +226,15 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun setUserDataMetatable(globals: KLuaCoreGlobals, value: Any, metatable: KLuaCoreValue.TableValue?) {
+        val luaMetatable = metatable?.toLuaValueOrNull(globals) as? LuaTable
+        if (luaMetatable == null) {
+            globals.userDataMetatables.remove(value)
+        } else {
+            globals.userDataMetatables[value] = luaMetatable
+        }
+    }
+
     public fun getUpvalue(
         function: KLuaCoreValue.FunctionValue,
         index: Int,
@@ -305,6 +316,7 @@ public class KLuaCoreGlobals internal constructor(
     internal var stringMetatable: LuaTable? = null
     internal var stringMetatableConfigured: Boolean = false
     internal val rawTypeMetatables: MutableMap<String, LuaTable> = linkedMapOf()
+    internal val userDataMetatables: MutableMap<Any, LuaTable> = IdentityHashMap()
 
     internal fun rawTypeMetatable(typeName: String): LuaTable? {
         return when (typeName) {
@@ -312,6 +324,8 @@ public class KLuaCoreGlobals internal constructor(
             else -> rawTypeMetatables[typeName]
         }
     }
+
+    internal fun userDataMetatable(value: Any): LuaTable? = userDataMetatables[value]
 
     public companion object {
         @JvmStatic
@@ -350,6 +364,7 @@ public class KLuaCoreGlobals internal constructor(
             globals.stringMetatable = stringMetatable
             globals.stringMetatableConfigured = stringMetatableConfigured
             globals.rawTypeMetatables.putAll(rawTypeMetatables)
+            globals.userDataMetatables.putAll(userDataMetatables)
         }
     }
 
@@ -623,6 +638,7 @@ public class KLuaCoreCoroutine internal constructor(
         currentStringMetatable = { globals.stringMetatable },
         isStringMetatableConfigured = { globals.stringMetatableConfigured },
         currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
+        currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
     )
     private var started = false
     private var dead = false
@@ -1228,6 +1244,7 @@ private fun callPublicLuaFunction(
             currentStringMetatable = { globals.stringMetatable },
             isStringMetatableConfigured = { globals.stringMetatableConfigured },
             currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
+            currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
         )
         vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
