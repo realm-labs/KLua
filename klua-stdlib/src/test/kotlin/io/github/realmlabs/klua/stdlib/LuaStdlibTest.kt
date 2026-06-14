@@ -3592,7 +3592,8 @@ class LuaStdlibTest {
                 """
                 local chunk, message = load(123)
                 local booleanOk, booleanMessage = pcall(load, false)
-                return chunk, message, booleanOk, booleanMessage
+                local modeOk, modeMessage = pcall(load, false, nil, "B")
+                return chunk, message, booleanOk, booleanMessage, modeOk, modeMessage
                 """.trimIndent(),
                 "load-number-source.lua",
             ),
@@ -3602,7 +3603,9 @@ class LuaStdlibTest {
         assertTrue(state.isNil(1))
         assertTrue(state.toString(2)?.contains("123") == true)
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'load' (string or function expected)", state.toString(4))
+        assertEquals("bad argument #1 to 'load' (function expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'load' (invalid mode)", state.toString(6))
     }
 
     @Test

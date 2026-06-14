@@ -224,9 +224,7 @@ public object LuaStdlib {
     private fun load(context: LuaCallContext): LuaReturn {
         val sourceType = context.typeName(1)
         val sourceIsString = sourceType == "string" || sourceType == "number"
-        if (!sourceIsString && sourceType != "function") {
-            throw LuaRuntimeException("bad argument #1 to 'load' (string or function expected)")
-        }
+        val mode = loadMode(context, 3, "load")
         val chunkName = if (context.isNone(2) || context.isNil(2)) {
             if (sourceIsString) {
                 requiredString(context, 1, "load")
@@ -236,7 +234,9 @@ public object LuaStdlib {
         } else {
             requiredString(context, 2, "load")
         }
-        val mode = loadMode(context, 3, "load")
+        if (!sourceIsString && sourceType != "function") {
+            throw LuaRuntimeException("bad argument #1 to 'load' (function expected)")
+        }
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
         }
