@@ -4935,6 +4935,79 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `primitive type index metatables drive field and method lookup`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __index = {
+                        x = 42,
+                        add = function(self, value)
+                            return self + value
+                        end,
+                    },
+                })
+                debug.setmetatable(false, {
+                    __index = function(self, key)
+                        return tostring(self) .. ":" .. key
+                    end,
+                })
+                debug.setmetatable(nil, {
+                    __index = {
+                        x = "nil-x",
+                    },
+                })
+                local f = function() end
+                debug.setmetatable(f, {
+                    __index = type,
+                })
+                return (1).x,
+                    (2):add(3),
+                    (true).name,
+                    (false).name,
+                    (nil).x,
+                    f.any
+                """.trimIndent(),
+                "primitive-index-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(5L, state.toInteger(2))
+        assertEquals("true:name", state.toString(3))
+        assertEquals("false:name", state.toString(4))
+        assertEquals("nil-x", state.toString(5))
+        assertEquals("function", state.toString(6))
+    }
+
+    @Test
+    fun `table index metamethod accepts native functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local object = setmetatable({}, {
+                    __index = type,
+                })
+                return object.any
+                """.trimIndent(),
+                "table-native-index-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+    }
+
+    @Test
     fun `getmetatable reports missing argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

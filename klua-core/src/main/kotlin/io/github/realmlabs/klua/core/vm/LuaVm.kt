@@ -29,6 +29,7 @@ internal class LuaVm(
     private val stringMetatableConfigured: Boolean = false,
     private val currentStringMetatable: (() -> LuaTable?)? = null,
     private val isStringMetatableConfigured: (() -> Boolean)? = null,
+    private val currentRawTypeMetatable: ((String) -> LuaTable?)? = null,
 ) {
     private val thread = LuaThread()
     private var debugHook: DebugHookState? = null
@@ -588,7 +589,7 @@ internal class LuaVm(
                 if (metatableConfigured) {
                     val metatable = currentStringMetatable?.invoke() ?: stringMetatable
                         ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-                    return stringIndexGet(receiver, key, metatable)
+                    return primitiveIndexGet(receiver, key, metatable)
                 }
                 val stringLibrary = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
                     ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
@@ -606,14 +607,19 @@ internal class LuaVm(
                     LuaNil
                 }
             }
-            else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
+            else -> {
+                val metatable = currentRawTypeMetatable?.invoke(typeName(receiver))
+                    ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
+                primitiveIndexGet(receiver, key, metatable)
+            }
         }
     }
 
-    private fun stringIndexGet(receiver: LuaString, key: LuaValue, metatable: LuaTable): LuaValue {
+    private fun primitiveIndexGet(receiver: LuaValue, key: LuaValue, metatable: LuaTable): LuaValue {
         return when (val index = metatable.rawGet(INDEX_KEY)) {
             is LuaTable -> tableGet(index, key)
             is LuaClosure -> executeReturned(index.prototype, listOf(receiver, key), index.upvalues).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callNative(index, listOf(receiver, key)).firstOrNull() ?: LuaNil
             else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
         }
     }
@@ -630,6 +636,7 @@ internal class LuaVm(
         return when (val index = table.metatableRawGet(INDEX_KEY)) {
             is LuaTable -> tableGet(index, key, visited)
             is LuaClosure -> executeReturned(index.prototype, listOf(table, key), index.upvalues).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
             else -> LuaNil
         }
     }

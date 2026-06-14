@@ -73,6 +73,7 @@ public object KLuaCoreRuntime {
                     globals.table,
                     currentStringMetatable = { globals.stringMetatable },
                     isStringMetatableConfigured = { globals.stringMetatableConfigured },
+                    currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
                 ).execute(chunk.prototype, vmArguments).map { value ->
                     toPublicValue(value, globals)
                 },
@@ -105,6 +106,7 @@ public object KLuaCoreRuntime {
                     globals.table,
                     currentStringMetatable = { globals.stringMetatable },
                     isStringMetatableConfigured = { globals.stringMetatableConfigured },
+                    currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
                 ).lessThan(luaLeft, luaRight),
             )
         } catch (error: LuaVmException) {
@@ -279,6 +281,13 @@ public class KLuaCoreGlobals internal constructor(
     internal var stringMetatable: LuaTable? = null
     internal var stringMetatableConfigured: Boolean = false
     internal val rawTypeMetatables: MutableMap<String, LuaTable> = linkedMapOf()
+
+    internal fun rawTypeMetatable(typeName: String): LuaTable? {
+        return when (typeName) {
+            "string" -> stringMetatable
+            else -> rawTypeMetatables[typeName]
+        }
+    }
 
     public companion object {
         @JvmStatic
@@ -573,6 +582,7 @@ public class KLuaCoreCoroutine internal constructor(
         globals.table,
         currentStringMetatable = { globals.stringMetatable },
         isStringMetatableConfigured = { globals.stringMetatableConfigured },
+        currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
     )
     private var started = false
     private var dead = false
@@ -1173,6 +1183,7 @@ private fun callPublicLuaFunction(
             globals.table,
             currentStringMetatable = { globals.stringMetatable },
             isStringMetatableConfigured = { globals.stringMetatableConfigured },
+            currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
         )
         vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
