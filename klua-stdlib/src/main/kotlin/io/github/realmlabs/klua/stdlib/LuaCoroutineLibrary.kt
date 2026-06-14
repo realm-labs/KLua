@@ -255,7 +255,7 @@ internal object LuaCoroutineLibrary {
     private fun locationPrefixedWrapError(context: LuaCallContext, message: String): String {
         val frame = context.luaFrames.firstOrNull() ?: return message
         return buildString {
-            append(frame.sourceName)
+            append(luaShortSourceName(frame.sourceName))
             if (frame.line > 0) {
                 append(':')
                 append(frame.line)

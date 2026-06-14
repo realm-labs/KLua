@@ -212,9 +212,34 @@ class LuaApiSmokeTest {
         assertEquals(
             "attempt to perform arithmetic on string\n" +
                 "stack traceback:\n" +
-                "\tapi-trace.lua:2\n" +
-                "\tapi-trace.lua:5\n" +
-                "\tapi-trace.lua:7",
+                "\t[string \"api-trace.lua\"]:2\n" +
+                "\t[string \"api-trace.lua\"]:5\n" +
+                "\t[string \"api-trace.lua\"]:7",
+            error.traceback,
+        )
+    }
+
+    @Test
+    fun `facade runtime tracebacks format file chunk source names`() {
+        val lua = Lua.create()
+
+        val error = assertFailsWith<LuaRuntimeException> {
+            lua.load(
+                """
+                local function inner()
+                    return "x" + 1
+                end
+                return inner()
+                """.trimIndent(),
+                "@/tmp/api-file-trace.lua",
+            ).eval()
+        }
+
+        assertEquals(
+            "attempt to perform arithmetic on string\n" +
+                "stack traceback:\n" +
+                "\t/tmp/api-file-trace.lua:2\n" +
+                "\t/tmp/api-file-trace.lua:4",
             error.traceback,
         )
     }
@@ -254,8 +279,8 @@ class LuaApiSmokeTest {
             "host boom\n" +
                 "stack traceback:\n" +
                 "\t[Kotlin]: explode\n" +
-                "\tapi-host-trace.lua:2\n" +
-                "\tapi-host-trace.lua:4",
+                "\t[string \"api-host-trace.lua\"]:2\n" +
+                "\t[string \"api-host-trace.lua\"]:4",
             error.traceback,
         )
     }
@@ -296,8 +321,8 @@ class LuaApiSmokeTest {
             "userdata boom\n" +
                 "stack traceback:\n" +
                 "\t[Kotlin]: HostObject.explode\n" +
-                "\tapi-userdata-host-trace.lua:2\n" +
-                "\tapi-userdata-host-trace.lua:4",
+                "\t[string \"api-userdata-host-trace.lua\"]:2\n" +
+                "\t[string \"api-userdata-host-trace.lua\"]:4",
             error.traceback,
         )
     }
@@ -332,8 +357,8 @@ class LuaApiSmokeTest {
         assertEquals(
             "attempt to perform arithmetic on string\n" +
                 "stack traceback:\n" +
-                "\tapi-coroutine-trace.lua:3\n" +
-                "\tapi-coroutine-trace.lua:5",
+                "\t[string \"api-coroutine-trace.lua\"]:3\n" +
+                "\t[string \"api-coroutine-trace.lua\"]:5",
             error.traceback,
         )
     }

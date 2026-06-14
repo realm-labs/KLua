@@ -157,7 +157,7 @@ public object LuaStdlib {
         }
         val frame = context.luaFrames.getOrNull(level - 1) ?: return errorObject
         return buildString {
-            append(frame.sourceName)
+            append(luaShortSourceName(frame.sourceName))
             if (frame.line > 0) {
                 append(':')
                 append(frame.line)

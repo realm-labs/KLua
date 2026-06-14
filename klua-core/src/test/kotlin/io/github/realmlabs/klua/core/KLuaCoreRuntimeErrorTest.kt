@@ -49,9 +49,31 @@ class KLuaCoreRuntimeErrorTest {
         assertEquals(
             "attempt to perform arithmetic on string\n" +
                 "stack traceback:\n" +
-                "\tcore-trace.lua:2\n" +
-                "\tcore-trace.lua:5\n" +
-                "\tcore-trace.lua:7",
+                "\t[string \"core-trace.lua\"]:2\n" +
+                "\t[string \"core-trace.lua\"]:5\n" +
+                "\t[string \"core-trace.lua\"]:7",
+            error.traceback,
+        )
+    }
+
+    @Test
+    fun `runtime tracebacks format file chunk source names`() {
+        val result = KLuaCoreRuntime.execute(
+            """
+            local function inner()
+                return "x" + 1
+            end
+            return inner()
+            """.trimIndent(),
+            "@/tmp/core-file-trace.lua",
+        )
+
+        val error = assertIs<KLuaCoreExecution.RuntimeError>(result)
+        assertEquals(
+            "attempt to perform arithmetic on string\n" +
+                "stack traceback:\n" +
+                "\t/tmp/core-file-trace.lua:2\n" +
+                "\t/tmp/core-file-trace.lua:4",
             error.traceback,
         )
     }
