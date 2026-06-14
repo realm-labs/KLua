@@ -391,17 +391,25 @@ public object LuaStdlib {
             parts += requiredString(context, index, "warn")
         }
         if (parts.size == 1 && parts.single().startsWith("@")) {
-            return when (parts.single()) {
-                "@on" -> true
-                "@off" -> false
-                else -> warningsEnabled
-            }
+            return warningControlState(parts.single(), warningsEnabled)
         }
 
         if (warningsEnabled) {
             output.accept("Lua warning: ${parts.joinToString("")}")
+            return true
         }
-        return warningsEnabled
+        return warningControlState(parts.last(), false)
+    }
+
+    private fun warningControlState(message: String, warningsEnabled: Boolean): Boolean {
+        if (!message.startsWith("@")) {
+            return warningsEnabled
+        }
+        return when (message) {
+            "@on" -> true
+            "@off" -> false
+            else -> warningsEnabled
+        }
     }
 
     private fun rawequal(context: LuaCallContext): LuaReturn {

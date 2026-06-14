@@ -3589,6 +3589,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `warn handles multi part control messages like Lua warning API`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                warn("@on")
+                warn("@off", "XXX", "@off")
+                warn("@off")
+                warn("@on", "YYY", "@on")
+                warn("@off")
+                warn("@on")
+                warn("", "@on")
+                warn("@on")
+                warn("Z", "Z", "Z")
+                """.trimIndent(),
+                "warn-multipart-controls.lua",
+            ),
+        )
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertEquals(
+            listOf(
+                "Lua warning: @offXXX@off",
+                "Lua warning: @on",
+                "Lua warning: ZZZ",
+            ),
+            output,
+        )
+        assertEquals(0, state.getTop())
+    }
+
+    @Test
     fun `warn reports missing and non string argument errors`() {
         val missingState = LuaState.create()
         LuaStdlib.openBase(missingState)
