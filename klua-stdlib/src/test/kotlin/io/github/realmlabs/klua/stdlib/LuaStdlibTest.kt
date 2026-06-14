@@ -12045,7 +12045,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `utf8 len reports invalid byte ranges`() {
+    fun `utf8 len counts codepoints that start in byte range`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
 
@@ -12055,18 +12055,19 @@ class LuaStdlibTest {
                 """
                 local text = "A" .. utf8.char(128512) .. "Z"
                 local continuationLength, continuationPosition = utf8.len(text, 4, 6)
-                local truncatedLength, truncatedPosition = utf8.len(text, 1, 4)
-                return continuationLength, continuationPosition, truncatedLength, truncatedPosition
+                local partialFromStart = utf8.len(text, 1, 4)
+                local partialCodepoint = utf8.len(text, 2, 3)
+                return continuationLength, continuationPosition, partialFromStart, partialCodepoint
                 """.trimIndent(),
-                "utf8-len-invalid-ranges.lua",
+                "utf8-len-starting-byte-ranges.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertTrue(state.isNil(1))
         assertEquals(4L, state.toInteger(2))
-        assertTrue(state.isNil(3))
-        assertEquals(2L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
     }
 
     @Test
