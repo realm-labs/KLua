@@ -443,7 +443,7 @@ class CompilerTest {
             )
         }
 
-        assertEquals("const-local.lua:2:1: attempt to assign to const local 'x'", error.message)
+        assertEquals("const-local.lua:2:1: attempt to assign to const variable 'x'", error.message)
     }
 
     @Test
@@ -458,7 +458,7 @@ class CompilerTest {
             )
         }
 
-        assertEquals("prefixed-const-local.lua:2:1: attempt to assign to const local 'y'", error.message)
+        assertEquals("prefixed-const-local.lua:2:1: attempt to assign to const variable 'y'", error.message)
     }
 
     @Test
@@ -475,7 +475,7 @@ class CompilerTest {
             )
         }
 
-        assertEquals("captured-const-local.lua:3:5: attempt to assign to const local 'x'", error.message)
+        assertEquals("captured-const-local.lua:3:5: attempt to assign to const variable 'x'", error.message)
     }
 
     @Test
@@ -752,6 +752,86 @@ class CompilerTest {
             0012  [5]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `rejects reassignment to numeric for control variable`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                for i = 1, 3 do
+                    i = 4
+                end
+                """.trimIndent(),
+                "numeric-for-control.lua",
+            )
+        }
+
+        assertEquals("numeric-for-control.lua:2:5: attempt to assign to const variable 'i'", error.message)
+    }
+
+    @Test
+    fun `rejects captured reassignment to numeric for control variable`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                for i = 1, 3 do
+                    local function set()
+                        i = 4
+                    end
+                end
+                """.trimIndent(),
+                "numeric-for-captured-control.lua",
+            )
+        }
+
+        assertEquals("numeric-for-captured-control.lua:3:9: attempt to assign to const variable 'i'", error.message)
+    }
+
+    @Test
+    fun `rejects reassignment to first generic for control variable`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                for key, value in iterator() do
+                    key = "next"
+                end
+                """.trimIndent(),
+                "generic-for-control.lua",
+            )
+        }
+
+        assertEquals("generic-for-control.lua:2:5: attempt to assign to const variable 'key'", error.message)
+    }
+
+    @Test
+    fun `rejects captured reassignment to first generic for control variable`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                for key, value in iterator() do
+                    local function set()
+                        key = "next"
+                    end
+                end
+                """.trimIndent(),
+                "generic-for-captured-control.lua",
+            )
+        }
+
+        assertEquals("generic-for-captured-control.lua:3:9: attempt to assign to const variable 'key'", error.message)
+    }
+
+    @Test
+    fun `allows reassignment to later generic for variables`() {
+        Compiler.compile(
+            """
+            for key, value in iterator() do
+                value = "next"
+            end
+            """.trimIndent(),
+            "generic-for-later-variable.lua",
         )
     }
 

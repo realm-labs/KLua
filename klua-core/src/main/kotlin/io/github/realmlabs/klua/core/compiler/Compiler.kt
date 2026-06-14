@@ -147,7 +147,7 @@ internal class Compiler private constructor(
             compileExpression(statement.step, baseRegister + 2)
         }
 
-        registerLocal(statement.name, baseRegister, LocalAttribute.NONE)
+        registerLocal(statement.name, baseRegister, LocalAttribute.CONST)
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.FOR_TEST, baseRegister), statement.range.start.line)
         val loopStart = writer.size
@@ -176,7 +176,8 @@ internal class Compiler private constructor(
         compileIteratorValues(statement.values, iteratorBase, statement.range.start.line)
 
         for ((index, name) in statement.names.withIndex()) {
-            registerLocal(name, valueBase + index, LocalAttribute.NONE)
+            val attribute = if (index == 0) LocalAttribute.CONST else LocalAttribute.NONE
+            registerLocal(name, valueBase + index, attribute)
         }
 
         val loopStart = writer.size
@@ -334,12 +335,12 @@ internal class Compiler private constructor(
                     val targetSlot = locals[target.name]
                     if (targetSlot != null) {
                         if (localAttributes[target.name] == LocalAttribute.CONST) {
-                            throw CompilerException(target.range.start, "attempt to assign to const local '${target.name}'")
+                            throw constAssignmentError(target)
                         }
                         writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueBase + index), statement.range.start.line)
                     } else {
                         if (parentConstResolver?.invoke(target.name) == true) {
-                            throw CompilerException(target.range.start, "attempt to assign to const local '${target.name}'")
+                            throw constAssignmentError(target)
                         }
                         val upvalue = resolveUpvalue(target.name)
                         if (upvalue != null) {
@@ -950,6 +951,10 @@ internal class Compiler private constructor(
         for (jump in breaks) {
             patchJump(jump, targetIndex)
         }
+    }
+
+    private fun constAssignmentError(target: LocalAssignmentTarget): CompilerException {
+        return CompilerException(target.range.start, "attempt to assign to const variable '${target.name}'")
     }
 
     private fun restoreLocals(
