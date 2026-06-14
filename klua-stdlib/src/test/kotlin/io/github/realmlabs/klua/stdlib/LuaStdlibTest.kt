@@ -9218,6 +9218,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 integer arguments report non numeric value errors`() {
+        fun assertNonNumericIntegerError(source: String, chunkName: String, expected: String) {
+            val state = LuaState.create()
+            LuaStdlib.openUtf8(state)
+
+            assertEquals(LuaStatus.OK, state.load(source, chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals(expected, state.toString(-1))
+        }
+
+        assertNonNumericIntegerError(
+            """return utf8.char("bad")""",
+            "utf8-char-string-codepoint.lua",
+            "bad argument #1 to 'utf8.char' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return utf8.codepoint("abc", "bad")""",
+            "utf8-codepoint-string-start.lua",
+            "bad argument #2 to 'utf8.codepoint' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return utf8.codepoint("abc", 1, "bad")""",
+            "utf8-codepoint-string-end.lua",
+            "bad argument #3 to 'utf8.codepoint' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return utf8.len("abc", "bad")""",
+            "utf8-len-string-start.lua",
+            "bad argument #2 to 'utf8.len' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return utf8.len("abc", 1, "bad")""",
+            "utf8-len-string-end.lua",
+            "bad argument #3 to 'utf8.len' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return utf8.offset("abc", "bad")""",
+            "utf8-offset-string-count.lua",
+            "bad argument #2 to 'utf8.offset' (number expected)",
+        )
+        assertNonNumericIntegerError(
+            """return utf8.offset("abc", 1, "bad")""",
+            "utf8-offset-string-position.lua",
+            "bad argument #3 to 'utf8.offset' (number expected)",
+        )
+    }
+
+    @Test
     fun `utf8 codes returns codepoint iterator`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
