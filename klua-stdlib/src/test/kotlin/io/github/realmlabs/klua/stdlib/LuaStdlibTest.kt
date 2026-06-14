@@ -4119,6 +4119,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable requires metatable argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local object = {}
+                local metatable = {}
+                debug.setmetatable(object, metatable)
+                local okMissing, missingMessage = pcall(debug.setmetatable, object)
+                local okNone, noneMessage = pcall(debug.setmetatable)
+                local okNil, returned = pcall(debug.setmetatable, object, nil)
+                return okMissing, missingMessage,
+                    okNone, noneMessage,
+                    okNil, returned == object,
+                    debug.getmetatable(object)
+                """.trimIndent(),
+                "debug-setmetatable-missing-meta-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.setmetatable' (nil or table expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'debug.setmetatable' (nil or table expected)", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.isNil(7))
+    }
+
+    @Test
     fun `debug getmetatable reports missing argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

@@ -316,11 +316,11 @@ internal object LuaDebugLibrary {
     }
 
     private fun setMetatable(context: LuaCallContext): LuaReturn {
+        if (context.isNone(2) || (!context.isNil(2) && !context.isTable(2))) {
+            throw LuaRuntimeException("bad argument #2 to 'debug.setmetatable' (nil or table expected)")
+        }
         if (!context.isTable(1)) {
             throw LuaRuntimeException("bad argument #1 to 'debug.setmetatable' (table expected)")
-        }
-        if (!context.isNone(2) && !context.isNil(2) && !context.isTable(2)) {
-            throw LuaRuntimeException("bad argument #2 to 'debug.setmetatable' (nil or table expected)")
         }
         context.setMetatable(1, context.getTable(2))
         return LuaReturn.of(context.getTable(1))
@@ -436,8 +436,8 @@ internal object LuaDebugLibrary {
             return klua_debug_getmetatable(...)
         end
 
-        function debug.setmetatable(value, metatable)
-            return klua_debug_setmetatable(value, metatable)
+        function debug.setmetatable(value, ...)
+            return klua_debug_setmetatable(value, ...)
         end
 
         function debug.sethook(hook, mask, count)
