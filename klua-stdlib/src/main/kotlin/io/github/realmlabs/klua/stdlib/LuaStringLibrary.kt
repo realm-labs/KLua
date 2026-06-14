@@ -425,9 +425,26 @@ internal object LuaStringLibrary {
                     writePackedDouble(output, value, details.littleEndian)
                     argumentIndex++
                 }
-                LuaStringPackFormat.PackOption.String,
-                LuaStringPackFormat.PackOption.ZeroTerminatedString,
-                -> throw unsupportedPackOption(details.option)
+                LuaStringPackFormat.PackOption.String -> {
+                    val value = requiredString(context, argumentIndex, "pack")
+                    val bytes = value.toByteArray(StandardCharsets.ISO_8859_1)
+                    requireStringLengthPackRange(bytes.size, details.size, argumentIndex)
+                    writePackedInteger(output, bytes.size.toLong(), details.size, details.littleEndian, signed = false)
+                    output.write(bytes)
+                    totalSize = checkedPackSize(totalSize, bytes.size.toLong())
+                    argumentIndex++
+                }
+                LuaStringPackFormat.PackOption.ZeroTerminatedString -> {
+                    val value = requiredString(context, argumentIndex, "pack")
+                    val bytes = value.toByteArray(StandardCharsets.ISO_8859_1)
+                    if (bytes.any { it.toInt() == 0 }) {
+                        throw LuaRuntimeException("bad argument #$argumentIndex to 'pack' (string contains zeros)")
+                    }
+                    output.write(bytes)
+                    output.write(0)
+                    totalSize = checkedPackSize(totalSize, bytes.size.toLong() + 1L)
+                    argumentIndex++
+                }
             }
             totalSize = checkedPackSize(totalSize, details.size)
         }
@@ -478,9 +495,31 @@ internal object LuaStringLibrary {
                 -> {
                     results += unpackDouble(data, position.toInt(), details.littleEndian)
                 }
-                LuaStringPackFormat.PackOption.String,
-                LuaStringPackFormat.PackOption.ZeroTerminatedString,
-                -> throw unsupportedPackOption(details.option)
+                LuaStringPackFormat.PackOption.String -> {
+                    val length = unpackInteger(
+                        data,
+                        position.toInt(),
+                        details.size,
+                        details.littleEndian,
+                        signed = false,
+                    )
+                    val remaining = data.size.toLong() - position - details.size
+                    if (length < 0L || length > remaining) {
+                        throw LuaRuntimeException("bad argument #2 to 'unpack' (data string too short)")
+                    }
+                    val start = (position + details.size).toInt()
+                    val end = start + length.toInt()
+                    results += String(data.copyOfRange(start, end), StandardCharsets.ISO_8859_1)
+                    position += length
+                }
+                LuaStringPackFormat.PackOption.ZeroTerminatedString -> {
+                    val zeroIndex = data.indexOfZero(position.toInt())
+                    if (zeroIndex < 0) {
+                        throw LuaRuntimeException("bad argument #2 to 'unpack' (unfinished string for format 'z')")
+                    }
+                    results += String(data.copyOfRange(position.toInt(), zeroIndex), StandardCharsets.ISO_8859_1)
+                    position += zeroIndex - position.toInt() + 1L
+                }
             }
             position += details.size
         }
@@ -521,6 +560,19 @@ internal object LuaStringLibrary {
         val limit = 1L shl bits
         if (value < 0L || value >= limit) {
             throw LuaRuntimeException("bad argument #$argumentIndex to 'pack' (unsigned overflow)")
+        }
+    }
+
+    private fun requireStringLengthPackRange(length: Int, size: Long, argumentIndex: Int) {
+        if (size >= Long.SIZE_BYTES) {
+            return
+        }
+        val bits = (size * Byte.SIZE_BITS).toInt()
+        val limit = 1L shl bits
+        if (length.toLong() >= limit) {
+            throw LuaRuntimeException(
+                "bad argument #$argumentIndex to 'pack' (string length does not fit in given size)",
+            )
         }
     }
 
@@ -611,6 +663,15 @@ internal object LuaStringLibrary {
         return result
     }
 
+    private fun ByteArray.indexOfZero(start: Int): Int {
+        for (index in start until size) {
+            if (this[index].toInt() == 0) {
+                return index
+            }
+        }
+        return -1
+    }
+
     private fun unpackFloat(data: ByteArray, position: Int, littleEndian: Boolean): Double {
         return ByteBuffer.wrap(data, position, Float.SIZE_BYTES)
             .order(byteOrder(littleEndian))
@@ -626,23 +687,6 @@ internal object LuaStringLibrary {
 
     private fun byteOrder(littleEndian: Boolean): ByteOrder {
         return if (littleEndian) ByteOrder.LITTLE_ENDIAN else ByteOrder.BIG_ENDIAN
-    }
-
-    private fun unsupportedPackOption(option: LuaStringPackFormat.PackOption): LuaRuntimeException {
-        val formatOption = when (option) {
-            LuaStringPackFormat.PackOption.Float -> "f"
-            LuaStringPackFormat.PackOption.Number -> "n"
-            LuaStringPackFormat.PackOption.Double -> "d"
-            LuaStringPackFormat.PackOption.String -> "s"
-            LuaStringPackFormat.PackOption.ZeroTerminatedString -> "z"
-            LuaStringPackFormat.PackOption.Char -> "c"
-            LuaStringPackFormat.PackOption.Int -> "i"
-            LuaStringPackFormat.PackOption.UInt -> "I"
-            LuaStringPackFormat.PackOption.Padding -> "x"
-            LuaStringPackFormat.PackOption.AlignPadding -> "X"
-            LuaStringPackFormat.PackOption.NoOp -> " "
-        }
-        return LuaRuntimeException("format option '$formatOption' is not supported yet")
     }
 
     private fun stringRep(context: LuaCallContext): LuaReturn {

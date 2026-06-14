@@ -9894,6 +9894,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pack and unpack variable strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local prefixed = string.pack("<s1", "abc")
+                local length = string.unpack("<B", prefixed)
+                local value, pos = string.unpack("<s1", prefixed)
+                local zero = string.pack("z", "hi")
+                local zeroValue, zeroPos = string.unpack("z", zero)
+                return length, value, pos, zeroValue, zeroPos
+                """.trimIndent(),
+                "string-pack-unpack-variable-strings.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("abc", state.toString(2))
+        assertEquals(5L, state.toInteger(3))
+        assertEquals("hi", state.toString(4))
+        assertEquals(4L, state.toInteger(5))
+    }
+
+    @Test
     fun `string pack and unpack report fixed integer errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -9906,11 +9934,13 @@ class LuaStdlibTest {
                 local signedOk, signedMessage = pcall(string.pack, "b", 128)
                 local unsignedOk, unsignedMessage = pcall(string.pack, "B", 256)
                 local shortOk, shortMessage = pcall(string.unpack, "I4", "a")
-                local unsupportedOk, unsupportedMessage = pcall(string.pack, "s", "a")
+                local lengthOk, lengthMessage = pcall(string.pack, "s1", string.rep("a", 256))
+                local zeroOk, zeroMessage = pcall(string.unpack, "z", "abc")
                 return signedOk, signedMessage,
                     unsignedOk, unsignedMessage,
                     shortOk, shortMessage,
-                    unsupportedOk, unsupportedMessage
+                    lengthOk, lengthMessage,
+                    zeroOk, zeroMessage
                 """.trimIndent(),
                 "string-pack-unpack-errors.lua",
             ),
@@ -9924,7 +9954,9 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("format option 's' is not supported yet", state.toString(8))
+        assertEquals("bad argument #2 to 'pack' (string length does not fit in given size)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #2 to 'unpack' (unfinished string for format 'z')", state.toString(10))
     }
 
     @Test
