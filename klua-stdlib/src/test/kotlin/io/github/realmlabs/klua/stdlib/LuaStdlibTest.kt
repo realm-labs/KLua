@@ -6715,6 +6715,29 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openString supports string method calls`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "AbcDef"
+                return text:len(), text:lower(), text:sub(2, 4), ("xy"):rep(2, "-")
+                """.trimIndent(),
+                "string-methods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(6L, state.toInteger(1))
+        assertEquals("abcdef", state.toString(2))
+        assertEquals("bcD", state.toString(3))
+        assertEquals("xy-xy", state.toString(4))
+    }
+
+    @Test
     fun `string lower and upper use ascii byte case mapping`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

@@ -579,6 +579,11 @@ internal class LuaVm(
     private fun indexGet(receiver: LuaValue, key: LuaValue): LuaValue {
         return when (receiver) {
             is LuaTable -> tableGet(receiver, key)
+            is LuaString -> {
+                val stringLibrary = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
+                    ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
+                tableGet(stringLibrary, key)
+            }
             is LuaUserData -> {
                 if (key is LuaString) {
                     val property = receiver.type?.property(key.value)
@@ -1075,6 +1080,7 @@ private fun typeName(value: LuaValue): String {
 }
 
 private val INDEX_KEY = LuaString("__index")
+private val STRING_LIBRARY_KEY = LuaString("string")
 private val NEW_INDEX_KEY = LuaString("__newindex")
 private val CALL_KEY = LuaString("__call")
 private val LEN_KEY = LuaString("__len")
