@@ -175,6 +175,7 @@ Current implemented areas:
 - Initial `klua-tools` CLI debugger runner core with `klua --debug <script.lua> [args...]` invocation parsing, command-loop entry wrapper, command parsing for `break`, `run`, `continue`, `next`, `step`, `out`, `bt`, `locals`, `print`, and `quit`, source breakpoint registration, public-API script execution, top-level expression evaluation, debug tooling documentation, and an example VS Code launch configuration.
 - String pattern support covers literals, dot wildcard, anchors, Lua character classes, bracket classes/ranges, bracketed percent classes, optional single-item matches, greedy/minimal single-item repetitions, basic captures for `find`, `match`, `gsub`, and `gmatch`, backreferences, balanced matches, and frontier matches.
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
+- `string.packsize`, `string.pack`, and `string.unpack` cover Lua 5.5 format parsing, endian directives, alignment, fixed and variable strings, integer formats, and floating-point formats.
 - Focused parser, compiler, VM, API, Kotlin helper, conformance, and foundation tests.
 
 Remaining major gaps:
