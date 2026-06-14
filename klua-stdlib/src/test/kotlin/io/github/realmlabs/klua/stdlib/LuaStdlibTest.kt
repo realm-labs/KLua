@@ -10022,7 +10022,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `table concat reports table argument errors`() {
+    fun `table concat reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
 
@@ -10030,7 +10030,19 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'table.concat' (table expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'concat' (table expected)", state.toString(-1))
+
+        val separatorState = LuaState.create()
+        LuaStdlib.openTable(separatorState)
+
+        assertEquals(
+            LuaStatus.OK,
+            separatorState.load("""return table.concat({"a"}, true)""", "table-concat-separator-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, separatorState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(separatorState.getLastError())
+        assertEquals("bad argument #2 to 'concat' (string expected)", separatorState.toString(-1))
     }
 
     @Test
@@ -10205,12 +10217,12 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return table.concat({"a"}, "", "bad")""",
             "table-concat-string-start.lua",
-            "bad argument #3 to 'table.concat' (number expected)",
+            "bad argument #3 to 'concat' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.concat({"a"}, "", 1, "bad")""",
             "table-concat-string-end.lua",
-            "bad argument #4 to 'table.concat' (number expected)",
+            "bad argument #4 to 'concat' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.create(1, "bad")""",
@@ -10270,12 +10282,12 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return table.concat({"a"}, "", 1.5)""",
             "table-concat-fractional-start.lua",
-            "bad argument #3 to 'table.concat' (number has no integer representation)",
+            "bad argument #3 to 'concat' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.concat({"a"}, "", 1, 1.5)""",
             "table-concat-fractional-end.lua",
-            "bad argument #4 to 'table.concat' (number has no integer representation)",
+            "bad argument #4 to 'concat' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.create(1.5)""",

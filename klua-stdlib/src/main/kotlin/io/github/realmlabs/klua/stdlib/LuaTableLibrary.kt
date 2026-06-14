@@ -24,23 +24,23 @@ internal object LuaTableLibrary {
 
     private fun tableConcat(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'table.concat' (table expected)")
+            throw LuaRuntimeException("bad argument #1 to 'concat' (table expected)")
         }
 
         val separator = if (context.isNone(2) || context.isNil(2)) {
             ""
         } else {
-            requiredString(context, 2, "table.concat")
+            requiredString(context, 2, "concat")
         }
         val start = if (context.isNone(3) || context.isNil(3)) {
             1L
         } else {
-            requiredInteger(context, 3, "table.concat")
+            requiredInteger(context, 3, "concat")
         }
         val end = if (context.isNone(4) || context.isNil(4)) {
             tableLength(context, 1)
         } else {
-            requiredInteger(context, 4, "table.concat")
+            requiredInteger(context, 4, "concat")
         }
 
         if (start > end) {
