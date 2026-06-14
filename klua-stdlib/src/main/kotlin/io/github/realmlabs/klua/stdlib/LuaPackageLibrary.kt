@@ -98,17 +98,17 @@ internal object LuaPackageLibrary {
                 if loader ~= nil then
                     return loader, ":preload:"
                 end
-                return nil, "\n\tno field package.preload['" .. name .. "']"
+                return "\n\tno field package.preload['" .. name .. "']"
             end,
 
             function(name)
                 local filename, searchError = package.searchpath(name, package.path)
                 if filename == nil then
-                    return nil, "\n\t" .. searchError
+                    return "\n\t" .. searchError
                 end
                 local loader, loadError = loadfile(filename)
                 if loader == nil then
-                    return nil, "\n\t" .. loadError
+                    error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" .. loadError, 0)
                 end
                 return loader, filename
             end,
@@ -156,8 +156,6 @@ internal object LuaPackageLibrary {
                 end
                 if loaderType == "string" then
                     errors = errors .. loader
-                elseif extra ~= nil then
-                    errors = errors .. extra
                 end
                 index = index + 1
             end

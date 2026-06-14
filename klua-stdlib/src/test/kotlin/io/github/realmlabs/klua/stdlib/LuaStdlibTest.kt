@@ -2251,6 +2251,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require ignores secondary searcher diagnostics unless first result is string`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.searchers = {
+                    function()
+                        return nil, "\n\tignored nil extra"
+                    end,
+                    function()
+                        return false, "\n\tignored false extra"
+                    end,
+                    function()
+                        return "\n\tkept first"
+                    end,
+                }
+                return pcall(require, "custom")
+                """.trimIndent(),
+                "require-searcher-secondary-diagnostics.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        val message = state.toString(2) ?: ""
+        assertTrue(message.contains("module 'custom' not found"))
+        assertTrue(message.contains("kept first"))
+        assertFalse(message.contains("ignored nil extra"))
+        assertFalse(message.contains("ignored false extra"))
+    }
+
+    @Test
     fun `require reports non table searchers`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
