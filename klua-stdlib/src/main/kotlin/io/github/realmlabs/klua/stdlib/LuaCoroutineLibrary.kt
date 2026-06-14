@@ -19,7 +19,7 @@ internal object LuaCoroutineLibrary {
     fun open(state: LuaState): LuaState {
         val runtime = CoroutineRuntime()
         state.newTable()
-        setFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
+        setYieldableFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
         setFunctionField(state, "create") { context -> coroutineCreate(context, "create") }
         setFunctionField(state, "isyieldable") { context -> coroutineIsYieldable(context, runtime) }
         setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
@@ -75,6 +75,10 @@ internal object LuaCoroutineLibrary {
                         LuaReturn.ofValues(listOf(true) + result.values)
                     }
                     is LuaCoroutineResult.Yielded -> {
+                        if (result.values.singleOrNull() === SelfCloseSignal) {
+                            coroutine.status = CoroutineStatus.DEAD
+                            return LuaReturn.of(true)
+                        }
                         coroutine.status = CoroutineStatus.SUSPENDED
                         LuaReturn.ofValues(listOf(true) + result.values)
                     }
@@ -161,7 +165,8 @@ internal object LuaCoroutineLibrary {
             if (!isRunningCoroutine(coroutine, runtime)) {
                 throw LuaRuntimeException("cannot close a normal coroutine")
             }
-            return LuaReturn.of(false, "cannot close running coroutine")
+            coroutine.status = CoroutineStatus.DEAD
+            context.yield(listOf(SelfCloseSignal))
         }
         coroutine.status = CoroutineStatus.DEAD
         return LuaReturn.of(true)
@@ -296,4 +301,6 @@ internal object LuaCoroutineLibrary {
         RUNNING,
         DEAD,
     }
+
+    private object SelfCloseSignal
 }

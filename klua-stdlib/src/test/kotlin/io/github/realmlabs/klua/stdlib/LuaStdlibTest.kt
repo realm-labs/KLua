@@ -5399,30 +5399,55 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `coroutine close reports running coroutine`() {
+    fun `coroutine close lets running coroutine close itself`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openCoroutine(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
                 """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
                 local co
                 co = coroutine.create(function()
-                    return coroutine.close(co)
+                    return "unreachable", pcall(coroutine.close, co)
                 end)
-                local ok, closeOk, message = coroutine.resume(co)
-                return ok, closeOk, message, coroutine.status(co)
+                local count, ok, first, second = pack(coroutine.resume(co))
+
+                local noArg = coroutine.create(function()
+                    return pcall(coroutine.close)
+                end)
+                local noArgCount, noArgOk, noArgFirst = pack(coroutine.resume(noArg))
+
+                local wrapped = coroutine.wrap(function()
+                    return coroutine.close()
+                end)
+                local wrappedCount, wrappedFirst = pack(wrapped())
+
+                return count, ok, first == nil, second == nil, coroutine.status(co),
+                    noArgCount, noArgOk, noArgFirst == nil, coroutine.status(noArg),
+                    wrappedCount, wrappedFirst == nil
                 """.trimIndent(),
-                "coroutine-close-running.lua",
+                "coroutine-close-self.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertTrue(state.toBoolean(1))
-        assertFalse(state.toBoolean(2))
-        assertEquals("cannot close running coroutine", state.toString(3))
-        assertEquals("dead", state.toString(4))
+        assertEquals(1L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("dead", state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("dead", state.toString(9))
+        assertEquals(0L, state.toInteger(10))
+        assertTrue(state.toBoolean(11))
     }
 
     @Test
