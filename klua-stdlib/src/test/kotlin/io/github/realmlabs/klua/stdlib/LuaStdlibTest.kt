@@ -12363,6 +12363,66 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move accepts primitive values with table-like metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable(0)
+                debug.setmetatable(0, {
+                    __index = function(_, index)
+                        return ({ "a", "b" })[index]
+                    end,
+                })
+                local destination = {}
+                local destinationReturned = table.move(7, 1, 2, 1, destination)
+
+                local writes = {}
+                debug.setmetatable(0, {
+                    __newindex = function(_, index, value)
+                        writes[#writes + 1] = index .. ":" .. tostring(value)
+                    end,
+                })
+                local primitiveDestinationReturned = table.move({ "x", "y" }, 1, 2, 1, 7)
+
+                local values = { "m", "n", "o" }
+                debug.setmetatable(0, {
+                    __index = function(_, index)
+                        return values[index]
+                    end,
+                    __newindex = function(_, index, value)
+                        values[index] = value
+                    end,
+                })
+                local selfReturned = table.move(7, 1, 3, 2)
+                debug.setmetatable(0, original)
+                return destinationReturned == destination, destination[1], destination[2],
+                    primitiveDestinationReturned,
+                    writes[1], writes[2],
+                    selfReturned, values[1], values[2], values[3], values[4]
+                """.trimIndent(),
+                "table-move-primitive-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("a", state.toString(2))
+        assertEquals("b", state.toString(3))
+        assertEquals(7L, state.toInteger(4))
+        assertEquals("1:x", state.toString(5))
+        assertEquals("2:y", state.toString(6))
+        assertEquals(7L, state.toInteger(7))
+        assertEquals("m", state.toString(8))
+        assertEquals("m", state.toString(9))
+        assertEquals("n", state.toString(10))
+        assertEquals("o", state.toString(11))
+    }
+
+    @Test
     fun `table move preserves table values`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -12503,16 +12563,21 @@ class LuaStdlibTest {
     fun `table move accepts string sources with explicit destination tables`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openTable(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
                 """
+                local original = debug.getmetatable("")
+                debug.setmetatable("", { __index = string })
                 local destination = {"x", "y", "z"}
                 local returned = table.move("abc", 1, 2, 1, destination)
                 local emptyRangeDestination = {"kept"}
                 local emptyReturned = table.move("abc", 2, 1, 1, emptyRangeDestination)
+                debug.setmetatable("", original)
                 return returned == destination,
                     destination[1], destination[2], destination[3],
                     emptyReturned == emptyRangeDestination, emptyRangeDestination[1]

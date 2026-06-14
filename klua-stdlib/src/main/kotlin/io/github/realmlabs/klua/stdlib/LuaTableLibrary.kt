@@ -80,6 +80,22 @@ internal object LuaTableLibrary {
             context.getTableField(metatable, "__len") != null
     }
 
+    private fun isReadableTableLike(context: LuaCallContext, index: Int): Boolean {
+        if (context.isTable(index)) {
+            return true
+        }
+        val metatable = context.getRawMetatable(index) ?: return false
+        return context.getTableField(metatable, "__index") != null
+    }
+
+    private fun isWritableTableLike(context: LuaCallContext, index: Int): Boolean {
+        if (context.isTable(index)) {
+            return true
+        }
+        val metatable = context.getRawMetatable(index) ?: return false
+        return context.getTableField(metatable, "__newindex") != null
+    }
+
     private fun tableConcatLength(context: LuaCallContext, index: Int): Long {
         if (context.typeName(index) == "string") {
             return requiredString(context, index, "concat").toByteArray(StandardCharsets.UTF_8).size.toLong()
@@ -306,36 +322,34 @@ internal object LuaTableLibrary {
         val last = requiredInteger(context, 3, "move")
         val target = requiredInteger(context, 4, "move")
         val hasDestination = !(context.isNone(5) || context.isNil(5))
-        val sourceIsTable = context.isTable(1)
-        val sourceIsReadableString = hasDestination && context.typeName(1) == "string"
-        if (!sourceIsTable && !sourceIsReadableString) {
+        if (!isReadableTableLike(context, 1)) {
             throw LuaRuntimeException("bad argument #1 to 'move' (table expected)")
         }
         val destinationIndex = if (!hasDestination) {
             1
         } else {
-            if (!context.isTable(5)) {
+            if (!isWritableTableLike(context, 5)) {
                 throw LuaRuntimeException("bad argument #5 to 'move' (table expected)")
             }
             5
         }
 
         if (first > last) {
-            return LuaReturn.of(context.getTable(destinationIndex))
+            return LuaReturn.of(context.getLuaValue(destinationIndex))
         }
 
         val count = tableMoveCount(first, last)
         tableMoveLastTarget(target, count)
 
-        val sameTable = sourceIsTable && context.getTable(1) === context.getTable(destinationIndex)
-        if (sameTable && target > first && target <= last) {
+        val sameReceiver = context.rawEquals(1, destinationIndex) == true
+        if (sameReceiver && target > first && target <= last) {
             var offset = count - 1L
             while (offset >= 0L) {
                 tableSetValue(
                     context,
                     destinationIndex,
                     target + offset,
-                    tableMoveSourceValue(context, sourceIsTable, first + offset),
+                    tableIndexValue(context, 1, first + offset),
                 )
                 offset--
             }
@@ -346,16 +360,12 @@ internal object LuaTableLibrary {
                     context,
                     destinationIndex,
                     target + offset,
-                    tableMoveSourceValue(context, sourceIsTable, first + offset),
+                    tableIndexValue(context, 1, first + offset),
                 )
                 offset++
             }
         }
-        return LuaReturn.of(context.getTable(destinationIndex))
-    }
-
-    private fun tableMoveSourceValue(context: LuaCallContext, sourceIsTable: Boolean, key: Any?): Any? {
-        return if (sourceIsTable) tableIndexValue(context, key) else null
+        return LuaReturn.of(context.getLuaValue(destinationIndex))
     }
 
     private fun tableMoveCount(first: Long, last: Long): Long {
