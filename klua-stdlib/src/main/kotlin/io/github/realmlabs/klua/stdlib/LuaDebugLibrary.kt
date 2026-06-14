@@ -31,7 +31,7 @@ internal object LuaDebugLibrary {
         } else {
             context.toString(1)
         }
-        val level = optionalStackLevel(context, 2, 1, "debug.traceback")
+        val level = optionalStackLevel(context, 2, 1, "traceback")
         val frames = if (level < 0) {
             emptyList()
         } else {
@@ -61,13 +61,13 @@ internal object LuaDebugLibrary {
     private fun getInfo(context: LuaCallContext): LuaReturn {
         if (context.typeName(1) == "function") {
             val info = context.getFunctionDebugInfo(1)
-            val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "debug.getinfo")
+            val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
             rejectPrivateGetInfoOption(what)
             return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
         }
-        val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "debug.getinfo")
+        val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
         rejectPrivateGetInfoOption(what)
-        val level = requiredStackLevel(context, "debug.getinfo")
+        val level = requiredStackLevel(context, "getinfo")
         if (level < 0) {
             return LuaReturn.of(null)
         }
@@ -159,7 +159,7 @@ internal object LuaDebugLibrary {
         val table = linkedMapOf<String, Any?>()
         for (option in what) {
             if (option !in GETINFO_OPTIONS) {
-                throw LuaRuntimeException("bad argument #2 to 'debug.getinfo' (invalid option)")
+                throw LuaRuntimeException("bad argument #2 to 'getinfo' (invalid option)")
             }
             addFields(option, table)
         }
@@ -168,7 +168,7 @@ internal object LuaDebugLibrary {
 
     private fun rejectPrivateGetInfoOption(what: String) {
         if (what.startsWith(">")) {
-            throw LuaRuntimeException("bad argument #2 to 'debug.getinfo' (invalid option '>')")
+            throw LuaRuntimeException("bad argument #2 to 'getinfo' (invalid option '>')")
         }
     }
 
@@ -183,7 +183,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
-        val index = requiredLocalIndex(context, 2, "debug.getlocal")
+        val index = requiredLocalIndex(context, 2, "getlocal")
         if (context.typeName(1) == "function") {
             if (index <= 0) {
                 return LuaReturn.of(null)
@@ -191,12 +191,12 @@ internal object LuaDebugLibrary {
             val info = context.getFunctionDebugInfo(1) ?: return LuaReturn.of(null)
             return LuaReturn.of(info.parameterNames.getOrNull(index - 1))
         }
-        val level = requiredStackLevel(context, "debug.getlocal")
+        val level = requiredStackLevel(context, "getlocal")
         if (level < 0) {
-            throw LuaRuntimeException("bad argument #1 to 'debug.getlocal' (level out of range)")
+            throw LuaRuntimeException("bad argument #1 to 'getlocal' (level out of range)")
         }
         val frame = context.luaFrames.drop(level).firstOrNull()
-            ?: throw LuaRuntimeException("bad argument #1 to 'debug.getlocal' (level out of range)")
+            ?: throw LuaRuntimeException("bad argument #1 to 'getlocal' (level out of range)")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -205,14 +205,14 @@ internal object LuaDebugLibrary {
     }
 
     private fun setLocal(context: LuaCallContext): LuaReturn {
-        val level = requiredStackLevel(context, "debug.setlocal")
-        val index = requiredLocalIndex(context, 2, "debug.setlocal")
+        val level = requiredStackLevel(context, "setlocal")
+        val index = requiredLocalIndex(context, 2, "setlocal")
         if (level < 0) {
-            throw LuaRuntimeException("bad argument #1 to 'debug.setlocal' (level out of range)")
+            throw LuaRuntimeException("bad argument #1 to 'setlocal' (level out of range)")
         }
         context.luaFrames.drop(level).firstOrNull()
-            ?: throw LuaRuntimeException("bad argument #1 to 'debug.setlocal' (level out of range)")
-        requireValueArgument(context, 3, "debug.setlocal")
+            ?: throw LuaRuntimeException("bad argument #1 to 'setlocal' (level out of range)")
+        requireValueArgument(context, 3, "setlocal")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -220,8 +220,8 @@ internal object LuaDebugLibrary {
     }
 
     private fun getUpvalue(context: LuaCallContext): LuaReturn {
-        val index = requiredUpvalueLookupIndex(context, 2, "debug.getupvalue")
-        requireFunction(context, 1, "debug.getupvalue")
+        val index = requiredUpvalueLookupIndex(context, 2, "getupvalue")
+        requireFunction(context, 1, "getupvalue")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -229,9 +229,9 @@ internal object LuaDebugLibrary {
     }
 
     private fun setupUpvalue(context: LuaCallContext): LuaReturn {
-        requireValueArgument(context, 3, "debug.setupvalue")
-        val index = requiredUpvalueLookupIndex(context, 2, "debug.setupvalue")
-        requireFunction(context, 1, "debug.setupvalue")
+        requireValueArgument(context, 3, "setupvalue")
+        val index = requiredUpvalueLookupIndex(context, 2, "setupvalue")
+        requireFunction(context, 1, "setupvalue")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -239,23 +239,23 @@ internal object LuaDebugLibrary {
     }
 
     private fun upvalueId(context: LuaCallContext): LuaReturn {
-        val index = requiredPositiveUpvalueIndex(context, 2, "debug.upvalueid")
-        requireFunction(context, 1, "debug.upvalueid")
+        val index = requiredPositiveUpvalueIndex(context, 2, "upvalueid")
+        requireFunction(context, 1, "upvalueid")
         val id = context.getUpvalueId(1, index)
-            ?: throw LuaRuntimeException("bad argument #2 to 'debug.upvalueid' (invalid upvalue index)")
+            ?: throw LuaRuntimeException("bad argument #2 to 'upvalueid' (invalid upvalue index)")
         return LuaReturn.of(id)
     }
 
     private fun upvalueJoin(context: LuaCallContext): LuaReturn {
-        val targetIndex = requiredPositiveUpvalueIndex(context, 2, "debug.upvaluejoin")
-        requireFunction(context, 1, "debug.upvaluejoin")
-        val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "debug.upvaluejoin")
-        requireFunction(context, 3, "debug.upvaluejoin")
+        val targetIndex = requiredPositiveUpvalueIndex(context, 2, "upvaluejoin")
+        requireFunction(context, 1, "upvaluejoin")
+        val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "upvaluejoin")
+        requireFunction(context, 3, "upvaluejoin")
         if (context.getUpvalueId(1, targetIndex) == null) {
-            throw LuaRuntimeException("bad argument #2 to 'debug.upvaluejoin' (invalid upvalue index)")
+            throw LuaRuntimeException("bad argument #2 to 'upvaluejoin' (invalid upvalue index)")
         }
         if (context.getUpvalueId(3, sourceIndex) == null) {
-            throw LuaRuntimeException("bad argument #4 to 'debug.upvaluejoin' (invalid upvalue index)")
+            throw LuaRuntimeException("bad argument #4 to 'upvaluejoin' (invalid upvalue index)")
         }
         context.joinUpvalue(1, targetIndex, 3, sourceIndex)
         return LuaReturn.none()
@@ -307,7 +307,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun getMetatable(context: LuaCallContext): LuaReturn {
-        requireValueArgument(context, 1, "debug.getmetatable")
+        requireValueArgument(context, 1, "getmetatable")
         if (!context.isTable(1)) {
             return LuaReturn.of(null)
         }
@@ -316,10 +316,10 @@ internal object LuaDebugLibrary {
 
     private fun setMetatable(context: LuaCallContext): LuaReturn {
         if (context.isNone(2) || (!context.isNil(2) && !context.isTable(2))) {
-            throw LuaRuntimeException("bad argument #2 to 'debug.setmetatable' (nil or table expected)")
+            throw LuaRuntimeException("bad argument #2 to 'setmetatable' (nil or table expected)")
         }
         if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'debug.setmetatable' (table expected)")
+            throw LuaRuntimeException("bad argument #1 to 'setmetatable' (table expected)")
         }
         context.setMetatable(1, context.getTable(2))
         return LuaReturn.of(context.getTable(1))
@@ -330,9 +330,9 @@ internal object LuaDebugLibrary {
             context.setDebugHook(1, "", 0)
             return LuaReturn.of()
         }
-        val mask = requiredString(context, 2, "debug.sethook")
-        requireFunction(context, 1, "debug.sethook")
-        val count = optionalInteger(context, 3, 0, "debug.sethook").toInt()
+        val mask = requiredString(context, 2, "sethook")
+        requireFunction(context, 1, "sethook")
+        val count = optionalInteger(context, 3, 0, "sethook").toInt()
         context.setDebugHook(1, mask, count)
         return LuaReturn.of()
     }

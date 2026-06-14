@@ -351,7 +351,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.traceback' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'traceback' (number expected)", state.toString(2))
     }
 
     @Test
@@ -729,7 +729,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option)", state.toString(2))
+        assertEquals("bad argument #2 to 'getinfo' (invalid option)", state.toString(2))
     }
 
     @Test
@@ -751,9 +751,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option '>')", state.toString(2))
+        assertEquals("bad argument #2 to 'getinfo' (invalid option '>')", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option '>')", state.toString(4))
+        assertEquals("bad argument #2 to 'getinfo' (invalid option '>')", state.toString(4))
     }
 
     @Test
@@ -774,7 +774,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.getinfo' (string expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'getinfo' (string expected)", state.toString(2))
     }
 
     @Test
@@ -795,7 +795,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.getinfo' (number expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'getinfo' (number expected)", state.toString(2))
     }
 
     @Test
@@ -903,9 +903,9 @@ class LuaStdlibTest {
 
         assertTrue(state.isNil(1))
         assertFalse(state.toBoolean(2))
-        assertEquals("bad argument #1 to 'debug.getlocal' (level out of range)", state.toString(3))
+        assertEquals("bad argument #1 to 'getlocal' (level out of range)", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("bad argument #1 to 'debug.getlocal' (level out of range)", state.toString(5))
+        assertEquals("bad argument #1 to 'getlocal' (level out of range)", state.toString(5))
     }
 
     @Test
@@ -926,7 +926,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.getlocal' (number expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'getlocal' (number expected)", state.toString(2))
     }
 
     @Test
@@ -956,11 +956,11 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'getlocal' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(4))
+        assertEquals("bad argument #2 to 'getlocal' (number expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(6))
+        assertEquals("bad argument #2 to 'getlocal' (number expected)", state.toString(6))
     }
 
     @Test
@@ -1060,7 +1060,7 @@ class LuaStdlibTest {
 
         assertTrue(state.isNil(1))
         assertFalse(state.toBoolean(2))
-        assertEquals("bad argument #1 to 'debug.setlocal' (level out of range)", state.toString(3))
+        assertEquals("bad argument #1 to 'setlocal' (level out of range)", state.toString(3))
         assertEquals(12L, state.toInteger(4))
     }
 
@@ -1082,7 +1082,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.setlocal' (number expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'setlocal' (number expected)", state.toString(2))
     }
 
     @Test
@@ -1107,7 +1107,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.setlocal' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'setlocal' (number expected)", state.toString(2))
     }
 
     @Test
@@ -1144,11 +1144,11 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #3 to 'debug.setlocal' (value expected)", state.toString(2))
+        assertEquals("bad argument #3 to 'setlocal' (value expected)", state.toString(2))
         assertTrue(state.toBoolean(3))
         assertTrue(state.isNil(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #3 to 'debug.setlocal' (value expected)", state.toString(6))
+        assertEquals("bad argument #3 to 'setlocal' (value expected)", state.toString(6))
         assertEquals(12L, state.toInteger(7))
     }
 
@@ -1271,7 +1271,7 @@ class LuaStdlibTest {
         assertEquals("right", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("bad argument #4 to 'debug.upvaluejoin' (invalid upvalue index)", state.toString(5))
+        assertEquals("bad argument #4 to 'upvaluejoin' (invalid upvalue index)", state.toString(5))
         assertTrue(state.toBoolean(6))
         assertEquals("right", state.toString(7))
         assertEquals("right", state.toString(8))
@@ -1322,23 +1322,23 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.getupvalue' (function expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'getupvalue' (function expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #2 to 'debug.getupvalue' (number expected)", state.toString(4))
+        assertEquals("bad argument #2 to 'getupvalue' (number expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #1 to 'debug.setupvalue' (function expected)", state.toString(6))
+        assertEquals("bad argument #1 to 'setupvalue' (function expected)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #2 to 'debug.setupvalue' (number expected)", state.toString(8))
+        assertEquals("bad argument #2 to 'setupvalue' (number expected)", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertEquals("bad argument #1 to 'debug.upvalueid' (function expected)", state.toString(10))
+        assertEquals("bad argument #1 to 'upvalueid' (function expected)", state.toString(10))
         assertFalse(state.toBoolean(11))
-        assertEquals("bad argument #2 to 'debug.upvalueid' (invalid upvalue index)", state.toString(12))
+        assertEquals("bad argument #2 to 'upvalueid' (invalid upvalue index)", state.toString(12))
         assertFalse(state.toBoolean(13))
-        assertEquals("bad argument #1 to 'debug.upvaluejoin' (function expected)", state.toString(14))
+        assertEquals("bad argument #1 to 'upvaluejoin' (function expected)", state.toString(14))
         assertFalse(state.toBoolean(15))
-        assertEquals("bad argument #3 to 'debug.upvaluejoin' (function expected)", state.toString(16))
+        assertEquals("bad argument #3 to 'upvaluejoin' (function expected)", state.toString(16))
         assertFalse(state.toBoolean(17))
-        assertEquals("bad argument #2 to 'debug.upvaluejoin' (invalid upvalue index)", state.toString(18))
+        assertEquals("bad argument #2 to 'upvaluejoin' (invalid upvalue index)", state.toString(18))
     }
 
     @Test
@@ -1367,15 +1367,15 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.getupvalue' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'getupvalue' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'debug.getupvalue' (function expected)", state.toString(4))
+        assertEquals("bad argument #1 to 'getupvalue' (function expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(6))
+        assertEquals("bad argument #3 to 'setupvalue' (value expected)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #2 to 'debug.setupvalue' (number expected)", state.toString(8))
+        assertEquals("bad argument #2 to 'setupvalue' (number expected)", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertEquals("bad argument #1 to 'debug.setupvalue' (function expected)", state.toString(10))
+        assertEquals("bad argument #1 to 'setupvalue' (function expected)", state.toString(10))
     }
 
     @Test
@@ -1422,19 +1422,19 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.upvalueid' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'upvalueid' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'debug.upvalueid' (function expected)", state.toString(4))
+        assertEquals("bad argument #1 to 'upvalueid' (function expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #2 to 'debug.upvaluejoin' (number expected)", state.toString(6))
+        assertEquals("bad argument #2 to 'upvaluejoin' (number expected)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #1 to 'debug.upvaluejoin' (function expected)", state.toString(8))
+        assertEquals("bad argument #1 to 'upvaluejoin' (function expected)", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertEquals("bad argument #4 to 'debug.upvaluejoin' (number expected)", state.toString(10))
+        assertEquals("bad argument #4 to 'upvaluejoin' (number expected)", state.toString(10))
         assertFalse(state.toBoolean(11))
-        assertEquals("bad argument #3 to 'debug.upvaluejoin' (function expected)", state.toString(12))
+        assertEquals("bad argument #3 to 'upvaluejoin' (function expected)", state.toString(12))
         assertFalse(state.toBoolean(13))
-        assertEquals("bad argument #2 to 'debug.upvaluejoin' (number expected)", state.toString(14))
+        assertEquals("bad argument #2 to 'upvaluejoin' (number expected)", state.toString(14))
     }
 
     @Test
@@ -1498,9 +1498,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(2))
+        assertEquals("bad argument #3 to 'setupvalue' (value expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(4))
+        assertEquals("bad argument #3 to 'setupvalue' (value expected)", state.toString(4))
         assertTrue(state.toBoolean(5))
         assertTrue(state.isNil(6))
         assertEquals("old", state.toString(7))
@@ -1695,7 +1695,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'debug.sethook' (string expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'sethook' (string expected)", state.toString(-1))
     }
 
     @Test
@@ -1710,7 +1710,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'debug.sethook' (string expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'sethook' (string expected)", state.toString(-1))
     }
 
     @Test
@@ -1725,7 +1725,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'debug.sethook' (function expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'sethook' (function expected)", state.toString(-1))
 
         assertEquals(
             LuaStatus.OK,
@@ -1734,7 +1734,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'debug.sethook' (string expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'sethook' (string expected)", state.toString(-1))
     }
 
     @Test
@@ -1749,7 +1749,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'debug.sethook' (number expected)", state.toString(-1))
+        assertEquals("bad argument #3 to 'sethook' (number expected)", state.toString(-1))
     }
 
     @Test
@@ -1795,24 +1795,24 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals("bad argument #2 to 'debug.traceback' (number has no integer representation)", state.toString(1))
-        assertEquals("bad argument #1 to 'debug.getinfo' (number has no integer representation)", state.toString(2))
-        assertEquals("bad argument #1 to 'debug.getlocal' (number has no integer representation)", state.toString(3))
-        assertEquals("bad argument #2 to 'debug.getlocal' (number has no integer representation)", state.toString(4))
-        assertEquals("bad argument #1 to 'debug.setlocal' (number has no integer representation)", state.toString(5))
-        assertEquals("bad argument #2 to 'debug.setlocal' (number has no integer representation)", state.toString(6))
-        assertEquals("bad argument #2 to 'debug.getupvalue' (number has no integer representation)", state.toString(7))
-        assertEquals("bad argument #2 to 'debug.setupvalue' (number has no integer representation)", state.toString(8))
-        assertEquals("bad argument #2 to 'debug.upvalueid' (number has no integer representation)", state.toString(9))
+        assertEquals("bad argument #2 to 'traceback' (number has no integer representation)", state.toString(1))
+        assertEquals("bad argument #1 to 'getinfo' (number has no integer representation)", state.toString(2))
+        assertEquals("bad argument #1 to 'getlocal' (number has no integer representation)", state.toString(3))
+        assertEquals("bad argument #2 to 'getlocal' (number has no integer representation)", state.toString(4))
+        assertEquals("bad argument #1 to 'setlocal' (number has no integer representation)", state.toString(5))
+        assertEquals("bad argument #2 to 'setlocal' (number has no integer representation)", state.toString(6))
+        assertEquals("bad argument #2 to 'getupvalue' (number has no integer representation)", state.toString(7))
+        assertEquals("bad argument #2 to 'setupvalue' (number has no integer representation)", state.toString(8))
+        assertEquals("bad argument #2 to 'upvalueid' (number has no integer representation)", state.toString(9))
         assertEquals(
-            "bad argument #2 to 'debug.upvaluejoin' (number has no integer representation)",
+            "bad argument #2 to 'upvaluejoin' (number has no integer representation)",
             state.toString(10),
         )
         assertEquals(
-            "bad argument #4 to 'debug.upvaluejoin' (number has no integer representation)",
+            "bad argument #4 to 'upvaluejoin' (number has no integer representation)",
             state.toString(11),
         )
-        assertEquals("bad argument #3 to 'debug.sethook' (number has no integer representation)", state.toString(12))
+        assertEquals("bad argument #3 to 'sethook' (number has no integer representation)", state.toString(12))
     }
 
     @Test
@@ -4396,9 +4396,9 @@ class LuaStdlibTest {
 
         assertTrue(state.isNil(1))
         assertFalse(state.toBoolean(2))
-        assertEquals("bad argument #1 to 'debug.setmetatable' (table expected)", state.toString(3))
+        assertEquals("bad argument #1 to 'setmetatable' (table expected)", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("bad argument #2 to 'debug.setmetatable' (nil or table expected)", state.toString(5))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(5))
     }
 
     @Test
@@ -4427,9 +4427,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.setmetatable' (nil or table expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #2 to 'debug.setmetatable' (nil or table expected)", state.toString(4))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(4))
         assertTrue(state.toBoolean(5))
         assertTrue(state.toBoolean(6))
         assertTrue(state.isNil(7))
@@ -4454,7 +4454,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.getmetatable' (value expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'getmetatable' (value expected)", state.toString(2))
         assertTrue(state.isNil(3))
     }
 
