@@ -1379,6 +1379,65 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug upvalue identity functions validate index before function`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function make(value)
+                    return function()
+                        return value
+                    end
+                end
+                local left = make("left")
+                local right = make("right")
+
+                local okIdBoth, idBothMessage = pcall(debug.upvalueid, "not-function", "not-index")
+                local okIdFunction, idFunctionMessage = pcall(debug.upvalueid, "not-function", 1)
+                local okJoinTargetBoth, joinTargetBothMessage =
+                    pcall(debug.upvaluejoin, "not-function", "not-index", right, 1)
+                local okJoinTargetFunction, joinTargetFunctionMessage =
+                    pcall(debug.upvaluejoin, "not-function", 1, right, 1)
+                local okJoinSourceBoth, joinSourceBothMessage =
+                    pcall(debug.upvaluejoin, left, 1, "not-function", "not-index")
+                local okJoinSourceFunction, joinSourceFunctionMessage =
+                    pcall(debug.upvaluejoin, left, 1, "not-function", 1)
+                local okJoinTargetBeforeSource, joinTargetBeforeSourceMessage =
+                    pcall(debug.upvaluejoin, left, "not-index", "not-function", "also-not-index")
+
+                return okIdBoth, idBothMessage,
+                    okIdFunction, idFunctionMessage,
+                    okJoinTargetBoth, joinTargetBothMessage,
+                    okJoinTargetFunction, joinTargetFunctionMessage,
+                    okJoinSourceBoth, joinSourceBothMessage,
+                    okJoinSourceFunction, joinSourceFunctionMessage,
+                    okJoinTargetBeforeSource, joinTargetBeforeSourceMessage
+                """.trimIndent(),
+                "debug-upvalue-identity-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.upvalueid' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'debug.upvalueid' (function expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'debug.upvaluejoin' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'debug.upvaluejoin' (function expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #4 to 'debug.upvaluejoin' (number expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #3 to 'debug.upvaluejoin' (function expected)", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("bad argument #2 to 'debug.upvaluejoin' (number expected)", state.toString(14))
+    }
+
+    @Test
     fun `debug setupvalue mutates lua closure upvalues`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

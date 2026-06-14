@@ -239,18 +239,18 @@ internal object LuaDebugLibrary {
     }
 
     private fun upvalueId(context: LuaCallContext): LuaReturn {
-        requireFunction(context, 1, "debug.upvalueid")
         val index = requiredPositiveUpvalueIndex(context, 2, "debug.upvalueid")
+        requireFunction(context, 1, "debug.upvalueid")
         val id = context.getUpvalueId(1, index)
             ?: throw LuaRuntimeException("bad argument #2 to 'debug.upvalueid' (invalid upvalue index)")
         return LuaReturn.of(id)
     }
 
     private fun upvalueJoin(context: LuaCallContext): LuaReturn {
-        requireFunction(context, 1, "debug.upvaluejoin")
-        requireFunction(context, 3, "debug.upvaluejoin")
         val targetIndex = requiredPositiveUpvalueIndex(context, 2, "debug.upvaluejoin")
+        requireFunction(context, 1, "debug.upvaluejoin")
         val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "debug.upvaluejoin")
+        requireFunction(context, 3, "debug.upvaluejoin")
         if (context.getUpvalueId(1, targetIndex) == null) {
             throw LuaRuntimeException("bad argument #2 to 'debug.upvaluejoin' (invalid upvalue index)")
         }
