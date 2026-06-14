@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.math.BigInteger
+import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 internal object LuaTableLibrary {
@@ -24,7 +25,7 @@ internal object LuaTableLibrary {
     }
 
     private fun tableConcat(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
+        if (!isReadableLengthTableLike(context, 1)) {
             throw LuaRuntimeException("bad argument #1 to 'concat' (table expected)")
         }
 
@@ -39,7 +40,7 @@ internal object LuaTableLibrary {
             requiredInteger(context, 3, "concat")
         }
         val end = if (context.isNone(4) || context.isNil(4)) {
-            tableLength(context, 1)
+            tableConcatLength(context, 1)
         } else {
             requiredInteger(context, 4, "concat")
         }
@@ -54,14 +55,30 @@ internal object LuaTableLibrary {
             if (index > start) {
                 builder.append(separator)
             }
-            builder.append(tableConcatValue(context, index))
+            builder.append(tableConcatValue(context, 1, index))
             index++
         }
         return LuaReturn.of(builder.toString())
     }
 
-    private fun tableConcatValue(context: LuaCallContext, index: Long): String {
-        val value = tableIndexValue(context, index)
+    private fun isReadableLengthTableLike(context: LuaCallContext, index: Int): Boolean {
+        if (context.isTable(index)) {
+            return true
+        }
+        val metatable = context.getRawMetatable(index) ?: return false
+        return context.getTableField(metatable, "__index") != null &&
+            context.getTableField(metatable, "__len") != null
+    }
+
+    private fun tableConcatLength(context: LuaCallContext, index: Int): Long {
+        if (context.typeName(index) == "string") {
+            return requiredString(context, index, "concat").toByteArray(StandardCharsets.UTF_8).size.toLong()
+        }
+        return tableLength(context, index)
+    }
+
+    private fun tableConcatValue(context: LuaCallContext, receiverIndex: Int, key: Long): String {
+        val value = tableIndexValue(context, receiverIndex, key)
         return when (value) {
             is Byte -> value.toLong().toString()
             is Short -> value.toLong().toString()
@@ -71,7 +88,7 @@ internal object LuaTableLibrary {
             is Double -> luaFloatToString(value)
             is CharSequence -> value.toString()
             else -> throw LuaRuntimeException(
-                "invalid value (${context.valueTypeName(value)}) at index $index in table for 'concat'",
+                "invalid value (${context.valueTypeName(value)}) at index $key in table for 'concat'",
             )
         }
     }
@@ -109,27 +126,42 @@ internal object LuaTableLibrary {
     }
 
     private fun tableIndexValue(context: LuaCallContext, key: Any?): Any? {
-        return tableIndexValue(context, context.getTable(1), key, identitySet())
+        return tableIndexValue(context, 1, key)
+    }
+
+    private fun tableIndexValue(context: LuaCallContext, receiverIndex: Int, key: Any?): Any? {
+        return tableIndexValue(
+            context,
+            receiver = context.getLuaValue(receiverIndex),
+            metatable = if (context.isTable(receiverIndex)) {
+                context.getMetatable(receiverIndex)
+            } else {
+                context.getRawMetatable(receiverIndex)
+            },
+            key = key,
+            visited = identitySet(),
+        )
     }
 
     private fun tableIndexValue(
         context: LuaCallContext,
-        table: Any?,
+        receiver: Any?,
+        metatable: Any?,
         key: Any?,
         visited: MutableSet<Any>,
     ): Any? {
-        if (table != null && !visited.add(table)) {
+        if (receiver != null && !visited.add(receiver)) {
             throw LuaRuntimeException("'__index' chain too long; possible loop")
         }
-        val rawValue = context.getTableField(table, key)
+        val rawValue = context.getTableField(receiver, key)
         if (rawValue != null) {
             return rawValue
         }
-        val index = context.getTableField(context.getTableMetatable(table), "__index") ?: return null
+        val index = context.getTableField(metatable, "__index") ?: return null
         return if (context.isFunctionValue(index)) {
-            context.call(index, listOf(table, key)).get(1)
+            context.call(index, listOf(receiver, key)).get(1)
         } else if (context.isTableValue(index)) {
-            tableIndexValue(context, index, key, visited)
+            tableIndexValue(context, index, context.getTableMetatable(index), key, visited)
         } else if (index is CharSequence) {
             null
         } else {
@@ -180,9 +212,14 @@ internal object LuaTableLibrary {
     }
 
     private fun tableLength(context: LuaCallContext, index: Int): Long {
-        val length = context.getTableField(context.getMetatable(index), "__len")
+        val metatable = if (context.isTable(index)) {
+            context.getMetatable(index)
+        } else {
+            context.getRawMetatable(index)
+        }
+        val length = context.getTableField(metatable, "__len")
             ?: return context.tableLength(index) ?: 0L
-        return luaInteger(context.call(length, listOf(context.getTable(index))).get(1))
+        return luaInteger(context.call(length, listOf(context.getLuaValue(index))).get(1))
             ?: throw LuaRuntimeException("object length is not an integer")
     }
 

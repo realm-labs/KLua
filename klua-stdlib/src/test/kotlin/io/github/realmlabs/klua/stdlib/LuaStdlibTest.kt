@@ -11510,6 +11510,75 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table concat accepts primitive values with table-like metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable("")
+                debug.setmetatable("", {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = function(value, index)
+                        return value .. ":" .. index
+                    end,
+                })
+                local explicit = table.concat("s", "|", 1, 2)
+                local defaultRange = table.concat("abc", "|")
+                debug.setmetatable("", original)
+                return explicit, defaultRange, ("abc"):len()
+                """.trimIndent(),
+                "table-concat-primitive-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("s:1|s:2", state.toString(1))
+        assertEquals("abc:1|abc:2|abc:3", state.toString(2))
+        assertEquals(3L, state.toInteger(3))
+    }
+
+    @Test
+    fun `table concat rejects primitive values missing table-like fields`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable("")
+                debug.setmetatable("", {
+                    __len = function()
+                        return 1
+                    end,
+                })
+                local lenOnlyOk, lenOnlyMessage = pcall(table.concat, "abc", "", 1, 1)
+                debug.setmetatable("", {
+                    __index = function()
+                        return "x"
+                    end,
+                })
+                local indexOnlyOk, indexOnlyMessage = pcall(table.concat, "abc", "", 1, 1)
+                debug.setmetatable("", original)
+                return lenOnlyOk, lenOnlyMessage, indexOnlyOk, indexOnlyMessage
+                """.trimIndent(),
+                "table-concat-primitive-table-like-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'concat' (table expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'concat' (table expected)", state.toString(4))
+    }
+
+    @Test
     fun `table concat follows nested index metamethod tables`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
