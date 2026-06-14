@@ -5787,7 +5787,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, ldexpState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(ldexpState.getLastError())
-        assertEquals("bad argument #2 to 'math.ldexp' (integer expected)", ldexpState.toString(-1))
+        assertEquals("bad argument #2 to 'math.ldexp' (number expected)", ldexpState.toString(-1))
 
         val fractionalState = LuaState.create()
         LuaStdlib.openMath(fractionalState)
@@ -5928,6 +5928,28 @@ class LuaStdlibTest {
             "bad argument #2 to 'math.ult' (number has no integer representation)",
             rightState.toString(-1),
         )
+
+        val stringState = LuaState.create()
+        LuaStdlib.openBase(stringState)
+        LuaStdlib.openMath(stringState)
+
+        assertEquals(
+            LuaStatus.OK,
+            stringState.load(
+                """
+                local okLeft, leftMessage = pcall(math.ult, "x", 1)
+                local okRight, rightMessage = pcall(math.ult, 1, "x")
+                return okLeft, leftMessage, okRight, rightMessage
+                """.trimIndent(),
+                "math-ult-string-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, stringState.pcall(0, -1), stringState.toString(-1))
+
+        assertFalse(stringState.toBoolean(1))
+        assertEquals("bad argument #1 to 'math.ult' (number expected)", stringState.toString(2))
+        assertFalse(stringState.toBoolean(3))
+        assertEquals("bad argument #2 to 'math.ult' (number expected)", stringState.toString(4))
     }
 
     @Test
@@ -6321,6 +6343,15 @@ class LuaStdlibTest {
             "bad argument #2 to 'math.random' (number has no integer representation)",
             upperState.toString(-1),
         )
+
+        val stringState = LuaState.create()
+        LuaStdlib.openMath(stringState)
+
+        assertEquals(LuaStatus.OK, stringState.load("""return math.random("x")""", "math-random-string-upper.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, stringState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(stringState.getLastError())
+        assertEquals("bad argument #1 to 'math.random' (number expected)", stringState.toString(-1))
     }
 
     @Test
@@ -6398,6 +6429,28 @@ class LuaStdlibTest {
             "bad argument #2 to 'math.randomseed' (number has no integer representation)",
             secondSeedState.toString(-1),
         )
+
+        val stringSeedState = LuaState.create()
+        LuaStdlib.openBase(stringSeedState)
+        LuaStdlib.openMath(stringSeedState)
+
+        assertEquals(
+            LuaStatus.OK,
+            stringSeedState.load(
+                """
+                local okFirst, firstMessage = pcall(math.randomseed, "x")
+                local okSecond, secondMessage = pcall(math.randomseed, 1, "x")
+                return okFirst, firstMessage, okSecond, secondMessage
+                """.trimIndent(),
+                "math-randomseed-string-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, stringSeedState.pcall(0, -1), stringSeedState.toString(-1))
+
+        assertFalse(stringSeedState.toBoolean(1))
+        assertEquals("bad argument #1 to 'math.randomseed' (number expected)", stringSeedState.toString(2))
+        assertFalse(stringSeedState.toBoolean(3))
+        assertEquals("bad argument #2 to 'math.randomseed' (number expected)", stringSeedState.toString(4))
     }
 
     @Test
