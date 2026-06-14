@@ -1915,6 +1915,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package searchpath reports registered argument names`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okName, nameMessage = pcall(package.searchpath, false, "?.lua")
+                local okPath, pathMessage = pcall(package.searchpath, "x", false)
+                local okSeparator, separatorMessage = pcall(package.searchpath, "x", "?.lua", false)
+                local okReplacement, replacementMessage = pcall(package.searchpath, "x", "?.lua", ".", false)
+                return okName, nameMessage,
+                    okPath, pathMessage,
+                    okSeparator, separatorMessage,
+                    okReplacement, replacementMessage
+                """.trimIndent(),
+                "package-searchpath-argument-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'searchpath' (string expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'searchpath' (string expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'searchpath' (string expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #4 to 'searchpath' (string expected)", state.toString(8))
+    }
+
+    @Test
     fun `require loads preload modules once and caches their return value`() {
         val state = LuaState.create()
         LuaStdlib.openPackage(state)

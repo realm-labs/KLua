@@ -30,10 +30,10 @@ internal object LuaPackageLibrary {
     }
 
     private fun searchpath(context: LuaCallContext): LuaReturn {
-        val name = requiredString(context, 1, "package.searchpath")
-        val path = requiredString(context, 2, "package.searchpath")
-        val separator = optionalString(context, 3, ".")
-        val replacement = optionalString(context, 4, directorySeparator)
+        val name = requiredString(context, 1, "searchpath")
+        val path = requiredString(context, 2, "searchpath")
+        val separator = optionalString(context, 3, ".", "searchpath")
+        val replacement = optionalString(context, 4, directorySeparator, "searchpath")
         val normalizedName = if (separator.isEmpty()) {
             name
         } else {
@@ -61,12 +61,12 @@ internal object LuaPackageLibrary {
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
     }
 
-    private fun optionalString(context: LuaCallContext, index: Int, default: String): String {
+    private fun optionalString(context: LuaCallContext, index: Int, default: String, functionName: String): String {
         return if (context.isNone(index) || context.isNil(index)) {
             default
         } else {
             context.toString(index)
-                ?: throw LuaRuntimeException("bad argument #$index to 'package.searchpath' (string expected)")
+                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
         }
     }
 
