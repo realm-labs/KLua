@@ -556,6 +556,7 @@ public class KLuaCoreCoroutine internal constructor(
                 error.line,
                 error.rootCause(),
                 error.luaFrames.toCoreStackFrames(),
+                error.errorObject?.let { toPublicValue(it, globals) },
             )
         } finally {
             started = true
@@ -589,6 +590,7 @@ public sealed interface KLuaCoreCoroutineExecution {
         public val line: Int? = null,
         public val cause: Throwable? = null,
         public val luaFrames: List<KLuaCoreStackFrame> = emptyList(),
+        public val errorObject: KLuaCoreValue? = null,
     ) : KLuaCoreCoroutineExecution {
         public val traceback: String = formatCoreTraceback(message, luaFrames)
     }

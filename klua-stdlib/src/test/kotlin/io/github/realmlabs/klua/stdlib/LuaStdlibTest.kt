@@ -4218,7 +4218,13 @@ class LuaStdlibTest {
                     error("boom")
                 end)
                 local ok, message = coroutine.resume(co)
-                return ok, message, coroutine.status(co)
+                local marker = {name = "marker"}
+                local objectCo = coroutine.create(function()
+                    error(marker)
+                end)
+                local objectOk, objectError = coroutine.resume(objectCo)
+                return ok, message, coroutine.status(co),
+                    objectOk, objectError == marker, objectError.name, coroutine.status(objectCo)
                 """.trimIndent(),
                 "coroutine-error.lua",
             ),
@@ -4228,6 +4234,10 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("boom", state.toString(2))
         assertEquals("dead", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("marker", state.toString(6))
+        assertEquals("dead", state.toString(7))
     }
 
     @Test
@@ -4253,8 +4263,14 @@ class LuaStdlibTest {
                     error("boom")
                 end)
                 local failOk, failMessage = pcall(failing)
+                local marker = {name = "marker"}
+                local failingObject = coroutine.wrap(function()
+                    error(marker)
+                end)
+                local objectFailOk, objectError = pcall(failingObject)
                 return sum, samePayload, payloadName, resumeValue,
-                    deadOk, deadMessage, failOk, failMessage
+                    deadOk, deadMessage, failOk, failMessage,
+                    objectFailOk, objectError == marker, objectError.name
                 """.trimIndent(),
                 "coroutine-wrap.lua",
             ),
@@ -4269,6 +4285,9 @@ class LuaStdlibTest {
         assertEquals("cannot resume dead coroutine", state.toString(6))
         assertFalse(state.toBoolean(7))
         assertEquals("boom", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals("marker", state.toString(11))
     }
 
     @Test

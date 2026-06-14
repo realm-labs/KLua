@@ -216,6 +216,8 @@ class LuaState private constructor(
                             sourceName = result.sourceName,
                             line = result.line,
                             luaFrames = toApiStackFrames(result.luaFrames),
+                            errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                            hasErrorObject = result.errorObject != null,
                         )
                     }
                 }
@@ -1150,6 +1152,8 @@ class LuaState private constructor(
                     line = result.line,
                     cause = result.cause,
                     luaFrames = toApiStackFrames(result.luaFrames),
+                    errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                    hasErrorObject = result.errorObject != null,
                 )
             }
         }

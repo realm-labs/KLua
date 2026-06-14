@@ -80,7 +80,7 @@ internal object LuaCoroutineLibrary {
                     }
                     is LuaCoroutineResult.RuntimeError -> {
                         coroutine.status = CoroutineStatus.DEAD
-                        LuaReturn.of(false, result.message)
+                        LuaReturn.of(false, result.errorValue())
                     }
                 }
             } else if (coroutine.pendingYield != null) {
@@ -100,7 +100,7 @@ internal object LuaCoroutineLibrary {
             }
         } catch (exception: LuaException) {
             coroutine.status = CoroutineStatus.DEAD
-            LuaReturn.of(false, exception.message ?: exception::class.java.simpleName)
+            LuaReturn.of(false, exception.errorValue())
         } catch (exception: RuntimeException) {
             coroutine.status = CoroutineStatus.DEAD
             LuaReturn.of(false, exception.message ?: exception::class.java.simpleName)
@@ -202,11 +202,35 @@ internal object LuaCoroutineLibrary {
                 },
             )
             if (result.get(1) != true) {
-                throw LuaRuntimeException(result.get(2)?.toString() ?: "cannot resume coroutine")
+                throwCoroutineWrapError(wrapperContext, result.get(2))
             }
             LuaReturn.ofValues(result.values.drop(1))
         }
         return LuaReturn.of(wrapper)
+    }
+
+    private fun LuaCoroutineResult.RuntimeError.errorValue(): Any? {
+        return if (hasErrorObject) errorObject else message
+    }
+
+    private fun LuaException.errorValue(): Any? {
+        return if (this is LuaRuntimeException && hasErrorObject) {
+            errorObject
+        } else {
+            message ?: this::class.java.simpleName
+        }
+    }
+
+    private fun throwCoroutineWrapError(context: LuaCallContext, errorValue: Any?): Nothing {
+        val message = errorValue?.toString() ?: "cannot resume coroutine"
+        if (errorValue is CharSequence) {
+            throw LuaRuntimeException(message)
+        }
+        throw LuaRuntimeException(
+            context.valueTypeName(errorValue),
+            errorObject = errorValue,
+            hasErrorObject = true,
+        )
     }
 
     private fun requiredCoroutine(

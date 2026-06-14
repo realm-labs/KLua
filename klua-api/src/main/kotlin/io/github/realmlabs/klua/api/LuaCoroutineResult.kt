@@ -15,6 +15,8 @@ sealed interface LuaCoroutineResult {
         val line: Int? = null,
         val cause: Throwable? = null,
         val luaFrames: List<LuaStackFrame> = emptyList(),
+        val errorObject: Any? = null,
+        val hasErrorObject: Boolean = false,
     ) : LuaCoroutineResult {
         val traceback: String = formatLuaTraceback(message, luaFrames)
     }
