@@ -142,10 +142,29 @@ public object LuaStdlib {
     }
 
     private fun error(context: LuaCallContext): LuaReturn {
-        if (!context.isNone(2) && !context.isNil(2)) {
-            requiredNumberIndex(context, 2, "error")
+        val level = if (context.isNone(2) || context.isNil(2)) {
+            1
+        } else {
+            requiredNumberIndex(context, 2, "error").toInt()
         }
-        throw luaError(if (context.isNone(1)) null else argumentValue(context, 1))
+        val errorObject = if (context.isNone(1)) null else argumentValue(context, 1)
+        throw luaError(locationPrefixedError(context, level, errorObject))
+    }
+
+    private fun locationPrefixedError(context: LuaCallContext, level: Int, errorObject: Any?): Any? {
+        if (level <= 0 || errorObject !is CharSequence) {
+            return errorObject
+        }
+        val frame = context.luaFrames.getOrNull(level - 1) ?: return errorObject
+        return buildString {
+            append(frame.sourceName)
+            if (frame.line > 0) {
+                append(':')
+                append(frame.line)
+            }
+            append(": ")
+            append(errorObject)
+        }
     }
 
     private fun collectgarbage(

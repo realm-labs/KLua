@@ -106,7 +106,7 @@ internal object LuaPackageLibrary {
             if nameType == "number" then
                 name = name .. ""
             elseif nameType ~= "string" then
-                error("bad argument #1 to 'require' (string expected)")
+                error("bad argument #1 to 'require' (string expected)", 0)
             end
 
             local loaded = package.loaded
@@ -118,7 +118,7 @@ internal object LuaPackageLibrary {
             local errors = ""
             local searchers = package.searchers
             if searcherResultType(searchers) ~= "table" then
-                error("'package.searchers' must be a table")
+                error("'package.searchers' must be a table", 0)
             end
             local index = 1
             while true do
@@ -149,7 +149,7 @@ internal object LuaPackageLibrary {
                 index = index + 1
             end
 
-            error("module '" .. name .. "' not found:" .. errors)
+            error("module '" .. name .. "' not found:" .. errors, 0)
         end
     """
 }

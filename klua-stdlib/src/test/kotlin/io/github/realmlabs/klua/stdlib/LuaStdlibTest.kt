@@ -2339,7 +2339,38 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("boom", state.toString(-1))
+        assertEquals("error.lua:1: boom", state.toString(-1))
+    }
+
+    @Test
+    fun `error level controls string message locations`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok0, message0 = pcall(function()
+                    error("boom", 0)
+                end)
+                local ok2, message2 = pcall(function()
+                    local function leaf()
+                        error("boom", 2)
+                    end
+                    leaf()
+                end)
+                return ok0, message0, ok2, message2
+                """.trimIndent(),
+                "error-levels.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("boom", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("error-levels.lua:8: boom", state.toString(4))
     }
 
     @Test
@@ -2432,7 +2463,7 @@ class LuaStdlibTest {
         assertEquals("a", state.toString(2))
         assertEquals(2L, state.toInteger(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("boom", state.toString(5))
+        assertEquals("pcall.lua:5: boom", state.toString(5))
     }
 
     @Test
@@ -2533,7 +2564,7 @@ class LuaStdlibTest {
         assertEquals("suspended", state.toString(3))
         assertTrue(state.toBoolean(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("boom", state.toString(6))
+        assertEquals("pcall-yield-error.lua:4: boom", state.toString(6))
         assertEquals("dead", state.toString(7))
     }
 
@@ -2602,7 +2633,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(1))
         assertEquals("done!", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("handled:boom", state.toString(4))
+        assertEquals("handled:xpcall.lua:7: boom", state.toString(4))
     }
 
     @Test
@@ -2674,7 +2705,7 @@ class LuaStdlibTest {
         assertEquals("suspended", state.toString(3))
         assertTrue(state.toBoolean(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("handled:boom", state.toString(6))
+        assertEquals("handled:xpcall-yield-error.lua:4: boom", state.toString(6))
         assertEquals("dead", state.toString(7))
     }
 
@@ -2711,7 +2742,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(true, state.toBoolean(1), "first resume failed: ${state.toString(2)}")
-        assertEquals("handling:boom", state.toString(2))
+        assertEquals("handling:xpcall-handler-yield.lua:3: boom", state.toString(2))
         assertEquals("suspended", state.toString(3))
         assertTrue(state.toBoolean(4))
         assertEquals("middle again", state.toString(5))
@@ -4460,7 +4491,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("boom", state.toString(2))
+        assertEquals("coroutine-error.lua:2: boom", state.toString(2))
         assertEquals("dead", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
@@ -4512,7 +4543,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertEquals("cannot resume dead coroutine", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("boom", state.toString(8))
+        assertEquals("coroutine-wrap.lua:11: boom", state.toString(8))
         assertFalse(state.toBoolean(9))
         assertTrue(state.toBoolean(10))
         assertEquals("marker", state.toString(11))
