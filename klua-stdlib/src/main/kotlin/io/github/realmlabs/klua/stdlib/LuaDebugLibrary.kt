@@ -433,13 +433,6 @@ internal object LuaDebugLibrary {
         debug = debug or {}
         local klua_debug_registry = {}
 
-        local function klua_debug_tostring(value)
-            if _G ~= nil and _G.tostring ~= nil then
-                return _G.tostring(value)
-            end
-            return value
-        end
-
         function debug.traceback(message, level)
             if message == nil then
                 return klua_debug_traceback(nil, level)
@@ -448,7 +441,7 @@ internal object LuaDebugLibrary {
             if messageType ~= "string" and messageType ~= "number" then
                 return message
             end
-            return klua_debug_traceback(klua_debug_tostring(message), level)
+            return klua_debug_traceback(message, level)
         end
 
         function debug.getregistry()

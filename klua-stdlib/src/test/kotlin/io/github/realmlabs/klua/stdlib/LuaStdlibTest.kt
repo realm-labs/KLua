@@ -629,6 +629,9 @@ class LuaStdlibTest {
             state.load(
                 """
                 local marker = {name = "marker"}
+                tostring = function()
+                    return "overridden"
+                end
                 local returnedTable = debug.traceback(marker)
                 local returnedNumber = debug.traceback(42)
                 local returnedBoolean = debug.traceback(false)
@@ -649,7 +652,7 @@ class LuaStdlibTest {
         assertEquals(
             "42\n" +
                 "stack traceback:\n" +
-                "\t[string \"debug-traceback-non-string.lua\"]:3",
+                "\t[string \"debug-traceback-non-string.lua\"]:6",
             state.toString(3),
         )
         assertEquals("string", state.toString(4))
