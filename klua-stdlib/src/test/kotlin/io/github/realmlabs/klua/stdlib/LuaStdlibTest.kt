@@ -4326,22 +4326,36 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `rawequal compares primitive values and table identity`() {
+    fun `rawequal compares primitive values and raw identities`() {
         val state = LuaState.create()
-        LuaStdlib.openBase(state)
+        LuaStdlib.openLibs(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
                 """
                 local tableValue = {}
+                local equalByMetamethod = setmetatable({}, {
+                    __eq = function()
+                        return true
+                    end,
+                })
+                local functionValue = function() end
+                local otherFunction = function() end
+                local threadValue = coroutine.create(function() end)
+                local otherThread = coroutine.create(function() end)
                 return rawequal(nil, nil),
                     rawequal(1, 1.0),
                     rawequal("x", "x"),
                     rawequal(false, false),
                     rawequal(1, "1"),
                     rawequal(tableValue, tableValue),
-                    rawequal({}, {})
+                    rawequal({}, {}),
+                    rawequal(functionValue, functionValue),
+                    rawequal(functionValue, otherFunction),
+                    rawequal(threadValue, threadValue),
+                    rawequal(threadValue, otherThread),
+                    rawequal(equalByMetamethod, {})
                 """.trimIndent(),
                 "rawequal.lua",
             ),
@@ -4355,6 +4369,11 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertTrue(state.toBoolean(6))
         assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertFalse(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertFalse(state.toBoolean(11))
+        assertFalse(state.toBoolean(12))
     }
 
     @Test

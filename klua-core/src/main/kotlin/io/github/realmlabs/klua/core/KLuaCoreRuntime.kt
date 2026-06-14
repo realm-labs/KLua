@@ -154,6 +154,16 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun sameFunctionIdentity(left: KLuaCoreValue.FunctionValue, right: KLuaCoreValue.FunctionValue): Boolean {
+        val leftSource = left.sourceFunction
+        val rightSource = right.sourceFunction
+        return if (leftSource != null || rightSource != null) {
+            leftSource === rightSource
+        } else {
+            left.function === right.function
+        }
+    }
+
     public fun getFunctionDebugInfo(function: KLuaCoreValue.FunctionValue): KLuaCoreFunctionDebugInfo? {
         val closure = function.sourceFunction as? LuaClosure ?: return null
         return KLuaCoreFunctionDebugInfo(

@@ -395,6 +395,7 @@ public object LuaStdlib {
     }
 
     private fun rawEqual(context: LuaCallContext, leftIndex: Int, rightIndex: Int): Boolean {
+        context.rawEquals(leftIndex, rightIndex)?.let { return it }
         val leftType = context.typeName(leftIndex)
         val rightType = context.typeName(rightIndex)
         if (leftType != rightType) {
@@ -407,6 +408,7 @@ public object LuaStdlib {
             "string" -> context.toString(leftIndex) == context.toString(rightIndex)
             "table" -> context.getTable(leftIndex) === context.getTable(rightIndex)
             "userdata" -> context.toUserData(leftIndex) === context.toUserData(rightIndex)
+            "function" -> context.getLuaValue(leftIndex) === context.getLuaValue(rightIndex)
             else -> false
         }
     }

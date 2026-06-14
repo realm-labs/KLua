@@ -1213,6 +1213,45 @@ class LuaState private constructor(
             return valueAt(index)?.toPublicCallReturnValue()
         }
 
+        override fun rawEquals(leftIndex: Int, rightIndex: Int): Boolean {
+            return rawStackEquals(valueAt(leftIndex), valueAt(rightIndex))
+        }
+
+        private fun rawStackEquals(left: LuaStackValue?, right: LuaStackValue?): Boolean {
+            if (left == null || right == null) {
+                return false
+            }
+            return when {
+                left.isNumberValue() && right.isNumberValue() -> left.toRawNumber() == right.toRawNumber()
+                left is LuaStackValue.TableValue && right is LuaStackValue.TableValue -> left === right
+                left is LuaStackValue.UserDataValue && right is LuaStackValue.UserDataValue -> left.value === right.value
+                left is LuaStackValue.NativeFunctionValue && right is LuaStackValue.NativeFunctionValue -> {
+                    val leftCoreFunction = left.coreFunction
+                    val rightCoreFunction = right.coreFunction
+                    if (leftCoreFunction != null && rightCoreFunction != null) {
+                        KLuaCoreRuntime.sameFunctionIdentity(leftCoreFunction, rightCoreFunction)
+                    } else if (leftCoreFunction != null || rightCoreFunction != null) {
+                        false
+                    } else {
+                        left.function === right.function
+                    }
+                }
+                else -> left == right
+            }
+        }
+
+        private fun LuaStackValue?.isNumberValue(): Boolean {
+            return this is LuaStackValue.IntegerValue || this is LuaStackValue.NumberValue
+        }
+
+        private fun LuaStackValue?.toRawNumber(): Double? {
+            return when (this) {
+                is LuaStackValue.IntegerValue -> value.toDouble()
+                is LuaStackValue.NumberValue -> value
+                else -> null
+            }
+        }
+
         override fun lessThan(leftIndex: Int, rightIndex: Int): Boolean? {
             val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
             val left = valueAt(leftIndex)?.toCoreValue(tableCache) ?: KLuaCoreValue.Nil

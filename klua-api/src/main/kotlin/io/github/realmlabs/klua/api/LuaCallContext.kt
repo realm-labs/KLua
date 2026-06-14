@@ -41,6 +41,8 @@ interface LuaCallContext {
 
     fun getLuaValue(index: Int): Any? = get(index)
 
+    fun rawEquals(leftIndex: Int, rightIndex: Int): Boolean? = null
+
     fun lessThan(leftIndex: Int, rightIndex: Int): Boolean? = null
 
     fun lessThanValues(left: Any?, right: Any?): Boolean? = null
