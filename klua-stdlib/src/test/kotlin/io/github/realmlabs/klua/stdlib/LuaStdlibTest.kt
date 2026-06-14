@@ -185,6 +185,110 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring uses primitive type tostring metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __tostring = function(value)
+                        return "number:" .. math.type(value)
+                    end,
+                })
+                debug.setmetatable(false, {
+                    __tostring = function(value)
+                        return value and "true-value" or "false-value"
+                    end,
+                })
+                debug.setmetatable(nil, {
+                    __tostring = function(value)
+                        return type(value)
+                    end,
+                })
+                debug.setmetatable(function() end, {
+                    __tostring = function(value)
+                        return type(value)
+                    end,
+                })
+                local co = coroutine.create(function() end)
+                debug.setmetatable(co, {
+                    __tostring = function(value)
+                        return type(value)
+                    end,
+                })
+                return tostring(2), tostring(true), tostring(nil), tostring(function() end), tostring(co)
+                """.trimIndent(),
+                "primitive-tostring-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("number:integer", state.toString(1))
+        assertEquals("true-value", state.toString(2))
+        assertEquals("nil", state.toString(3))
+        assertEquals("function", state.toString(4))
+        assertEquals("thread", state.toString(5))
+    }
+
+    @Test
+    fun `tostring accepts numeric primitive tostring metamethod results`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __tostring = function()
+                        return 1e15
+                    end,
+                })
+                debug.setmetatable(false, {
+                    __tostring = function()
+                        return {}
+                    end,
+                })
+                local ok, message = pcall(tostring, true)
+                return tostring(2), ok, message
+                """.trimIndent(),
+                "primitive-tostring-result.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1e+15", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("'__tostring' must return a string", state.toString(3))
+    }
+
+    @Test
+    fun `tostring uses primitive type name metamethod for default identities`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(function() end, {__name = "Callable"})
+                local co = coroutine.create(function() end)
+                debug.setmetatable(co, {__name = "LuaThread"})
+                return tostring(function() end), tostring(co)
+                """.trimIndent(),
+                "primitive-tostring-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toString(1)?.matches(Regex("""Callable: [0-9a-f]+""")) == true)
+        assertTrue(state.toString(2)?.matches(Regex("""LuaThread: [0-9a-f]+""")) == true)
+    }
+
+    @Test
     fun `tostring reports invalid table tostring metamethod results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -3223,6 +3327,33 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, status, state.toString(-1))
 
         assertEquals(listOf("level\t42\tfalse\tnil"), output)
+        assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `print uses primitive tostring metamethods`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openLibs(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __tostring = function()
+                        return "number-value"
+                    end,
+                })
+                print(2)
+                """.trimIndent(),
+                "print-primitive-tostring.lua",
+            ),
+        )
+        val status = state.pcall(0, -1)
+        assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+        assertEquals(listOf("number-value"), output)
         assertEquals(0, state.getTop())
     }
 

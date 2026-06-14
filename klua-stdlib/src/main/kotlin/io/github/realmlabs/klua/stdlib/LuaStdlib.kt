@@ -704,15 +704,20 @@ public object LuaStdlib {
     }
 
     private fun toLuaString(context: LuaCallContext, index: Int): String {
+        val metatable = context.getRawMetatable(index)
+        val metamethod = context.getTableField(metatable, "__tostring")
+        if (metamethod != null) {
+            return tostringMetamethodResult(context.call(metamethod, listOf(argumentValue(context, index))).get(1))
+        }
         return when (context.typeName(index)) {
             "nil" -> "nil"
             "boolean" -> context.toBoolean(index).toString()
             "number" -> luaNumberToString(context.get(index))
             "string" -> context.toString(index) ?: context.typeName(index)
             "thread" -> context.get(index)?.let { value ->
-                "thread: ${System.identityHashCode(value).toString(16)}"
+                value.typedPointerString(typeName(context, metatable, "thread"))
             } ?: "thread"
-            "function" -> context.get(index)?.typedPointerString("function") ?: "function"
+            "function" -> context.get(index)?.typedPointerString(typeName(context, metatable, "function")) ?: "function"
             "table" -> tableToLuaString(context, index)
             "userdata" -> context.get(index)?.toString() ?: "userdata"
             else -> context.typeName(index)
@@ -721,9 +726,11 @@ public object LuaStdlib {
 
     private fun tableToLuaString(context: LuaCallContext, index: Int): String {
         val metatable = context.getMetatable(index)
-        val metamethod = context.getTableField(metatable, "__tostring")
-            ?: return context.getTable(index)?.typedPointerString(tableTypeName(context, metatable)) ?: context.typeName(index)
-        return when (val result = context.call(metamethod, listOf(argumentValue(context, index))).get(1)) {
+        return context.getTable(index)?.typedPointerString(typeName(context, metatable, "table")) ?: context.typeName(index)
+    }
+
+    private fun tostringMetamethodResult(result: Any?): String {
+        return when (result) {
             is Byte -> result.toLong().toString()
             is Short -> result.toLong().toString()
             is Int -> result.toLong().toString()
@@ -735,8 +742,8 @@ public object LuaStdlib {
         }
     }
 
-    private fun tableTypeName(context: LuaCallContext, metatable: Any?): String {
-        return (context.getTableField(metatable, "__name") as? CharSequence)?.toString() ?: "table"
+    private fun typeName(context: LuaCallContext, metatable: Any?, default: String): String {
+        return (context.getTableField(metatable, "__name") as? CharSequence)?.toString() ?: default
     }
 
     private fun luaNumberToString(value: Any?): String {
