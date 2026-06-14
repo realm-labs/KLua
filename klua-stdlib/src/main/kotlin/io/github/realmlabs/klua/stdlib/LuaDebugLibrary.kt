@@ -51,7 +51,7 @@ internal object LuaDebugLibrary {
             append("stack traceback:")
             for (frame in frames) {
                 append("\n\t")
-                append(frame.sourceName)
+                append(shortSource(frame.sourceName))
                 if (frame.line > 0) {
                     append(':')
                     append(frame.line)

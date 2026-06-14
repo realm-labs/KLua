@@ -504,9 +504,38 @@ class LuaStdlibTest {
         assertEquals(
             "boom\n" +
                 "stack traceback:\n" +
-                "\tdebug-traceback.lua:2\n" +
-                "\tdebug-traceback.lua:6\n" +
-                "\tdebug-traceback.lua:9",
+                "\t[string \"debug-traceback.lua\"]:2\n" +
+                "\t[string \"debug-traceback.lua\"]:6\n" +
+                "\t[string \"debug-traceback.lua\"]:9",
+            state.toString(1),
+        )
+    }
+
+    @Test
+    fun `debug traceback formats file chunk source names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    return debug.traceback("boom")
+                end
+
+                return leaf()
+                """.trimIndent(),
+                "@/tmp/debug-traceback-file.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            "boom\n" +
+                "stack traceback:\n" +
+                "\t/tmp/debug-traceback-file.lua:2\n" +
+                "\t/tmp/debug-traceback-file.lua:5",
             state.toString(1),
         )
     }
@@ -585,7 +614,7 @@ class LuaStdlibTest {
         assertEquals(
             "42\n" +
                 "stack traceback:\n" +
-                "\tdebug-traceback-non-string.lua:3",
+                "\t[string \"debug-traceback-non-string.lua\"]:3",
             state.toString(3),
         )
         assertEquals("string", state.toString(4))
