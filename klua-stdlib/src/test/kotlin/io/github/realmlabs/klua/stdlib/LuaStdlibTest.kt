@@ -5380,6 +5380,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable names host userdata index errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("named"))
+        state.setGlobal("named")
+        state.pushUserData(DebugHostObject("numeric"))
+        state.setGlobal("numeric")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(named, {__name = "HostValue"})
+                debug.setmetatable(numeric, {__name = 42})
+                local readOk, readMessage = pcall(function()
+                    return named.missing
+                end)
+                local writeOk, writeMessage = pcall(function()
+                    named.missing = "value"
+                end)
+                local numericOk, numericMessage = pcall(function()
+                    return numeric.missing
+                end)
+                return readOk, readMessage, writeOk, writeMessage, numericOk, numericMessage
+                """.trimIndent(),
+                "debug-userdata-name-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to index a HostValue value", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to index a HostValue value", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("attempt to index a userdata value", state.toString(6))
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

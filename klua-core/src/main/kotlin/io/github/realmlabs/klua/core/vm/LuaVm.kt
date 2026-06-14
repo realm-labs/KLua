@@ -617,7 +617,7 @@ internal class LuaVm(
                 if (metatable != null) {
                     val index = metatable.rawGet(INDEX_KEY)
                     if (index == LuaNil) {
-                        throw LuaVmException("attempt to index userdata")
+                        throw LuaVmException("attempt to index a ${userDataObjectTypeName(metatable)} value")
                     }
                     return metamethodIndexGet(receiver, key, index)
                 }
@@ -670,6 +670,10 @@ internal class LuaVm(
         }
     }
 
+    private fun userDataObjectTypeName(metatable: LuaTable): String {
+        return (metatable.rawGet(NAME_KEY) as? LuaString)?.value ?: "userdata"
+    }
+
     private fun tableGet(table: LuaTable, key: LuaValue, visited: MutableSet<LuaTable>): LuaValue {
         val value = table.rawGet(key)
         if (value != LuaNil) {
@@ -695,7 +699,7 @@ internal class LuaVm(
                 if (metatable != null) {
                     val newIndex = metatable.rawGet(NEW_INDEX_KEY)
                     if (newIndex == LuaNil) {
-                        throw LuaVmException("attempt to index userdata")
+                        throw LuaVmException("attempt to index a ${userDataObjectTypeName(metatable)} value")
                     }
                     newIndexSet(receiver, key, value, newIndex, mutableSetOf(), 0)
                     return
@@ -1244,6 +1248,7 @@ private fun typeName(value: LuaValue): String {
 }
 
 private val INDEX_KEY = LuaString("__index")
+private val NAME_KEY = LuaString("__name")
 private val STRING_LIBRARY_KEY = LuaString("string")
 private val NEW_INDEX_KEY = LuaString("__newindex")
 private val CALL_KEY = LuaString("__call")
