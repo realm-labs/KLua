@@ -6738,6 +6738,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openString preserves string method table after global reassignment`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local originalLen = ("abc"):len()
+                string = nil
+                local afterNil = ("abcd"):len()
+                string = {}
+                local afterReplace = ("abcde"):len()
+                return originalLen, afterNil, afterReplace
+                """.trimIndent(),
+                "string-methods-reassigned.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals(4L, state.toInteger(2))
+        assertEquals(5L, state.toInteger(3))
+    }
+
+    @Test
     fun `string lower and upper use ascii byte case mapping`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

@@ -25,6 +25,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
+    private val stringLibrary: LuaTable? = null,
 ) {
     private val thread = LuaThread()
     private var debugHook: DebugHookState? = null
@@ -580,7 +581,7 @@ internal class LuaVm(
         return when (receiver) {
             is LuaTable -> tableGet(receiver, key)
             is LuaString -> {
-                val stringLibrary = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
+                val stringLibrary = stringLibrary ?: globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
                     ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
                 tableGet(stringLibrary, key)
             }
