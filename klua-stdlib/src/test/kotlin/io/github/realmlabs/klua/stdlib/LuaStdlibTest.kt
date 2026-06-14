@@ -3993,7 +3993,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `load rejects non string reader function results`() {
+    fun `load returns reader function errors as load failures`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
@@ -4001,18 +4001,24 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local ok, message = pcall(load, function()
+                local chunk, message = load(function()
                     return false
                 end, "reader-boolean.lua")
-                return ok, message
+                local ok, protectedChunk, protectedMessage = pcall(load, function()
+                    return false
+                end, "reader-protected-boolean.lua")
+                return chunk, message, ok, protectedChunk, protectedMessage
                 """.trimIndent(),
                 "load-reader-boolean.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertFalse(state.toBoolean(1))
+        assertTrue(state.isNil(1))
         assertEquals("reader function must return a string", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.isNil(4))
+        assertEquals("reader function must return a string", state.toString(5))
     }
 
     @Test

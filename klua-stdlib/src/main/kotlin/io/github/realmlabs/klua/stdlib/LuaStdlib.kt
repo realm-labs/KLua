@@ -240,7 +240,15 @@ public object LuaStdlib {
         val source = if (sourceIsString) {
             requiredString(context, 1, "load")
         } else {
-            readChunkSource(context)
+            try {
+                readChunkSource(context)
+            } catch (yield: LuaYieldException) {
+                throw yield
+            } catch (exception: LuaException) {
+                return LuaReturn.of(null, errorObject(exception))
+            } catch (exception: RuntimeException) {
+                return LuaReturn.of(null, exception.message ?: exception::class.java.simpleName)
+            }
         }
         return context.load(source, chunkName, optionalLoadEnvironment(context, 4, "load"))
     }
