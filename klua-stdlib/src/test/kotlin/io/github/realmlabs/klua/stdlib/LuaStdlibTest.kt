@@ -4724,6 +4724,86 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable tracks primitive type metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numberMetatable = {name = "number"}
+                local booleanMetatable = {name = "boolean"}
+                local nilMetatable = {name = "nil"}
+                local functionMetatable = {name = "function"}
+                local threadMetatable = {name = "thread"}
+
+                local numberReturned = debug.setmetatable(1, numberMetatable)
+                local booleanReturned = debug.setmetatable(false, booleanMetatable)
+                local nilReturned = debug.setmetatable(nil, nilMetatable)
+                local f = function() end
+                local functionReturned = debug.setmetatable(f, functionMetatable)
+                local co = coroutine.create(function() end)
+                local threadReturned = debug.setmetatable(co, threadMetatable)
+
+                return numberReturned,
+                    debug.getmetatable(2) == numberMetatable,
+                    getmetatable(3) == numberMetatable,
+                    booleanReturned == false,
+                    debug.getmetatable(true) == booleanMetatable,
+                    nilReturned,
+                    debug.getmetatable(nil) == nilMetatable,
+                    getmetatable(nil) == nilMetatable,
+                    functionReturned == f,
+                    debug.getmetatable(function() end) == functionMetatable,
+                    threadReturned == co,
+                    debug.getmetatable(coroutine.create(function() end)) == threadMetatable
+                """.trimIndent(),
+                "primitive-type-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.toBoolean(11))
+        assertTrue(state.toBoolean(12))
+    }
+
+    @Test
+    fun `debug setmetatable clears primitive type metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {name = "number"})
+                local before = debug.getmetatable(2)
+                local returned = debug.setmetatable(1, nil)
+                local after = debug.getmetatable(2)
+                return type(before), returned, after
+                """.trimIndent(),
+                "primitive-type-metatables-clear.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+    }
+
+    @Test
     fun `getmetatable reports missing argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

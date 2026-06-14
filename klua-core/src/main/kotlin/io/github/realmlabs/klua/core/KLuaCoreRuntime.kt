@@ -172,9 +172,30 @@ public object KLuaCoreRuntime {
         return globals.stringMetatable?.let { metatable -> toPublicValue(metatable, globals) as KLuaCoreValue.TableValue }
     }
 
+    public fun getRawTypeMetatable(globals: KLuaCoreGlobals, typeName: String): KLuaCoreValue.TableValue? {
+        return when (typeName) {
+            "string" -> getStringMetatable(globals)
+            else -> globals.rawTypeMetatables[typeName]
+                ?.let { metatable -> toPublicValue(metatable, globals) as KLuaCoreValue.TableValue }
+        }
+    }
+
     public fun setStringMetatable(globals: KLuaCoreGlobals, metatable: KLuaCoreValue.TableValue?) {
         globals.stringMetatableConfigured = true
         globals.stringMetatable = metatable?.toLuaValueOrNull(globals) as? LuaTable
+    }
+
+    public fun setRawTypeMetatable(globals: KLuaCoreGlobals, typeName: String, metatable: KLuaCoreValue.TableValue?) {
+        if (typeName == "string") {
+            setStringMetatable(globals, metatable)
+            return
+        }
+        val luaMetatable = metatable?.toLuaValueOrNull(globals) as? LuaTable
+        if (luaMetatable == null) {
+            globals.rawTypeMetatables.remove(typeName)
+        } else {
+            globals.rawTypeMetatables[typeName] = luaMetatable
+        }
     }
 
     public fun getUpvalue(
@@ -257,6 +278,7 @@ public class KLuaCoreGlobals internal constructor(
         private set
     internal var stringMetatable: LuaTable? = null
     internal var stringMetatableConfigured: Boolean = false
+    internal val rawTypeMetatables: MutableMap<String, LuaTable> = linkedMapOf()
 
     public companion object {
         @JvmStatic

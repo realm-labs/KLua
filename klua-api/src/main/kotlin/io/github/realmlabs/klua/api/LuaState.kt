@@ -1394,8 +1394,14 @@ class LuaState private constructor(
         override fun getRawMetatable(index: Int): Any? {
             return when (valueAt(index)) {
                 is LuaStackValue.TableValue -> getMetatable(index)
-                is LuaStackValue.StringValue -> KLuaCoreRuntime.getStringMetatable(coreGlobals)?.toStackValue()
-                else -> null
+                else -> {
+                    val typeName = typeName(index)
+                    if (typeName in RAW_TYPE_METATABLE_TYPES) {
+                        KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, typeName)?.toStackValue()
+                    } else {
+                        null
+                    }
+                }
             }
         }
 
@@ -1417,16 +1423,21 @@ class LuaState private constructor(
         override fun setRawMetatable(index: Int, metatable: Any?) {
             when (valueAt(index)) {
                 is LuaStackValue.TableValue -> setMetatable(index, metatable)
-                is LuaStackValue.StringValue -> {
-                    val stackMetatable = metatable.toStackValue()
-                    val coreMetatable = when (stackMetatable) {
-                        LuaStackValue.Nil -> null
-                        is LuaStackValue.TableValue -> stackMetatable.toCoreTableValue(IdentityHashMap())
-                        else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
+                else -> {
+                    val typeName = typeName(index)
+                    if (typeName !in RAW_TYPE_METATABLE_TYPES) {
+                        throw IllegalArgumentException("argument $index is $typeName")
                     }
-                    KLuaCoreRuntime.setStringMetatable(coreGlobals, coreMetatable)
+                    KLuaCoreRuntime.setRawTypeMetatable(coreGlobals, typeName, metatable.toCoreMetatable())
                 }
-                else -> throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            }
+        }
+
+        private fun Any?.toCoreMetatable(): KLuaCoreValue.TableValue? {
+            return when (val stackMetatable = toStackValue()) {
+                LuaStackValue.Nil -> null
+                is LuaStackValue.TableValue -> stackMetatable.toCoreTableValue(IdentityHashMap())
+                else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
             }
         }
 
@@ -1559,6 +1570,7 @@ class LuaState private constructor(
 }
 
 private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
+private val RAW_TYPE_METATABLE_TYPES = setOf("nil", "boolean", "number", "string", "function", "thread")
 
 private fun String?.toNativeFrames(): List<String> {
     return if (this == null) emptyList() else listOf(this)
