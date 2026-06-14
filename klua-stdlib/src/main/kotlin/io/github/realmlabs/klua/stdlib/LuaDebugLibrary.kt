@@ -81,7 +81,7 @@ internal object LuaDebugLibrary {
         return debugInfoTable(what) { option, table ->
             when (option) {
                 'S' -> {
-                    table["what"] = "Lua"
+                    table["what"] = luaFunctionWhat(frame.lineDefined)
                     table["source"] = frame.sourceName
                     table["short_src"] = frame.sourceName
                     table["linedefined"] = frame.lineDefined.toLong()
@@ -130,7 +130,7 @@ internal object LuaDebugLibrary {
         return debugInfoTable(what) { option, table ->
             when (option) {
                 'S' -> {
-                    table["what"] = "Lua"
+                    table["what"] = luaFunctionWhat(info.lineDefined)
                     table["source"] = info.sourceName
                     table["short_src"] = info.sourceName
                     table["linedefined"] = info.lineDefined.toLong()
@@ -184,6 +184,8 @@ internal object LuaDebugLibrary {
         table["istailcall"] = false
         table["extraargs"] = 0L
     }
+
+    private fun luaFunctionWhat(lineDefined: Int): String = if (lineDefined == 0) "main" else "Lua"
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
         val index = requiredLocalIndex(context, 2, "getlocal")

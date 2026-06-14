@@ -452,7 +452,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(16))
         assertTrue(state.toString(17)?.contains("boom\nstack traceback:") == true)
         assertEquals("table", state.toString(18))
-        assertEquals("Lua", state.toString(19))
+        assertEquals("main", state.toString(19))
         assertEquals("debug-openlibs.lua", state.toString(20))
         assertEquals(1L, state.toInteger(21))
     }
@@ -661,6 +661,32 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(5))
         assertEquals(4L, state.toInteger(6))
         assertEquals("", state.toString(7))
+    }
+
+    @Test
+    fun `debug getinfo reports main chunk source metadata`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local frameInfo = debug.getinfo(1, "S")
+                local loaded = load("return 1", "loaded-main.lua")
+                local loadedInfo = debug.getinfo(loaded, "S")
+                return frameInfo.what, frameInfo.linedefined,
+                    loadedInfo.what, loadedInfo.linedefined
+                """.trimIndent(),
+                "debug-getinfo-main.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("main", state.toString(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals("main", state.toString(3))
+        assertEquals(0L, state.toInteger(4))
     }
 
     @Test
