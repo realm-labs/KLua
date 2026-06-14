@@ -73,16 +73,16 @@ internal object LuaStringLibrary {
     }
 
     private fun stringGsub(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "string.gsub")
-        val pattern = requiredString(context, 2, "string.gsub")
+        val text = requiredString(context, 1, "gsub")
+        val pattern = requiredString(context, 2, "gsub")
         val replacementType = context.typeName(3)
         if (replacementType !in GSUB_REPLACEMENT_TYPES) {
-            throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/number/function/table expected)")
+            throw LuaRuntimeException("bad argument #3 to 'gsub' (string/number/function/table expected)")
         }
         val limit = if (context.isNone(4) || context.isNil(4)) {
             Long.MAX_VALUE
         } else {
-            requiredInteger(context, 4, "string.gsub")
+            requiredInteger(context, 4, "gsub")
         }
         if (limit <= 0L) {
             return LuaReturn.of(text, 0L)
@@ -129,7 +129,7 @@ internal object LuaStringLibrary {
     ): String {
         return when (replacementType) {
             "number" -> expandReplacement(luaNumberToString(context.get(3)), wholeMatch, captures)
-            "string" -> expandReplacement(requiredString(context, 3, "string.gsub"), wholeMatch, captures)
+            "string" -> expandReplacement(requiredString(context, 3, "gsub"), wholeMatch, captures)
             "function" -> {
                 val result = context.call(3, replacementArguments(wholeMatch, captures)).get(1)
                 replacementValueToString(context, result, wholeMatch)
@@ -142,7 +142,7 @@ internal object LuaStringLibrary {
                 )
                 replacementValueToString(context, result, wholeMatch)
             }
-            else -> throw LuaRuntimeException("bad argument #3 to 'string.gsub' (string/number/function/table expected)")
+            else -> throw LuaRuntimeException("bad argument #3 to 'gsub' (string/number/function/table expected)")
         }
     }
 
@@ -240,12 +240,12 @@ internal object LuaStringLibrary {
     }
 
     private fun stringFind(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "string.find")
-        val pattern = requiredString(context, 2, "string.find")
+        val text = requiredString(context, 1, "find")
+        val pattern = requiredString(context, 2, "find")
         val start = if (context.isNone(3) || context.isNil(3)) {
             1L
         } else {
-            requiredInteger(context, 3, "string.find")
+            requiredInteger(context, 3, "find")
         }
         val plain = context.toBoolean(4)
         val startIndex = text.luaByteSearchStartToCharIndex(start)
@@ -264,12 +264,12 @@ internal object LuaStringLibrary {
     }
 
     private fun stringGmatch(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "string.gmatch")
-        val pattern = requiredString(context, 2, "string.gmatch")
+        val text = requiredString(context, 1, "gmatch")
+        val pattern = requiredString(context, 2, "gmatch")
         val start = if (context.isNone(3) || context.isNil(3)) {
             1L
         } else {
-            requiredInteger(context, 3, "string.gmatch")
+            requiredInteger(context, 3, "gmatch")
         }
         val compiledPattern = LuaStringPattern.compileGmatch(pattern)
         var cursor = text.luaByteSearchStartToCharIndex(start)
@@ -345,12 +345,12 @@ internal object LuaStringLibrary {
     }
 
     private fun stringMatch(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "string.match")
-        val pattern = requiredString(context, 2, "string.match")
+        val text = requiredString(context, 1, "match")
+        val pattern = requiredString(context, 2, "match")
         val start = if (context.isNone(3) || context.isNil(3)) {
             1L
         } else {
-            requiredInteger(context, 3, "string.match")
+            requiredInteger(context, 3, "match")
         }
         val startIndex = text.luaByteSearchStartToCharIndex(start)
         val match = LuaStringPattern.compile(pattern).find(text, startIndex)

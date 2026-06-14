@@ -9749,22 +9749,22 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return string.find("abc", "a", "bad", true)""",
             "string-find-string-start.lua",
-            "bad argument #3 to 'string.find' (number expected)",
+            "bad argument #3 to 'find' (number expected)",
         )
         assertNonNumericIntegerError(
             """return string.match("abc", "a", "bad")""",
             "string-match-string-start.lua",
-            "bad argument #3 to 'string.match' (number expected)",
+            "bad argument #3 to 'match' (number expected)",
         )
         assertNonNumericIntegerError(
             """return string.gmatch("abc", "a", "bad")""",
             "string-gmatch-string-start.lua",
-            "bad argument #3 to 'string.gmatch' (number expected)",
+            "bad argument #3 to 'gmatch' (number expected)",
         )
         assertNonNumericIntegerError(
             """return string.gsub("abc", "a", "x", "bad")""",
             "string-gsub-string-limit.lua",
-            "bad argument #4 to 'string.gsub' (number expected)",
+            "bad argument #4 to 'gsub' (number expected)",
         )
     }
 
@@ -9814,22 +9814,22 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return string.find("abc", "a", 1.5, true)""",
             "string-find-fractional-start.lua",
-            "bad argument #3 to 'string.find' (number has no integer representation)",
+            "bad argument #3 to 'find' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.match("abc", "a", 1.5)""",
             "string-match-fractional-start.lua",
-            "bad argument #3 to 'string.match' (number has no integer representation)",
+            "bad argument #3 to 'match' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.gmatch("abc", "a", 1.5)""",
             "string-gmatch-fractional-start.lua",
-            "bad argument #3 to 'string.gmatch' (number has no integer representation)",
+            "bad argument #3 to 'gmatch' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.gsub("abc", "a", "x", 1.5)""",
             "string-gsub-fractional-limit.lua",
-            "bad argument #4 to 'string.gsub' (number has no integer representation)",
+            "bad argument #4 to 'gsub' (number has no integer representation)",
         )
     }
 
