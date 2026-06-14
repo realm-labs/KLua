@@ -296,19 +296,19 @@ internal object LuaTableLibrary {
 
     private fun tableRemove(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'table.remove' (table expected)")
+            throw LuaRuntimeException("bad argument #1 to 'remove' (table expected)")
         }
         val length = tableLength(context, 1)
         val position = if (context.isNone(2) || context.isNil(2)) {
             length
         } else {
-            requiredInteger(context, 2, "table.remove")
+            requiredInteger(context, 2, "remove")
         }
         val validPosition = position in 1L..length ||
             position == length + 1L ||
             (length == 0L && position == 0L)
         if (!validPosition) {
-            throw LuaRuntimeException("bad argument #2 to 'table.remove' (position out of bounds)")
+            throw LuaRuntimeException("bad argument #2 to 'remove' (position out of bounds)")
         }
         if (position > length || position == 0L) {
             tableSetValue(context, 1, position, null)

@@ -10240,7 +10240,7 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return table.remove({}, "bad")""",
             "table-remove-string-position.lua",
-            "bad argument #2 to 'table.remove' (number expected)",
+            "bad argument #2 to 'remove' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.unpack({}, "bad")""",
@@ -10310,7 +10310,7 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return table.remove({}, 1.5)""",
             "table-remove-fractional-position.lua",
-            "bad argument #2 to 'table.remove' (number has no integer representation)",
+            "bad argument #2 to 'remove' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.unpack({}, 1.5)""",
@@ -10947,7 +10947,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'table.remove' (table expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'remove' (table expected)", state.toString(-1))
     }
 
     @Test
@@ -10959,7 +10959,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'table.remove' (position out of bounds)", state.toString(-1))
+        assertEquals("bad argument #2 to 'remove' (position out of bounds)", state.toString(-1))
     }
 
     @Test
