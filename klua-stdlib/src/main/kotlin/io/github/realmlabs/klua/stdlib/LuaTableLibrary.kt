@@ -481,6 +481,7 @@ internal object LuaTableLibrary {
         val sourceType = context.typeName(1)
         val isTable = context.isTable(1)
         val isString = sourceType == "string"
+        val hasIndex = context.getTableField(context.getRawMetatable(1), "__index") != null
 
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
@@ -491,6 +492,7 @@ internal object LuaTableLibrary {
             when {
                 isTable -> tableLength(context, 1)
                 isString -> context.toString(1)?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0L
+                hasIndex -> tableLength(context, 1)
                 else -> throw LuaRuntimeException("attempt to get length of a $sourceType value")
             }
         } else {
@@ -500,7 +502,7 @@ internal object LuaTableLibrary {
         if (start > end) {
             return LuaReturn.none()
         }
-        if (!isTable && !isString) {
+        if (!isTable && !isString && !hasIndex) {
             throw LuaRuntimeException("attempt to index a $sourceType value")
         }
         tableUnpackResultCount(start, end)
@@ -508,7 +510,7 @@ internal object LuaTableLibrary {
         val values = mutableListOf<Any?>()
         var index = start
         while (index <= end) {
-            values += if (isTable) tableIndexValue(context, index) else null
+            values += if (isTable || hasIndex) tableIndexValue(context, 1, index) else null
             index++
         }
         return LuaReturn.ofValues(values)

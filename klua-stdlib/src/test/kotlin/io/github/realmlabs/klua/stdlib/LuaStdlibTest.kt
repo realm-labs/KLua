@@ -12242,6 +12242,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table unpack accepts primitive values with table-like metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable(0)
+                debug.setmetatable(0, {
+                    __index = function(_, index)
+                        return ({ "a", "b" })[index]
+                    end,
+                })
+                local explicitA, explicitB = table.unpack(7, 1, 2)
+                debug.setmetatable(0, {
+                    __len = function()
+                        return 2
+                    end,
+                    __index = function(_, index)
+                        return ({ "x", "y" })[index]
+                    end,
+                })
+                local defaultA, defaultB = table.unpack(7)
+                debug.setmetatable(0, original)
+                return explicitA, explicitB, defaultA, defaultB
+                """.trimIndent(),
+                "table-unpack-primitive-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("b", state.toString(2))
+        assertEquals("x", state.toString(3))
+        assertEquals("y", state.toString(4))
+    }
+
+    @Test
     fun `table move copies ranges and returns destination table`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
