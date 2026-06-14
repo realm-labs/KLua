@@ -2308,7 +2308,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("nope", state.toString(-1))
+        assertEquals("assert-false.lua:1: nope", state.toString(-1))
     }
 
     @Test
@@ -2322,9 +2322,13 @@ class LuaStdlibTest {
                 """
                 local marker = {name = "marker"}
                 local ok, err = pcall(assert, false, marker)
+                local defaultOk, defaultErr = pcall(assert, false)
                 local missingOk, missingErr = pcall(assert)
                 local nilOk, nilErr = pcall(assert, false, nil)
-                return ok, err == marker, err.name, missingOk, missingErr, nilOk, nilErr
+                return ok, err == marker, err.name,
+                    defaultOk, defaultErr,
+                    missingOk, missingErr,
+                    nilOk, nilErr
                 """.trimIndent(),
                 "assert-error-object.lua",
             ),
@@ -2335,9 +2339,11 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("marker", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(5))
+        assertEquals("assertion failed!", state.toString(5))
         assertFalse(state.toBoolean(6))
-        assertEquals("<no error object>", state.toString(7))
+        assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("<no error object>", state.toString(9))
     }
 
     @Test

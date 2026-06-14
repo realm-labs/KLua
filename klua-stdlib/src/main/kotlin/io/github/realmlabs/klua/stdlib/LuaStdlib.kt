@@ -136,7 +136,7 @@ public object LuaStdlib {
         if (!context.toBoolean(1)) {
             requireAnyArgument(context, "assert")
             val errorObject = if (context.isNone(2)) "assertion failed!" else argumentValue(context, 2)
-            throw luaError(errorObject)
+            throw luaError(locationPrefixedError(context, 1, errorObject))
         }
         return LuaReturn.ofValues((1..context.argumentCount).map { index -> argumentValue(context, index) })
     }
