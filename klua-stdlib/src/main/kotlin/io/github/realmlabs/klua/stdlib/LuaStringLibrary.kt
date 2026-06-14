@@ -14,6 +14,7 @@ internal object LuaStringLibrary {
     private const val FORMAT_FLAGS = "-+ #0"
     private const val FORMAT_SPECIFIER_PREFIX = "$FORMAT_FLAGS.123456789"
     private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
+    private const val GSUB_REPLACEMENT_EXPECTED_TYPE = "string/function/table"
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
     fun open(state: LuaState): LuaState {
@@ -77,7 +78,7 @@ internal object LuaStringLibrary {
         val pattern = requiredString(context, 2, "gsub")
         val replacementType = context.typeName(3)
         if (replacementType !in GSUB_REPLACEMENT_TYPES) {
-            throw LuaRuntimeException("bad argument #3 to 'gsub' (string/number/function/table expected)")
+            throw LuaRuntimeException("bad argument #3 to 'gsub' ($GSUB_REPLACEMENT_EXPECTED_TYPE expected)")
         }
         val limit = if (context.isNone(4) || context.isNil(4)) {
             Long.MAX_VALUE
@@ -142,7 +143,7 @@ internal object LuaStringLibrary {
                 )
                 replacementValueToString(context, result, wholeMatch)
             }
-            else -> throw LuaRuntimeException("bad argument #3 to 'gsub' (string/number/function/table expected)")
+            else -> throw LuaRuntimeException("bad argument #3 to 'gsub' ($GSUB_REPLACEMENT_EXPECTED_TYPE expected)")
         }
     }
 

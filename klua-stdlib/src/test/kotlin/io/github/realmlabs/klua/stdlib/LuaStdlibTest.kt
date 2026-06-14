@@ -8711,6 +8711,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub rejects invalid replacement types with source wording`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missingOk, missingMessage = pcall(string.gsub, "abc", "a")
+                local nilOk, nilMessage = pcall(string.gsub, "abc", "a", nil)
+                local falseOk, falseMessage = pcall(string.gsub, "abc", "a", false)
+                local threadOk, threadMessage = pcall(string.gsub, "abc", "a", coroutine.create(function() end))
+                return missingOk, missingMessage, nilOk, nilMessage, falseOk, falseMessage,
+                    threadOk, threadMessage
+                """.trimIndent(),
+                "string-gsub-replacement-type-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(8))
+    }
+
+    @Test
     fun `string gsub expands replacement percents`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
