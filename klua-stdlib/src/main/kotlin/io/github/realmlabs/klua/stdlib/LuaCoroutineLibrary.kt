@@ -20,7 +20,7 @@ internal object LuaCoroutineLibrary {
         val runtime = CoroutineRuntime()
         state.newTable()
         setFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
-        setFunctionField(state, "create", ::coroutineCreate)
+        setFunctionField(state, "create") { context -> coroutineCreate(context, "coroutine.create") }
         setFunctionField(state, "isyieldable") { context -> coroutineIsYieldable(context, runtime) }
         setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
         setFunctionField(state, "running") { coroutineRunning(runtime) }
@@ -31,12 +31,12 @@ internal object LuaCoroutineLibrary {
         return state
     }
 
-    private fun coroutineCreate(context: LuaCallContext): LuaReturn {
+    private fun coroutineCreate(context: LuaCallContext, functionName: String): LuaReturn {
         if (context.typeName(1) != "function") {
-            throw LuaRuntimeException("bad argument #1 to 'coroutine.create' (function expected)")
+            throw LuaRuntimeException("bad argument #1 to '$functionName' (function expected)")
         }
         val function = context.get(1) as? LuaFunction
-            ?: throw LuaRuntimeException("bad argument #1 to 'coroutine.create' (function expected)")
+            ?: throw LuaRuntimeException("bad argument #1 to '$functionName' (function expected)")
         return LuaReturn.of(LuaCoroutine(function, (function as? LuaCoroutineFunction)?.createCoroutine()))
     }
 
@@ -191,7 +191,7 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineWrap(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val created = coroutineCreate(context).getUserData(1, LuaCoroutine::class.java)
+        val created = coroutineCreate(context, "coroutine.wrap").getUserData(1, LuaCoroutine::class.java)
         val wrapper = LuaFunction { wrapperContext ->
             val result = resumeCoroutine(
                 wrapperContext,

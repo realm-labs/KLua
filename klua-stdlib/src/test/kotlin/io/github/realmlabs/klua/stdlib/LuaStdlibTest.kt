@@ -5464,7 +5464,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, wrapState.load("""return coroutine.wrap(nil)""", "coroutine-wrap-error.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, wrapState.pcall(0, -1))
         assertIs<LuaRuntimeException>(wrapState.getLastError())
-        assertEquals("bad argument #1 to 'coroutine.create' (function expected)", wrapState.toString(-1))
+        assertEquals("bad argument #1 to 'coroutine.wrap' (function expected)", wrapState.toString(-1))
     }
 
     @Test
