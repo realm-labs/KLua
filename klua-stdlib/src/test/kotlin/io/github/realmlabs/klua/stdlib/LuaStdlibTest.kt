@@ -10144,7 +10144,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, typeState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(typeState.getLastError())
-        assertEquals("bad argument #1 to 'table.create' (number expected)", typeState.toString(-1))
+        assertEquals("bad argument #1 to 'create' (number expected)", typeState.toString(-1))
 
         val sequenceState = LuaState.create()
         LuaStdlib.openTable(sequenceState)
@@ -10154,7 +10154,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(sequenceState.getLastError())
         assertEquals(
-            "bad argument #1 to 'table.create' (out of range)",
+            "bad argument #1 to 'create' (out of range)",
             sequenceState.toString(-1),
         )
 
@@ -10166,7 +10166,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(recordState.getLastError())
         assertEquals(
-            "bad argument #2 to 'table.create' (out of range)",
+            "bad argument #2 to 'create' (out of range)",
             recordState.toString(-1),
         )
 
@@ -10181,7 +10181,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(largeSequenceState.getLastError())
         assertEquals(
-            "bad argument #1 to 'table.create' (out of range)",
+            "bad argument #1 to 'create' (out of range)",
             largeSequenceState.toString(-1),
         )
 
@@ -10196,7 +10196,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(largeRecordState.getLastError())
         assertEquals(
-            "bad argument #2 to 'table.create' (out of range)",
+            "bad argument #2 to 'create' (out of range)",
             largeRecordState.toString(-1),
         )
     }
@@ -10227,7 +10227,7 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return table.create(1, "bad")""",
             "table-create-string-record.lua",
-            "bad argument #2 to 'table.create' (number expected)",
+            "bad argument #2 to 'create' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.insert({}, "bad", "x")""",
@@ -10292,12 +10292,12 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return table.create(1.5)""",
             "table-create-fractional-sequence.lua",
-            "bad argument #1 to 'table.create' (number has no integer representation)",
+            "bad argument #1 to 'create' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.create(1, 1.5)""",
             "table-create-fractional-record.lua",
-            "bad argument #2 to 'table.create' (number has no integer representation)",
+            "bad argument #2 to 'create' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.insert({}, 1.5, "x")""",

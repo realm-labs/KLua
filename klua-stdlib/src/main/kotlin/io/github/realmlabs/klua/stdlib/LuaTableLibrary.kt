@@ -485,9 +485,9 @@ internal object LuaTableLibrary {
     }
 
     private fun requiredTableCreateSize(context: LuaCallContext, index: Int): Long {
-        val value = requiredInteger(context, index, "table.create")
+        val value = requiredInteger(context, index, "create")
         if (value < 0 || value > Int.MAX_VALUE) {
-            throw LuaRuntimeException("bad argument #$index to 'table.create' (out of range)")
+            throw LuaRuntimeException("bad argument #$index to 'create' (out of range)")
         }
         return value
     }
