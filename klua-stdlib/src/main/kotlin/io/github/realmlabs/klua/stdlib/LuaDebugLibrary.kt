@@ -239,10 +239,13 @@ internal object LuaDebugLibrary {
     }
 
     private fun upvalueId(context: LuaCallContext): LuaReturn {
-        val index = requiredPositiveUpvalueIndex(context, 2, "upvalueid")
+        val index = requiredUpvalueLookupIndex(context, 2, "upvalueid")
         requireFunction(context, 1, "upvalueid")
+        if (index <= 0) {
+            return LuaReturn.of(null)
+        }
         val id = context.getUpvalueId(1, index)
-            ?: throw LuaRuntimeException("bad argument #2 to 'upvalueid' (invalid upvalue index)")
+            ?: return LuaReturn.of(null)
         return LuaReturn.of(id)
     }
 
