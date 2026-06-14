@@ -306,6 +306,20 @@ internal class LuaVm(
             is LuaTable -> {
                 callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callMetamethodDepth)
             }
+            is LuaUserData -> {
+                val metatable = currentUserDataMetatable?.invoke(callee.value)
+                if (metatable != null) {
+                    callMetamethod(
+                        callee,
+                        arguments,
+                        metatable.rawGet(CALL_KEY),
+                        callMetamethodDepth,
+                        "a ${userDataObjectTypeName(metatable)} value",
+                    )
+                } else {
+                    callMetamethod(callee, arguments, LuaNil, callMetamethodDepth)
+                }
+            }
             else -> {
                 val metatable = rawTypeMetatable(callee)
                 callMetamethod(callee, arguments, metatable?.rawGet(CALL_KEY) ?: LuaNil, callMetamethodDepth)
@@ -318,6 +332,7 @@ internal class LuaVm(
         arguments: List<LuaValue>,
         call: LuaValue,
         callMetamethodDepth: Int,
+        callErrorTypeName: String = typeName(callee),
     ): LuaExecutionResult {
         if (callMetamethodDepth >= MAX_CALL_METAMETHOD_DEPTH) {
             throw LuaVmException("'__call' chain too long")
@@ -326,7 +341,7 @@ internal class LuaVm(
         return when (call) {
             is LuaClosure -> executeFrame(call.prototype, metamethodArguments, call.upvalues)
             is LuaNativeFunction -> callNativeResult(call, metamethodArguments)
-            LuaNil -> throw LuaVmException("attempt to call ${typeName(callee)}")
+            LuaNil -> throw LuaVmException("attempt to call $callErrorTypeName")
             else -> callValue(call, metamethodArguments, callMetamethodDepth + 1)
         }
     }

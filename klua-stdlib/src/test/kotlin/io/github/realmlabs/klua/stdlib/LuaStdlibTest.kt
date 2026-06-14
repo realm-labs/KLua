@@ -5419,6 +5419,59 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable drives host userdata call metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("callable"))
+        state.setGlobal("callable")
+        state.pushUserData(DebugHostObject("named"))
+        state.setGlobal("named")
+        state.pushUserData(DebugHostObject("numeric"))
+        state.setGlobal("numeric")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local callSelf, callArgument
+                debug.setmetatable(callable, {
+                    __call = function(self, argument)
+                        callSelf = self
+                        callArgument = argument
+                        return "called:" .. argument
+                    end,
+                })
+                debug.setmetatable(named, {__name = "CallableHost"})
+                debug.setmetatable(numeric, {__name = 42})
+                local namedOk, namedMessage = pcall(function()
+                    return named()
+                end)
+                local numericOk, numericMessage = pcall(function()
+                    return numeric()
+                end)
+                return callable("value"),
+                    callSelf == callable,
+                    callArgument,
+                    namedOk,
+                    namedMessage,
+                    numericOk,
+                    numericMessage
+                """.trimIndent(),
+                "debug-userdata-call.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("called:value", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("value", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("attempt to call a CallableHost value", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("attempt to call a userdata value", state.toString(7))
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
