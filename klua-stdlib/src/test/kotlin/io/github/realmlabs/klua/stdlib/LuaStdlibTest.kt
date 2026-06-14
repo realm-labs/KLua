@@ -1342,6 +1342,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug upvalue accessors validate index before function`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okGetBoth, getBothMessage = pcall(debug.getupvalue, "not-function", "not-index")
+                local okGetFunction, getFunctionMessage = pcall(debug.getupvalue, "not-function", 1)
+                local okSetupMissing, setupMissingMessage = pcall(debug.setupvalue, "not-function", "not-index")
+                local okSetupBoth, setupBothMessage = pcall(debug.setupvalue, "not-function", "not-index", "value")
+                local okSetupFunction, setupFunctionMessage = pcall(debug.setupvalue, "not-function", 1, "value")
+                return okGetBoth, getBothMessage,
+                    okGetFunction, getFunctionMessage,
+                    okSetupMissing, setupMissingMessage,
+                    okSetupBoth, setupBothMessage,
+                    okSetupFunction, setupFunctionMessage
+                """.trimIndent(),
+                "debug-upvalue-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getupvalue' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'debug.getupvalue' (function expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'debug.setupvalue' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'debug.setupvalue' (function expected)", state.toString(10))
+    }
+
+    @Test
     fun `debug setupvalue mutates lua closure upvalues`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

@@ -220,8 +220,8 @@ internal object LuaDebugLibrary {
     }
 
     private fun getUpvalue(context: LuaCallContext): LuaReturn {
-        requireFunction(context, 1, "debug.getupvalue")
         val index = requiredUpvalueLookupIndex(context, 2, "debug.getupvalue")
+        requireFunction(context, 1, "debug.getupvalue")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
@@ -230,8 +230,8 @@ internal object LuaDebugLibrary {
 
     private fun setupUpvalue(context: LuaCallContext): LuaReturn {
         requireValueArgument(context, 3, "debug.setupvalue")
-        requireFunction(context, 1, "debug.setupvalue")
         val index = requiredUpvalueLookupIndex(context, 2, "debug.setupvalue")
+        requireFunction(context, 1, "debug.setupvalue")
         if (index <= 0) {
             return LuaReturn.of(null)
         }
