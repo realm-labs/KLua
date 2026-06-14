@@ -424,7 +424,7 @@ internal object LuaTableLibrary {
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
         } else {
-            requiredInteger(context, 2, "table.unpack")
+            requiredInteger(context, 2, "unpack")
         }
         val end = if (context.isNone(3) || context.isNil(3)) {
             when {
@@ -433,7 +433,7 @@ internal object LuaTableLibrary {
                 else -> throw LuaRuntimeException("attempt to get length of a $sourceType value")
             }
         } else {
-            requiredInteger(context, 3, "table.unpack")
+            requiredInteger(context, 3, "unpack")
         }
 
         if (start > end) {

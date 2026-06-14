@@ -10257,12 +10257,12 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return table.unpack({}, "bad")""",
             "table-unpack-string-start.lua",
-            "bad argument #2 to 'table.unpack' (number expected)",
+            "bad argument #2 to 'unpack' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.unpack({}, 1, "bad")""",
             "table-unpack-string-end.lua",
-            "bad argument #3 to 'table.unpack' (number expected)",
+            "bad argument #3 to 'unpack' (number expected)",
         )
     }
 
@@ -10327,12 +10327,12 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return table.unpack({}, 1.5)""",
             "table-unpack-fractional-start.lua",
-            "bad argument #2 to 'table.unpack' (number has no integer representation)",
+            "bad argument #2 to 'unpack' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.unpack({}, 1, 1.5)""",
             "table-unpack-fractional-end.lua",
-            "bad argument #3 to 'table.unpack' (number has no integer representation)",
+            "bad argument #3 to 'unpack' (number has no integer representation)",
         )
     }
 
