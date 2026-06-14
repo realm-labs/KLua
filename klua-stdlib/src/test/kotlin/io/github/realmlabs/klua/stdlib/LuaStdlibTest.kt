@@ -7410,7 +7410,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `math random supports ranges and deterministic seeds`() {
+    fun `math random follows lua 55 xoshiro sequences`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
 
@@ -7424,7 +7424,8 @@ class LuaStdlibTest {
                 local offset = math.random(5, 7)
                 local allBits = math.random(0)
                 math.randomseed(123)
-                return first == math.random(),
+                return first, ranged, offset, allBits,
+                    first == math.random(),
                     ranged == math.random(10),
                     offset == math.random(5, 7),
                     allBits == math.random(0),
@@ -7438,7 +7439,11 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        for (index in 1..8) {
+        assertEquals(0.21405899041481313, state.toNumber(1) ?: error("missing random result"), 0.0)
+        assertEquals(9L, state.toInteger(2))
+        assertEquals(5L, state.toInteger(3))
+        assertEquals(-5391743551570447441L, state.toInteger(4))
+        for (index in 5..12) {
             assertTrue(state.toBoolean(index))
         }
     }
@@ -7460,7 +7465,7 @@ class LuaStdlibTest {
                 math.randomseed(123, 456)
                 local repeated = math.random(100)
                 local singleFirstSeed, singleSecondSeed = math.randomseed(789)
-                return firstSeed, secondSeed, first == repeated,
+                return firstSeed, secondSeed, first, first == repeated,
                     generatedFirstSeed ~= nil, generatedSecondSeed ~= 0, generated >= 1 and generated <= 100,
                     singleFirstSeed, singleSecondSeed
                 """.trimIndent(),
@@ -7471,12 +7476,13 @@ class LuaStdlibTest {
 
         assertEquals(123L, state.toInteger(1))
         assertEquals(456L, state.toInteger(2))
-        assertTrue(state.toBoolean(3))
+        assertEquals(46L, state.toInteger(3))
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
         assertTrue(state.toBoolean(6))
-        assertEquals(789L, state.toInteger(7))
-        assertEquals(0L, state.toInteger(8))
+        assertTrue(state.toBoolean(7))
+        assertEquals(789L, state.toInteger(8))
+        assertEquals(0L, state.toInteger(9))
     }
 
     @Test
@@ -7551,7 +7557,8 @@ class LuaStdlibTest {
                 local fullRange = math.random(math.mininteger, math.maxinteger)
                 math.randomseed(456)
                 local repeated = math.random(3000000000)
-                return upperOnly >= 1 and upperOnly <= 3000000000,
+                return upperOnly, wideRange, fullRange,
+                    upperOnly >= 1 and upperOnly <= 3000000000,
                     wideRange >= -3000000000 and wideRange <= 3000000000,
                     fullRange ~= nil,
                     upperOnly == repeated
@@ -7561,7 +7568,10 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        for (index in 1..4) {
+        assertEquals(676063042L, state.toInteger(1))
+        assertEquals(2846524133L, state.toInteger(2))
+        assertEquals(5533629760186076056L, state.toInteger(3))
+        for (index in 4..7) {
             assertTrue(state.toBoolean(index))
         }
     }

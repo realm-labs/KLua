@@ -4,7 +4,6 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
-import java.util.Random
 import kotlin.math.absoluteValue
 import kotlin.math.acos
 import kotlin.math.asin
@@ -222,19 +221,20 @@ internal object LuaMathLibrary {
     }
 
     private fun mathRandom(context: LuaCallContext, randomState: MathRandomState): LuaReturn {
+        val randomValue = randomState.next()
         return when (context.argumentCount) {
-            0 -> LuaReturn.of(randomState.random.nextDouble())
+            0 -> LuaReturn.of(MathRandomState.toUnitDouble(randomValue))
             1 -> {
                 val upper = requiredInteger(context, 1, "random")
                 if (upper == 0L) {
-                    return LuaReturn.of(randomState.random.nextLong())
+                    return LuaReturn.of(randomValue)
                 }
-                LuaReturn.of(randomInteger(randomState, 1L, upper))
+                LuaReturn.of(randomInteger(randomState, randomValue, 1L, upper))
             }
             2 -> {
                 val lower = requiredInteger(context, 1, "random")
                 val upper = requiredInteger(context, 2, "random")
-                LuaReturn.of(randomInteger(randomState, lower, upper))
+                LuaReturn.of(randomInteger(randomState, randomValue, lower, upper))
             }
             else -> throw LuaRuntimeException("wrong number of arguments")
         }
@@ -242,7 +242,7 @@ internal object LuaMathLibrary {
 
     private fun mathRandomSeed(context: LuaCallContext, randomState: MathRandomState): LuaReturn {
         val (firstSeed, secondSeed) = if (context.argumentCount == 0) {
-            (System.nanoTime() xor Random().nextLong()) to randomState.random.nextLong()
+            MathRandomState.makeSeed() to randomState.next()
         } else {
             val first = requiredInteger(context, 1, "randomseed")
             val second = if (context.argumentCount < 2) {
@@ -252,7 +252,7 @@ internal object LuaMathLibrary {
             }
             first to second
         }
-        randomState.random = Random(combineSeeds(firstSeed, secondSeed))
+        randomState.setSeed(firstSeed, secondSeed)
         return LuaReturn.of(firstSeed, secondSeed)
     }
 
@@ -349,42 +349,12 @@ internal object LuaMathLibrary {
         return if (integer.toDouble() == value) integer else null
     }
 
-    private fun randomInteger(randomState: MathRandomState, lower: Long, upper: Long): Long {
+    private fun randomInteger(randomState: MathRandomState, randomValue: Long, lower: Long, upper: Long): Long {
         if (lower > upper) {
             throw LuaRuntimeException("bad argument #1 to 'random' (interval is empty)")
         }
-        val width = upper - lower + 1
-        if (width == 0L) {
-            return randomState.random.nextLong()
-        }
-        if (width > 0L) {
-            return lower + randomLongBelow(randomState, width)
-        }
-
-        var candidate: Long
-        do {
-            candidate = randomState.random.nextLong()
-        } while (java.lang.Long.compareUnsigned(candidate, width) >= 0)
-        return lower + candidate
-    }
-
-    private fun randomLongBelow(randomState: MathRandomState, bound: Long): Long {
-        val mask = bound - 1
-        if (bound and mask == 0L) {
-            return randomState.random.nextLong() and mask
-        }
-
-        var candidate: Long
-        var value: Long
-        do {
-            candidate = randomState.random.nextLong().ushr(1)
-            value = candidate % bound
-        } while (candidate + mask - value < 0L)
-        return value
-    }
-
-    private fun combineSeeds(firstSeed: Long, secondSeed: Long): Long {
-        return firstSeed xor java.lang.Long.rotateLeft(secondSeed, 32)
+        val width = upper - lower
+        return lower + randomState.project(randomValue, width)
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
@@ -402,9 +372,64 @@ internal object LuaMathLibrary {
         state.setField(-2, name)
     }
 
-    private data class MathRandomState(
-        var random: Random = Random(),
-    )
+    private class MathRandomState {
+        private val state = LongArray(RANDOM_STATE_SIZE)
+
+        init {
+            setSeed(makeSeed(), 0L)
+        }
+
+        fun setSeed(firstSeed: Long, secondSeed: Long) {
+            state[0] = firstSeed
+            state[1] = 0xffL
+            state[2] = secondSeed
+            state[3] = 0L
+            repeat(RANDOM_SEED_SPREAD_ROUNDS) {
+                next()
+            }
+        }
+
+        fun next(): Long {
+            val state0 = state[0]
+            val state1 = state[1]
+            val state2 = state[2] xor state0
+            val state3 = state[3] xor state1
+            val result = java.lang.Long.rotateLeft(state1 * 5L, 7) * 9L
+            state[0] = state0 xor state3
+            state[1] = state1 xor state2
+            state[2] = state2 xor (state1 shl 17)
+            state[3] = java.lang.Long.rotateLeft(state3, 45)
+            return result
+        }
+
+        fun project(randomValue: Long, upperOffset: Long): Long {
+            var limit = upperOffset
+            var shift = 1
+            while ((limit and (limit + 1L)) != 0L) {
+                limit = limit or (limit ushr shift)
+                shift *= 2
+            }
+            var projected = randomValue and limit
+            while (java.lang.Long.compareUnsigned(projected, upperOffset) > 0) {
+                projected = next() and limit
+            }
+            return projected
+        }
+
+        companion object {
+            fun toUnitDouble(value: Long): Double {
+                return (value ushr RANDOM_DOUBLE_DISCARDED_BITS).toDouble() * RANDOM_DOUBLE_SCALE
+            }
+
+            fun makeSeed(): Long {
+                return System.nanoTime() xor java.lang.Long.rotateLeft(System.currentTimeMillis(), 32)
+            }
+        }
+    }
 
     private const val SUBNORMAL_SCALE_BITS = 54
+    private const val RANDOM_STATE_SIZE = 4
+    private const val RANDOM_SEED_SPREAD_ROUNDS = 16
+    private const val RANDOM_DOUBLE_DISCARDED_BITS = 11
+    private const val RANDOM_DOUBLE_SCALE = 1.0 / 9007199254740992.0
 }
