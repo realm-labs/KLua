@@ -27,6 +27,7 @@ internal object LuaPackageLibrary {
         setFunctionField(state, "loadlib", ::loadlib)
         setFunctionField(state, "searchpath", ::searchpath)
         setFunctionField(state, "_searcherResultType", ::searcherResultType)
+        setFunctionField(state, "_moduleRoot", ::moduleRoot)
         state.setGlobal("package")
         installLuaSource(state, REQUIRE_SOURCE, "stdlib-package.lua")
         return state
@@ -78,6 +79,16 @@ internal object LuaPackageLibrary {
         return LuaReturn.of(context.typeName(1))
     }
 
+    private fun moduleRoot(context: LuaCallContext): LuaReturn {
+        val name = requiredString(context, 1, "require")
+        val index = name.indexOf('.')
+        return if (index < 0) {
+            LuaReturn.of(null)
+        } else {
+            LuaReturn.of(name.substring(0, index))
+        }
+    }
+
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
         return context.toString(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
@@ -101,7 +112,9 @@ internal object LuaPackageLibrary {
 
     private const val REQUIRE_SOURCE: String = """
         local searcherResultType = package._searcherResultType
+        local moduleRoot = package._moduleRoot
         package._searcherResultType = nil
+        package._moduleRoot = nil
 
         package.searchers = {
             function(name)
@@ -125,6 +138,33 @@ internal object LuaPackageLibrary {
                     error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" .. loadError, 0)
                 end
                 return loader, filename
+            end,
+
+            function(name)
+                if searcherResultType(package.cpath) ~= "string" then
+                    error("'package.cpath' must be a string", 0)
+                end
+                local filename, searchError = package.searchpath(name, package.cpath)
+                if filename == nil then
+                    return "\n\t" .. searchError
+                end
+                error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" ..
+                    "$DYNAMIC_LIBRARIES_DISABLED_MESSAGE", 0)
+            end,
+
+            function(name)
+                local rootName = moduleRoot(name)
+                if rootName == nil then
+                    return
+                end
+                if searcherResultType(package.cpath) ~= "string" then
+                    error("'package.cpath' must be a string", 0)
+                end
+                local filename, searchError = package.searchpath(rootName, package.cpath)
+                if filename == nil then
+                    return "\n\t" .. searchError
+                end
+                return "\n\tno module '" .. name .. "' in file '" .. filename .. "'"
             end,
         }
 

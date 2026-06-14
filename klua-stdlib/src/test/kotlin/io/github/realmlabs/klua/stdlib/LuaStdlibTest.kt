@@ -348,7 +348,9 @@ class LuaStdlibTest {
                 """
                 return type(package), type(package.searchpath), package.path, package.config,
                     type(package.loaded), type(package.preload), type(package.searchers), type(require),
-                    type(package.loadlib), type(package.cpath)
+                    type(package.loadlib), type(package.cpath),
+                    type(package.searchers[1]), type(package.searchers[2]),
+                    type(package.searchers[3]), type(package.searchers[4])
                 """.trimIndent(),
                 "package-openlibs.lua",
             ),
@@ -365,6 +367,10 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(8))
         assertEquals("function", state.toString(9))
         assertEquals("string", state.toString(10))
+        assertEquals("function", state.toString(11))
+        assertEquals("function", state.toString(12))
+        assertEquals("function", state.toString(13))
+        assertEquals("function", state.toString(14))
     }
 
     @Test
@@ -2365,6 +2371,53 @@ class LuaStdlibTest {
         assertEquals("'package.path' must be a string", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("'package.path' must be a string", state.toString(4))
+    }
+
+    @Test
+    fun `require reports C searcher diagnostics and cpath type errors`() {
+        val root = Files.createTempDirectory("klua-require-cpath")
+        val nativeModule = root.resolve("native.so")
+        Files.writeString(nativeModule, "")
+
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = ""
+                package.cpath = "${root.luaPath()}/?.so"
+                local missingOk, missingMessage = pcall(require, "missing")
+                local rootOk, rootMessage = pcall(require, "native.child")
+                local nativeOk, nativeMessage = pcall(require, "native")
+                package.cpath = false
+                local cpathOk, cpathMessage = pcall(require, "missing")
+                return missingOk, missingMessage, rootOk, rootMessage, nativeOk, nativeMessage, cpathOk, cpathMessage
+                """.trimIndent(),
+                "require-cpath-diagnostics.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        val missingMessage = state.toString(2) ?: ""
+        assertTrue(missingMessage.contains("module 'missing' not found"), missingMessage)
+        assertTrue(missingMessage.contains("no file '${root}/missing.so'"), missingMessage)
+        assertFalse(state.toBoolean(3))
+        val rootMessage = state.toString(4) ?: ""
+        assertTrue(rootMessage.contains("module 'native.child' not found"), rootMessage)
+        assertTrue(rootMessage.contains("no file '${root}/native/child.so'"), rootMessage)
+        assertTrue(rootMessage.contains("no module 'native.child' in file '${root}/native.so'"), rootMessage)
+        assertFalse(state.toBoolean(5))
+        assertEquals(
+            "error loading module 'native' from file '${root}/native.so':\n\t" +
+                "dynamic libraries not enabled; check your Lua installation",
+            state.toString(6),
+        )
+        assertFalse(state.toBoolean(7))
+        assertEquals("'package.cpath' must be a string", state.toString(8))
     }
 
     @Test
