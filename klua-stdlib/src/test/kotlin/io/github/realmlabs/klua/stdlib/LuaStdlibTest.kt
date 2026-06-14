@@ -2513,6 +2513,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require coerces numeric package paths like lua tostring path lookup`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = 123
+                package.cpath = ""
+                local pathOk, pathMessage = pcall(require, "missing")
+                package.path = ""
+                package.cpath = 456
+                local cpathOk, cpathMessage = pcall(require, "missing")
+                return pathOk, pathMessage, cpathOk, cpathMessage
+                """.trimIndent(),
+                "require-numeric-package-paths.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        val pathMessage = state.toString(2) ?: ""
+        assertTrue(pathMessage.contains("module 'missing' not found"), pathMessage)
+        assertTrue(pathMessage.contains("no file '123'"), pathMessage)
+        assertFalse(pathMessage.contains("'package.path' must be a string"), pathMessage)
+
+        assertFalse(state.toBoolean(3))
+        val cpathMessage = state.toString(4) ?: ""
+        assertTrue(cpathMessage.contains("module 'missing' not found"), cpathMessage)
+        assertTrue(cpathMessage.contains("no file '456'"), cpathMessage)
+        assertFalse(cpathMessage.contains("'package.cpath' must be a string"), cpathMessage)
+    }
+
+    @Test
     fun `require reports C searcher diagnostics and cpath type errors`() {
         val root = Files.createTempDirectory("klua-require-cpath")
         val nativeModule = root.resolve("native.so")

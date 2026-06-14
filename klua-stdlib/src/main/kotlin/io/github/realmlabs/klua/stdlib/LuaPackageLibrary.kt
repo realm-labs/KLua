@@ -125,6 +125,16 @@ internal object LuaPackageLibrary {
         package._moduleRoot = nil
         package._rawget = nil
 
+        local function packagePathString(value, field)
+            local valueType = searcherResultType(value)
+            if valueType == "string" then
+                return value
+            elseif valueType == "number" then
+                return value .. ""
+            end
+            error("'package." .. field .. "' must be a string", 0)
+        end
+
         package.searchers = {
             function(name)
                 local loader = preloadTable[name]
@@ -135,10 +145,8 @@ internal object LuaPackageLibrary {
             end,
 
             function(name)
-                if searcherResultType(package.path) ~= "string" then
-                    error("'package.path' must be a string", 0)
-                end
-                local filename, searchError = package.searchpath(name, package.path)
+                local path = packagePathString(package.path, "path")
+                local filename, searchError = package.searchpath(name, path)
                 if filename == nil then
                     return searchError
                 end
@@ -150,10 +158,8 @@ internal object LuaPackageLibrary {
             end,
 
             function(name)
-                if searcherResultType(package.cpath) ~= "string" then
-                    error("'package.cpath' must be a string", 0)
-                end
-                local filename, searchError = package.searchpath(name, package.cpath)
+                local cpath = packagePathString(package.cpath, "cpath")
+                local filename, searchError = package.searchpath(name, cpath)
                 if filename == nil then
                     return searchError
                 end
@@ -166,10 +172,8 @@ internal object LuaPackageLibrary {
                 if rootName == nil then
                     return
                 end
-                if searcherResultType(package.cpath) ~= "string" then
-                    error("'package.cpath' must be a string", 0)
-                end
-                local filename, searchError = package.searchpath(rootName, package.cpath)
+                local cpath = packagePathString(package.cpath, "cpath")
+                local filename, searchError = package.searchpath(rootName, cpath)
                 if filename == nil then
                     return searchError
                 end
