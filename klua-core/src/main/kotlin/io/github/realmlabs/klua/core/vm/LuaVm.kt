@@ -880,6 +880,7 @@ internal class LuaVm(
     private fun rawMetamethod(value: LuaValue, key: LuaString): LuaValue {
         return when (value) {
             is LuaTable -> value.metatableRawGet(key)
+            is LuaUserData -> currentUserDataMetatable?.invoke(value.value)?.rawGet(key) ?: LuaNil
             else -> rawTypeMetatable(value)?.rawGet(key) ?: LuaNil
         }
     }
@@ -967,7 +968,9 @@ internal class LuaVm(
             if (comparison.apply(left, right)) {
                 return true
             }
-            if (left !is LuaTable || right !is LuaTable) {
+            val comparesByReference = (left is LuaTable && right is LuaTable) ||
+                (left is LuaUserData && right is LuaUserData)
+            if (!comparesByReference) {
                 return false
             }
             val metamethod = binaryMetamethod(left, right, EQ_KEY)

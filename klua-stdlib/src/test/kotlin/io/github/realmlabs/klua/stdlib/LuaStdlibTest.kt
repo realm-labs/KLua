@@ -5522,6 +5522,76 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable drives host userdata comparison metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        listOf(
+            "eqLeft",
+            "eqRight",
+            "eqFallbackLeft",
+            "eqFallbackRight",
+            "ltLeft",
+            "ltRight",
+            "leLeft",
+            "leRight",
+        ).forEach { name ->
+            state.pushUserData(DebugHostObject(name))
+            state.setGlobal(name)
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local eqLeftSeen
+                local eqRightSeen
+                local ltSeen
+                local leSeen
+                debug.setmetatable(eqLeft, {
+                    __eq = function(left, right)
+                        eqLeftSeen = left == eqLeft and right == eqRight
+                        return "truthy"
+                    end,
+                })
+                debug.setmetatable(eqFallbackRight, {
+                    __eq = function(left, right)
+                        eqRightSeen = left == eqFallbackLeft and right == eqFallbackRight
+                        return true
+                    end,
+                })
+                debug.setmetatable(ltRight, {
+                    __lt = function(left, right)
+                        ltSeen = left == ltLeft and right == ltRight
+                        return true
+                    end,
+                })
+                debug.setmetatable(leLeft, {
+                    __le = function(left, right)
+                        leSeen = left == leLeft and right == leRight
+                        return true
+                    end,
+                })
+                return eqLeft == eqRight,
+                    eqLeftSeen,
+                    eqFallbackLeft == eqFallbackRight,
+                    eqRightSeen,
+                    ltLeft < ltRight,
+                    ltSeen,
+                    leLeft <= leRight,
+                    leSeen,
+                    eqLeft == eqLeft
+                """.trimIndent(),
+                "debug-userdata-comparison.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for (index in 1..9) {
+            assertTrue(state.toBoolean(index), "result #$index")
+        }
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
