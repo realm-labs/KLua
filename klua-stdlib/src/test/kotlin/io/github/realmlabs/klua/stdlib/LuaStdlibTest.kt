@@ -10369,6 +10369,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format rejects uppercase fixed float conversion`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return string.format("%F", 1.5)""", "string-format-uppercase-fixed-float.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("invalid conversion '%F' to 'format'", state.toString(-1))
+    }
+
+    @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

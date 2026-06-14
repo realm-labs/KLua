@@ -812,7 +812,6 @@ internal object LuaStringLibrary {
             -> formatIntegerValue(context, index, specifier, conversion)
             'u' -> formatIntegerValue(context, index, specifier, conversion)
             'f',
-            'F',
             'e',
             'E',
             'g',
