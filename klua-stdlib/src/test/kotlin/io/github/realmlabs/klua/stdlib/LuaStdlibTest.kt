@@ -161,6 +161,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring uses table name metamethod for default identity`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local named = setmetatable({}, { __name = "Widget" })
+                local numeric = setmetatable({}, { __name = 42 })
+                local protected = setmetatable({}, { __name = "Hidden", __metatable = "locked" })
+                return tostring(named), tostring(numeric), tostring(protected)
+                """.trimIndent(),
+                "tostring-name-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toString(1)?.matches(Regex("""Widget: [0-9a-f]+""")) == true)
+        assertTrue(state.toString(2)?.matches(Regex("""table: [0-9a-f]+""")) == true)
+        assertTrue(state.toString(3)?.matches(Regex("""Hidden: [0-9a-f]+""")) == true)
+    }
+
+    @Test
     fun `tostring reports invalid table tostring metamethod results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

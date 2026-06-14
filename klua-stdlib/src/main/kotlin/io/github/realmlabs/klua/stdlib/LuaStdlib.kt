@@ -723,8 +723,9 @@ public object LuaStdlib {
     }
 
     private fun tableToLuaString(context: LuaCallContext, index: Int): String {
-        val metamethod = context.getTableField(context.getMetatable(index), "__tostring")
-            ?: return context.getTable(index)?.typedPointerString("table") ?: context.typeName(index)
+        val metatable = context.getMetatable(index)
+        val metamethod = context.getTableField(metatable, "__tostring")
+            ?: return context.getTable(index)?.typedPointerString(tableTypeName(context, metatable)) ?: context.typeName(index)
         return when (val result = context.call(metamethod, listOf(argumentValue(context, index))).get(1)) {
             is Byte -> result.toLong().toString()
             is Short -> result.toLong().toString()
@@ -735,6 +736,10 @@ public object LuaStdlib {
             is CharSequence -> result.toString()
             else -> throw LuaRuntimeException("'__tostring' must return a string")
         }
+    }
+
+    private fun tableTypeName(context: LuaCallContext, metatable: Any?): String {
+        return (context.getTableField(metatable, "__name") as? CharSequence)?.toString() ?: "table"
     }
 
     private fun luaNumberToString(value: Any?): String {
