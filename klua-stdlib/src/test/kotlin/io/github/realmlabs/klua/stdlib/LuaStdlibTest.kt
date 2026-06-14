@@ -289,6 +289,44 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring uses host userdata name metamethod for default identities`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("named"))
+        state.setGlobal("named")
+        state.pushUserData(DebugHostObject("numeric"))
+        state.setGlobal("numeric")
+        state.pushUserData(DebugHostObject("custom"))
+        state.setGlobal("custom")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local plain = tostring(named)
+                debug.setmetatable(named, { __name = "HostValue" })
+                debug.setmetatable(numeric, { __name = 42 })
+                debug.setmetatable(custom, {
+                    __name = "Ignored",
+                    __tostring = function(value)
+                        return type(value)
+                    end,
+                })
+                return plain, tostring(named), tostring(numeric), tostring(custom), type(named)
+                """.trimIndent(),
+                "userdata-tostring-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toString(1)?.matches(Regex("""userdata: [0-9a-f]+""")) == true)
+        assertTrue(state.toString(2)?.matches(Regex("""HostValue: [0-9a-f]+""")) == true)
+        assertTrue(state.toString(3)?.matches(Regex("""userdata: [0-9a-f]+""")) == true)
+        assertEquals("userdata", state.toString(4))
+        assertEquals("userdata", state.toString(5))
+    }
+
+    @Test
     fun `tostring reports invalid table tostring metamethod results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

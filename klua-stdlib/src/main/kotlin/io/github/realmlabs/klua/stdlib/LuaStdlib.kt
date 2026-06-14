@@ -760,7 +760,7 @@ public object LuaStdlib {
             } ?: "thread"
             "function" -> context.get(index)?.typedPointerString(typeName(context, metatable, "function")) ?: "function"
             "table" -> tableToLuaString(context, index)
-            "userdata" -> context.get(index)?.toString() ?: "userdata"
+            "userdata" -> context.get(index)?.typedPointerString(typeName(context, metatable, "userdata")) ?: "userdata"
             else -> context.typeName(index)
         }
     }
