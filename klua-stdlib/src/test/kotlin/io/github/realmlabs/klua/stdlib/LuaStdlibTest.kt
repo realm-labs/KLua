@@ -2404,6 +2404,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(baseState.getLastError())
         assertEquals("bad argument #1 to 'tonumber' (string expected)", baseState.toString(-1))
+
+        val baseRangeOrderState = LuaState.create()
+        LuaStdlib.openBase(baseRangeOrderState)
+
+        assertEquals(
+            LuaStatus.OK,
+            baseRangeOrderState.load("""return tonumber(10, 1)""", "tonumber-base-range-order-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, baseRangeOrderState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(baseRangeOrderState.getLastError())
+        assertEquals("bad argument #1 to 'tonumber' (string expected)", baseRangeOrderState.toString(-1))
     }
 
     @Test
