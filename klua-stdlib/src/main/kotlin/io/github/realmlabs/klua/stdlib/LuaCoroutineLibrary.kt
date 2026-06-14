@@ -83,8 +83,10 @@ internal object LuaCoroutineLibrary {
                         LuaReturn.ofValues(listOf(true) + result.values)
                     }
                     is LuaCoroutineResult.RuntimeError -> {
+                        val errorValue = result.errorValue()
                         coroutine.status = CoroutineStatus.DEAD
-                        LuaReturn.of(false, result.errorValue())
+                        coroutine.rememberCloseError(errorValue)
+                        LuaReturn.of(false, errorValue)
                     }
                 }
             } else if (coroutine.pendingYield != null) {
@@ -97,17 +99,23 @@ internal object LuaCoroutineLibrary {
                 } catch (yield: LuaYieldException) {
                     if (coroutine.function !is LuaYieldableFunction) {
                         coroutine.status = CoroutineStatus.DEAD
-                        return LuaReturn.of(false, "attempt to yield across a non-yieldable boundary")
+                        val errorValue = "attempt to yield across a non-yieldable boundary"
+                        coroutine.rememberCloseError(errorValue)
+                        return LuaReturn.of(false, errorValue)
                     }
                     suspendHostYieldableCoroutine(coroutine, yield)
                 }
             }
         } catch (exception: LuaException) {
+            val errorValue = exception.errorValue()
             coroutine.status = CoroutineStatus.DEAD
-            LuaReturn.of(false, exception.errorValue())
+            coroutine.rememberCloseError(errorValue)
+            LuaReturn.of(false, errorValue)
         } catch (exception: RuntimeException) {
+            val errorValue = exception.message ?: exception::class.java.simpleName
             coroutine.status = CoroutineStatus.DEAD
-            LuaReturn.of(false, exception.message ?: exception::class.java.simpleName)
+            coroutine.rememberCloseError(errorValue)
+            LuaReturn.of(false, errorValue)
         } finally {
             runtime.running = previousRunning
         }
@@ -160,6 +168,12 @@ internal object LuaCoroutineLibrary {
                 throw LuaRuntimeException("cannot close main thread")
             }
             throw LuaRuntimeException("cannot close a normal coroutine")
+        }
+        if (coroutine.hasCloseError) {
+            val errorValue = coroutine.closeError
+            coroutine.clearCloseError()
+            coroutine.status = CoroutineStatus.DEAD
+            return LuaReturn.of(false, errorValue)
         }
         if (coroutine.status == CoroutineStatus.RUNNING) {
             if (!isRunningCoroutine(coroutine, runtime)) {
@@ -292,8 +306,20 @@ internal object LuaCoroutineLibrary {
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
         var pendingYield: LuaYieldException? = null,
         val isMain: Boolean = false,
+        var closeError: Any? = null,
+        var hasCloseError: Boolean = false,
     ) : LuaTypedValue {
         override val luaTypeName: String = "thread"
+
+        fun rememberCloseError(errorValue: Any?) {
+            closeError = errorValue
+            hasCloseError = true
+        }
+
+        fun clearCloseError() {
+            closeError = null
+            hasCloseError = false
+        }
     }
 
     private enum class CoroutineStatus {

@@ -4785,13 +4785,19 @@ class LuaStdlibTest {
                     error("boom")
                 end)
                 local ok, message = coroutine.resume(co)
+                local closeOk, closeMessage = coroutine.close(co)
+                local closeAgainOk = coroutine.close(co)
                 local marker = {name = "marker"}
                 local objectCo = coroutine.create(function()
                     error(marker)
                 end)
                 local objectOk, objectError = coroutine.resume(objectCo)
+                local objectCloseOk, objectCloseError = coroutine.close(objectCo)
+                local objectCloseAgainOk = coroutine.close(objectCo)
                 return ok, message, coroutine.status(co),
-                    objectOk, objectError == marker, objectError.name, coroutine.status(objectCo)
+                    closeOk, closeMessage, closeAgainOk,
+                    objectOk, objectError == marker, objectError.name, coroutine.status(objectCo),
+                    objectCloseOk, objectCloseError == marker, objectCloseError.name, objectCloseAgainOk
                 """.trimIndent(),
                 "coroutine-error.lua",
             ),
@@ -4802,9 +4808,16 @@ class LuaStdlibTest {
         assertEquals("coroutine-error.lua:2: boom", state.toString(2))
         assertEquals("dead", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertTrue(state.toBoolean(5))
-        assertEquals("marker", state.toString(6))
-        assertEquals("dead", state.toString(7))
+        assertEquals("coroutine-error.lua:2: boom", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("marker", state.toString(9))
+        assertEquals("dead", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertTrue(state.toBoolean(12))
+        assertEquals("marker", state.toString(13))
+        assertTrue(state.toBoolean(14))
     }
 
     @Test
