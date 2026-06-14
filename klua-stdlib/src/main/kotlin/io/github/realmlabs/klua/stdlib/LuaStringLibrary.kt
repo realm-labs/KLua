@@ -37,17 +37,17 @@ internal object LuaStringLibrary {
     }
 
     private fun stringByte(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "string.byte")
+        val text = requiredString(context, 1, "byte")
         val bytes = text.toByteArray(StandardCharsets.UTF_8)
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
         } else {
-            requiredInteger(context, 2, "string.byte")
+            requiredInteger(context, 2, "byte")
         }
         val end = if (context.isNone(3) || context.isNil(3)) {
             start
         } else {
-            requiredInteger(context, 3, "string.byte")
+            requiredInteger(context, 3, "byte")
         }
         val range = bytes.luaIndexRange(start, end)
         if (range.isEmpty()) {
@@ -59,9 +59,9 @@ internal object LuaStringLibrary {
     private fun stringChar(context: LuaCallContext): LuaReturn {
         val bytes = ByteArray(context.argumentCount)
         for (index in 1..context.argumentCount) {
-            val code = requiredInteger(context, index, "string.char")
+            val code = requiredInteger(context, index, "char")
             if (code !in 0L..255L) {
-                throw LuaRuntimeException("bad argument #$index to 'string.char' (value out of range)")
+                throw LuaRuntimeException("bad argument #$index to 'char' (value out of range)")
             }
             bytes[index - 1] = code.toByte()
         }
@@ -69,7 +69,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringLen(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "string.len").luaByteLength())
+        return LuaReturn.of(requiredString(context, 1, "len").luaByteLength())
     }
 
     private fun stringGsub(context: LuaCallContext): LuaReturn {
@@ -341,7 +341,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringLower(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "string.lower").mapAsciiCase(::lowerAscii))
+        return LuaReturn.of(requiredString(context, 1, "lower").mapAsciiCase(::lowerAscii))
     }
 
     private fun stringMatch(context: LuaCallContext): LuaReturn {
@@ -368,12 +368,12 @@ internal object LuaStringLibrary {
     }
 
     private fun stringRep(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "string.rep")
-        val count = requiredInteger(context, 2, "string.rep")
+        val text = requiredString(context, 1, "rep")
+        val count = requiredInteger(context, 2, "rep")
         val separator = if (context.isNone(3) || context.isNil(3)) {
             ""
         } else {
-            requiredString(context, 3, "string.rep")
+            requiredString(context, 3, "rep")
         }
         if (count <= 0L) {
             return LuaReturn.of("")
@@ -410,22 +410,22 @@ internal object LuaStringLibrary {
     }
 
     private fun stringReverse(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "string.reverse").reversed())
+        return LuaReturn.of(requiredString(context, 1, "reverse").reversed())
     }
 
     private fun stringSub(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "string.sub")
-        val start = requiredInteger(context, 2, "string.sub")
+        val text = requiredString(context, 1, "sub")
+        val start = requiredInteger(context, 2, "sub")
         val end = if (context.isNone(3) || context.isNil(3)) {
             -1L
         } else {
-            requiredInteger(context, 3, "string.sub")
+            requiredInteger(context, 3, "sub")
         }
         return LuaReturn.of(text.substringByLuaByteRange(start, end))
     }
 
     private fun stringUpper(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "string.upper").mapAsciiCase(::upperAscii))
+        return LuaReturn.of(requiredString(context, 1, "upper").mapAsciiCase(::upperAscii))
     }
 
     private fun String.mapAsciiCase(convert: (Char) -> Char): String {

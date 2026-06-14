@@ -9715,7 +9715,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.rep' (number expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'rep' (number expected)", state.toString(-1))
     }
 
     @Test
@@ -9734,17 +9734,17 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return string.sub("abc", "bad")""",
             "string-sub-string-start.lua",
-            "bad argument #2 to 'string.sub' (number expected)",
+            "bad argument #2 to 'sub' (number expected)",
         )
         assertNonNumericIntegerError(
             """return string.byte("abc", "bad")""",
             "string-byte-string-start.lua",
-            "bad argument #2 to 'string.byte' (number expected)",
+            "bad argument #2 to 'byte' (number expected)",
         )
         assertNonNumericIntegerError(
             """return string.char("bad")""",
             "string-char-string.lua",
-            "bad argument #1 to 'string.char' (number expected)",
+            "bad argument #1 to 'char' (number expected)",
         )
         assertNonNumericIntegerError(
             """return string.find("abc", "a", "bad", true)""",
@@ -9784,32 +9784,32 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return string.rep("x", 1.5)""",
             "string-rep-fractional-count.lua",
-            "bad argument #2 to 'string.rep' (number has no integer representation)",
+            "bad argument #2 to 'rep' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.sub("abc", 1.5)""",
             "string-sub-fractional-start.lua",
-            "bad argument #2 to 'string.sub' (number has no integer representation)",
+            "bad argument #2 to 'sub' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.sub("abc", 1, 2.5)""",
             "string-sub-fractional-end.lua",
-            "bad argument #3 to 'string.sub' (number has no integer representation)",
+            "bad argument #3 to 'sub' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.byte("abc", 1.5)""",
             "string-byte-fractional-start.lua",
-            "bad argument #2 to 'string.byte' (number has no integer representation)",
+            "bad argument #2 to 'byte' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.byte("abc", 1, 2.5)""",
             "string-byte-fractional-end.lua",
-            "bad argument #3 to 'string.byte' (number has no integer representation)",
+            "bad argument #3 to 'byte' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.char(65.5)""",
             "string-char-fractional.lua",
-            "bad argument #1 to 'string.char' (number has no integer representation)",
+            "bad argument #1 to 'char' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return string.find("abc", "a", 1.5, true)""",
@@ -9842,7 +9842,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'string.char' (value out of range)", state.toString(-1))
+        assertEquals("bad argument #1 to 'char' (value out of range)", state.toString(-1))
     }
 
     @Test
