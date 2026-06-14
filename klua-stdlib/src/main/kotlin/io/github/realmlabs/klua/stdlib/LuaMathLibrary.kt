@@ -116,15 +116,15 @@ internal object LuaMathLibrary {
         val integerDivisor = integerSubtype(context, 2)
         if (integerDividend != null && integerDivisor != null) {
             if (integerDivisor == 0L) {
-                throw LuaRuntimeException("bad argument #2 to 'math.fmod' (zero)")
+                throw LuaRuntimeException("bad argument #2 to 'fmod' (zero)")
             }
             if (integerDivisor == -1L) {
                 return LuaReturn.of(0L)
             }
             return LuaReturn.of(integerDividend % integerDivisor)
         }
-        val dividend = requiredNumber(context, 1, "math.fmod")
-        val divisor = requiredNumber(context, 2, "math.fmod")
+        val dividend = requiredNumber(context, 1, "fmod")
+        val divisor = requiredNumber(context, 2, "fmod")
         return LuaReturn.of(dividend % divisor)
     }
 
@@ -147,21 +147,21 @@ internal object LuaMathLibrary {
     }
 
     private fun mathLdexp(context: LuaCallContext): LuaReturn {
-        val mantissa = requiredNumber(context, 1, "math.ldexp")
-        val exponent = requiredInteger(context, 2, "math.ldexp").toInt()
+        val mantissa = requiredNumber(context, 1, "ldexp")
+        val exponent = requiredInteger(context, 2, "ldexp").toInt()
         return LuaReturn.of(java.lang.Math.scalb(mantissa, exponent))
     }
 
     private fun mathLog(context: LuaCallContext): LuaReturn {
-        val value = ln(requiredNumber(context, 1, "math.log"))
+        val value = ln(requiredNumber(context, 1, "log"))
         if (context.argumentCount < 2 || context.isNil(2)) {
             return LuaReturn.of(value)
         }
-        return LuaReturn.of(value / ln(requiredNumber(context, 2, "math.log")))
+        return LuaReturn.of(value / ln(requiredNumber(context, 2, "log")))
     }
 
     private fun mathMax(context: LuaCallContext): LuaReturn {
-        requireMathArguments(context, "math.max")
+        requireMathArguments(context, "max")
         var maxIndex = 1
         for (index in 2..context.argumentCount) {
             if (mathLessThan(context, maxIndex, index)) {
@@ -172,7 +172,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathMin(context: LuaCallContext): LuaReturn {
-        requireMathArguments(context, "math.min")
+        requireMathArguments(context, "min")
         var minIndex = 1
         for (index in 2..context.argumentCount) {
             if (mathLessThan(context, index, minIndex)) {
@@ -187,10 +187,10 @@ internal object LuaMathLibrary {
         val leftType = context.typeName(leftIndex)
         val rightType = context.typeName(rightIndex)
         if (leftType == "number" && rightType == "number") {
-            return requiredNumber(context, leftIndex, "math.min") < requiredNumber(context, rightIndex, "math.min")
+            return requiredNumber(context, leftIndex, "min") < requiredNumber(context, rightIndex, "min")
         }
         if (leftType == "string" && rightType == "string") {
-            return requiredString(context, leftIndex, "math.min") < requiredString(context, rightIndex, "math.min")
+            return requiredString(context, leftIndex, "min") < requiredString(context, rightIndex, "min")
         }
         if (leftType == rightType) {
             throw LuaRuntimeException("attempt to compare two $leftType values")
@@ -200,8 +200,8 @@ internal object LuaMathLibrary {
 
     private fun mathMinMaxValue(context: LuaCallContext, index: Int): Any? {
         return when (context.typeName(index)) {
-            "number" -> integerSubtype(context, index) ?: requiredNumber(context, index, "math.min")
-            "string" -> requiredString(context, index, "math.min")
+            "number" -> integerSubtype(context, index) ?: requiredNumber(context, index, "min")
+            "string" -> requiredString(context, index, "min")
             else -> context.getLuaValue(index)
         }
     }
@@ -225,15 +225,15 @@ internal object LuaMathLibrary {
         return when (context.argumentCount) {
             0 -> LuaReturn.of(randomState.random.nextDouble())
             1 -> {
-                val upper = requiredInteger(context, 1, "math.random")
+                val upper = requiredInteger(context, 1, "random")
                 if (upper == 0L) {
                     return LuaReturn.of(randomState.random.nextLong())
                 }
                 LuaReturn.of(randomInteger(randomState, 1L, upper))
             }
             2 -> {
-                val lower = requiredInteger(context, 1, "math.random")
-                val upper = requiredInteger(context, 2, "math.random")
+                val lower = requiredInteger(context, 1, "random")
+                val upper = requiredInteger(context, 2, "random")
                 LuaReturn.of(randomInteger(randomState, lower, upper))
             }
             else -> throw LuaRuntimeException("wrong number of arguments")
@@ -244,11 +244,11 @@ internal object LuaMathLibrary {
         val (firstSeed, secondSeed) = if (context.argumentCount == 0) {
             (System.nanoTime() xor Random().nextLong()) to randomState.random.nextLong()
         } else {
-            val first = requiredInteger(context, 1, "math.randomseed")
+            val first = requiredInteger(context, 1, "randomseed")
             val second = if (context.argumentCount < 2) {
                 0L
             } else {
-                requiredInteger(context, 2, "math.randomseed")
+                requiredInteger(context, 2, "randomseed")
             }
             first to second
         }
@@ -269,7 +269,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathType(context: LuaCallContext): LuaReturn {
-        requireAnyArgument(context, "math.type")
+        requireAnyArgument(context, "type")
         if (context.typeName(1) != "number") {
             return LuaReturn.of(null)
         }
@@ -287,13 +287,13 @@ internal object LuaMathLibrary {
     }
 
     private fun mathToInteger(context: LuaCallContext): LuaReturn {
-        requireAnyArgument(context, "math.tointeger")
+        requireAnyArgument(context, "tointeger")
         return LuaReturn.of(context.toInteger(1))
     }
 
     private fun mathUnsignedLessThan(context: LuaCallContext): LuaReturn {
-        val left = requiredInteger(context, 1, "math.ult")
-        val right = requiredInteger(context, 2, "math.ult")
+        val left = requiredInteger(context, 1, "ult")
+        val right = requiredInteger(context, 2, "ult")
         return LuaReturn.of(java.lang.Long.compareUnsigned(left, right) < 0)
     }
 
@@ -351,7 +351,7 @@ internal object LuaMathLibrary {
 
     private fun randomInteger(randomState: MathRandomState, lower: Long, upper: Long): Long {
         if (lower > upper) {
-            throw LuaRuntimeException("bad argument #1 to 'math.random' (interval is empty)")
+            throw LuaRuntimeException("bad argument #1 to 'random' (interval is empty)")
         }
         val width = upper - lower + 1
         if (width == 0L) {

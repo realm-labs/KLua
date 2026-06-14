@@ -5708,7 +5708,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'math.fmod' (zero)", state.toString(-1))
+        assertEquals("bad argument #2 to 'fmod' (zero)", state.toString(-1))
     }
 
     @Test
@@ -5821,7 +5821,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, ldexpState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(ldexpState.getLastError())
-        assertEquals("bad argument #2 to 'math.ldexp' (number expected)", ldexpState.toString(-1))
+        assertEquals("bad argument #2 to 'ldexp' (number expected)", ldexpState.toString(-1))
 
         val fractionalState = LuaState.create()
         LuaStdlib.openMath(fractionalState)
@@ -5831,7 +5831,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(fractionalState.getLastError())
         assertEquals(
-            "bad argument #2 to 'math.ldexp' (number has no integer representation)",
+            "bad argument #2 to 'ldexp' (number has no integer representation)",
             fractionalState.toString(-1),
         )
     }
@@ -5934,7 +5934,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'math.tointeger' (value expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'tointeger' (value expected)", state.toString(-1))
     }
 
     @Test
@@ -5947,7 +5947,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals(
-            "bad argument #1 to 'math.ult' (number has no integer representation)",
+            "bad argument #1 to 'ult' (number has no integer representation)",
             state.toString(-1),
         )
 
@@ -5959,7 +5959,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(rightState.getLastError())
         assertEquals(
-            "bad argument #2 to 'math.ult' (number has no integer representation)",
+            "bad argument #2 to 'ult' (number has no integer representation)",
             rightState.toString(-1),
         )
 
@@ -5981,9 +5981,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, stringState.pcall(0, -1), stringState.toString(-1))
 
         assertFalse(stringState.toBoolean(1))
-        assertEquals("bad argument #1 to 'math.ult' (number expected)", stringState.toString(2))
+        assertEquals("bad argument #1 to 'ult' (number expected)", stringState.toString(2))
         assertFalse(stringState.toBoolean(3))
-        assertEquals("bad argument #2 to 'math.ult' (number expected)", stringState.toString(4))
+        assertEquals("bad argument #2 to 'ult' (number expected)", stringState.toString(4))
     }
 
     @Test
@@ -6022,7 +6022,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'math.type' (value expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'type' (value expected)", state.toString(-1))
     }
 
     @Test
@@ -6159,7 +6159,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, minState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(minState.getLastError())
-        assertEquals("bad argument #1 to 'math.min' (value expected)", minState.toString(-1))
+        assertEquals("bad argument #1 to 'min' (value expected)", minState.toString(-1))
 
         val maxState = LuaState.create()
         LuaStdlib.openMath(maxState)
@@ -6168,7 +6168,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, maxState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(maxState.getLastError())
-        assertEquals("bad argument #1 to 'math.max' (value expected)", maxState.toString(-1))
+        assertEquals("bad argument #1 to 'max' (value expected)", maxState.toString(-1))
     }
 
     @Test
@@ -6349,7 +6349,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'math.random' (interval is empty)", state.toString(-1))
+        assertEquals("bad argument #1 to 'random' (interval is empty)", state.toString(-1))
     }
 
     @Test
@@ -6362,7 +6362,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals(
-            "bad argument #1 to 'math.random' (number has no integer representation)",
+            "bad argument #1 to 'random' (number has no integer representation)",
             state.toString(-1),
         )
 
@@ -6374,7 +6374,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(upperState.getLastError())
         assertEquals(
-            "bad argument #2 to 'math.random' (number has no integer representation)",
+            "bad argument #2 to 'random' (number has no integer representation)",
             upperState.toString(-1),
         )
 
@@ -6385,7 +6385,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, stringState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(stringState.getLastError())
-        assertEquals("bad argument #1 to 'math.random' (number expected)", stringState.toString(-1))
+        assertEquals("bad argument #1 to 'random' (number expected)", stringState.toString(-1))
     }
 
     @Test
@@ -6445,7 +6445,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals(
-            "bad argument #1 to 'math.randomseed' (number has no integer representation)",
+            "bad argument #1 to 'randomseed' (number has no integer representation)",
             state.toString(-1),
         )
 
@@ -6460,7 +6460,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(secondSeedState.getLastError())
         assertEquals(
-            "bad argument #2 to 'math.randomseed' (number has no integer representation)",
+            "bad argument #2 to 'randomseed' (number has no integer representation)",
             secondSeedState.toString(-1),
         )
 
@@ -6482,9 +6482,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, stringSeedState.pcall(0, -1), stringSeedState.toString(-1))
 
         assertFalse(stringSeedState.toBoolean(1))
-        assertEquals("bad argument #1 to 'math.randomseed' (number expected)", stringSeedState.toString(2))
+        assertEquals("bad argument #1 to 'randomseed' (number expected)", stringSeedState.toString(2))
         assertFalse(stringSeedState.toBoolean(3))
-        assertEquals("bad argument #2 to 'math.randomseed' (number expected)", stringSeedState.toString(4))
+        assertEquals("bad argument #2 to 'randomseed' (number expected)", stringSeedState.toString(4))
     }
 
     @Test
