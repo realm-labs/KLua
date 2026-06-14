@@ -7912,7 +7912,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'math.fmod' (zero)", state.toString(-1))
+        assertEquals("bad argument #2 to 'fmod' (zero)", state.toString(-1))
     }
 
     @Test

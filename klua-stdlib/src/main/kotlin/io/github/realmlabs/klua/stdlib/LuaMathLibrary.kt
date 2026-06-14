@@ -115,7 +115,7 @@ internal object LuaMathLibrary {
         val integerDivisor = integerSubtype(context, 2)
         if (integerDividend != null && integerDivisor != null) {
             if (integerDivisor == 0L) {
-                throw LuaRuntimeException("bad argument #2 to 'math.fmod' (zero)")
+                throw LuaRuntimeException("bad argument #2 to 'fmod' (zero)")
             }
             if (integerDivisor == -1L) {
                 return LuaReturn.of(0L)
