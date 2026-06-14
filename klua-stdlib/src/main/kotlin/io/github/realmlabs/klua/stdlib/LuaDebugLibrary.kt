@@ -83,7 +83,7 @@ internal object LuaDebugLibrary {
                 'S' -> {
                     table["what"] = luaFunctionWhat(frame.lineDefined)
                     table["source"] = frame.sourceName
-                    table["short_src"] = frame.sourceName
+                    table["short_src"] = shortSource(frame.sourceName)
                     table["linedefined"] = frame.lineDefined.toLong()
                     table["lastlinedefined"] = frame.lastLineDefined.toLong()
                 }
@@ -132,7 +132,7 @@ internal object LuaDebugLibrary {
                 'S' -> {
                     table["what"] = luaFunctionWhat(info.lineDefined)
                     table["source"] = info.sourceName
-                    table["short_src"] = info.sourceName
+                    table["short_src"] = shortSource(info.sourceName)
                     table["linedefined"] = info.lineDefined.toLong()
                     table["lastlinedefined"] = info.lastLineDefined.toLong()
                 }
@@ -186,6 +186,31 @@ internal object LuaDebugLibrary {
     }
 
     private fun luaFunctionWhat(lineDefined: Int): String = if (lineDefined == 0) "main" else "Lua"
+
+    private fun shortSource(source: String): String {
+        return when {
+            source.startsWith("=") -> source.drop(1).take(LUA_IDSIZE - 1)
+            source.startsWith("@") -> {
+                val file = source.drop(1)
+                if (source.length <= LUA_IDSIZE) {
+                    file
+                } else {
+                    LUA_SOURCE_RETS + file.takeLast(LUA_IDSIZE - LUA_SOURCE_RETS.length)
+                }
+            }
+            else -> {
+                val firstLine = source.substringBefore('\n')
+                val reserved = LUA_SOURCE_PREFIX.length + LUA_SOURCE_RETS.length + LUA_SOURCE_SUFFIX.length + 1
+                val available = LUA_IDSIZE - reserved
+                val body = if (source.length < available && '\n' !in source) {
+                    source
+                } else {
+                    firstLine.take(available) + LUA_SOURCE_RETS
+                }
+                LUA_SOURCE_PREFIX + body + LUA_SOURCE_SUFFIX
+            }
+        }
+    }
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
         val index = requiredLocalIndex(context, 2, "getlocal")
@@ -500,4 +525,8 @@ internal object LuaDebugLibrary {
     private const val GETINFO_OPTIONS = "flnSrtuL"
     private const val DEFAULT_GETINFO_OPTIONS = "flnSrtu"
     private const val VARARG_LOCAL_NAME = "(vararg)"
+    private const val LUA_IDSIZE = 60
+    private const val LUA_SOURCE_RETS = "..."
+    private const val LUA_SOURCE_PREFIX = "[string \""
+    private const val LUA_SOURCE_SUFFIX = "\"]"
 }
