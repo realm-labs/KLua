@@ -587,22 +587,30 @@ public object LuaStdlib {
         }
         return try {
             val handlerResult = context.call(handlerIndex, listOf(errorObject))
-            LuaReturn.ofValues(listOf(false) + handlerResult.values)
+            LuaReturn.of(false, handlerResult.get(1))
         } catch (yield: LuaYieldException) {
             throw yield.withContinuation { arguments ->
                 protectedCallErrorResume(yield, arguments)
             }
+        } catch (_: LuaException) {
+            LuaReturn.of(false, "error in error handling")
+        } catch (_: RuntimeException) {
+            LuaReturn.of(false, "error in error handling")
         }
     }
 
     private fun protectedCallErrorResume(yield: LuaYieldException, arguments: List<Any?>): LuaReturn {
         return try {
             val handlerResult = yield.continueWith(arguments)
-            LuaReturn.ofValues(listOf(false) + handlerResult.values)
+            LuaReturn.of(false, handlerResult.get(1))
         } catch (nextYield: LuaYieldException) {
             throw nextYield.withContinuation { nextArguments ->
                 protectedCallErrorResume(nextYield, nextArguments)
             }
+        } catch (_: LuaException) {
+            LuaReturn.of(false, "error in error handling")
+        } catch (_: RuntimeException) {
+            LuaReturn.of(false, "error in error handling")
         }
     }
 

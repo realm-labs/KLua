@@ -2985,6 +2985,58 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `xpcall uses only first error handler result`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, first, second, third = xpcall(function()
+                    error("boom")
+                end, function(message)
+                    return "handled", "extra", nil
+                end)
+                return ok, first, second, third
+                """.trimIndent(),
+                "xpcall-handler-results.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("handled", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+    }
+
+    @Test
+    fun `xpcall reports error in error handling when handler fails`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = xpcall(function()
+                    error("body")
+                end, function(original)
+                    error("handler")
+                end)
+                return ok, message
+                """.trimIndent(),
+                "xpcall-handler-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("error in error handling", state.toString(2))
+    }
+
+    @Test
     fun `xpcall can yield and resume inside coroutine`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
