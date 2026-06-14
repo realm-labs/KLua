@@ -187,10 +187,14 @@ internal object LuaTableLibrary {
     }
 
     private fun tableCreate(context: LuaCallContext): LuaReturn {
-        requiredTableCreateSize(context, 1)
-        if (!context.isNone(2) && !context.isNil(2)) {
-            requiredTableCreateSize(context, 2)
+        val sequenceSize = requiredInteger(context, 1, "create")
+        val recordSize = if (context.isNone(2) || context.isNil(2)) {
+            0L
+        } else {
+            requiredInteger(context, 2, "create")
         }
+        checkTableCreateSize(sequenceSize, 1)
+        checkTableCreateSize(recordSize, 2)
         return LuaReturn.of(linkedMapOf<Any, Any?>())
     }
 
@@ -502,12 +506,10 @@ internal object LuaTableLibrary {
             }
     }
 
-    private fun requiredTableCreateSize(context: LuaCallContext, index: Int): Long {
-        val value = requiredInteger(context, index, "create")
+    private fun checkTableCreateSize(value: Long, index: Int) {
         if (value < 0 || value > Int.MAX_VALUE) {
             throw LuaRuntimeException("bad argument #$index to 'create' (out of range)")
         }
-        return value
     }
 
     private fun luaInteger(value: Any?): Long? {

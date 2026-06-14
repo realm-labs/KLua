@@ -10411,6 +10411,24 @@ class LuaStdlibTest {
             recordState.toString(-1),
         )
 
+        val invalidRecordBeforeSequenceRangeState = LuaState.create()
+        LuaStdlib.openTable(invalidRecordBeforeSequenceRangeState)
+
+        assertEquals(
+            LuaStatus.OK,
+            invalidRecordBeforeSequenceRangeState.load(
+                """return table.create(-1, "bad")""",
+                "table-create-record-type-before-seq-range-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, invalidRecordBeforeSequenceRangeState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(invalidRecordBeforeSequenceRangeState.getLastError())
+        assertEquals(
+            "bad argument #2 to 'create' (number expected)",
+            invalidRecordBeforeSequenceRangeState.toString(-1),
+        )
+
         val largeSequenceState = LuaState.create()
         LuaStdlib.openTable(largeSequenceState)
 
