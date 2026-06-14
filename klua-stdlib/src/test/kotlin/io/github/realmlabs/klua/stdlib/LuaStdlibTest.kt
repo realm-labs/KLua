@@ -11851,6 +11851,7 @@ class LuaStdlibTest {
     @Test
     fun `utf8 codes returns codepoint iterator`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openUtf8(state)
 
         assertEquals(
@@ -11863,10 +11864,11 @@ class LuaStdlibTest {
                 local secondIndex, secondCode = iterator(stateValue, firstIndex)
                 local thirdIndex, thirdCode = iterator(stateValue, secondIndex)
                 local done = iterator(stateValue, thirdIndex)
+                local doneCount = select("#", iterator(stateValue, thirdIndex))
                 local nilControlIndex, nilControlCode = iterator(stateValue, nil)
                 local badControlIndex, badControlCode = iterator(stateValue, "bad")
                 return firstIndex, firstCode, firstAgainIndex, firstAgainCode,
-                    secondIndex, secondCode, thirdIndex, thirdCode, done,
+                    secondIndex, secondCode, thirdIndex, thirdCode, done, doneCount,
                     nilControlIndex, nilControlCode, badControlIndex, badControlCode
                 """.trimIndent(),
                 "utf8-codes.lua",
@@ -11883,10 +11885,11 @@ class LuaStdlibTest {
         assertEquals(6L, state.toInteger(7))
         assertEquals(90L, state.toInteger(8))
         assertTrue(state.isNil(9))
-        assertEquals(1L, state.toInteger(10))
-        assertEquals(65L, state.toInteger(11))
-        assertEquals(1L, state.toInteger(12))
-        assertEquals(65L, state.toInteger(13))
+        assertEquals(0L, state.toInteger(10))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals(65L, state.toInteger(12))
+        assertEquals(1L, state.toInteger(13))
+        assertEquals(65L, state.toInteger(14))
     }
 
     @Test

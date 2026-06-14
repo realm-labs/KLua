@@ -63,7 +63,7 @@ internal object LuaUtf8Library {
         val codePoints = text.codePoints().toArray()
         val byteOffsets = utf8ByteOffsets(codePoints)
         val control = context.toInteger(2) ?: 0L
-        val nextIndex = nextCodePointIndex(byteOffsets, control) ?: return LuaReturn.of(null)
+        val nextIndex = nextCodePointIndex(byteOffsets, control) ?: return LuaReturn.none()
         return LuaReturn.of(byteOffsets[nextIndex], codePoints[nextIndex].toLong())
     }
 
