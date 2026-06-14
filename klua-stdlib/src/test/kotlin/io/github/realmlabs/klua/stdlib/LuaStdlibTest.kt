@@ -10237,17 +10237,17 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return table.move({}, "bad", 1, 1)""",
             "table-move-string-first.lua",
-            "bad argument #2 to 'table.move' (number expected)",
+            "bad argument #2 to 'move' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.move({}, 1, "bad", 1)""",
             "table-move-string-last.lua",
-            "bad argument #3 to 'table.move' (number expected)",
+            "bad argument #3 to 'move' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.move({}, 1, 1, "bad")""",
             "table-move-string-target.lua",
-            "bad argument #4 to 'table.move' (number expected)",
+            "bad argument #4 to 'move' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.remove({}, "bad")""",
@@ -10307,17 +10307,17 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return table.move({}, 1.5, 1, 1)""",
             "table-move-fractional-first.lua",
-            "bad argument #2 to 'table.move' (number has no integer representation)",
+            "bad argument #2 to 'move' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.move({}, 1, 1.5, 1)""",
             "table-move-fractional-last.lua",
-            "bad argument #3 to 'table.move' (number has no integer representation)",
+            "bad argument #3 to 'move' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.move({}, 1, 1, 1.5)""",
             "table-move-fractional-target.lua",
-            "bad argument #4 to 'table.move' (number has no integer representation)",
+            "bad argument #4 to 'move' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.remove({}, 1.5)""",
@@ -10735,13 +10735,26 @@ class LuaStdlibTest {
     @Test
     fun `table move reports argument errors`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openTable(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return table.move({}, 1, 1, 1, "not-table")""", "table-move-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local sourceOk, sourceMessage = pcall(table.move, "not-table", 1, 1, 1)
+                local destinationOk, destinationMessage = pcall(table.move, {}, 1, 1, 1, "not-table")
+                return sourceOk, sourceMessage, destinationOk, destinationMessage
+                """.trimIndent(),
+                "table-move-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #5 to 'table.move' (table expected)", state.toString(-1))
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'move' (table expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #5 to 'move' (table expected)", state.toString(4))
     }
 
     @Test
@@ -10757,7 +10770,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'table.move' (too many elements to move)", state.toString(-1))
+        assertEquals("bad argument #3 to 'move' (too many elements to move)", state.toString(-1))
     }
 
     @Test
@@ -10773,7 +10786,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #4 to 'table.move' (destination wrap around)", state.toString(-1))
+        assertEquals("bad argument #4 to 'move' (destination wrap around)", state.toString(-1))
     }
 
     @Test

@@ -234,16 +234,16 @@ internal object LuaTableLibrary {
 
     private fun tableMove(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'table.move' (table expected)")
+            throw LuaRuntimeException("bad argument #1 to 'move' (table expected)")
         }
-        val first = requiredInteger(context, 2, "table.move")
-        val last = requiredInteger(context, 3, "table.move")
-        val target = requiredInteger(context, 4, "table.move")
+        val first = requiredInteger(context, 2, "move")
+        val last = requiredInteger(context, 3, "move")
+        val target = requiredInteger(context, 4, "move")
         val destinationIndex = if (context.isNone(5) || context.isNil(5)) {
             1
         } else {
             if (!context.isTable(5)) {
-                throw LuaRuntimeException("bad argument #5 to 'table.move' (table expected)")
+                throw LuaRuntimeException("bad argument #5 to 'move' (table expected)")
             }
             5
         }
@@ -276,12 +276,12 @@ internal object LuaTableLibrary {
         val span = try {
             java.lang.Math.subtractExact(last, first)
         } catch (_: ArithmeticException) {
-            throw LuaRuntimeException("bad argument #3 to 'table.move' (too many elements to move)")
+            throw LuaRuntimeException("bad argument #3 to 'move' (too many elements to move)")
         }
         return try {
             java.lang.Math.addExact(span, 1L)
         } catch (_: ArithmeticException) {
-            throw LuaRuntimeException("bad argument #3 to 'table.move' (too many elements to move)")
+            throw LuaRuntimeException("bad argument #3 to 'move' (too many elements to move)")
         }
     }
 
@@ -290,7 +290,7 @@ internal object LuaTableLibrary {
         return try {
             java.lang.Math.addExact(target, offset)
         } catch (_: ArithmeticException) {
-            throw LuaRuntimeException("bad argument #4 to 'table.move' (destination wrap around)")
+            throw LuaRuntimeException("bad argument #4 to 'move' (destination wrap around)")
         }
     }
 
