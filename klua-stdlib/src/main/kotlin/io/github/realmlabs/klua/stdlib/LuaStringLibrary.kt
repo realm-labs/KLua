@@ -16,6 +16,7 @@ internal object LuaStringLibrary {
     private const val FORMAT_CONVERSIONS = "diouxXfFeEgGcaApqs"
     private const val FORMAT_FLAGS = "-+ #0"
     private const val FORMAT_SPECIFIER_PREFIX = "$FORMAT_FLAGS.123456789"
+    private const val MAX_FORMAT_SPECIFIER_LENGTH = 22
     private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
     private const val GSUB_REPLACEMENT_EXPECTED_TYPE = "string/function/table"
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
@@ -334,6 +335,9 @@ internal object LuaStringLibrary {
             }
             if (argument > context.argumentCount) {
                 throw LuaRuntimeException("bad argument #$argument to 'format' (no value)")
+            }
+            if (specifier.length > MAX_FORMAT_SPECIFIER_LENGTH) {
+                throw LuaRuntimeException("invalid format (too long)")
             }
             if (cursor >= format.length) {
                 throw invalidFormatConversion(specifier)

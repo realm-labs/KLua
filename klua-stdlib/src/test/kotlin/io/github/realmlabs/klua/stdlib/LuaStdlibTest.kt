@@ -10113,6 +10113,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format rejects overlong conversion specifications`() {
+        val validState = LuaState.create()
+        LuaStdlib.openString(validState)
+
+        assertEquals(
+            LuaStatus.OK,
+            validState.load("""return string.format("%" .. string.rep("-", 20) .. "d", 12)""", "string-format-max-spec.lua"),
+        )
+        assertEquals(LuaStatus.OK, validState.pcall(0, -1), validState.toString(-1))
+        assertEquals("12", validState.toString(1))
+
+        val overlongState = LuaState.create()
+        LuaStdlib.openString(overlongState)
+
+        assertEquals(
+            LuaStatus.OK,
+            overlongState.load("""return string.format("%" .. string.rep("-", 21) .. "d", 12)""", "string-format-overlong-spec-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, overlongState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(overlongState.getLastError())
+        assertEquals("invalid format (too long)", overlongState.toString(-1))
+    }
+
+    @Test
     fun `string format preserves zeros for unmodified string conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
