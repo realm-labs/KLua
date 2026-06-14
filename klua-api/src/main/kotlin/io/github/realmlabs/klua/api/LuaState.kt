@@ -27,6 +27,7 @@ class LuaState private constructor(
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
     private val userValues = IdentityHashMap<Any, LuaStackValue>()
+    private val userMetatables = IdentityHashMap<Any, LuaStackValue.TableValue>()
     private val coreBackedNativeGlobals = mutableSetOf<String>()
     private var lastError: LuaException? = null
 
@@ -1436,8 +1437,16 @@ class LuaState private constructor(
         }
 
         override fun getRawMetatable(index: Int): Any? {
-            return when (valueAt(index)) {
+            return when (val value = valueAt(index)) {
                 is LuaStackValue.TableValue -> getMetatable(index)
+                is LuaStackValue.UserDataValue -> {
+                    val typeName = stackTypeName(value)
+                    if (typeName in RAW_TYPE_METATABLE_TYPES) {
+                        KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, typeName)?.toStackValue()
+                    } else {
+                        userMetatables[value.value]
+                    }
+                }
                 else -> {
                     val typeName = typeName(index)
                     if (typeName in RAW_TYPE_METATABLE_TYPES) {
@@ -1465,8 +1474,16 @@ class LuaState private constructor(
         }
 
         override fun setRawMetatable(index: Int, metatable: Any?) {
-            when (valueAt(index)) {
+            when (val value = valueAt(index)) {
                 is LuaStackValue.TableValue -> setMetatable(index, metatable)
+                is LuaStackValue.UserDataValue -> {
+                    val typeName = stackTypeName(value)
+                    if (typeName in RAW_TYPE_METATABLE_TYPES) {
+                        KLuaCoreRuntime.setRawTypeMetatable(coreGlobals, typeName, metatable.toCoreMetatable())
+                    } else {
+                        setUserDataMetatable(value, metatable)
+                    }
+                }
                 else -> {
                     val typeName = typeName(index)
                     if (typeName !in RAW_TYPE_METATABLE_TYPES) {
@@ -1474,6 +1491,14 @@ class LuaState private constructor(
                     }
                     KLuaCoreRuntime.setRawTypeMetatable(coreGlobals, typeName, metatable.toCoreMetatable())
                 }
+            }
+        }
+
+        private fun setUserDataMetatable(userData: LuaStackValue.UserDataValue, metatable: Any?) {
+            when (val stackMetatable = metatable.toStackValue()) {
+                LuaStackValue.Nil -> userMetatables.remove(userData.value)
+                is LuaStackValue.TableValue -> userMetatables[userData.value] = stackMetatable
+                else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
             }
         }
 

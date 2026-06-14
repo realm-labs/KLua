@@ -5257,6 +5257,44 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setmetatable stores host userdata metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("host"))
+        state.setGlobal("host")
+        state.pushUserData(DebugHostObject("other"))
+        state.setGlobal("other")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local metatable = {marker = "set"}
+                local returned = debug.setmetatable(host, metatable)
+                local hostMetatable = debug.getmetatable(host)
+                local otherMetatable = debug.getmetatable(other)
+                local cleared = debug.setmetatable(host, nil)
+                return returned == host,
+                    hostMetatable == metatable,
+                    hostMetatable.marker,
+                    otherMetatable,
+                    cleared == host,
+                    debug.getmetatable(host)
+                """.trimIndent(),
+                "debug-userdata-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("set", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `debug uservalue functions report lua style argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
