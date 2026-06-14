@@ -70,6 +70,16 @@ internal object LuaTableLibrary {
             context.getTableField(metatable, "__len") != null
     }
 
+    private fun isReadWriteLengthTableLike(context: LuaCallContext, index: Int): Boolean {
+        if (context.isTable(index)) {
+            return true
+        }
+        val metatable = context.getRawMetatable(index) ?: return false
+        return context.getTableField(metatable, "__index") != null &&
+            context.getTableField(metatable, "__newindex") != null &&
+            context.getTableField(metatable, "__len") != null
+    }
+
     private fun tableConcatLength(context: LuaCallContext, index: Int): Long {
         if (context.typeName(index) == "string") {
             return requiredString(context, index, "concat").toByteArray(StandardCharsets.UTF_8).size.toLong()
@@ -170,37 +180,49 @@ internal object LuaTableLibrary {
     }
 
     private fun tableSetValue(context: LuaCallContext, tableIndex: Int, key: Any?, value: Any?) {
-        tableSetValue(context, context.getTable(tableIndex), key, value, identitySet())
+        tableSetValue(
+            context,
+            receiver = context.getLuaValue(tableIndex),
+            metatable = if (context.isTable(tableIndex)) {
+                context.getMetatable(tableIndex)
+            } else {
+                context.getRawMetatable(tableIndex)
+            },
+            key = key,
+            value = value,
+            visited = identitySet(),
+        )
     }
 
     private fun tableSetValue(
         context: LuaCallContext,
-        table: Any?,
+        receiver: Any?,
+        metatable: Any?,
         key: Any?,
         value: Any?,
         visited: MutableSet<Any>,
     ) {
-        if (table != null && !visited.add(table)) {
+        if (receiver != null && !visited.add(receiver)) {
             throw LuaRuntimeException("'__newindex' chain too long; possible loop")
         }
-        if (context.getTableField(table, key) != null) {
-            context.setTableField(table, key, value)
+        if (context.getTableField(receiver, key) != null) {
+            context.setTableField(receiver, key, value)
             return
         }
 
-        val newIndex = context.getTableField(context.getTableMetatable(table), "__newindex")
+        val newIndex = context.getTableField(metatable, "__newindex")
         if (newIndex == null) {
-            context.setTableField(table, key, value)
+            context.setTableField(receiver, key, value)
             return
         }
 
         if (context.isTableValue(newIndex)) {
-            tableSetValue(context, newIndex, key, value, visited)
+            tableSetValue(context, newIndex, context.getTableMetatable(newIndex), key, value, visited)
             return
         }
 
         if (context.isFunctionValue(newIndex)) {
-            context.call(newIndex, listOf(table, key, value))
+            context.call(newIndex, listOf(receiver, key, value))
             return
         }
 
@@ -236,7 +258,7 @@ internal object LuaTableLibrary {
     }
 
     private fun tableInsert(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
+        if (!isReadWriteLengthTableLike(context, 1)) {
             throw LuaRuntimeException("bad argument #1 to 'insert' (table expected)")
         }
         val length = tableLength(context, 1)
@@ -359,7 +381,7 @@ internal object LuaTableLibrary {
     }
 
     private fun tableRemove(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
+        if (!isReadWriteLengthTableLike(context, 1)) {
             throw LuaRuntimeException("bad argument #1 to 'remove' (table expected)")
         }
         val length = tableLength(context, 1)

@@ -12155,6 +12155,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert accepts primitive values with table-like metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable(0)
+                local values = { "a", "b" }
+                local len = 2
+                debug.setmetatable(0, {
+                    __len = function()
+                        return len
+                    end,
+                    __index = function(_, index)
+                        return values[index]
+                    end,
+                    __newindex = function(_, index, value)
+                        values[index] = value
+                        if value ~= nil and index > len then
+                            len = index
+                        end
+                    end,
+                })
+                table.insert(7, "c")
+                table.insert(7, 2, "x")
+                debug.setmetatable(0, original)
+                return values[1], values[2], values[3], values[4], len
+                """.trimIndent(),
+                "table-insert-primitive-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("x", state.toString(2))
+        assertEquals("b", state.toString(3))
+        assertEquals("c", state.toString(4))
+        assertEquals(4L, state.toInteger(5))
+    }
+
+    @Test
     fun `table insert reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
@@ -12646,6 +12689,48 @@ class LuaStdlibTest {
         assertEquals("2:nil", state.toString(4))
         assertTrue(state.isNil(5))
         assertTrue(state.isNil(6))
+    }
+
+    @Test
+    fun `table remove accepts primitive values with table-like metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable(0)
+                local values = { "a", "b", "c" }
+                local len = 3
+                debug.setmetatable(0, {
+                    __len = function()
+                        return len
+                    end,
+                    __index = function(_, index)
+                        return values[index]
+                    end,
+                    __newindex = function(_, index, value)
+                        values[index] = value
+                        if value == nil and index == len then
+                            len = len - 1
+                        end
+                    end,
+                })
+                local removed = table.remove(7, 2)
+                debug.setmetatable(0, original)
+                return removed, values[1], values[2], values[3], len
+                """.trimIndent(),
+                "table-remove-primitive-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("b", state.toString(1))
+        assertEquals("a", state.toString(2))
+        assertEquals("c", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals(2L, state.toInteger(5))
     }
 
     @Test
