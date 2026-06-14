@@ -308,6 +308,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun getMetatable(context: LuaCallContext): LuaReturn {
+        requireValueArgument(context, 1, "debug.getmetatable")
         if (!context.isTable(1)) {
             return LuaReturn.of(null)
         }
@@ -431,8 +432,8 @@ internal object LuaDebugLibrary {
             return klua_debug_upvaluejoin(func1, index1, func2, index2)
         end
 
-        function debug.getmetatable(value)
-            return klua_debug_getmetatable(value)
+        function debug.getmetatable(...)
+            return klua_debug_getmetatable(...)
         end
 
         function debug.setmetatable(value, metatable)

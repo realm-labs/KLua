@@ -4119,6 +4119,29 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getmetatable reports missing argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okMissing, missingMessage = pcall(debug.getmetatable)
+                local nilMetatable = debug.getmetatable(nil)
+                return okMissing, missingMessage, nilMetatable
+                """.trimIndent(),
+                "debug-getmetatable-missing-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'debug.getmetatable' (value expected)", state.toString(2))
+        assertTrue(state.isNil(3))
+    }
+
+    @Test
     fun `debug getregistry returns stable mutable registry table`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
