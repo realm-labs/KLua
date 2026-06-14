@@ -93,10 +93,11 @@ internal class Parser private constructor(
 
         val names = mutableListOf<String>()
         val attributes = mutableListOf<LocalAttribute>()
+        val defaultAttribute = localAttribute(LocalAttribute.NONE)
         do {
             val name = consume(TokenKind.IDENTIFIER, "expected local variable name")
             names += name.literal as String
-            attributes += localAttribute()
+            attributes += localAttribute(defaultAttribute)
         } while (match(TokenKind.COMMA))
 
         val values = if (match(TokenKind.ASSIGN)) expressionList() else emptyList()
@@ -104,9 +105,9 @@ internal class Parser private constructor(
         return LocalStatement(names, attributes, values, SourceRange(start.range.start, end))
     }
 
-    private fun localAttribute(): LocalAttribute {
+    private fun localAttribute(default: LocalAttribute): LocalAttribute {
         if (!match(TokenKind.LESS)) {
-            return LocalAttribute.NONE
+            return default
         }
 
         val attribute = consume(TokenKind.IDENTIFIER, "expected local attribute name")

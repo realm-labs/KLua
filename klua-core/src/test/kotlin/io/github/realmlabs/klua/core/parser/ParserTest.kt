@@ -83,6 +83,15 @@ class ParserTest {
     }
 
     @Test
+    fun `parses prefixed local variable attributes as defaults`() {
+        val chunk = Parser.parse("local <const> x, y, z <close> = 1, 2, 3")
+
+        val local = assertIs<LocalStatement>(chunk.statements.single())
+        assertEquals(listOf("x", "y", "z"), local.names)
+        assertEquals(listOf(LocalAttribute.CONST, LocalAttribute.CONST, LocalAttribute.CLOSE), local.attributes)
+    }
+
+    @Test
     fun `parses if elseif else blocks`() {
         val chunk = Parser.parse(
             """

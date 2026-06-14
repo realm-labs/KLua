@@ -212,6 +212,20 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes prefixed const local reads`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local <const> x, y = 20, 22
+                return x + y
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `executes staged multi assignment`() {
         val result = LuaVm().execute(
             Compiler.compile(

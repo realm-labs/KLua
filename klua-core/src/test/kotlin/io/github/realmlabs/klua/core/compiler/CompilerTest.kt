@@ -447,6 +447,21 @@ class CompilerTest {
     }
 
     @Test
+    fun `rejects reassignment to prefixed const local defaults`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local <const> x, y = 1, 2
+                y = 3
+                """.trimIndent(),
+                "prefixed-const-local.lua",
+            )
+        }
+
+        assertEquals("prefixed-const-local.lua:2:1: attempt to assign to const local 'y'", error.message)
+    }
+
+    @Test
     fun `rejects reassignment to captured const local`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile(
@@ -470,6 +485,15 @@ class CompilerTest {
         }
 
         assertEquals("close-local.lua:1:1: to-be-closed local variables are not supported", error.message)
+    }
+
+    @Test
+    fun `rejects prefixed to be closed locals until close semantics exist`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("""local <close> resource = {}""", "prefixed-close-local.lua")
+        }
+
+        assertEquals("prefixed-close-local.lua:1:1: to-be-closed local variables are not supported", error.message)
     }
 
     @Test
