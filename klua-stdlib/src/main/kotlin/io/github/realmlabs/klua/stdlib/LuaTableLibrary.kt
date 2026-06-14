@@ -419,7 +419,7 @@ internal object LuaTableLibrary {
     }
 
     private fun tableSort(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
+        if (!isReadWriteLengthTableLike(context, 1)) {
             throw LuaRuntimeException("bad argument #1 to 'sort' (table expected)")
         }
         val length = tableLength(context, 1)

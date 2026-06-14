@@ -13124,6 +13124,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort accepts primitive values with table-like metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable(0)
+                local values = { 3, 1, 2 }
+                debug.setmetatable(0, {
+                    __len = function()
+                        return 3
+                    end,
+                    __index = function(_, index)
+                        return values[index]
+                    end,
+                    __newindex = function(_, index, value)
+                        values[index] = value
+                    end,
+                })
+                table.sort(7)
+                debug.setmetatable(0, original)
+                return values[1], values[2], values[3]
+                """.trimIndent(),
+                "table-sort-primitive-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(3L, state.toInteger(3))
+    }
+
+    @Test
     fun `table sort follows table newindex metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
