@@ -59,7 +59,7 @@ class LuaThreadTest {
 
         assertEquals(LuaInteger(10), frame.stack.get(0))
         assertEquals(LuaInteger(20), frame.stack.get(1))
-        assertEquals(listOf(LuaInteger(30)), frame.varargs)
+        assertEquals(listOf<LuaValue>(LuaInteger(30)), frame.varargs)
     }
 
     @Test
@@ -73,7 +73,7 @@ class LuaThreadTest {
 
         assertEquals(LuaInteger(10), frame.stack.get(0))
         assertEquals(LuaNil, frame.stack.get(1))
-        assertEquals(emptyList(), frame.varargs)
+        assertEquals(emptyList<LuaValue>(), frame.varargs)
     }
 
     @Test

@@ -8,7 +8,7 @@ internal data class CallFrame(
     val prototype: Prototype,
     val function: LuaValue,
     val stack: LuaStack,
-    val varargs: List<LuaValue> = emptyList(),
+    val varargs: MutableList<LuaValue> = mutableListOf(),
     val upvalues: List<LuaUpvalue> = emptyList(),
     var pc: Int = 0,
     var openResultBase: Int = 0,

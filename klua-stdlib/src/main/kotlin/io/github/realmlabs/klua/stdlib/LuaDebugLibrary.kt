@@ -200,7 +200,11 @@ internal object LuaDebugLibrary {
         }
         val frame = context.luaFrames.drop(level).firstOrNull()
             ?: throw LuaRuntimeException("bad argument #1 to 'getlocal' (level out of range)")
-        if (index <= 0) {
+        if (index < 0) {
+            val vararg = frame.varargs.getOrNull(-index - 1) ?: return LuaReturn.of(null)
+            return LuaReturn.of(VARARG_LOCAL_NAME, vararg)
+        }
+        if (index == 0) {
             return LuaReturn.of(null)
         }
         val local = frame.locals.getOrNull(index - 1) ?: return LuaReturn.of(null)
@@ -216,7 +220,7 @@ internal object LuaDebugLibrary {
         context.luaFrames.drop(level).firstOrNull()
             ?: throw LuaRuntimeException("bad argument #1 to 'setlocal' (level out of range)")
         requireValueArgument(context, 3, "setlocal")
-        if (index <= 0) {
+        if (index == 0) {
             return LuaReturn.of(null)
         }
         return LuaReturn.of(context.setLocal(level, index, context.get(3)))
@@ -489,4 +493,5 @@ internal object LuaDebugLibrary {
 
     private const val GETINFO_OPTIONS = "flnSrtuL"
     private const val DEFAULT_GETINFO_OPTIONS = "flnSrtu"
+    private const val VARARG_LOCAL_NAME = "(vararg)"
 }

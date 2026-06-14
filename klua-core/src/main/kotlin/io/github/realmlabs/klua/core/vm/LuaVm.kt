@@ -402,26 +402,38 @@ internal class LuaVm(
                 null
             } else {
                 LuaNativeStackFrame(
-                    frame.prototype.sourceName,
-                    line,
-                    frame.prototype.lineDefined,
-                    frame.prototype.lastLineDefined,
-                    frame.prototype.upvalues.size,
-                    frame.prototype.numParams,
-                    frame.prototype.isVararg,
-                    frame.prototype.validBreakpointLines.toList(),
-                    frame.function,
-                    activeLocals(frame, pc),
+                    sourceName = frame.prototype.sourceName,
+                    line = line,
+                    lineDefined = frame.prototype.lineDefined,
+                    lastLineDefined = frame.prototype.lastLineDefined,
+                    upvalueCount = frame.prototype.upvalues.size,
+                    parameterCount = frame.prototype.numParams,
+                    isVararg = frame.prototype.isVararg,
+                    activeLines = frame.prototype.validBreakpointLines.toList(),
+                    function = frame.function,
+                    varargs = frame.varargs.toList(),
+                    locals = activeLocals(frame, pc),
                 )
             }
         }
     }
 
     private fun setLocal(frames: List<CallFrame>, level: Int, index: Int, value: LuaValue): String? {
-        if (level < 0 || index <= 0) {
+        if (level < 0) {
             return null
         }
         val frame = frames.drop(level).firstOrNull() ?: return null
+        if (index < 0) {
+            val varargIndex = -index - 1
+            if (varargIndex !in frame.varargs.indices) {
+                return null
+            }
+            frame.varargs[varargIndex] = value
+            return VARARG_LOCAL_NAME
+        }
+        if (index == 0) {
+            return null
+        }
         val pc = (frame.pc - 1).coerceAtLeast(0)
         val local = frame.prototype.localVars
             .filter { info -> info.startPc <= pc && pc < info.endPc }
@@ -1341,6 +1353,7 @@ private val MOD_KEY = LuaString("__mod")
 private val POW_KEY = LuaString("__pow")
 private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 200
+private const val VARARG_LOCAL_NAME = "(vararg)"
 
 private data class DebugHookState(
     val function: LuaValue,

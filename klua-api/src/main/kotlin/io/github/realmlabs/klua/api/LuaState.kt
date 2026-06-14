@@ -1144,6 +1144,7 @@ class LuaState private constructor(
                 isVararg = frame.isVararg,
                 activeLines = frame.activeLines,
                 function = frame.function?.toStackValue()?.toPublicCallReturnValue(),
+                varargs = frame.varargs.map { value -> value.toStackValue().toPublicCallReturnValue() },
                 locals = frame.locals.map { local ->
                     LuaLocalVariable(
                         local.name,

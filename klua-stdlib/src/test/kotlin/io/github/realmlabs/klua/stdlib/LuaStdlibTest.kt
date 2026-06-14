@@ -1065,6 +1065,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal returns active varargs by negative index`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf(fixed, ...)
+                    local n1, v1 = debug.getlocal(1, -1)
+                    local n2, v2 = debug.getlocal(1, -2)
+                    local missingName, missingValue = debug.getlocal(1, -3)
+                    return n1, v1, n2, v2, missingName, missingValue
+                end
+
+                return leaf("fixed", "left", "right")
+                """.trimIndent(),
+                "debug-getlocal-varargs.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("(vararg)", state.toString(1))
+        assertEquals("left", state.toString(2))
+        assertEquals("(vararg)", state.toString(3))
+        assertEquals("right", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `debug getlocal reports out of range stack levels`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -1219,6 +1250,37 @@ class LuaStdlibTest {
         assertTrue(state.isNil(3))
         assertEquals(99L, state.toInteger(4))
         assertEquals("new", state.toString(5))
+    }
+
+    @Test
+    fun `debug setlocal mutates active varargs by negative index`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf(...)
+                    local n1 = debug.setlocal(1, -1, "new-left")
+                    local n2 = debug.setlocal(1, -2, false)
+                    local missing = debug.setlocal(1, -3, "ignored")
+                    local first, second = ...
+                    return n1, first, n2, second, missing
+                end
+
+                return leaf("left", "right")
+                """.trimIndent(),
+                "debug-setlocal-varargs.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("(vararg)", state.toString(1))
+        assertEquals("new-left", state.toString(2))
+        assertEquals("(vararg)", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(state.isNil(5))
     }
 
     @Test

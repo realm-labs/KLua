@@ -30,9 +30,9 @@ internal class LuaThread {
             stack.set(index, arguments.getOrElse(index) { LuaNil })
         }
         val varargs = if (prototype.isVararg) {
-            arguments.drop(prototype.numParams)
+            arguments.drop(prototype.numParams).toMutableList()
         } else {
-            emptyList()
+            mutableListOf()
         }
         val frame = CallFrame(prototype, function, stack, varargs, upvalues)
         pushFrame(frame)
