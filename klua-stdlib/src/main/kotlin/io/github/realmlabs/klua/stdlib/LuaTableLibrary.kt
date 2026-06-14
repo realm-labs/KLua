@@ -240,13 +240,13 @@ internal object LuaTableLibrary {
         val sourceIsTable = context.isTable(1)
         val sourceIsReadableString = hasDestination && context.typeName(1) == "string"
         if (!sourceIsTable && !sourceIsReadableString) {
-            throw LuaRuntimeException("bad argument #1 to 'table.move' (table expected)")
+            throw LuaRuntimeException("bad argument #1 to 'move' (table expected)")
         }
         val destinationIndex = if (!hasDestination) {
             1
         } else {
             if (!context.isTable(5)) {
-                throw LuaRuntimeException("bad argument #5 to 'table.move' (table expected)")
+                throw LuaRuntimeException("bad argument #5 to 'move' (table expected)")
             }
             5
         }

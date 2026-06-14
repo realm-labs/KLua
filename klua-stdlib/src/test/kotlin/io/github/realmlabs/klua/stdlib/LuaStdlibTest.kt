@@ -10870,9 +10870,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'table.move' (table expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'move' (table expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #5 to 'table.move' (table expected)", state.toString(4))
+        assertEquals("bad argument #5 to 'move' (table expected)", state.toString(4))
     }
 
     @Test
