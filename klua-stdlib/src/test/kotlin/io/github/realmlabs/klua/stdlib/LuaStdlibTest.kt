@@ -2960,6 +2960,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `select follows luaB_select string integer and boundary rules`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local fromString = select("2", "a", "b", "c")
+                local count = select("#", nil, false, "x")
+                local okNegative, negativeMessage = pcall(select, -3, "a")
+                local okMissing, missingMessage = pcall(select)
+                local okNil, nilMessage = pcall(select, nil, "a")
+                return fromString, count, okNegative, negativeMessage, okMissing, missingMessage, okNil, nilMessage
+                """.trimIndent(),
+                "select-luab-select-edges.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("b", state.toString(1))
+        assertEquals(3L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'select' (index out of range)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'select' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'select' (number expected)", state.toString(8))
+    }
+
+    @Test
     fun `select preserves table values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
