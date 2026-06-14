@@ -282,10 +282,19 @@ public object LuaStdlib {
 
     private fun loadfile(context: LuaCallContext): LuaReturn {
         val mode = loadMode(context, 2, "loadfile")
+        return loadFile(context, "loadfile", mode, environmentIndex = 3)
+    }
+
+    private fun loadFile(
+        context: LuaCallContext,
+        functionName: String,
+        mode: String,
+        environmentIndex: Int?,
+    ): LuaReturn {
         val filename = if (context.isNone(1) || context.isNil(1)) {
             null
         } else {
-            requiredString(context, 1, "loadfile")
+            requiredString(context, 1, functionName)
         }
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
@@ -299,7 +308,11 @@ public object LuaStdlib {
         } catch (error: IOException) {
             return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
         }
-        val environment = optionalLoadEnvironment(context, 3)
+        val environment = if (environmentIndex == null) {
+            LoadEnvironment(null, provided = false)
+        } else {
+            optionalLoadEnvironment(context, environmentIndex)
+        }
         return context.load(source, filename ?: "=stdin", environment.value, environment.provided)
     }
 
@@ -316,7 +329,7 @@ public object LuaStdlib {
     )
 
     private fun dofile(context: LuaCallContext): LuaReturn {
-        val loaded = loadfile(context)
+        val loaded = loadFile(context, "dofile", "bt", environmentIndex = null)
         val function = loaded.get(1)
         if (function == null) {
             throw LuaRuntimeException(loaded.get(2)?.toString() ?: "cannot load file")

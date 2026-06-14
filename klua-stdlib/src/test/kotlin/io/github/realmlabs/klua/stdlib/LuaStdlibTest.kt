@@ -4501,6 +4501,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `dofile ignores extra arguments like lua settop before loadfile`() {
+        val file = Files.createTempFile("klua-dofile-extra", ".lua")
+        try {
+            Files.writeString(file, "return missing, 42")
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local first, second = dofile("${file.luaPath()}", "b", {missing = "env"})
+                    return first, second
+                    """.trimIndent(),
+                    "dofile-extra.lua",
+                ),
+            )
+            val status = state.pcall(0, -1)
+            assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals(42L, state.toInteger(2))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
     fun `dofile reads stdin when filename is missing`() {
         withStandardInput("""return 42, "stdin"""") {
             val state = LuaState.create()
