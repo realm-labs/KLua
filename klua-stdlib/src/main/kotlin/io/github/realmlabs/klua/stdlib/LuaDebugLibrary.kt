@@ -318,11 +318,12 @@ internal object LuaDebugLibrary {
         if (context.isNone(2) || (!context.isNil(2) && !context.isTable(2))) {
             throw LuaRuntimeException("bad argument #2 to 'setmetatable' (nil or table expected)")
         }
-        if (!context.isTable(1)) {
+        try {
+            context.setRawMetatable(1, context.getTable(2))
+        } catch (_: IllegalArgumentException) {
             throw LuaRuntimeException("bad argument #1 to 'setmetatable' (table expected)")
         }
-        context.setMetatable(1, context.getTable(2))
-        return LuaReturn.of(context.getTable(1))
+        return LuaReturn.of(context.getLuaValue(1))
     }
 
     private fun setHook(context: LuaCallContext): LuaReturn {

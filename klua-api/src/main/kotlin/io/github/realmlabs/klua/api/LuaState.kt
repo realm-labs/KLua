@@ -1414,6 +1414,22 @@ class LuaState private constructor(
             }
         }
 
+        override fun setRawMetatable(index: Int, metatable: Any?) {
+            when (valueAt(index)) {
+                is LuaStackValue.TableValue -> setMetatable(index, metatable)
+                is LuaStackValue.StringValue -> {
+                    val stackMetatable = metatable.toStackValue()
+                    val coreMetatable = when (stackMetatable) {
+                        LuaStackValue.Nil -> null
+                        is LuaStackValue.TableValue -> stackMetatable.toCoreTableValue(IdentityHashMap())
+                        else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
+                    }
+                    KLuaCoreRuntime.setStringMetatable(coreGlobals, coreMetatable)
+                }
+                else -> throw IllegalArgumentException("argument $index is ${typeName(index)}")
+            }
+        }
+
         override fun nextTableEntry(index: Int, key: Any?): List<Any?>? {
             val table = valueAt(index) as? LuaStackValue.TableValue
                 ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")

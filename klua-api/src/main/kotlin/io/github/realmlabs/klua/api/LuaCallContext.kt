@@ -91,6 +91,10 @@ interface LuaCallContext {
 
     fun setMetatable(index: Int, metatable: Any?)
 
+    fun setRawMetatable(index: Int, metatable: Any?) {
+        setMetatable(index, metatable)
+    }
+
     fun nextTableEntry(index: Int, key: Any?): List<Any?>?
 
     fun tableLength(index: Int): Long?

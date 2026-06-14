@@ -69,7 +69,11 @@ public object KLuaCoreRuntime {
         }
         return try {
             KLuaCoreExecution.Success(
-                LuaVm(globals.table, globals.stringMetatable).execute(chunk.prototype, vmArguments).map { value ->
+                LuaVm(
+                    globals.table,
+                    currentStringMetatable = { globals.stringMetatable },
+                    isStringMetatableConfigured = { globals.stringMetatableConfigured },
+                ).execute(chunk.prototype, vmArguments).map { value ->
                     toPublicValue(value, globals)
                 },
             )
@@ -96,7 +100,13 @@ public object KLuaCoreRuntime {
         val luaRight = right.toLuaValueOrNull(globals, tableCache)
             ?: return KLuaCoreComparison.RuntimeError("cannot compare ${right.publicTypeName()}")
         return try {
-            KLuaCoreComparison.Success(LuaVm(globals.table, globals.stringMetatable).lessThan(luaLeft, luaRight))
+            KLuaCoreComparison.Success(
+                LuaVm(
+                    globals.table,
+                    currentStringMetatable = { globals.stringMetatable },
+                    isStringMetatableConfigured = { globals.stringMetatableConfigured },
+                ).lessThan(luaLeft, luaRight),
+            )
         } catch (error: LuaVmException) {
             KLuaCoreComparison.RuntimeError(
                 error.message ?: "runtime error",
@@ -160,6 +170,11 @@ public object KLuaCoreRuntime {
 
     public fun getStringMetatable(globals: KLuaCoreGlobals): KLuaCoreValue.TableValue? {
         return globals.stringMetatable?.let { metatable -> toPublicValue(metatable, globals) as KLuaCoreValue.TableValue }
+    }
+
+    public fun setStringMetatable(globals: KLuaCoreGlobals, metatable: KLuaCoreValue.TableValue?) {
+        globals.stringMetatableConfigured = true
+        globals.stringMetatable = metatable?.toLuaValueOrNull(globals) as? LuaTable
     }
 
     public fun getUpvalue(
@@ -241,7 +256,7 @@ public class KLuaCoreGlobals internal constructor(
     internal var stringLibrary: LuaTable? = null
         private set
     internal var stringMetatable: LuaTable? = null
-        private set
+    internal var stringMetatableConfigured: Boolean = false
 
     public companion object {
         @JvmStatic
@@ -258,6 +273,7 @@ public class KLuaCoreGlobals internal constructor(
             stringMetatable = LuaTable().also { metatable ->
                 metatable.rawSet(LuaString("__index"), luaValue)
             }
+            stringMetatableConfigured = true
         }
         return true
     }
@@ -531,7 +547,11 @@ public class KLuaCoreCoroutine internal constructor(
     private val function: LuaValue,
     private val globals: KLuaCoreGlobals,
 ) {
-    private val vm = LuaVm(globals.table, globals.stringMetatable)
+    private val vm = LuaVm(
+        globals.table,
+        currentStringMetatable = { globals.stringMetatable },
+        isStringMetatableConfigured = { globals.stringMetatableConfigured },
+    )
     private var started = false
     private var dead = false
     private var pendingContinuation: LuaYieldContinuation? = null
@@ -1127,7 +1147,11 @@ private fun callPublicLuaFunction(
             ?: return KLuaCoreCallResult.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
     }
     return try {
-        val vm = LuaVm(globals.table, globals.stringMetatable)
+        val vm = LuaVm(
+            globals.table,
+            currentStringMetatable = { globals.stringMetatable },
+            isStringMetatableConfigured = { globals.stringMetatableConfigured },
+        )
         vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
         KLuaCoreCallResult.RuntimeError(

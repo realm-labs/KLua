@@ -26,6 +26,9 @@ import io.github.realmlabs.klua.core.value.LuaValue
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
     private val stringMetatable: LuaTable? = null,
+    private val stringMetatableConfigured: Boolean = false,
+    private val currentStringMetatable: (() -> LuaTable?)? = null,
+    private val isStringMetatableConfigured: (() -> Boolean)? = null,
 ) {
     private val thread = LuaThread()
     private var debugHook: DebugHookState? = null
@@ -581,8 +584,10 @@ internal class LuaVm(
         return when (receiver) {
             is LuaTable -> tableGet(receiver, key)
             is LuaString -> {
-                val metatable = stringMetatable
-                if (metatable != null) {
+                val metatableConfigured = isStringMetatableConfigured?.invoke() ?: stringMetatableConfigured
+                if (metatableConfigured) {
+                    val metatable = currentStringMetatable?.invoke() ?: stringMetatable
+                        ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
                     return stringIndexGet(receiver, key, metatable)
                 }
                 val stringLibrary = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
