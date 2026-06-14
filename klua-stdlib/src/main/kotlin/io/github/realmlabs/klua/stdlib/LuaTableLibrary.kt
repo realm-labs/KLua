@@ -233,17 +233,20 @@ internal object LuaTableLibrary {
     }
 
     private fun tableMove(context: LuaCallContext): LuaReturn {
-        if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'move' (table expected)")
-        }
         val first = requiredInteger(context, 2, "move")
         val last = requiredInteger(context, 3, "move")
         val target = requiredInteger(context, 4, "move")
-        val destinationIndex = if (context.isNone(5) || context.isNil(5)) {
+        val hasDestination = !(context.isNone(5) || context.isNil(5))
+        val sourceIsTable = context.isTable(1)
+        val sourceIsReadableString = hasDestination && context.typeName(1) == "string"
+        if (!sourceIsTable && !sourceIsReadableString) {
+            throw LuaRuntimeException("bad argument #1 to 'table.move' (table expected)")
+        }
+        val destinationIndex = if (!hasDestination) {
             1
         } else {
             if (!context.isTable(5)) {
-                throw LuaRuntimeException("bad argument #5 to 'move' (table expected)")
+                throw LuaRuntimeException("bad argument #5 to 'table.move' (table expected)")
             }
             5
         }
@@ -255,21 +258,35 @@ internal object LuaTableLibrary {
         val count = tableMoveCount(first, last)
         tableMoveLastTarget(target, count)
 
-        val sameTable = context.getTable(1) === context.getTable(destinationIndex)
+        val sameTable = sourceIsTable && context.getTable(1) === context.getTable(destinationIndex)
         if (sameTable && target > first && target <= last) {
             var offset = count - 1L
             while (offset >= 0L) {
-                tableSetValue(context, destinationIndex, target + offset, tableIndexValue(context, first + offset))
+                tableSetValue(
+                    context,
+                    destinationIndex,
+                    target + offset,
+                    tableMoveSourceValue(context, sourceIsTable, first + offset),
+                )
                 offset--
             }
         } else {
             var offset = 0L
             while (offset < count) {
-                tableSetValue(context, destinationIndex, target + offset, tableIndexValue(context, first + offset))
+                tableSetValue(
+                    context,
+                    destinationIndex,
+                    target + offset,
+                    tableMoveSourceValue(context, sourceIsTable, first + offset),
+                )
                 offset++
             }
         }
         return LuaReturn.of(context.getTable(destinationIndex))
+    }
+
+    private fun tableMoveSourceValue(context: LuaCallContext, sourceIsTable: Boolean, key: Any?): Any? {
+        return if (sourceIsTable) tableIndexValue(context, key) else null
     }
 
     private fun tableMoveCount(first: Long, last: Long): Long {

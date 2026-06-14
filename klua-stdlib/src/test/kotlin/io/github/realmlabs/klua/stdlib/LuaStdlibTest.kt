@@ -10820,6 +10820,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move accepts string sources with explicit destination tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local destination = {"x", "y", "z"}
+                local returned = table.move("abc", 1, 2, 1, destination)
+                local emptyRangeDestination = {"kept"}
+                local emptyReturned = table.move("abc", 2, 1, 1, emptyRangeDestination)
+                return returned == destination,
+                    destination[1], destination[2], destination[3],
+                    emptyReturned == emptyRangeDestination, emptyRangeDestination[1]
+                """.trimIndent(),
+                "table-move-string-source.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertEquals("z", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("kept", state.toString(6))
+    }
+
+    @Test
     fun `table move reports argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -10839,9 +10870,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'move' (table expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'table.move' (table expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #5 to 'move' (table expected)", state.toString(4))
+        assertEquals("bad argument #5 to 'table.move' (table expected)", state.toString(4))
     }
 
     @Test
