@@ -250,7 +250,7 @@ public object LuaStdlib {
                 return LuaReturn.of(null, exception.message ?: exception::class.java.simpleName)
             }
         }
-        return context.load(source, chunkName, optionalLoadEnvironment(context, 4, "load"))
+        return context.load(source, chunkName, optionalLoadEnvironment(context, 4))
     }
 
     private fun readChunkSource(context: LuaCallContext): String {
@@ -290,15 +290,14 @@ public object LuaStdlib {
         } catch (error: IOException) {
             return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
         }
-        return context.load(source, filename, optionalLoadEnvironment(context, 3, "loadfile"))
+        return context.load(source, filename, optionalLoadEnvironment(context, 3))
     }
 
-    private fun optionalLoadEnvironment(context: LuaCallContext, index: Int, functionName: String): Any? {
+    private fun optionalLoadEnvironment(context: LuaCallContext, index: Int): Any? {
         if (context.isNone(index) || context.isNil(index)) {
             return null
         }
-        return context.getTable(index)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (table expected)")
+        return context.getLuaValue(index)
     }
 
     private fun dofile(context: LuaCallContext): LuaReturn {

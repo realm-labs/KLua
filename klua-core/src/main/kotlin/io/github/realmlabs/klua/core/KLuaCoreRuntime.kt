@@ -71,6 +71,7 @@ public object KLuaCoreRuntime {
             KLuaCoreExecution.Success(
                 LuaVm(
                     globals.table,
+                    globals.environment,
                     currentStringMetatable = { globals.stringMetatable },
                     isStringMetatableConfigured = { globals.stringMetatableConfigured },
                     currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
@@ -105,6 +106,7 @@ public object KLuaCoreRuntime {
             KLuaCoreComparison.Success(
                 LuaVm(
                     globals.table,
+                    globals.environment,
                     currentStringMetatable = { globals.stringMetatable },
                     isStringMetatableConfigured = { globals.stringMetatableConfigured },
                     currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
@@ -308,6 +310,7 @@ public class KLuaCoreChunk internal constructor(
 
 public class KLuaCoreGlobals internal constructor(
     internal val table: LuaTable = LuaTable(),
+    internal val environment: LuaValue = table,
 ) {
     private val userDataTypes = linkedMapOf<Class<*>, MutableMap<String, LuaNativeFunction>>()
     private val userDataProperties = linkedMapOf<Class<*>, MutableMap<String, LuaUserDataProperty>>()
@@ -351,9 +354,9 @@ public class KLuaCoreGlobals internal constructor(
         table.rawSet(LuaString(name), table)
     }
 
-    public fun withEnvironment(environment: KLuaCoreValue.TableValue): KLuaCoreGlobals? {
-        val environmentTable = environment.toLuaValueOrNull(this) as? LuaTable ?: return null
-        return KLuaCoreGlobals(environmentTable).also { globals ->
+    public fun withEnvironment(environment: KLuaCoreValue): KLuaCoreGlobals? {
+        val environmentValue = environment.toLuaValueOrNull(this) ?: return null
+        return KLuaCoreGlobals(table, environmentValue).also { globals ->
             userDataTypes.forEach { (type, methods) ->
                 globals.userDataTypes[type] = methods.toMutableMap()
             }
@@ -635,6 +638,7 @@ public class KLuaCoreCoroutine internal constructor(
 ) {
     private val vm = LuaVm(
         globals.table,
+        globals.environment,
         currentStringMetatable = { globals.stringMetatable },
         isStringMetatableConfigured = { globals.stringMetatableConfigured },
         currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
@@ -1241,6 +1245,7 @@ private fun callPublicLuaFunction(
     return try {
         val vm = LuaVm(
             globals.table,
+            globals.environment,
             currentStringMetatable = { globals.stringMetatable },
             isStringMetatableConfigured = { globals.stringMetatableConfigured },
             currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },

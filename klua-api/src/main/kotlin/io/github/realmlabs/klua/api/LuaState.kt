@@ -228,9 +228,8 @@ class LuaState private constructor(
     }
 
     private fun loadEnvironmentGlobals(environment: Any?): KLuaCoreGlobals {
-        val table = environment as? LuaStackValue.TableValue ?: return coreGlobals
-        val tableValue = table.toCoreTableValue(IdentityHashMap())
-        return coreGlobals.withEnvironment(tableValue) ?: coreGlobals
+        environment ?: return coreGlobals
+        return coreGlobals.withEnvironment(environment.toCoreReturnValue()) ?: coreGlobals
     }
 
     fun absIndex(index: Int): Int {

@@ -25,6 +25,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
+    private val environment: LuaValue = globals,
     private val stringMetatable: LuaTable? = null,
     private val stringMetatableConfigured: Boolean = false,
     private val currentStringMetatable: (() -> LuaTable?)? = null,
@@ -594,13 +595,13 @@ internal class LuaVm(
 
     private fun getGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
-        stack.set(register(frame, Instruction.a(instruction)), tableGet(globals, key))
+        stack.set(register(frame, Instruction.a(instruction)), indexGet(environment, key))
     }
 
     private fun setGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.a(instruction))
         val value = stack.get(register(frame, Instruction.b(instruction)))
-        tableSet(globals, key, value)
+        indexSet(environment, key, value)
     }
 
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {
