@@ -1914,10 +1914,13 @@ class LuaStdlibTest {
                 local countHook, countMask, countInterval = debug.gethook()
                 debug.sethook(function() end, "cxr", 0)
                 local eventHook, eventMask, eventInterval = debug.gethook()
+                debug.sethook(function() end, "llrccx", 0)
+                local orderedHook, orderedMask, orderedInterval = debug.gethook()
                 debug.sethook()
                 return #none,
                     type(countHook), countMask, countInterval,
-                    type(eventHook), eventMask, eventInterval
+                    type(eventHook), eventMask, eventInterval,
+                    type(orderedHook), orderedMask, orderedInterval
                 """.trimIndent(),
                 "debug-sethook-unknown-mask.lua",
             ),
@@ -1931,6 +1934,9 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(5))
         assertEquals("cr", state.toString(6))
         assertEquals(0L, state.toInteger(7))
+        assertEquals("function", state.toString(8))
+        assertEquals("crl", state.toString(9))
+        assertEquals(0L, state.toInteger(10))
     }
 
     @Test

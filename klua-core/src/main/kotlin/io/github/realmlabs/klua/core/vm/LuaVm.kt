@@ -463,7 +463,7 @@ internal class LuaVm(
         if (function !is LuaClosure && function !is LuaNativeFunction) {
             throw LuaVmException("bad argument #1 to 'debug.sethook' (function expected)")
         }
-        val normalizedMask = mask.filter { event -> event == 'c' || event == 'r' || event == 'l' }
+        val normalizedMask = normalizedDebugHookMask(mask)
         if (normalizedMask.isEmpty() && count <= 0) {
             debugHook = null
             return true
@@ -1354,6 +1354,14 @@ private val POW_KEY = LuaString("__pow")
 private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 200
 private const val VARARG_LOCAL_NAME = "(vararg)"
+
+private fun normalizedDebugHookMask(mask: String): String {
+    return buildString {
+        if ('c' in mask) append('c')
+        if ('r' in mask) append('r')
+        if ('l' in mask) append('l')
+    }
+}
 
 private data class DebugHookState(
     val function: LuaValue,
