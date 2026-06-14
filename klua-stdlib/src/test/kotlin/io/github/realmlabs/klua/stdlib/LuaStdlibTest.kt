@@ -9901,6 +9901,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns delay capture errors until matching path reaches them`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missingCloseOk, missingClose = pcall(string.match, "xbc", "a)")
+                local unmatchedCloseOk, unmatchedClose = pcall(string.match, "abc", "z)")
+                local missingOpenOk, missingOpen = pcall(string.match, "abc", "z(a")
+                local failedAfterClosed = string.match("abc", "a()z(")
+                local failedAtEndAnchor = string.match("ab", "(a$")
+                local reachedOpenOk, reachedOpen = pcall(string.match, "abc", "a(")
+                local reachedCloseOk, reachedClose = pcall(string.match, "abc", "a)")
+                local reachedOpenAtEndOk, reachedOpenAtEnd = pcall(string.match, "a", "(a$")
+                return missingCloseOk, missingClose, unmatchedCloseOk, unmatchedClose,
+                    missingOpenOk, missingOpen, failedAfterClosed, failedAtEndAnchor,
+                    reachedOpenOk, reachedOpen, reachedCloseOk, reachedClose,
+                    reachedOpenAtEndOk, reachedOpenAtEnd
+                """.trimIndent(),
+                "string-pattern-delayed-capture-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.isNil(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("unfinished capture", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("invalid pattern capture", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("unfinished capture", state.toString(14))
+    }
+
+    @Test
     fun `string patterns support balanced matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

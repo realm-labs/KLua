@@ -61,7 +61,13 @@ internal class LuaStringPattern private constructor(
         captures: Map<Int, Any?>,
     ): PatternResult? {
         if (tokenIndex >= patternTokens.size) {
-            return if (!endAnchored || textIndex == text.length) PatternResult(textIndex, captures) else null
+            if (endAnchored && textIndex != text.length) {
+                return null
+            }
+            if (captureStarts.isNotEmpty()) {
+                throw LuaRuntimeException("unfinished capture")
+            }
+            return PatternResult(textIndex, captures)
         }
 
         return when (val token = patternTokens[tokenIndex]) {
@@ -74,15 +80,17 @@ internal class LuaStringPattern private constructor(
                 captures,
             )
             is Token.CaptureEnd -> {
-                val startIndex = captureStarts[token.index]
-                    ?: throw LuaRuntimeException("string patterns are not supported")
+                val captureIndex = token.index
+                    ?: throw LuaRuntimeException("invalid pattern capture")
+                val startIndex = captureStarts[captureIndex]
+                    ?: throw LuaRuntimeException("invalid pattern capture")
                 matchEnd(
                     text,
                     textIndex,
                     patternTokens,
                     tokenIndex + 1,
-                    captureStarts,
-                    captures + (token.index to text.substring(startIndex, textIndex)),
+                    captureStarts - captureIndex,
+                    captures + (captureIndex to text.substring(startIndex, textIndex)),
                 )
             }
             is Token.PositionCapture -> matchEnd(
@@ -262,10 +270,11 @@ internal class LuaStringPattern private constructor(
                         hasPatternToken = true
                     }
                     ')' -> {
-                        if (captureStack.isEmpty()) {
-                            throw LuaRuntimeException("invalid pattern capture")
+                        val captureIndex = if (captureStack.isEmpty()) {
+                            null
+                        } else {
+                            captureStack.removeAt(captureStack.lastIndex)
                         }
-                        val captureIndex = captureStack.removeAt(captureStack.lastIndex)
                         tokens += Token.CaptureEnd(captureIndex)
                         hasPatternToken = true
                         index++
@@ -319,9 +328,6 @@ internal class LuaStringPattern private constructor(
                         index = addToken(tokens, Token.Literal(char), pattern, index + 1)
                     }
                 }
-            }
-            if (captureStack.isNotEmpty()) {
-                throw LuaRuntimeException("unfinished capture")
             }
             return if (hasPatternToken) tokens else null
         }
@@ -479,7 +485,7 @@ private sealed interface Token {
     }
 
     data class CaptureEnd(
-        val index: Int,
+        val index: Int?,
     ) : Token {
         override fun matches(char: Char): Boolean = false
     }
