@@ -208,14 +208,15 @@ internal object LuaDebugLibrary {
     private fun setLocal(context: LuaCallContext): LuaReturn {
         val level = requiredStackLevel(context, "debug.setlocal")
         val index = requiredLocalIndex(context, 2, "debug.setlocal")
-        if (index <= 0) {
-            return LuaReturn.of(null)
-        }
         if (level < 0) {
             throw LuaRuntimeException("bad argument #1 to 'debug.setlocal' (level out of range)")
         }
         context.luaFrames.drop(level).firstOrNull()
             ?: throw LuaRuntimeException("bad argument #1 to 'debug.setlocal' (level out of range)")
+        requireValueArgument(context, 3, "debug.setlocal")
+        if (index <= 0) {
+            return LuaReturn.of(null)
+        }
         return LuaReturn.of(context.setLocal(level, index, context.get(3)))
     }
 
@@ -229,6 +230,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun setupUpvalue(context: LuaCallContext): LuaReturn {
+        requireValueArgument(context, 3, "debug.setupvalue")
         requireFunction(context, 1, "debug.setupvalue")
         val index = requiredUpvalueLookupIndex(context, 2, "debug.setupvalue")
         if (index <= 0) {
@@ -263,6 +265,12 @@ internal object LuaDebugLibrary {
     private fun requireFunction(context: LuaCallContext, index: Int, functionName: String) {
         if (context.typeName(index) != "function") {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (function expected)")
+        }
+    }
+
+    private fun requireValueArgument(context: LuaCallContext, index: Int, functionName: String) {
+        if (context.isNone(index)) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (value expected)")
         }
     }
 
@@ -403,16 +411,16 @@ internal object LuaDebugLibrary {
             return klua_debug_getlocal(threadOrLevel, index)
         end
 
-        function debug.setlocal(threadOrLevel, index, value)
-            return klua_debug_setlocal(threadOrLevel, index, value)
+        function debug.setlocal(threadOrLevel, index, ...)
+            return klua_debug_setlocal(threadOrLevel, index, ...)
         end
 
         function debug.getupvalue(func, index)
             return klua_debug_getupvalue(func, index)
         end
 
-        function debug.setupvalue(func, index, value)
-            return klua_debug_setupvalue(func, index, value)
+        function debug.setupvalue(func, index, ...)
+            return klua_debug_setupvalue(func, index, ...)
         end
 
         function debug.upvalueid(func, index)

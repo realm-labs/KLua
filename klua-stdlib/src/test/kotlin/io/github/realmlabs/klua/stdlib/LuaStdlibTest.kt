@@ -1095,6 +1095,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setlocal requires replacement value`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    local target = 12
+                    local okMissing, missingMessage = pcall(function()
+                        return debug.setlocal(1, 1)
+                    end)
+                    local okInvalidIndex, invalidIndexResult = pcall(function()
+                        return debug.setlocal(1, 0, "ignored")
+                    end)
+                    local okInvalidIndexMissing, invalidIndexMissingMessage = pcall(function()
+                        return debug.setlocal(1, 0)
+                    end)
+                    return okMissing, missingMessage,
+                        okInvalidIndex, invalidIndexResult,
+                        okInvalidIndexMissing, invalidIndexMissingMessage,
+                        target
+                end
+
+                return leaf()
+                """.trimIndent(),
+                "debug-setlocal-value-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'debug.setlocal' (value expected)", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.isNil(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'debug.setlocal' (value expected)", state.toString(6))
+        assertEquals(12L, state.toInteger(7))
+    }
+
+    @Test
     fun `debug getupvalue returns lua closure upvalue names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -1314,6 +1356,42 @@ class LuaStdlibTest {
         assertTrue(state.isNil(3))
         assertEquals("new", state.toString(4))
         assertEquals(99L, state.toInteger(5))
+    }
+
+    @Test
+    fun `debug setupvalue requires replacement value`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = "old"
+                local function capture()
+                    return value
+                end
+
+                local okMissing, missingMessage = pcall(debug.setupvalue, capture, 1)
+                local okMissingType, missingTypeMessage = pcall(debug.setupvalue, "not-function", 1)
+                local okInvalidIndex, invalidIndexResult = pcall(debug.setupvalue, capture, 99, "ignored")
+                return okMissing, missingMessage,
+                    okMissingType, missingTypeMessage,
+                    okInvalidIndex, invalidIndexResult,
+                    capture()
+                """.trimIndent(),
+                "debug-setupvalue-value-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertEquals("old", state.toString(7))
     }
 
     @Test
