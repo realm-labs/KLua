@@ -7879,6 +7879,108 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string packsize returns fixed format sizes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.packsize("bBhH"),
+                    string.packsize("lLjJTfdn"),
+                    string.packsize("iI1I2I4I8"),
+                    string.packsize("=I4 <I2 >I8")
+                """.trimIndent(),
+                "string-packsize-fixed.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(6L, state.toInteger(1))
+        assertEquals(60L, state.toInteger(2))
+        assertEquals(19L, state.toInteger(3))
+        assertEquals(14L, state.toInteger(4))
+    }
+
+    @Test
+    fun `string packsize applies lua alignment rules`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.packsize("x!4h"),
+                    string.packsize("x!4d"),
+                    string.packsize("!4xd"),
+                    string.packsize("!1xd"),
+                    string.packsize("Xx"),
+                    string.packsize("xXh"),
+                    string.packsize("xxXh")
+                """.trimIndent(),
+                "string-packsize-alignment.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(4L, state.toInteger(1))
+        assertEquals(12L, state.toInteger(2))
+        assertEquals(12L, state.toInteger(3))
+        assertEquals(9L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(2L, state.toInteger(7))
+    }
+
+    @Test
+    fun `string packsize reports source compatible format errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local variableOk, variableMessage = pcall(string.packsize, "s")
+                local zeroOk, zeroMessage = pcall(string.packsize, "i0")
+                local largeOk, largeMessage = pcall(string.packsize, "i17")
+                local alignOk, alignMessage = pcall(string.packsize, "!3i")
+                local invalidOk, invalidMessage = pcall(string.packsize, "?")
+                local charOk, charMessage = pcall(string.packsize, "c")
+                local nextOk, nextMessage = pcall(string.packsize, "Xz")
+                return variableOk, variableMessage,
+                    zeroOk, zeroMessage,
+                    largeOk, largeMessage,
+                    alignOk, alignMessage,
+                    invalidOk, invalidMessage,
+                    charOk, charMessage,
+                    nextOk, nextMessage
+                """.trimIndent(),
+                "string-packsize-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'string.packsize' (variable-length format)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("integral size (0) out of limits [1,16]", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("integral size (17) out of limits [1,16]", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'string.packsize' (format asks for alignment not power of 2)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("invalid format option '?'", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("missing size for format option 'c'", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("bad argument #1 to 'string.packsize' (invalid next option for option 'X')", state.toString(14))
+    }
+
+    @Test
     fun `string gsub replaces literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

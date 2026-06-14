@@ -27,6 +27,7 @@ internal object LuaStringLibrary {
         setFunctionField(state, "len", ::stringLen)
         setFunctionField(state, "lower", ::stringLower)
         setFunctionField(state, "match", ::stringMatch)
+        setFunctionField(state, "packsize", ::stringPackSize)
         setFunctionField(state, "rep", ::stringRep)
         setFunctionField(state, "reverse", ::stringReverse)
         setFunctionField(state, "sub", ::stringSub)
@@ -360,6 +361,10 @@ internal object LuaStringLibrary {
             return LuaReturn.ofValues(text.luaByteCaptures(match.captures))
         }
         return LuaReturn.of(text.substring(match.startIndex, match.endIndex))
+    }
+
+    private fun stringPackSize(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(LuaStringPackFormat.packSize(requiredString(context, 1, "string.packsize")))
     }
 
     private fun stringRep(context: LuaCallContext): LuaReturn {
