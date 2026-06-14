@@ -26,6 +26,7 @@ internal object LuaPackageLibrary {
         state.setField(-2, "preload")
         setFunctionField(state, "loadlib", ::loadlib)
         setFunctionField(state, "searchpath", ::searchpath)
+        setFunctionField(state, "_rawget", ::rawget)
         setFunctionField(state, "_searcherResultType", ::searcherResultType)
         setFunctionField(state, "_moduleRoot", ::moduleRoot)
         state.setGlobal("package")
@@ -79,6 +80,10 @@ internal object LuaPackageLibrary {
         return LuaReturn.of(context.typeName(1))
     }
 
+    private fun rawget(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(context.getTableValue(1, context.get(2)))
+    }
+
     private fun moduleRoot(context: LuaCallContext): LuaReturn {
         val name = requiredString(context, 1, "require")
         val index = name.indexOf('.')
@@ -113,10 +118,12 @@ internal object LuaPackageLibrary {
     private const val REQUIRE_SOURCE: String = """
         local searcherResultType = package._searcherResultType
         local moduleRoot = package._moduleRoot
+        local searcherRawGet = package._rawget
         local loadedTable = package.loaded
         local preloadTable = package.preload
         package._searcherResultType = nil
         package._moduleRoot = nil
+        package._rawget = nil
 
         package.searchers = {
             function(name)
@@ -191,7 +198,7 @@ internal object LuaPackageLibrary {
             end
             local index = 1
             while true do
-                local searcher = searchers[index]
+                local searcher = searcherRawGet(searchers, index)
                 if searcher == nil then
                     break
                 end

@@ -2331,6 +2331,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require reads searchers without invoking searchers table metatable`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.searchers = setmetatable({}, {
+                    __index = function(_, key)
+                        if key == 1 then
+                            return function()
+                                return function()
+                                    return "synthetic-loader"
+                                end
+                            end
+                        end
+                    end,
+                })
+                local ok, message = pcall(require, "synthetic")
+                return ok, message, package.loaded.synthetic, package._rawget
+                """.trimIndent(),
+                "require-searchers-raw.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        val message = state.toString(2) ?: ""
+        assertTrue(message.contains("module 'synthetic' not found"))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+    }
+
+    @Test
     fun `require ignores secondary searcher diagnostics unless first result is string`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
