@@ -97,22 +97,42 @@ public object KLuaCoreRuntime {
         right: KLuaCoreValue,
         globals: KLuaCoreGlobals,
     ): KLuaCoreComparison {
+        return compareValues(left, right, globals) { vm, luaLeft, luaRight ->
+            vm.lessThan(luaLeft, luaRight)
+        }
+    }
+
+    public fun luaEquals(
+        left: KLuaCoreValue,
+        right: KLuaCoreValue,
+        globals: KLuaCoreGlobals,
+    ): KLuaCoreComparison {
+        return compareValues(left, right, globals) { vm, luaLeft, luaRight ->
+            vm.luaEquals(luaLeft, luaRight)
+        }
+    }
+
+    private fun compareValues(
+        left: KLuaCoreValue,
+        right: KLuaCoreValue,
+        globals: KLuaCoreGlobals,
+        compare: (LuaVm, LuaValue, LuaValue) -> Boolean,
+    ): KLuaCoreComparison {
         val tableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>()
         val luaLeft = left.toLuaValueOrNull(globals, tableCache)
             ?: return KLuaCoreComparison.RuntimeError("cannot compare ${left.publicTypeName()}")
         val luaRight = right.toLuaValueOrNull(globals, tableCache)
             ?: return KLuaCoreComparison.RuntimeError("cannot compare ${right.publicTypeName()}")
         return try {
-            KLuaCoreComparison.Success(
-                LuaVm(
-                    globals.table,
-                    globals.environment,
-                    currentStringMetatable = { globals.stringMetatable },
-                    isStringMetatableConfigured = { globals.stringMetatableConfigured },
-                    currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
-                    currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
-                ).lessThan(luaLeft, luaRight),
+            val vm = LuaVm(
+                globals.table,
+                globals.environment,
+                currentStringMetatable = { globals.stringMetatable },
+                isStringMetatableConfigured = { globals.stringMetatableConfigured },
+                currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
+                currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
             )
+            KLuaCoreComparison.Success(compare(vm, luaLeft, luaRight))
         } catch (error: LuaVmException) {
             KLuaCoreComparison.RuntimeError(
                 error.message ?: "runtime error",

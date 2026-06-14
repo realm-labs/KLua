@@ -59,6 +59,10 @@ internal class LuaVm(
         return compare(left, right, Comparison.LT)
     }
 
+    internal fun luaEquals(left: LuaValue, right: LuaValue): Boolean {
+        return compare(left, right, Comparison.EQ)
+    }
+
     internal fun callYieldable(callee: LuaValue, arguments: List<LuaValue>): LuaExecutionResult {
         return callValue(callee, arguments)
     }

@@ -13546,6 +13546,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move uses lua equality for overlap direction`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local log = {}
+                local metatable = {}
+                metatable.__eq = function()
+                    return true
+                end
+                local sourceValues = {
+                    [1] = "a",
+                    [2] = "b",
+                    [3] = "c",
+                }
+                metatable.__index = function(_, key)
+                    log[#log + 1] = "read:" .. tostring(key)
+                    return sourceValues[key]
+                end
+                metatable.__newindex = function(_, key, value)
+                    log[#log + 1] = "write:" .. tostring(key) .. ":" .. tostring(value)
+                end
+                local source = setmetatable({}, metatable)
+                local destination = setmetatable({}, metatable)
+                table.move(source, 1, 3, 2, destination)
+                return table.concat(log, "|")
+                """.trimIndent(),
+                "table-move-eq-overlap.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("read:3|write:4:c|read:2|write:3:b|read:1|write:2:a", state.toString(1))
+    }
+
+    @Test
     fun `table move preserves nil holes`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

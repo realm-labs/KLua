@@ -341,7 +341,7 @@ internal object LuaTableLibrary {
         val count = tableMoveCount(first, last)
         tableMoveLastTarget(target, count)
 
-        val sameReceiver = context.rawEquals(1, destinationIndex) == true
+        val sameReceiver = destinationIndex == 1 || context.luaEquals(1, destinationIndex) == true
         if (sameReceiver && target > first && target <= last) {
             var offset = count - 1L
             while (offset >= 0L) {
