@@ -195,7 +195,7 @@ internal object LuaTableLibrary {
 
     private fun tableInsert(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'table.insert' (table expected)")
+            throw LuaRuntimeException("bad argument #1 to 'insert' (table expected)")
         }
         val length = tableLength(context, 1)
         val position: Long
@@ -206,13 +206,13 @@ internal object LuaTableLibrary {
                 valueIndex = 2
             }
             3 -> {
-                position = requiredInteger(context, 2, "table.insert")
+                position = requiredInteger(context, 2, "insert")
                 valueIndex = 3
             }
             else -> throw LuaRuntimeException("wrong number of arguments to 'insert'")
         }
         if (position !in 1L..(length + 1L)) {
-            throw LuaRuntimeException("bad argument #2 to 'table.insert' (position out of bounds)")
+            throw LuaRuntimeException("bad argument #2 to 'insert' (position out of bounds)")
         }
 
         var index = length

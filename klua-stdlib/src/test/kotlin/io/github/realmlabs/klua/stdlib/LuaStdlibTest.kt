@@ -10220,7 +10220,7 @@ class LuaStdlibTest {
         assertNonNumericIntegerError(
             """return table.insert({}, "bad", "x")""",
             "table-insert-string-position.lua",
-            "bad argument #2 to 'table.insert' (number expected)",
+            "bad argument #2 to 'insert' (number expected)",
         )
         assertNonNumericIntegerError(
             """return table.move({}, "bad", 1, 1)""",
@@ -10290,7 +10290,7 @@ class LuaStdlibTest {
         assertFractionalIntegerError(
             """return table.insert({}, 1.5, "x")""",
             "table-insert-fractional-position.lua",
-            "bad argument #2 to 'table.insert' (number has no integer representation)",
+            "bad argument #2 to 'insert' (number has no integer representation)",
         )
         assertFractionalIntegerError(
             """return table.move({}, 1.5, 1, 1)""",
@@ -10466,7 +10466,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'table.insert' (table expected)", state.toString(-1))
+        assertEquals("bad argument #1 to 'insert' (table expected)", state.toString(-1))
 
         val arityState = LuaState.create()
         LuaStdlib.openBase(arityState)
@@ -10478,7 +10478,8 @@ class LuaStdlibTest {
                 """
                 local missingOk, missingMessage = pcall(table.insert, {})
                 local extraOk, extraMessage = pcall(table.insert, {}, 1, "x", "extra")
-                return missingOk, missingMessage, extraOk, extraMessage
+                local boundsOk, boundsMessage = pcall(table.insert, {}, 2, "x")
+                return missingOk, missingMessage, extraOk, extraMessage, boundsOk, boundsMessage
                 """.trimIndent(),
                 "table-insert-arity-error.lua",
             ),
@@ -10489,6 +10490,8 @@ class LuaStdlibTest {
         assertEquals("wrong number of arguments to 'insert'", arityState.toString(2))
         assertFalse(arityState.toBoolean(3))
         assertEquals("wrong number of arguments to 'insert'", arityState.toString(4))
+        assertFalse(arityState.toBoolean(5))
+        assertEquals("bad argument #2 to 'insert' (position out of bounds)", arityState.toString(6))
     }
 
     @Test
