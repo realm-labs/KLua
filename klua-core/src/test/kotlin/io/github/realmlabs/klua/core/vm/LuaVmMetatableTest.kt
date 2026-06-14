@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class LuaVmMetatableTest {
     @Test
@@ -28,7 +29,7 @@ class LuaVmMetatableTest {
     }
 
     @Test
-    fun `uses raw table length without closure len metamethod`() {
+    fun `reports non callable table len metamethod errors`() {
         val table = LuaTable()
         val metatable = LuaTable()
 
@@ -37,9 +38,11 @@ class LuaVmMetatableTest {
         metatable.rawSet(LuaString("__len"), LuaInteger(42))
         table.metatable = metatable
 
-        val result = LuaVm().execute(tableLengthPrototype(table))
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(tableLengthPrototype(table))
+        }
 
-        assertEquals(listOf(LuaInteger(2)), result)
+        assertEquals("attempt to call number", error.message)
     }
 
     @Test

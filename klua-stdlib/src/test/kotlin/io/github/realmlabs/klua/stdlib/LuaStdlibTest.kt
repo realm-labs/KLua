@@ -5103,6 +5103,107 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `primitive type len metatables drive length operator`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __len = function(value)
+                        return value + 10
+                    end,
+                })
+                debug.setmetatable(false, {
+                    __len = function(value)
+                        return value and 1 or 0
+                    end,
+                })
+                debug.setmetatable(nil, {
+                    __len = function(value)
+                        return type(value)
+                    end,
+                })
+                debug.setmetatable(function() end, {
+                    __len = function(value)
+                        return type(value)
+                    end,
+                })
+                return #1, #true, #false, #nil, #(function() end)
+                """.trimIndent(),
+                "primitive-len-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(11L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals("nil", state.toString(4))
+        assertEquals("function", state.toString(5))
+    }
+
+    @Test
+    fun `len metamethod accepts native and callable table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local native = setmetatable({}, {
+                    __len = type,
+                })
+                local callable = {}
+                setmetatable(callable, {
+                    __call = function(self, value)
+                        return value[1]
+                    end,
+                })
+                local chained = setmetatable({9}, {
+                    __len = callable,
+                })
+                return #native, #chained
+                """.trimIndent(),
+                "len-callable-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals(9L, state.toInteger(2))
+    }
+
+    @Test
+    fun `string length ignores string len metatable`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local metatable = debug.getmetatable("")
+                local originalLen = metatable.__len
+                metatable.__len = function()
+                    return 99
+                end
+                local length = #"abc"
+                metatable.__len = originalLen
+                return length
+                """.trimIndent(),
+                "string-len-raw.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+    }
+
+    @Test
     fun `getmetatable reports missing argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

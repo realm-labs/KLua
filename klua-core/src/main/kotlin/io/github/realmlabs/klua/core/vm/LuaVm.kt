@@ -647,8 +647,10 @@ internal class LuaVm(
                 if (metatableConfigured) currentStringMetatable?.invoke() ?: stringMetatable else null
             }
             is LuaBoolean,
+            is LuaClosure,
             is LuaFloat,
             is LuaInteger,
+            is LuaNativeFunction,
             LuaNil,
             -> currentRawTypeMetatable?.invoke(typeName(value))
             else -> null
@@ -813,15 +815,33 @@ internal class LuaVm(
         val result = when (value) {
             is LuaString -> LuaInteger(value.value.encodeToByteArray().size.toLong())
             is LuaTable -> tableLength(value)
-            else -> throw LuaVmException("attempt to get length of ${typeName(value)}")
+            else -> primitiveLength(value)
         }
         stack.set(register(frame, Instruction.a(instruction)), result)
     }
 
     private fun tableLength(table: LuaTable): LuaValue {
         return when (val length = table.metatableRawGet(LEN_KEY)) {
-            is LuaClosure -> executeReturned(length.prototype, listOf(table), length.upvalues).firstOrNull() ?: LuaNil
-            else -> LuaInteger(table.rawLength())
+            LuaNil -> LuaInteger(table.rawLength())
+            else -> callLengthMetamethod(table, length)
+        }
+    }
+
+    private fun primitiveLength(value: LuaValue): LuaValue {
+        val metatable = rawTypeMetatable(value)
+            ?: throw LuaVmException("attempt to get length of ${typeName(value)}")
+        val length = metatable.rawGet(LEN_KEY)
+        if (length == LuaNil) {
+            throw LuaVmException("attempt to get length of ${typeName(value)}")
+        }
+        return callLengthMetamethod(value, length)
+    }
+
+    private fun callLengthMetamethod(value: LuaValue, length: LuaValue): LuaValue {
+        return when (length) {
+            is LuaClosure -> executeReturned(length.prototype, listOf(value), length.upvalues).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callNative(length, listOf(value)).firstOrNull() ?: LuaNil
+            else -> returnedValues(callValue(length, listOf(value))).firstOrNull() ?: LuaNil
         }
     }
 
