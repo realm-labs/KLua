@@ -55,18 +55,16 @@ internal object LuaUtf8Library {
 
     private fun utf8Codes(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "codes")
+        return LuaReturn.ofValues(listOf(LuaFunction(::utf8CodesIterator), text, 0L))
+    }
+
+    private fun utf8CodesIterator(context: LuaCallContext): LuaReturn {
+        val text = requiredString(context, 1, "codes iterator")
         val codePoints = text.codePoints().toArray()
         val byteOffsets = utf8ByteOffsets(codePoints)
-        var index = 0
-        val iterator = LuaFunction {
-            if (index >= codePoints.size) {
-                LuaReturn.of(null)
-            } else {
-                index++
-                LuaReturn.of(byteOffsets[index - 1], codePoints[index - 1].toLong())
-            }
-        }
-        return LuaReturn.ofValues(listOf(iterator, text, 0L))
+        val control = context.toInteger(2) ?: 0L
+        val nextIndex = nextCodePointIndex(byteOffsets, control) ?: return LuaReturn.of(null)
+        return LuaReturn.of(byteOffsets[nextIndex], codePoints[nextIndex].toLong())
     }
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
@@ -268,6 +266,18 @@ internal object LuaUtf8Library {
 
     private fun isUtf8StartBytePosition(byteOffsets: List<Long>, bytePosition: Long): Boolean {
         return byteOffsets.any { byteOffset -> byteOffset == bytePosition }
+    }
+
+    private fun nextCodePointIndex(byteOffsets: List<Long>, control: Long): Int? {
+        if (control < 0L) {
+            return null
+        }
+        for (index in byteOffsets.indices) {
+            if (byteOffsets[index] > control) {
+                return index
+            }
+        }
+        return null
     }
 
     private fun utf8OffsetResult(

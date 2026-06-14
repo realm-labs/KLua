@@ -11001,12 +11001,17 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local iterator = utf8.codes("A" .. utf8.char(128512) .. "Z")
-                local firstIndex, firstCode = iterator()
-                local secondIndex, secondCode = iterator()
-                local thirdIndex, thirdCode = iterator()
-                local done = iterator()
-                return firstIndex, firstCode, secondIndex, secondCode, thirdIndex, thirdCode, done
+                local iterator, stateValue, control = utf8.codes("A" .. utf8.char(128512) .. "Z")
+                local firstIndex, firstCode = iterator(stateValue, control)
+                local firstAgainIndex, firstAgainCode = iterator(stateValue, control)
+                local secondIndex, secondCode = iterator(stateValue, firstIndex)
+                local thirdIndex, thirdCode = iterator(stateValue, secondIndex)
+                local done = iterator(stateValue, thirdIndex)
+                local nilControlIndex, nilControlCode = iterator(stateValue, nil)
+                local badControlIndex, badControlCode = iterator(stateValue, "bad")
+                return firstIndex, firstCode, firstAgainIndex, firstAgainCode,
+                    secondIndex, secondCode, thirdIndex, thirdCode, done,
+                    nilControlIndex, nilControlCode, badControlIndex, badControlCode
                 """.trimIndent(),
                 "utf8-codes.lua",
             ),
@@ -11015,11 +11020,17 @@ class LuaStdlibTest {
 
         assertEquals(1L, state.toInteger(1))
         assertEquals(65L, state.toInteger(2))
-        assertEquals(2L, state.toInteger(3))
-        assertEquals(128512L, state.toInteger(4))
-        assertEquals(6L, state.toInteger(5))
-        assertEquals(90L, state.toInteger(6))
-        assertTrue(state.isNil(7))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(65L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(128512L, state.toInteger(6))
+        assertEquals(6L, state.toInteger(7))
+        assertEquals(90L, state.toInteger(8))
+        assertTrue(state.isNil(9))
+        assertEquals(1L, state.toInteger(10))
+        assertEquals(65L, state.toInteger(11))
+        assertEquals(1L, state.toInteger(12))
+        assertEquals(65L, state.toInteger(13))
     }
 
     @Test
