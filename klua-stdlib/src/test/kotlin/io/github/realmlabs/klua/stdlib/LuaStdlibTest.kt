@@ -7889,7 +7889,7 @@ class LuaStdlibTest {
 
         assertEquals("table:formatted", state.toString(1))
         assertFalse(state.toBoolean(2))
-        assertEquals("bad argument #2 to 'string.format' (value has no literal form)", state.toString(3))
+        assertEquals("bad argument #2 to 'format' (value has no literal form)", state.toString(3))
     }
 
     @Test
@@ -8114,7 +8114,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.format' (number expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(-1))
 
         val fractionalState = LuaState.create()
         LuaStdlib.openString(fractionalState)
@@ -8127,7 +8127,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(fractionalState.getLastError())
         assertEquals(
-            "bad argument #2 to 'string.format' (number has no integer representation)",
+            "bad argument #2 to 'format' (number has no integer representation)",
             fractionalState.toString(-1),
         )
     }
@@ -8141,7 +8141,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, firstMissingState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(firstMissingState.getLastError())
-        assertEquals("bad argument #2 to 'string.format' (no value)", firstMissingState.toString(-1))
+        assertEquals("bad argument #2 to 'format' (no value)", firstMissingState.toString(-1))
 
         val laterMissingState = LuaState.create()
         LuaStdlib.openString(laterMissingState)
@@ -8153,7 +8153,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, laterMissingState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(laterMissingState.getLastError())
-        assertEquals("bad argument #3 to 'string.format' (no value)", laterMissingState.toString(-1))
+        assertEquals("bad argument #3 to 'format' (no value)", laterMissingState.toString(-1))
     }
 
     @Test
@@ -8181,7 +8181,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'string.format' (no value)", state.toString(2))
+        assertEquals("bad argument #2 to 'format' (no value)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("invalid conversion '%' to 'format'", state.toString(4))
         assertFalse(state.toBoolean(5))
@@ -8223,7 +8223,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.format' (string contains zeros)", state.toString(-1))
+        assertEquals("bad argument #2 to 'format' (string contains zeros)", state.toString(-1))
     }
 
     @Test
@@ -8295,7 +8295,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'string.format' (number expected)", state.toString(-1))
+        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(-1))
 
         val fractionalState = LuaState.create()
         LuaStdlib.openString(fractionalState)
@@ -8305,7 +8305,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(fractionalState.getLastError())
         assertEquals(
-            "bad argument #2 to 'string.format' (number has no integer representation)",
+            "bad argument #2 to 'format' (number has no integer representation)",
             fractionalState.toString(-1),
         )
     }
@@ -8497,19 +8497,19 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'string.packsize' (variable-length format)", state.toString(2))
+        assertEquals("bad argument #1 to 'packsize' (variable-length format)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("integral size (0) out of limits [1,16]", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("integral size (17) out of limits [1,16]", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #1 to 'string.packsize' (format asks for alignment not power of 2)", state.toString(8))
+        assertEquals("bad argument #1 to 'packsize' (format asks for alignment not power of 2)", state.toString(8))
         assertFalse(state.toBoolean(9))
         assertEquals("invalid format option '?'", state.toString(10))
         assertFalse(state.toBoolean(11))
         assertEquals("missing size for format option 'c'", state.toString(12))
         assertFalse(state.toBoolean(13))
-        assertEquals("bad argument #1 to 'string.packsize' (invalid next option for option 'X')", state.toString(14))
+        assertEquals("bad argument #1 to 'packsize' (invalid next option for option 'X')", state.toString(14))
     }
 
     @Test

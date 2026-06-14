@@ -298,7 +298,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringFormat(context: LuaCallContext): LuaReturn {
-        val format = requiredString(context, 1, "string.format")
+        val format = requiredString(context, 1, "format")
         val result = StringBuilder()
         var cursor = 0
         var argument = 2
@@ -327,7 +327,7 @@ internal object LuaStringLibrary {
                 format.substring(specStart)
             }
             if (argument > context.argumentCount) {
-                throw LuaRuntimeException("bad argument #$argument to 'string.format' (no value)")
+                throw LuaRuntimeException("bad argument #$argument to 'format' (no value)")
             }
             if (cursor >= format.length) {
                 throw invalidFormatConversion(specifier)
@@ -364,7 +364,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringPackSize(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(LuaStringPackFormat.packSize(requiredString(context, 1, "string.packsize")))
+        return LuaReturn.of(LuaStringPackFormat.packSize(requiredString(context, 1, "packsize")))
     }
 
     private fun stringRep(context: LuaCallContext): LuaReturn {
@@ -466,9 +466,9 @@ internal object LuaStringLibrary {
     private fun requiredFormatInteger(context: LuaCallContext, index: Int): Long {
         return context.toInteger(index)
             ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
-                throw LuaRuntimeException("bad argument #$index to 'string.format' (number has no integer representation)")
+                throw LuaRuntimeException("bad argument #$index to 'format' (number has no integer representation)")
             } else {
-                throw LuaRuntimeException("bad argument #$index to 'string.format' (number expected)")
+                throw LuaRuntimeException("bad argument #$index to 'format' (number expected)")
             }
     }
 
@@ -497,7 +497,7 @@ internal object LuaStringLibrary {
             'G',
             -> {
                 val parsed = validateFormatSize(specifier)
-                parsed.toJavaSpecifier(conversion).formatWith(requiredNumber(context, index, "string.format"))
+                parsed.toJavaSpecifier(conversion).formatWith(requiredNumber(context, index, "format"))
             }
             'a',
             'A',
@@ -580,7 +580,7 @@ internal object LuaStringLibrary {
         conversion: Char,
     ): String {
         val parsed = validateFormatSize(specifier)
-        val value = requiredNumber(context, index, "string.format")
+        val value = requiredNumber(context, index, "format")
         val base = parsed.copy(width = null)
             .toJavaSpecifier(conversion)
             .formatWith(value)
@@ -680,7 +680,7 @@ internal object LuaStringLibrary {
             return value
         }
         if ('\u0000' in value) {
-            throw LuaRuntimeException("bad argument #$index to 'string.format' (string contains zeros)")
+            throw LuaRuntimeException("bad argument #$index to 'format' (string contains zeros)")
         }
         return parseFormatSpecifier(specifier).toJavaSpecifier('s').formatWith(value)
     }
@@ -865,7 +865,7 @@ internal object LuaStringLibrary {
             "boolean" -> context.toBoolean(index).toString()
             "number" -> quoteNumber(context, index)
             "string" -> quoteString(context.toString(index) ?: "")
-            else -> throw LuaRuntimeException("bad argument #$index to 'string.format' (value has no literal form)")
+            else -> throw LuaRuntimeException("bad argument #$index to 'format' (value has no literal form)")
         }
     }
 
