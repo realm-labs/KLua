@@ -131,7 +131,7 @@ internal object LuaPackageLibrary {
                 if loader ~= nil then
                     return loader, ":preload:"
                 end
-                return "\n\tno field package.preload['" .. name .. "']"
+                return "no field package.preload['" .. name .. "']"
             end,
 
             function(name)
@@ -140,7 +140,7 @@ internal object LuaPackageLibrary {
                 end
                 local filename, searchError = package.searchpath(name, package.path)
                 if filename == nil then
-                    return "\n\t" .. searchError
+                    return searchError
                 end
                 local loader, loadError = loadfile(filename)
                 if loader == nil then
@@ -155,7 +155,7 @@ internal object LuaPackageLibrary {
                 end
                 local filename, searchError = package.searchpath(name, package.cpath)
                 if filename == nil then
-                    return "\n\t" .. searchError
+                    return searchError
                 end
                 error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" ..
                     "$DYNAMIC_LIBRARIES_DISABLED_MESSAGE", 0)
@@ -171,9 +171,9 @@ internal object LuaPackageLibrary {
                 end
                 local filename, searchError = package.searchpath(rootName, package.cpath)
                 if filename == nil then
-                    return "\n\t" .. searchError
+                    return searchError
                 end
-                return "\n\tno module '" .. name .. "' in file '" .. filename .. "'"
+                return "no module '" .. name .. "' in file '" .. filename .. "'"
             end,
         }
 
@@ -218,7 +218,7 @@ internal object LuaPackageLibrary {
                     return value, extra
                 end
                 if loaderType == "string" then
-                    errors = errors .. loader
+                    errors = errors .. "\n\t" .. loader
                 end
                 index = index + 1
             end

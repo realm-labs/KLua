@@ -2309,7 +2309,7 @@ class LuaStdlibTest {
                 """
                 package.searchers = {
                     function()
-                        return "\n\tcustom miss"
+                        return "custom miss"
                     end,
                     function()
                         return false
@@ -2324,9 +2324,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        val message = state.toString(2) ?: ""
-        assertTrue(message.contains("module 'custom' not found"))
-        assertTrue(message.contains("custom miss"))
+        assertEquals("module 'custom' not found:\n\tcustom miss", state.toString(2))
         assertTrue(state.isNil(3))
     }
 
