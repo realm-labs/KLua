@@ -16,17 +16,26 @@ internal object LuaPackageLibrary {
         state.newTable()
         state.pushString("?.lua;?/init.lua")
         state.setField(-2, "path")
+        state.pushString("?.so")
+        state.setField(-2, "cpath")
         state.pushString("$directorySeparator\n;\n?\n!\n-\n")
         state.setField(-2, "config")
         state.newTable()
         state.setField(-2, "loaded")
         state.newTable()
         state.setField(-2, "preload")
+        setFunctionField(state, "loadlib", ::loadlib)
         setFunctionField(state, "searchpath", ::searchpath)
         setFunctionField(state, "_searcherResultType", ::searcherResultType)
         state.setGlobal("package")
         installLuaSource(state, REQUIRE_SOURCE, "stdlib-package.lua")
         return state
+    }
+
+    private fun loadlib(context: LuaCallContext): LuaReturn {
+        requiredString(context, 1, "loadlib")
+        requiredString(context, 2, "loadlib")
+        return LuaReturn.of(null, DYNAMIC_LIBRARIES_DISABLED_MESSAGE, "absent")
     }
 
     private fun searchpath(context: LuaCallContext): LuaReturn {
@@ -87,6 +96,8 @@ internal object LuaPackageLibrary {
         state.pushFunction(function)
         state.setField(-2, name)
     }
+
+    private const val DYNAMIC_LIBRARIES_DISABLED_MESSAGE = "dynamic libraries not enabled; check your Lua installation"
 
     private const val REQUIRE_SOURCE: String = """
         local searcherResultType = package._searcherResultType
