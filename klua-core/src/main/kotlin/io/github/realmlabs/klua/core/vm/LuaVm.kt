@@ -298,19 +298,35 @@ internal class LuaVm(
         }
     }
 
-    private fun callValue(callee: LuaValue, arguments: List<LuaValue>): LuaExecutionResult {
+    private fun callValue(callee: LuaValue, arguments: List<LuaValue>, callMetamethodDepth: Int = 0): LuaExecutionResult {
         return when (callee) {
             is LuaClosure -> executeFrame(callee.prototype, arguments, callee.upvalues)
             is LuaNativeFunction -> callNativeResult(callee, arguments)
             is LuaTable -> {
-                val call = callee.metatableRawGet(CALL_KEY)
-                when (call) {
-                    is LuaClosure -> executeFrame(call.prototype, listOf(callee) + arguments, call.upvalues)
-                    is LuaNativeFunction -> callNativeResult(call, listOf(callee) + arguments)
-                    else -> throw LuaVmException("attempt to call table")
-                }
+                callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callMetamethodDepth)
             }
-            else -> throw LuaVmException("attempt to call ${typeName(callee)}")
+            else -> {
+                val metatable = rawTypeMetatable(callee)
+                callMetamethod(callee, arguments, metatable?.rawGet(CALL_KEY) ?: LuaNil, callMetamethodDepth)
+            }
+        }
+    }
+
+    private fun callMetamethod(
+        callee: LuaValue,
+        arguments: List<LuaValue>,
+        call: LuaValue,
+        callMetamethodDepth: Int,
+    ): LuaExecutionResult {
+        if (callMetamethodDepth >= MAX_CALL_METAMETHOD_DEPTH) {
+            throw LuaVmException("'__call' chain too long")
+        }
+        val metamethodArguments = listOf(callee) + arguments
+        return when (call) {
+            is LuaClosure -> executeFrame(call.prototype, metamethodArguments, call.upvalues)
+            is LuaNativeFunction -> callNativeResult(call, metamethodArguments)
+            LuaNil -> throw LuaVmException("attempt to call ${typeName(callee)}")
+            else -> callValue(call, metamethodArguments, callMetamethodDepth + 1)
         }
     }
 
@@ -621,6 +637,21 @@ internal class LuaVm(
             is LuaClosure -> executeReturned(index.prototype, listOf(receiver, key), index.upvalues).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(index, listOf(receiver, key)).firstOrNull() ?: LuaNil
             else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
+        }
+    }
+
+    private fun rawTypeMetatable(value: LuaValue): LuaTable? {
+        return when (value) {
+            is LuaString -> {
+                val metatableConfigured = isStringMetatableConfigured?.invoke() ?: stringMetatableConfigured
+                if (metatableConfigured) currentStringMetatable?.invoke() ?: stringMetatable else null
+            }
+            is LuaBoolean,
+            is LuaFloat,
+            is LuaInteger,
+            LuaNil,
+            -> currentRawTypeMetatable?.invoke(typeName(value))
+            else -> null
         }
     }
 
@@ -1127,6 +1158,7 @@ private val DIV_KEY = LuaString("__div")
 private val IDIV_KEY = LuaString("__idiv")
 private val MOD_KEY = LuaString("__mod")
 private val POW_KEY = LuaString("__pow")
+private const val MAX_CALL_METAMETHOD_DEPTH = 200
 
 private data class DebugHookState(
     val function: LuaValue,

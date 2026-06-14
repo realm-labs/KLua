@@ -5008,6 +5008,101 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `primitive type call metatables invoke callable values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(1, {
+                    __call = function(self, left, right)
+                        return self + left + right
+                    end,
+                })
+                debug.setmetatable("", {
+                    __call = function(self, suffix)
+                        return self .. suffix
+                    end,
+                })
+                debug.setmetatable(false, {
+                    __call = type,
+                })
+                return (1)(2, 3),
+                    ("ab")("cd"),
+                    (true)()
+                """.trimIndent(),
+                "primitive-call-metatables.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(6L, state.toInteger(1))
+        assertEquals("abcd", state.toString(2))
+        assertEquals("boolean", state.toString(3))
+    }
+
+    @Test
+    fun `call metatables retry table-valued call metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local callable = {}
+                setmetatable(callable, {
+                    __call = function(self, original, value)
+                        return self == callable, original, value
+                    end,
+                })
+                debug.setmetatable(1, {
+                    __call = callable,
+                })
+                return (1)("value")
+                """.trimIndent(),
+                "primitive-call-chain.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals("value", state.toString(3))
+    }
+
+    @Test
+    fun `primitive call reports missing call metamethod errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okNil, nilMessage = pcall(function()
+                    return (nil)()
+                end)
+                debug.setmetatable(2, {__call = {}})
+                local okTable, tableMessage = pcall(function()
+                    return (2)()
+                end)
+                return okNil, nilMessage, okTable, tableMessage
+                """.trimIndent(),
+                "primitive-call-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toString(2)?.contains("attempt to call nil") == true)
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toString(4)?.contains("attempt to call table") == true)
+    }
+
+    @Test
     fun `getmetatable reports missing argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
