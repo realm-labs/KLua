@@ -178,12 +178,20 @@ class LuaState private constructor(
             pushHostResults(result.values, resultCount)
             LuaStatus.OK
         } catch (exception: LuaException) {
-            val errorObject = if (exception is LuaRuntimeException && exception.hasErrorObject) {
-                exception.errorObject
+            val runtimeException = exception as? LuaRuntimeException
+            val hasErrorObject = runtimeException?.hasErrorObject == true
+            val errorObject = if (hasErrorObject) {
+                runtimeException.errorObject
             } else {
                 exception.message ?: exception::class.java.simpleName
             }
-            runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception, errorObject)
+            runtimeCallError(
+                functionIndex,
+                exception.message ?: exception::class.java.simpleName,
+                exception,
+                errorObject,
+                hasErrorObject,
+            )
         } catch (exception: RuntimeException) {
             runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception)
         }
@@ -194,10 +202,16 @@ class LuaState private constructor(
         message: String,
         cause: Throwable? = null,
         errorObject: Any? = message,
+        hasErrorObject: Boolean = false,
     ): LuaStatus {
-        lastError = LuaRuntimeException(message, cause)
+        lastError = LuaRuntimeException(
+            message,
+            cause,
+            errorObject = if (hasErrorObject) errorObject else null,
+            hasErrorObject = hasErrorObject,
+        )
         removeCallFrame(functionIndex)
-        stack += errorObject.toStackValue()
+        stack += if (hasErrorObject) errorObject.toStackValue() else message.toStackValue()
         return LuaStatus.RUNTIME_ERROR
     }
 
