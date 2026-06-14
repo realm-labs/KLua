@@ -107,9 +107,9 @@ internal object LuaDebugLibrary {
             return debugInfoTable(what) { option, table ->
                 when (option) {
                     'S' -> {
-                        table["what"] = "Java"
-                        table["source"] = "[Java]"
-                        table["short_src"] = "[Java]"
+                        table["what"] = "C"
+                        table["source"] = "=[C]"
+                        table["short_src"] = "[C]"
                         table["linedefined"] = -1L
                         table["lastlinedefined"] = -1L
                     }
