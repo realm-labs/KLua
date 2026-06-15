@@ -1146,6 +1146,61 @@ class LuaVmTest {
     }
 
     @Test
+    fun `expands final call results in generic for iterator lists`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function iter(limit, key)
+                    local next = key + 1
+                    if next > limit then
+                        return nil
+                    end
+                    return next
+                end
+
+                local function stateAndInitial()
+                    return 5, 2
+                end
+
+                local text = ""
+                for value in iter, stateAndInitial() do
+                    text = text .. value
+                end
+                return text
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaString("345")), result)
+    }
+
+    @Test
+    fun `evaluates extra generic for iterator values for side effects`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local count = 0
+                local function mark(value)
+                    count = count + 1
+                    return value
+                end
+
+                local function iter()
+                    return nil
+                end
+
+                for value in iter, nil, nil, mark("extra") do
+                end
+
+                return count
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
     fun `rejects comparison between incompatible values`() {
         val error = assertFailsWith<LuaVmException> {
             LuaVm().execute(Compiler.compile("""return "x" < 1"""))
