@@ -524,8 +524,12 @@ internal class Compiler private constructor(
     }
 
     private fun compileLabel(statement: LabelStatement, localDepthOverride: Int? = null) {
-        if (activeLabels.any { label -> label.name == statement.name }) {
-            throw unsupported(statement, "label '${statement.name}' already defined")
+        val duplicate = activeLabels.firstOrNull { label -> label.name == statement.name }
+        if (duplicate != null) {
+            throw unsupported(
+                statement,
+                "label '${statement.name}' already defined on line ${duplicate.line}",
+            )
         }
         val label = LabelTarget(
             name = statement.name,
@@ -556,7 +560,8 @@ internal class Compiler private constructor(
         if (goto.localDepth < label.localDepth) {
             throw unsupported(
                 goto.statement,
-                "<goto ${goto.name}> at line ${goto.line} jumps into the scope of a local variable",
+                "<goto ${goto.name}> at line ${goto.line} " +
+                    "jumps into the scope of '${localNameAtDepth(goto.localDepth, label)}'",
             )
         }
         val closeDepth = goto.closeDepth ?: label.localDepth.takeIf { depth ->
@@ -568,6 +573,15 @@ internal class Compiler private constructor(
             return
         }
         patchJump(goto.jump, label.pc)
+    }
+
+    private fun localNameAtDepth(localDepth: Int, label: LabelTarget): String {
+        return localVars.lastOrNull { local ->
+            val endPc = local.endPc
+            local.slot == localDepth &&
+                local.startPc <= label.pc &&
+                (endPc == null || label.pc <= endPc)
+        }?.name ?: "*"
     }
 
     private fun resolvePendingGotos() {

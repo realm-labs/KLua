@@ -959,7 +959,7 @@ class CompilerTest {
             )
         }
 
-        assertEquals("duplicate-label.lua:2:1: label 'again' already defined", error.message)
+        assertEquals("duplicate-label.lua:2:1: label 'again' already defined on line 1", error.message)
     }
 
     @Test
@@ -1033,7 +1033,7 @@ class CompilerTest {
         }
 
         assertEquals(
-            "goto-export-local-scope.lua:4:5: <goto done> at line 4 jumps into the scope of a local variable",
+            "goto-export-local-scope.lua:4:5: <goto done> at line 4 jumps into the scope of 'later'",
             error.message,
         )
     }
@@ -1080,7 +1080,27 @@ class CompilerTest {
         }
 
         assertEquals(
-            "goto-local-scope.lua:1:1: <goto done> at line 1 jumps into the scope of a local variable",
+            "goto-local-scope.lua:1:1: <goto done> at line 1 jumps into the scope of 'value'",
+            error.message,
+        )
+    }
+
+    @Test
+    fun `reports first local name for goto into multiple local declarations`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                goto done
+                local first, second = 1, 2
+                ::done::
+                return first, second
+                """.trimIndent(),
+                "goto-multiple-local-scope.lua",
+            )
+        }
+
+        assertEquals(
+            "goto-multiple-local-scope.lua:1:1: <goto done> at line 1 jumps into the scope of 'first'",
             error.message,
         )
     }
