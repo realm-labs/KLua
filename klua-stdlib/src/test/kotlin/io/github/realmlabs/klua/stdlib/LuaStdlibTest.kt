@@ -2561,6 +2561,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook clears inert suspended thread hooks and preserves negative active counts`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                    return "done"
+                end)
+                coroutine.resume(co)
+
+                local hook = function() end
+                debug.sethook(co, hook, "", 0)
+                local clearedZero = debug.gethook(co)
+                debug.sethook(co, hook, "", -1)
+                local clearedNegative = debug.gethook(co)
+                debug.sethook(co, hook, "l", -4)
+                local installed, mask, count = debug.gethook(co)
+                debug.sethook(co)
+                return clearedZero, clearedNegative, installed == hook, mask, count
+                """.trimIndent(),
+                "debug-thread-sethook-inert-count.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("l", state.toString(4))
+        assertEquals(-4L, state.toInteger(5))
+    }
+
+    @Test
     fun `debug sethook reports shifted thread argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
