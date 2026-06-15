@@ -12368,6 +12368,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pack reports format errors with pack caller`() {
+        fun assertPackError(chunk: String, chunkName: String, expected: String) {
+            val state = LuaState.create()
+            LuaStdlib.openString(state)
+
+            assertEquals(LuaStatus.OK, state.load(chunk, chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals(expected, state.toString(-1))
+        }
+
+        assertPackError(
+            """return string.pack("!3i4", 0)""",
+            "string-pack-align-error.lua",
+            "bad argument #1 to 'pack' (format asks for alignment not power of 2)",
+        )
+        assertPackError(
+            """return string.pack("Xc1", "a")""",
+            "string-pack-padding-target-error.lua",
+            "bad argument #1 to 'pack' (invalid next option for option 'X')",
+        )
+    }
+
+    @Test
     fun `string pack and unpack honor padding alignment and fixed strings`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -12491,6 +12515,31 @@ class LuaStdlibTest {
         assertEquals("bad argument #2 to 'pack' (string length does not fit in given size)", state.toString(8))
         assertFalse(state.toBoolean(9))
         assertEquals("bad argument #2 to 'unpack' (unfinished string for format 'z')", state.toString(10))
+
+        val alignState = LuaState.create()
+        LuaStdlib.openString(alignState)
+
+        assertEquals(LuaStatus.OK, alignState.load("""return string.unpack("!3i4", "abcd")""", "string-unpack-align-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, alignState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(alignState.getLastError())
+        assertEquals(
+            "bad argument #1 to 'unpack' (format asks for alignment not power of 2)",
+            alignState.toString(-1),
+        )
+
+        val paddingState = LuaState.create()
+        LuaStdlib.openString(paddingState)
+
+        assertEquals(
+            LuaStatus.OK,
+            paddingState.load("""return string.unpack("Xc1", "a")""", "string-unpack-padding-target-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, paddingState.pcall(0, -1))
+        assertIs<LuaRuntimeException>(paddingState.getLastError())
+        assertEquals(
+            "bad argument #1 to 'unpack' (invalid next option for option 'X')",
+            paddingState.toString(-1),
+        )
     }
 
     @Test
