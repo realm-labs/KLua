@@ -88,10 +88,10 @@ class CompilerTableTest {
         assertEquals(
             """
             0000  [1]  NEW_TABLE R0
-            0001  [2]  LOAD_INT R1 42
-            0002  [2]  MOVE R2 R0
-            0003  [2]  LOAD_INT R3 1
-            0004  [2]  SET_TABLE R2 R3 R1
+            0001  [2]  MOVE R1 R0
+            0002  [2]  LOAD_INT R2 1
+            0003  [2]  LOAD_INT R3 42
+            0004  [2]  SET_TABLE R1 R2 R3
             0005  [3]  MOVE R1 R0
             0006  [3]  LOAD_INT R2 1
             0007  [3]  GET_TABLE R1 R1 R2
@@ -116,9 +116,9 @@ class CompilerTableTest {
         assertEquals(
             """
             0000  [1]  NEW_TABLE R0
-            0001  [2]  LOAD_INT R1 42
-            0002  [2]  MOVE R2 R0
-            0003  [2]  SET_FIELD R2 K0 R1 ; "answer"
+            0001  [2]  MOVE R1 R0
+            0002  [2]  LOAD_INT R2 42
+            0003  [2]  SET_FIELD R1 K0 R2 ; "answer"
             0004  [3]  MOVE R1 R0
             0005  [3]  GET_FIELD R1 R1 K0 ; "answer"
             0006  [3]  MOVE R0 R1

@@ -222,9 +222,9 @@ class CompilerFunctionTest {
         assertEquals(
             """
             0000  [1]  NEW_TABLE R0
-            0001  [2]  CLOSURE R1 P0
-            0002  [2]  MOVE R2 R0
-            0003  [2]  SET_FIELD R2 K0 R1 ; "tick"
+            0001  [2]  MOVE R1 R0
+            0002  [2]  CLOSURE R2 P0
+            0003  [2]  SET_FIELD R1 K0 R2 ; "tick"
             0004  [3]  MOVE R1 R0
             0005  [3]  GET_FIELD R1 R1 K0 ; "tick"
             0006  [3]  LOAD_INT R2 1

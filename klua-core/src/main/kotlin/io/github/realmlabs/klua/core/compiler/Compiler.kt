@@ -294,23 +294,24 @@ internal class Compiler private constructor(
 
     private fun compileAssignment(statement: AssignmentStatement) {
         val targetCount = statement.targets.size
-        val tempBase = nextLocalRegister
+        val preparedTargets = prepareAssignmentTargets(statement, nextLocalRegister)
+        val tempBase = nextLocalRegister + preparedTargets.registerCount
         val onlyValue = statement.values.singleOrNull()
 
         if (onlyValue is VarargExpression) {
             compileVarargExpression(onlyValue, tempBase, targetCount)
-            assignTargets(statement, tempBase)
+            assignTargets(statement, preparedTargets.targets, tempBase)
             return
         }
 
         if (onlyValue is CallExpression) {
             compileCallExpression(onlyValue, tempBase, targetCount)
-            assignTargets(statement, tempBase)
+            assignTargets(statement, preparedTargets.targets, tempBase)
             return
         }
         if (onlyValue is MethodCallExpression) {
             compileMethodCallExpression(onlyValue, tempBase, targetCount)
-            assignTargets(statement, tempBase)
+            assignTargets(statement, preparedTargets.targets, tempBase)
             return
         }
 
@@ -324,53 +325,91 @@ internal class Compiler private constructor(
             }
         }
 
-        assignTargets(statement, tempBase)
+        assignTargets(statement, preparedTargets.targets, tempBase)
     }
 
-    private fun assignTargets(statement: AssignmentStatement, valueBase: Int) {
-        val scratchBase = valueBase + statement.targets.size
-        for ((index, target) in statement.targets.withIndex()) {
+    private fun prepareAssignmentTargets(
+        statement: AssignmentStatement,
+        baseRegister: Int,
+    ): PreparedAssignmentTargets {
+        val targets = mutableListOf<PreparedAssignmentTarget>()
+        var nextRegister = baseRegister
+        for (target in statement.targets) {
             when (target) {
                 is LocalAssignmentTarget -> {
-                    val targetSlot = locals[target.name]
-                    if (targetSlot != null) {
-                        if (localAttributes[target.name] == LocalAttribute.CONST) {
-                            throw constAssignmentError(target)
-                        }
-                        writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueBase + index), statement.range.start.line)
-                    } else {
-                        if (parentConstResolver?.invoke(target.name) == true) {
-                            throw constAssignmentError(target)
-                        }
-                        val upvalue = resolveUpvalue(target.name)
-                        if (upvalue != null) {
-                            if (upvalue > 255) {
-                                throw unsupported(statement, "too many upvalues")
-                            }
-                            writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueBase + index), statement.range.start.line)
-                        } else {
-                            val name = stringConstantIndex(target.name)
-                            writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueBase + index), statement.range.start.line)
-                        }
-                    }
+                    validateAssignmentTarget(target, statement)
+                    targets += PreparedAssignmentTarget.Local(target)
                 }
                 is IndexAssignmentTarget -> {
-                    compileExpression(target.index.receiver, scratchBase)
-                    if (target.index.key is StringExpression) {
-                        val field = stringConstantIndex(target.index.key.value)
-                        writer.emit(
-                            Instruction.abc(Opcode.SET_FIELD, scratchBase, field, valueBase + index),
-                            target.range.start.line,
-                        )
+                    val receiverRegister = nextRegister++
+                    compileExpression(target.index.receiver, receiverRegister)
+                    val key = if (target.index.key is StringExpression) {
+                        PreparedAssignmentKey.Field(target.index.key.value)
                     } else {
-                        compileExpression(target.index.key, scratchBase + 1)
-                        maxRegister = maxRegister.coerceAtLeast(scratchBase + 2)
-                        writer.emit(
-                            Instruction.abc(Opcode.SET_TABLE, scratchBase, scratchBase + 1, valueBase + index),
-                            target.range.start.line,
-                        )
+                        val keyRegister = nextRegister++
+                        compileExpression(target.index.key, keyRegister)
+                        PreparedAssignmentKey.Register(keyRegister)
+                    }
+                    targets += PreparedAssignmentTarget.Index(target, receiverRegister, key)
+                }
+            }
+        }
+        return PreparedAssignmentTargets(targets, nextRegister - baseRegister)
+    }
+
+    private fun validateAssignmentTarget(target: LocalAssignmentTarget, statement: AssignmentStatement) {
+        if (locals[target.name] != null && localAttributes[target.name] == LocalAttribute.CONST) {
+            throw constAssignmentError(target)
+        }
+        if (locals[target.name] == null && parentConstResolver?.invoke(target.name) == true) {
+            throw constAssignmentError(target)
+        }
+        val upvalue = if (locals[target.name] == null) resolveUpvalue(target.name) else null
+        if (upvalue != null && upvalue > 255) {
+            throw unsupported(statement, "too many upvalues")
+        }
+    }
+
+    private fun assignTargets(
+        statement: AssignmentStatement,
+        targets: List<PreparedAssignmentTarget>,
+        valueBase: Int,
+    ) {
+        for ((index, target) in targets.withIndex()) {
+            when (target) {
+                is PreparedAssignmentTarget.Local -> assignLocalTarget(statement, target.target, valueBase + index)
+                is PreparedAssignmentTarget.Index -> {
+                    when (val key = target.key) {
+                        is PreparedAssignmentKey.Field -> {
+                            val field = stringConstantIndex(key.name)
+                            writer.emit(
+                                Instruction.abc(Opcode.SET_FIELD, target.receiverRegister, field, valueBase + index),
+                                target.target.range.start.line,
+                            )
+                        }
+                        is PreparedAssignmentKey.Register -> {
+                            writer.emit(
+                                Instruction.abc(Opcode.SET_TABLE, target.receiverRegister, key.register, valueBase + index),
+                                target.target.range.start.line,
+                            )
+                        }
                     }
                 }
+            }
+        }
+    }
+
+    private fun assignLocalTarget(statement: AssignmentStatement, target: LocalAssignmentTarget, valueRegister: Int) {
+        val targetSlot = locals[target.name]
+        if (targetSlot != null) {
+            writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueRegister), statement.range.start.line)
+        } else {
+            val upvalue = resolveUpvalue(target.name)
+            if (upvalue != null) {
+                writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueRegister), statement.range.start.line)
+            } else {
+                val name = stringConstantIndex(target.name)
+                writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueRegister), statement.range.start.line)
             }
         }
     }
@@ -995,6 +1034,27 @@ internal class Compiler private constructor(
         val startPc: Int,
         var endPc: Int? = null,
     )
+
+    private data class PreparedAssignmentTargets(
+        val targets: List<PreparedAssignmentTarget>,
+        val registerCount: Int,
+    )
+
+    private sealed interface PreparedAssignmentTarget {
+        data class Local(val target: LocalAssignmentTarget) : PreparedAssignmentTarget
+
+        data class Index(
+            val target: IndexAssignmentTarget,
+            val receiverRegister: Int,
+            val key: PreparedAssignmentKey,
+        ) : PreparedAssignmentTarget
+    }
+
+    private sealed interface PreparedAssignmentKey {
+        data class Field(val name: String) : PreparedAssignmentKey
+
+        data class Register(val register: Int) : PreparedAssignmentKey
+    }
 
     private fun unsupported(statement: Statement, message: String): CompilerException {
         return CompilerException(statement.range.start, message)

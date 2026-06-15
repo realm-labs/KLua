@@ -256,6 +256,80 @@ class LuaVmTest {
     }
 
     @Test
+    fun `stages indexed assignment targets before writes`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local values = {10, 20}
+                local index = 1
+                index, values[index] = 2, 30
+
+                local keyed = {x = 10, y = 20}
+                local key = "x"
+                key, keyed[key] = "y", 30
+
+                return values[1], values[2], index, keyed.x, keyed.y, key
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(30),
+                LuaInteger(20),
+                LuaInteger(2),
+                LuaInteger(30),
+                LuaInteger(20),
+                LuaString("y"),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `evaluates indexed assignment targets before values`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local log = {}
+                local target = {}
+                local key = "first"
+
+                local function receiver()
+                    log[#log + 1] = "receiver"
+                    return target
+                end
+
+                local function keyValue()
+                    log[#log + 1] = "key"
+                    return key
+                end
+
+                local function value()
+                    log[#log + 1] = "value"
+                    return 99
+                end
+
+                key, receiver()[keyValue()] = "second", value()
+                return target.first, target.second, key, log[1], log[2], log[3]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(99),
+                LuaNil,
+                LuaString("second"),
+                LuaString("receiver"),
+                LuaString("key"),
+                LuaString("value"),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `assigns nil when reassignment has fewer values than targets`() {
         val result = LuaVm().execute(
             Compiler.compile(
