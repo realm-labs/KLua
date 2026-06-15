@@ -9883,11 +9883,16 @@ class LuaStdlibTest {
                 local fullRange = math.random(math.mininteger, math.maxinteger)
                 math.randomseed(456)
                 local repeated = math.random(3000000000)
+                math.randomseed(789)
+                local rawBits = math.random(0)
+                math.randomseed(789)
+                local fullRangeRepeat = math.random(math.mininteger, math.maxinteger)
                 return upperOnly, wideRange, fullRange,
                     upperOnly >= 1 and upperOnly <= 3000000000,
                     wideRange >= -3000000000 and wideRange <= 3000000000,
                     fullRange ~= nil,
-                    upperOnly == repeated
+                    upperOnly == repeated,
+                    fullRangeRepeat == rawBits + math.mininteger
                 """.trimIndent(),
                 "math-random-wide.lua",
             ),
@@ -9897,7 +9902,7 @@ class LuaStdlibTest {
         assertEquals(676063042L, state.toInteger(1))
         assertEquals(2846524133L, state.toInteger(2))
         assertEquals(5533629760186076056L, state.toInteger(3))
-        for (index in 4..7) {
+        for (index in 4..8) {
             assertTrue(state.toBoolean(index))
         }
     }
