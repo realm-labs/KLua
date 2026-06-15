@@ -182,7 +182,7 @@ public object KLuaCoreRuntime {
         chunk: KLuaCoreChunk,
         globals: KLuaCoreGlobals,
     ): KLuaCoreValue.FunctionValue {
-        val closure = LuaClosure(chunk.prototype)
+        val closure = LuaClosure(chunk.prototype, globals = globals.table)
         return KLuaCoreValue.FunctionValue { arguments ->
             callPublicLuaFunction(closure, arguments, globals)
         }.also { functionValue ->
@@ -241,7 +241,7 @@ public object KLuaCoreRuntime {
     ): KLuaCoreCallResult {
         val sourceFunction = function.sourceFunction
         if (sourceFunction != null) {
-            return callPublicLuaFunction(sourceFunction, arguments, globals, isYieldable)
+            return callPublicLuaFunction(sourceFunction, arguments, function.sourceGlobals ?: globals, isYieldable)
         }
         val contextFunction = function.contextFunction
         if (contextFunction != null) {
@@ -401,6 +401,14 @@ public class KLuaCoreGlobals internal constructor(
     public companion object {
         @JvmStatic
         public fun create(): KLuaCoreGlobals = KLuaCoreGlobals()
+    }
+
+    public fun withTable(tableValue: KLuaCoreValue.TableValue): KLuaCoreGlobals? {
+        val luaTable = tableValue.toLuaValueOrNull(this) as? LuaTable ?: return null
+        return KLuaCoreGlobals(luaTable).also { globals ->
+            globals.userDataTypes.putAll(userDataTypes)
+            globals.userDataProperties.putAll(userDataProperties)
+        }
     }
 
     public fun get(name: String): KLuaCoreValue = toPublicValue(table.rawGet(LuaString(name)), this)

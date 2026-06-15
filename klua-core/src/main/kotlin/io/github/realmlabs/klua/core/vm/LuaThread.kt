@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.core.vm
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
@@ -27,7 +28,8 @@ internal class LuaThread {
         prototype: Prototype,
         arguments: List<LuaValue>,
         upvalues: List<LuaUpvalue> = emptyList(),
-        function: LuaValue = LuaClosure(prototype, upvalues.toMutableList()),
+        globals: LuaTable = LuaTable(),
+        function: LuaValue = LuaClosure(prototype, upvalues.toMutableList(), globals),
     ): CallFrame {
         val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
         for (index in 0 until prototype.numParams) {
@@ -38,7 +40,7 @@ internal class LuaThread {
         } else {
             mutableListOf()
         }
-        val frame = CallFrame(prototype, function, stack, varargs, upvalues)
+        val frame = CallFrame(prototype, function, stack, varargs, upvalues, globals)
         pushFrame(frame)
         return frame
     }

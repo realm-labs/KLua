@@ -155,6 +155,7 @@ internal class LuaVm(
             function.prototype,
             arguments,
             function.upvalues,
+            globals = function.globals ?: globals,
             function = function,
         )
         return runFrameAndPopOnCompletion(frame)
@@ -597,7 +598,7 @@ internal class LuaVm(
                 }
             }
         }.toMutableList()
-        stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues))
+        stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues, frame.globals))
     }
 
     private fun getUpvalue(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -644,13 +645,13 @@ internal class LuaVm(
 
     private fun getGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
-        stack.set(register(frame, Instruction.a(instruction)), indexGet(environment, key))
+        stack.set(register(frame, Instruction.a(instruction)), indexGet(frame.globals, key))
     }
 
     private fun setGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.a(instruction))
         val value = stack.get(register(frame, Instruction.b(instruction)))
-        indexSet(environment, key, value)
+        indexSet(frame.globals, key, value)
     }
 
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {

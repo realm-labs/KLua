@@ -5157,12 +5157,12 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                value = 5
+                value = "global"
                 local env = {value = 40}
-                local chunk = load("local add = ...; value = value + add; return value", "load-env.lua", "t", env)
-                return chunk(2), env.value, value
+                local chunk = load("local add = ...; value = value + add; marker = 'env'; return value", "load-env.lua", "t", env)
+                return chunk(2), env.value, value, env.marker
                 """.trimIndent(),
-                "load-env-driver.lua",
+                "load-env-caller.lua",
             ),
         )
         val status = state.pcall(0, -1)
@@ -5170,7 +5170,8 @@ class LuaStdlibTest {
 
         assertEquals(42L, state.toInteger(1))
         assertEquals(42L, state.toInteger(2))
-        assertEquals(5L, state.toInteger(3))
+        assertEquals("global", state.toString(3))
+        assertEquals("env", state.toString(4))
     }
 
     @Test
@@ -5632,7 +5633,7 @@ class LuaStdlibTest {
     fun `loadfile compiles files with explicit environment tables`() {
         val file = Files.createTempFile("klua-loadfile-env", ".lua")
         try {
-            Files.writeString(file, "local add = ...; value = value + add; return value")
+            Files.writeString(file, "local add = ...; value = value + add; loaded = true; return value")
             val state = LuaState.create()
             LuaStdlib.openBase(state)
 
@@ -5640,10 +5641,10 @@ class LuaStdlibTest {
                 LuaStatus.OK,
                 state.load(
                     """
-                    value = 5
+                    value = "global"
                     local env = {value = 40}
                     local chunk = loadfile("${file.luaPath()}", "t", env)
-                    return chunk(2), env.value, value
+                    return chunk(2), env.value, value, env.loaded
                     """.trimIndent(),
                     "loadfile-env.lua",
                 ),
@@ -5653,7 +5654,8 @@ class LuaStdlibTest {
 
             assertEquals(42L, state.toInteger(1))
             assertEquals(42L, state.toInteger(2))
-            assertEquals(5L, state.toInteger(3))
+            assertEquals("global", state.toString(3))
+            assertTrue(state.toBoolean(4))
         } finally {
             Files.deleteIfExists(file)
         }
