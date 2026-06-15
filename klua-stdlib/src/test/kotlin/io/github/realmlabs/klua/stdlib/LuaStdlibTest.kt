@@ -10767,6 +10767,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns use ascii character classes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        state.pushString("é")
+        state.setGlobal("letter")
+        state.pushString("\u0663")
+        state.setGlobal("digit")
+        state.pushString("\u00A0")
+        state.setGlobal("space")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.match(letter, "%a"), string.match(letter, "%A"),
+                    string.match(digit, "%d"), string.match(digit, "%D"),
+                    string.match(letter, "%w"), string.match(letter, "%W"),
+                    string.match(letter, "%g"), string.match(letter, "%G"),
+                    string.match(letter, "%l"), string.match(letter, "%u"),
+                    string.match(space, "%s"), string.match(space, "%S")
+                """.trimIndent(),
+                "string-pattern-ascii-classes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("é", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("\u0663", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertEquals("é", state.toString(6))
+        assertTrue(state.isNil(7))
+        assertEquals("é", state.toString(8))
+        assertTrue(state.isNil(9))
+        assertTrue(state.isNil(10))
+        assertTrue(state.isNil(11))
+        assertEquals("\u00A0", state.toString(12))
+    }
+
+    @Test
     fun `string patterns support escaped punctuation literals`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
