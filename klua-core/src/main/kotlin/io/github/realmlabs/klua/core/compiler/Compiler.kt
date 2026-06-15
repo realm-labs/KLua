@@ -81,7 +81,7 @@ internal class Compiler private constructor(
         if (chunk.statements.isEmpty()) {
             emitImplicitReturn(chunk.range.start.line)
         } else {
-            compileStatements(chunk.statements)
+            compileStatements(chunk.statements, endLabelLocalDepth = 0)
             resolvePendingGotos()
             if (chunk.statements.last() !is ReturnStatement) {
                 emitImplicitReturn(chunk.range.end.line)
@@ -101,8 +101,8 @@ internal class Compiler private constructor(
         )
     }
 
-    private fun compileStatements(statements: List<Statement>) {
-        for (statement in statements) {
+    private fun compileStatements(statements: List<Statement>, endLabelLocalDepth: Int? = null) {
+        for ((index, statement) in statements.withIndex()) {
             when (statement) {
                 is LocalStatement -> compileLocal(statement)
                 is AssignmentStatement -> compileAssignment(statement)
@@ -118,7 +118,9 @@ internal class Compiler private constructor(
                 is ReturnStatement -> compileReturn(statement)
                 is BreakStatement -> compileBreak(statement)
                 is GotoStatement -> compileGoto(statement)
-                is LabelStatement -> compileLabel(statement)
+                is LabelStatement -> compileLabel(statement, endLabelLocalDepth?.takeIf {
+                    statements.drop(index + 1).all { following -> following is LabelStatement }
+                })
             }
         }
     }
@@ -136,7 +138,7 @@ internal class Compiler private constructor(
         val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
         enterBlockScope()
-        compileStatements(statements)
+        compileStatements(statements, endLabelLocalDepth = savedNextLocalRegister)
         exitBlockScope()
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
@@ -164,7 +166,7 @@ internal class Compiler private constructor(
         val loopStart = writer.size
 
         enterBlockScope()
-        compileStatements(statement.block)
+        compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
         exitBlockScope()
 
         val loopIndex = writer.size
@@ -204,7 +206,7 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.TEST, valueBase), statement.range.start.line)
 
         enterBlockScope()
-        compileStatements(statement.block)
+        compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
         exitBlockScope()
 
         val backJump = writer.size
@@ -440,7 +442,7 @@ internal class Compiler private constructor(
         val loopStart = writer.size
 
         enterBlockScope()
-        compileStatements(statement.block)
+        compileStatements(statement.block, endLabelLocalDepth = savedNextLocalRegister)
         exitBlockScope()
 
         val conditionRegister = nextLocalRegister
@@ -484,7 +486,7 @@ internal class Compiler private constructor(
         patchGoto(pending, label)
     }
 
-    private fun compileLabel(statement: LabelStatement) {
+    private fun compileLabel(statement: LabelStatement, localDepthOverride: Int? = null) {
         if (activeLabels.any { label -> label.name == statement.name }) {
             throw unsupported(statement, "label '${statement.name}' already defined")
         }
@@ -492,7 +494,7 @@ internal class Compiler private constructor(
             name = statement.name,
             pc = writer.size,
             line = statement.range.start.line,
-            localDepth = nextLocalRegister,
+            localDepth = localDepthOverride ?: nextLocalRegister,
             scopePath = blockScopePath.toList(),
         )
         activeLabels += label
@@ -755,7 +757,7 @@ internal class Compiler private constructor(
         if (expression.body.isEmpty()) {
             compiler.emitImplicitReturn(expression.range.start.line)
         } else {
-            compiler.compileStatements(expression.body)
+            compiler.compileStatements(expression.body, endLabelLocalDepth = 0)
             if (expression.body.last() !is ReturnStatement) {
                 compiler.emitImplicitReturn(expression.range.end.line)
             }

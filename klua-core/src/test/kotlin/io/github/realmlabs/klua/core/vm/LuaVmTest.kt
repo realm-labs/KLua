@@ -1081,6 +1081,26 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes goto to label at end of block after locals`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local value = 0
+                do
+                    goto done
+                    local skipped = 1
+                    value = skipped
+                    ::done::
+                end
+                return value
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(0)), result)
+    }
+
+    @Test
     fun `executes numeric for loop`() {
         val result = LuaVm().execute(
             Compiler.compile(

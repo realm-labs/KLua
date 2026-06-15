@@ -972,6 +972,23 @@ class CompilerTest {
     }
 
     @Test
+    fun `allows goto to label at end of block after local declarations`() {
+        val prototype = Compiler.compile(
+            """
+            do
+                goto done
+                local value = 1
+                ::done::
+            end
+            return 2
+            """.trimIndent(),
+            "goto-end-label.lua",
+        )
+
+        assertEquals("goto-end-label.lua", prototype.sourceName)
+    }
+
+    @Test
     fun `closes captured locals before goto escapes scope`() {
         val prototype = Compiler.compile(
             """
