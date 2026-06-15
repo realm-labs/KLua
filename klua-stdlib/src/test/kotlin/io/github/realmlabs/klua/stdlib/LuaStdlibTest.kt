@@ -14928,6 +14928,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table unpack uses primitive length metamethod before indexing`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+        LuaStdlib.openDebug(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(0, {
+                    __len = function()
+                        return 0
+                    end,
+                })
+                local emptyOk, emptyCount = pcall(function()
+                    return select("#", table.unpack(42))
+                end)
+
+                debug.setmetatable(0, {
+                    __len = function()
+                        return 1
+                    end,
+                })
+                local indexOk, indexMessage = pcall(table.unpack, 42)
+                debug.setmetatable(0, nil)
+                return emptyOk, emptyCount, indexOk, indexMessage
+                """.trimIndent(),
+                "table-unpack-primitive-length.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(0L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("attempt to index a number value", state.toString(4))
+    }
+
+    @Test
     fun `table unpack follows nested index metamethod tables`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

@@ -524,6 +524,7 @@ internal object LuaTableLibrary {
             when {
                 isTable -> tableLength(context, 1)
                 isString -> context.toString(1)?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0L
+                context.getTableField(context.getRawMetatable(1), "__len") != null -> tableLength(context, 1)
                 hasIndex -> tableLength(context, 1)
                 else -> throw LuaRuntimeException("attempt to get length of a $sourceType value")
             }
