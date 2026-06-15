@@ -1505,6 +1505,51 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setlocal and setupvalue require replacement arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local secret = "old"
+                local function capture()
+                    return secret
+                end
+
+                local function leaf()
+                    local number = 1
+                    local missingSetOk, missingSetMessage = pcall(function()
+                        return debug.setlocal(1, 1)
+                    end)
+                    local nilSetName = debug.setlocal(1, 1, nil)
+                    local missingSetupOk, missingSetupMessage = pcall(debug.setupvalue, capture, 1)
+                    local nilSetupName = debug.setupvalue(capture, 1, nil)
+                    return missingSetOk, missingSetMessage,
+                        nilSetName, number == nil,
+                        missingSetupOk, missingSetupMessage,
+                        nilSetupName, capture() == nil
+                end
+
+                return leaf()
+                """.trimIndent(),
+                "debug-replacement-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'debug.setlocal' (value expected)", state.toString(2))
+        assertEquals("number", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(6))
+        assertEquals("secret", state.toString(7))
+        assertTrue(state.toBoolean(8))
+    }
+
+    @Test
     fun `debug getupvalue returns lua closure upvalue names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
