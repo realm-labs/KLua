@@ -9627,7 +9627,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(1))
         assertTrue(state.toBoolean(2))
         assertEquals("normal", state.toString(3))
-        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(4))
         assertEquals("dead", state.toString(5))
     }
 
