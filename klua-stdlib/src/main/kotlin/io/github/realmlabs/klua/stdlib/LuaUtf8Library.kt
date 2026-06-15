@@ -350,7 +350,7 @@ internal object LuaUtf8Library {
         val position = if (context.isNone(index) || context.isNil(index)) {
             defaultValue
         } else {
-            requiredInteger(context, index, functionName)
+            requiredNumberInteger(context, index, functionName)
         }
         val normalized = if (position < 0L) length + position + 1L else position
         if (normalized < 1L || normalized > length + 1L) {
