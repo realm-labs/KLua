@@ -11737,6 +11737,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format renders non finite decimal float conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.format("%f|%e|%g|%E|%G|%+f|% f|%10g|%-10G|%f|%G",
+                    math.huge, math.huge, math.huge, math.huge, math.huge,
+                    math.huge, math.huge, math.huge, math.huge, -math.huge, 0 / 0)
+                """.trimIndent(),
+                "string-format-decimal-non-finite.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals("inf|inf|inf|INF|INF|+inf| inf|       inf|INF       |-inf|NAN", state.toString(1))
+    }
+
+    @Test
     fun `string format renders unsigned integer conversions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

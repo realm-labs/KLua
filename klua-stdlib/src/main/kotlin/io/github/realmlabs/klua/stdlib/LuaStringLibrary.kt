@@ -826,13 +826,7 @@ internal object LuaStringLibrary {
             'E',
             'g',
             'G',
-            -> {
-                val parsed = validateFormatSize(specifier)
-                parsed.toJavaSpecifier(conversion).formatWith(requiredNumber(context, index, "format"))
-            }
-            'a',
-            'A',
-            -> formatHexFloatValue(context, index, specifier, conversion)
+            -> formatDecimalFloatValue(context, index, specifier, conversion)
             'c' -> {
                 val parsed = validateCharacterFormatSpecifier(specifier)
                 val code = requiredFormatInteger(context, index)
@@ -1017,6 +1011,20 @@ internal object LuaStringLibrary {
         return parseFormatSpecifier(specifier).toJavaSpecifier('s').formatWith(value)
     }
 
+    private fun formatDecimalFloatValue(
+        context: LuaCallContext,
+        index: Int,
+        specifier: String,
+        conversion: Char,
+    ): String {
+        val parsed = validateFormatSize(specifier)
+        val value = requiredNumber(context, index, "string.format")
+        if (!value.isFinite()) {
+            return formatNonFiniteDecimalFloat(value, parsed, conversion)
+        }
+        return parsed.toJavaSpecifier(conversion).formatWith(value)
+    }
+
     private fun formatIntegerValue(
         context: LuaCallContext,
         index: Int,
@@ -1100,7 +1108,7 @@ internal object LuaStringLibrary {
             return formatNonFiniteHexFloat(value, parsed, conversion)
         }
         val formatted = parsed.copy(width = null).toJavaSpecifier(conversion).formatWith(value)
-        return applyHexFloatWidth(canonicalizeHexFloat(formatted, parsed), parsed)
+        return applyFloatWidth(canonicalizeHexFloat(formatted, parsed), parsed)
     }
 
     private fun canonicalizeHexFloat(value: String, parsed: FormatSpecifier): String {
@@ -1116,7 +1124,7 @@ internal object LuaStringLibrary {
         return signedHexFloatExponent(mantissa + value.substring(exponent))
     }
 
-    private fun applyHexFloatWidth(value: String, parsed: FormatSpecifier): String {
+    private fun applyFloatWidth(value: String, parsed: FormatSpecifier): String {
         val width = parsed.width ?: return value
         if (value.length >= width) {
             return value
@@ -1127,7 +1135,8 @@ internal object LuaStringLibrary {
         if ('0' !in parsed.flags) {
             return value.padStart(width, ' ')
         }
-        val signLength = if (value.firstOrNull() in setOf('-', '+', ' ')) 1 else 0
+        val first = value.firstOrNull()
+        val signLength = if (first == '-' || first == '+' || first == ' ') 1 else 0
         val prefixLength = if (value.regionMatches(signLength, "0x", 0, 2, ignoreCase = true)) 2 else 0
         val insertion = signLength + prefixLength
         val padding = "0".repeat(width - value.length)
@@ -1146,6 +1155,23 @@ internal object LuaStringLibrary {
         return value.substring(0, exponent + 1) + "+" + value.substring(exponent + 1)
     }
 
+    private fun formatNonFiniteDecimalFloat(
+        value: Double,
+        parsed: FormatSpecifier,
+        conversion: Char,
+    ): String {
+        val text = when {
+            value.isNaN() -> "nan"
+            value < 0.0 -> "-inf"
+            '+' in parsed.flags -> "+inf"
+            ' ' in parsed.flags -> " inf"
+            else -> "inf"
+        }.let { formatted ->
+            if (conversion == 'E' || conversion == 'G') formatted.uppercase(Locale.ROOT) else formatted
+        }
+        return applyFloatWidth(text, parsed)
+    }
+
     private fun formatNonFiniteHexFloat(
         value: Double,
         parsed: FormatSpecifier,
@@ -1160,7 +1186,7 @@ internal object LuaStringLibrary {
         }.let { formatted ->
             if (conversion == 'A') formatted.uppercase(Locale.ROOT) else formatted
         }
-        return applyHexFloatWidth(text, parsed)
+        return applyFloatWidth(text, parsed)
     }
 
     private fun validateIntegerFormatFlags(
