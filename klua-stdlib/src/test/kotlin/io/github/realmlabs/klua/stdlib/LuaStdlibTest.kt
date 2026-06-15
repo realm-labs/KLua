@@ -13346,6 +13346,61 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string unpack honors start positions and alignment`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local packed = string.pack("c2!4xi4", "ab", 0x01020304)
+                local value, nextPosition = string.unpack("!4xi4", packed, 3)
+                local tail, tailNext = string.unpack("c2", packed, -3)
+                return value, nextPosition, tail, tailNext
+                """.trimIndent(),
+                "string-unpack-position.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0x01020304L, state.toInteger(1))
+        assertEquals(9L, state.toInteger(2))
+        assertEquals("\u0003\u0002", state.toString(3))
+        assertEquals(8L, state.toInteger(4))
+    }
+
+    @Test
+    fun `string unpack reports position argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okString, stringMessage = pcall(string.unpack, "b", "a", "bad")
+                local okFraction, fractionMessage = pcall(string.unpack, "b", "a", 1.5)
+                local okStringNumber, stringNumberMessage = pcall(string.unpack, "b", "a", "1.5")
+                return okString, stringMessage,
+                    okFraction, fractionMessage,
+                    okStringNumber, stringNumberMessage
+                """.trimIndent(),
+                "string-unpack-position-argument-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'unpack' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'unpack' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'unpack' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `string gsub replaces literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
