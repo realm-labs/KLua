@@ -7923,6 +7923,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine isyieldable reflects host callback yield boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        state.register("callPlain") { context ->
+            context.call(1, emptyList())
+        }
+        state.register(
+            "callYieldable",
+            LuaYieldableFunction { context ->
+                context.call(1, emptyList())
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local direct = coroutine.isyieldable()
+                    local plain = callPlain(function()
+                        return coroutine.isyieldable()
+                    end)
+                    local yieldable = callYieldable(function()
+                        return coroutine.isyieldable()
+                    end)
+                    return direct, plain, yieldable
+                end)
+                return coroutine.resume(co)
+                """.trimIndent(),
+                "coroutine-isyieldable-host-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1), state.toString(2))
+        assertTrue(state.toBoolean(2), state.toString(2))
+        assertFalse(state.toBoolean(3), state.toString(3))
+        assertTrue(state.toBoolean(4), state.toString(4))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)

@@ -94,6 +94,36 @@ class LuaThreadTest {
     }
 
     @Test
+    fun `tracks non yieldable call boundaries`() {
+        val thread = LuaThread()
+
+        assertTrue(thread.isYieldable)
+
+        thread.runNonYieldableCall {
+            assertFalse(thread.isYieldable)
+            thread.runNonYieldableCall {
+                assertFalse(thread.isYieldable)
+            }
+            assertFalse(thread.isYieldable)
+        }
+
+        assertTrue(thread.isYieldable)
+    }
+
+    @Test
+    fun `unwinds non yieldable call boundary after failure`() {
+        val thread = LuaThread()
+
+        assertFailsWith<IllegalStateException> {
+            thread.runNonYieldableCall {
+                throw IllegalStateException("boom")
+            }
+        }
+
+        assertTrue(thread.isYieldable)
+    }
+
+    @Test
     fun `unwinds native call boundary after failure`() {
         val thread = LuaThread()
 

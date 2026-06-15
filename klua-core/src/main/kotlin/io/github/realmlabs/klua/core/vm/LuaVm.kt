@@ -67,6 +67,22 @@ internal class LuaVm(
         return callValue(callee, arguments)
     }
 
+    internal fun callWithYieldability(
+        callee: LuaValue,
+        arguments: List<LuaValue>,
+        isYieldable: Boolean,
+    ): LuaExecutionResult {
+        if (isYieldable) {
+            return callYieldable(callee, arguments)
+        }
+        return thread.runNonYieldableCall {
+            when (val result = callYieldable(callee, arguments)) {
+                is LuaExecutionResult.Returned -> result
+                is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a non-yieldable boundary")
+            }
+        }
+    }
+
     internal fun executeYieldable(prototype: Prototype, arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
         return executeFrame(LuaClosure(prototype), arguments)
     }
@@ -363,7 +379,7 @@ internal class LuaVm(
         return try {
             LuaExecutionResult.Returned(
                 thread.runNativeCall {
-                    function.call(nativeCallContext(arguments))
+                    function.call(nativeCallContext(function, arguments))
                 },
             )
         } catch (yield: LuaYieldSignal) {
@@ -383,11 +399,12 @@ internal class LuaVm(
         )
     }
 
-    private fun nativeCallContext(arguments: List<LuaValue>): LuaNativeCallContext {
+    private fun nativeCallContext(function: LuaNativeFunction, arguments: List<LuaValue>): LuaNativeCallContext {
         val frames = thread.stackFrames()
         return LuaNativeCallContext(
             arguments,
             luaStackFrames(frames),
+            isYieldable = thread.isYieldable && function.yieldable,
             setLocalValue = { level, index, value -> setLocal(frames, level, index, value) },
             setDebugHookValue = { index, mask, count -> setDebugHook(arguments, index, mask, count) },
             getDebugHookValue = { debugHook?.toNativeHook() },

@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 internal class LuaThread {
     private val frames = mutableListOf<CallFrame>()
     private var nativeCallDepth = 0
+    private var nonYieldableCallDepth = 0
 
     val currentFrame: CallFrame?
         get() = frames.lastOrNull()
@@ -18,6 +19,9 @@ internal class LuaThread {
 
     val inNativeCall: Boolean
         get() = nativeCallDepth > 0
+
+    val isYieldable: Boolean
+        get() = nonYieldableCallDepth == 0
 
     fun pushCall(
         prototype: Prototype,
@@ -62,6 +66,15 @@ internal class LuaThread {
             block()
         } finally {
             nativeCallDepth -= 1
+        }
+    }
+
+    fun <T> runNonYieldableCall(block: () -> T): T {
+        nonYieldableCallDepth += 1
+        return try {
+            block()
+        } finally {
+            nonYieldableCallDepth -= 1
         }
     }
 }

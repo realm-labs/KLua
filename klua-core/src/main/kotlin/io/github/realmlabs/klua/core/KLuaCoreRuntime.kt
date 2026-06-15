@@ -171,7 +171,7 @@ public object KLuaCoreRuntime {
         yieldable: Boolean = false,
     ): KLuaCoreValue.FunctionValue {
         return KLuaCoreValue.FunctionValue { arguments ->
-            function.call(KLuaCoreCallContext(arguments, emptyList()))
+            function.call(KLuaCoreCallContext(arguments, emptyList(), isYieldable = yieldable))
         }.also { functionValue ->
             functionValue.contextFunction = function
             functionValue.yieldable = yieldable
@@ -200,6 +200,23 @@ public object KLuaCoreRuntime {
         } else {
             left.function === right.function
         }
+    }
+
+    public fun callFunction(
+        function: KLuaCoreValue.FunctionValue,
+        arguments: List<KLuaCoreValue>,
+        globals: KLuaCoreGlobals,
+        isYieldable: Boolean = true,
+    ): KLuaCoreCallResult {
+        val sourceFunction = function.sourceFunction
+        if (sourceFunction != null) {
+            return callPublicLuaFunction(sourceFunction, arguments, globals, isYieldable)
+        }
+        val contextFunction = function.contextFunction
+        if (contextFunction != null) {
+            return contextFunction.call(KLuaCoreCallContext(arguments, emptyList(), isYieldable = isYieldable))
+        }
+        return function.function.call(arguments)
     }
 
     public fun getFunctionDebugInfo(function: KLuaCoreValue.FunctionValue): KLuaCoreFunctionDebugInfo? {
@@ -514,6 +531,7 @@ public fun interface KLuaCoreContextFunction {
 public class KLuaCoreCallContext(
     public val arguments: List<KLuaCoreValue>,
     public val luaFrames: List<KLuaCoreStackFrame>,
+    public val isYieldable: Boolean = false,
     private val setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String? = { _, _, _ -> null },
     private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
     private val getDebugHookValue: () -> KLuaCoreDebugHook? = { null },
@@ -1013,6 +1031,7 @@ private fun callCoreContextFunction(
             KLuaCoreCallContext(
                 publicArguments,
                 context.luaFrames.toCoreStackFramesFromNative(globals),
+                isYieldable = context.isYieldable,
                 setLocalValue = { level, index, value ->
                     value.toLuaValueOrNull(globals)?.let { luaValue ->
                         context.setLocal(level, index, luaValue)
@@ -1292,6 +1311,7 @@ private fun callPublicLuaFunction(
     function: LuaValue,
     arguments: List<KLuaCoreValue>,
     globals: KLuaCoreGlobals,
+    isYieldable: Boolean = true,
 ): KLuaCoreCallResult {
     val luaArguments = arguments.map { value ->
         value.toLuaValueOrNull(globals)
@@ -1306,7 +1326,7 @@ private fun callPublicLuaFunction(
             currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
             currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
         )
-        vm.callYieldable(function, luaArguments).toCoreCallResult(vm, globals)
+        vm.callWithYieldability(function, luaArguments, isYieldable).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {
         KLuaCoreCallResult.RuntimeError(
             error.message ?: "runtime error",

@@ -3,6 +3,9 @@ package io.github.realmlabs.klua.api
 interface LuaCallContext {
     val argumentCount: Int
 
+    val isYieldable: Boolean
+        get() = false
+
     val luaFrames: List<LuaStackFrame>
         get() = emptyList()
 

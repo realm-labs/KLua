@@ -498,6 +498,7 @@ class LuaState private constructor(
                         getDebugHook = {
                             context.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
                         },
+                        isYieldable = context.isYieldable,
                     )
                 },
                 yieldable = function.function is LuaYieldableFunction,
@@ -515,6 +516,7 @@ class LuaState private constructor(
         setLocal: ((level: Int, index: Int, value: Any?) -> String?)? = null,
         setDebugHook: ((index: Int, mask: String, count: Int) -> Boolean)? = null,
         getDebugHook: (() -> LuaReturn)? = null,
+        isYieldable: Boolean = false,
     ): KLuaCoreCallResult {
         val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
         val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
@@ -526,6 +528,7 @@ class LuaState private constructor(
                     setLocal,
                     setDebugHook,
                     getDebugHook,
+                    isYieldable,
                 ),
             )
             syncStackArgumentsToCore(arguments, stackArguments)
@@ -687,7 +690,7 @@ class LuaState private constructor(
         context: LuaCallContext,
     ): LuaReturn {
         val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
-        return when (val result = functionValue.function.call(arguments)) {
+        return when (val result = KLuaCoreRuntime.callFunction(functionValue, arguments, coreGlobals, context.isYieldable)) {
             is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
                 result.values.map { it.toStackValue().toPublicCallReturnValue() },
             )
@@ -778,6 +781,7 @@ class LuaState private constructor(
                     getDebugHook = {
                         context.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
                     },
+                    isYieldable = context.isYieldable,
                 )
             },
             yieldable = this is LuaYieldableFunction,
@@ -1187,6 +1191,7 @@ class LuaState private constructor(
         private val setLocalValue: ((level: Int, index: Int, value: Any?) -> String?)? = null,
         private val setDebugHookValue: ((index: Int, mask: String, count: Int) -> Boolean)? = null,
         private val getDebugHookValue: (() -> LuaReturn)? = null,
+        override val isYieldable: Boolean = false,
     ) : LuaCallContext {
         override val argumentCount: Int = arguments.size
 
@@ -1421,6 +1426,7 @@ class LuaState private constructor(
                     setLocalValue,
                     setDebugHookValue,
                     getDebugHookValue,
+                    isYieldable,
                 ),
             )
         }
