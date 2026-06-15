@@ -14686,12 +14686,25 @@ class LuaStdlibTest {
     fun `string functions report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
+        LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.rep("x", "bad")""", "string-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okString, stringMessage = pcall(string.rep, "x", "bad")
+                local okFraction, fractionMessage = pcall(string.rep, "x", 1.5)
+                return okString, stringMessage, okFraction, fractionMessage
+                """.trimIndent(),
+                "string-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'rep' (number expected)", state.toString(-1))
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'rep' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'rep' (number has no integer representation)", state.toString(4))
     }
 
     @Test
