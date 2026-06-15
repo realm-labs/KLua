@@ -1510,9 +1510,19 @@ class LuaState private constructor(
         }
 
         override fun getMetatable(index: Int): Any? {
-            val table = valueAt(index) as? LuaStackValue.TableValue
-                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
-            return table.metatable
+            return when (val value = valueAt(index)) {
+                null -> throw IllegalArgumentException("argument $index is none")
+                is LuaStackValue.TableValue -> value.metatable
+                is LuaStackValue.UserDataValue -> userMetatables[value.value]
+                else -> {
+                    val typeName = stackTypeName(value)
+                    if (typeName in RAW_TYPE_METATABLE_TYPES) {
+                        KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, typeName)?.toStackValue()
+                    } else {
+                        null
+                    }
+                }
+            }
         }
 
         override fun getRawMetatable(index: Int): Any? {
@@ -1543,12 +1553,29 @@ class LuaState private constructor(
         }
 
         override fun setMetatable(index: Int, metatable: Any?) {
-            val table = valueAt(index) as? LuaStackValue.TableValue
-                ?: throw IllegalArgumentException("argument $index is ${typeName(index)}")
-            table.metatable = when (val stackMetatable = metatable.toStackValue()) {
+            val value = valueAt(index)
+                ?: throw IllegalArgumentException("argument $index is none")
+            val newMetatable = when (val stackMetatable = metatable.toStackValue()) {
                 LuaStackValue.Nil -> null
                 is LuaStackValue.TableValue -> stackMetatable
                 else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
+            }
+            when (value) {
+                is LuaStackValue.TableValue -> value.metatable = newMetatable
+                is LuaStackValue.UserDataValue -> {
+                    if (newMetatable == null) {
+                        userMetatables.remove(value.value)
+                    } else {
+                        userMetatables[value.value] = newMetatable
+                    }
+                }
+                else -> {
+                    val typeName = stackTypeName(value)
+                    if (typeName !in RAW_TYPE_METATABLE_TYPES) {
+                        throw IllegalArgumentException("argument $index is $typeName")
+                    }
+                    KLuaCoreRuntime.setRawTypeMetatable(coreGlobals, typeName, metatable.toCoreMetatable())
+                }
             }
         }
 

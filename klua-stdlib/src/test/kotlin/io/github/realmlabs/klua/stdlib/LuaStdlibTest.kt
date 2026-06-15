@@ -6123,25 +6123,134 @@ class LuaStdlibTest {
             state.load(
                 """
                 local metatable = debug.getmetatable("text")
-                local okMissing, missingMessage = pcall(debug.getmetatable)
-                local explicitNil = debug.getmetatable(nil)
                 local replacement = {__index = {custom = 11}}
                 local okTable, returned = pcall(debug.setmetatable, "text", replacement)
                 local raw = debug.getmetatable("other")
                 local custom = ("abc").custom
                 debug.setmetatable("", metatable)
                 local len = ("abc"):len()
+                return type(metatable), metatable.__index == string, okTable, returned, raw == replacement, custom, len
+                """.trimIndent(),
+                "debug-string-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("text", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals(11L, state.toInteger(6))
+        assertEquals(3L, state.toInteger(7))
+    }
+
+    @Test
+    fun `debug metatable functions support non-table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val hostUserData = Any()
+        val otherUserData = Any()
+        state.register("hostUserData") { LuaReturn.of(hostUserData) }
+        state.register("otherUserData") { LuaReturn.of(otherUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local stringMeta = {name = "string", __metatable = "visible-string"}
+                local numberMeta = {name = "number"}
+                local booleanMeta = {name = "boolean"}
+                local nilMeta = {name = "nil"}
+                local userMeta = {name = "userdata"}
+                local userdata = hostUserData()
+
+                local stringReturned = debug.setmetatable("alpha", stringMeta)
+                local numberReturned = debug.setmetatable(12, numberMeta)
+                local booleanReturned = debug.setmetatable(false, booleanMeta)
+                local nilReturned = debug.setmetatable(nil, nilMeta)
+                local userdataReturned = debug.setmetatable(userdata, userMeta)
+
+                local stringActual = debug.getmetatable("beta")
+                local baseStringActual = getmetatable("beta")
+                local numberActual = debug.getmetatable(34)
+                local booleanActual = debug.getmetatable(true)
+                local nilActual = debug.getmetatable(nil)
+                local userdataActual = debug.getmetatable(userdata)
+                local otherUserdataActual = debug.getmetatable(otherUserData())
+
+                debug.setmetatable("alpha", nil)
+                debug.setmetatable(12, nil)
+                debug.setmetatable(false, nil)
+                debug.setmetatable(nil, nil)
+                debug.setmetatable(userdata, nil)
+
+                return stringReturned,
+                    numberReturned,
+                    booleanReturned,
+                    nilReturned,
+                    userdataReturned == userdata,
+                    stringActual == stringMeta,
+                    baseStringActual,
+                    numberActual == numberMeta,
+                    booleanActual == booleanMeta,
+                    nilActual == nilMeta,
+                    userdataActual == userMeta,
+                    otherUserdataActual,
+                    debug.getmetatable("beta"),
+                    debug.getmetatable(34),
+                    debug.getmetatable(true),
+                    debug.getmetatable(nil),
+                    debug.getmetatable(userdata)
+                """.trimIndent(),
+                "debug-non-table-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("alpha", state.toString(1))
+        assertEquals(12L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("visible-string", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.toBoolean(11))
+        assertTrue(state.isNil(12))
+        assertTrue(state.isNil(13))
+        assertTrue(state.isNil(14))
+        assertTrue(state.isNil(15))
+        assertTrue(state.isNil(16))
+        assertTrue(state.isNil(17))
+    }
+
+    @Test
+    fun `debug metatable functions validate arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local metatable = debug.getmetatable("text")
+                local okMissing, missingMessage = pcall(debug.getmetatable)
+                local explicitNil = debug.getmetatable(nil)
+                local okValue, valueMessage = pcall(debug.setmetatable)
+                local okMissingMeta, missingMetaMessage = pcall(debug.setmetatable, {})
                 local okMeta, metaMessage = pcall(debug.setmetatable, {}, "not-table")
                 return type(metatable),
                     metatable.__index == string,
                     okMissing,
                     missingMessage,
-                    explicitNil == nil,
-                    okTable,
-                    returned,
-                    raw == replacement,
-                    custom,
-                    len,
+                    explicitNil,
+                    okValue,
+                    valueMessage,
+                    okMissingMeta,
+                    missingMetaMessage,
                     okMeta,
                     metaMessage
                 """.trimIndent(),
@@ -6154,14 +6263,13 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertFalse(state.toBoolean(3))
         assertEquals("bad argument #1 to 'getmetatable' (value expected)", state.toString(4))
-        assertTrue(state.toBoolean(5))
-        assertTrue(state.toBoolean(6))
-        assertEquals("text", state.toString(7))
-        assertTrue(state.toBoolean(8))
-        assertEquals(11L, state.toInteger(9))
-        assertEquals(3L, state.toInteger(10))
-        assertFalse(state.toBoolean(11))
-        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(12))
+        assertTrue(state.isNil(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(11))
     }
 
     @Test
