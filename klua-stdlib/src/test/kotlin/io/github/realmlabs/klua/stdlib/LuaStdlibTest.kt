@@ -4513,6 +4513,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load converts numeric chunk arguments before parsing`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local chunk, message = load(123, "number-source.lua")
+                return chunk, message
+                """.trimIndent(),
+                "load-number-source.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.toString(2)?.startsWith("number-source.lua:") == true)
+    }
+
+    @Test
     fun `load compiles chunks from reader functions`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -4656,6 +4677,30 @@ class LuaStdlibTest {
 
         assertEquals(42L, state.toInteger(1))
         assertEquals(4L, state.toInteger(2))
+    }
+
+    @Test
+    fun `load validates mode before reader function type`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local invalidModeOk, invalidModeMessage = pcall(load, false, nil, "B")
+                local typeOk, typeMessage = pcall(load, false, nil, "t")
+                return invalidModeOk, invalidModeMessage, typeOk, typeMessage
+                """.trimIndent(),
+                "load-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'load' (invalid mode)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'load' (function expected)", state.toString(4))
     }
 
     @Test
