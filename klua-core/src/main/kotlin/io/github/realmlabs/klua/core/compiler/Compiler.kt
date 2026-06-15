@@ -237,32 +237,7 @@ internal class Compiler private constructor(
             slot
         }
 
-        val onlyValue = statement.values.singleOrNull()
-        if (onlyValue is VarargExpression) {
-            compileVarargExpression(onlyValue, slots.first(), slots.size)
-            registerLocalDeclarations(statement, slots)
-            return
-        }
-        if (onlyValue is CallExpression) {
-            compileCallExpression(onlyValue, slots.first(), slots.size)
-            registerLocalDeclarations(statement, slots)
-            return
-        }
-        if (onlyValue is MethodCallExpression) {
-            compileMethodCallExpression(onlyValue, slots.first(), slots.size)
-            registerLocalDeclarations(statement, slots)
-            return
-        }
-
-        for ((index, slot) in slots.withIndex()) {
-            val value = statement.values.getOrNull(index)
-            if (value == null) {
-                writer.emit(Instruction.abc(Opcode.LOAD_NIL, slot), statement.range.start.line)
-            } else {
-                compileExpression(value, slot)
-            }
-        }
-
+        compileAdjustedValues(statement.values, slots.first(), slots.size, statement.range.start.line)
         registerLocalDeclarations(statement, slots)
     }
 
@@ -296,36 +271,31 @@ internal class Compiler private constructor(
         val targetCount = statement.targets.size
         val preparedTargets = prepareAssignmentTargets(statement, nextLocalRegister)
         val tempBase = nextLocalRegister + preparedTargets.registerCount
-        val onlyValue = statement.values.singleOrNull()
+        compileAdjustedValues(statement.values, tempBase, targetCount, statement.range.start.line)
+        assignTargets(statement, preparedTargets.targets, tempBase)
+    }
 
-        if (onlyValue is VarargExpression) {
-            compileVarargExpression(onlyValue, tempBase, targetCount)
-            assignTargets(statement, preparedTargets.targets, tempBase)
-            return
-        }
-
-        if (onlyValue is CallExpression) {
-            compileCallExpression(onlyValue, tempBase, targetCount)
-            assignTargets(statement, preparedTargets.targets, tempBase)
-            return
-        }
-        if (onlyValue is MethodCallExpression) {
-            compileMethodCallExpression(onlyValue, tempBase, targetCount)
-            assignTargets(statement, preparedTargets.targets, tempBase)
-            return
-        }
-
-        for (index in statement.targets.indices) {
-            val value = statement.values.getOrNull(index)
-            if (value == null) {
-                writer.emit(Instruction.abc(Opcode.LOAD_NIL, tempBase + index), statement.range.start.line)
-                maxRegister = maxRegister.coerceAtLeast(tempBase + index + 1)
+    private fun compileAdjustedValues(
+        values: List<Expression>,
+        baseRegister: Int,
+        targetCount: Int,
+        line: Int,
+    ) {
+        for ((index, value) in values.withIndex()) {
+            val register = if (index < targetCount) baseRegister + index else baseRegister + targetCount
+            if (index == values.lastIndex && value.isOpenResultExpression()) {
+                compileOpenResultExpression(value, register, (targetCount - index).coerceAtLeast(0))
             } else {
-                compileExpression(value, tempBase + index)
+                compileExpression(value, register)
             }
         }
 
-        assignTargets(statement, preparedTargets.targets, tempBase)
+        if (!values.lastOrNull().isOpenResultExpression()) {
+            for (index in values.size until targetCount) {
+                writer.emit(Instruction.abc(Opcode.LOAD_NIL, baseRegister + index), line)
+                maxRegister = maxRegister.coerceAtLeast(baseRegister + index + 1)
+            }
+        }
     }
 
     private fun prepareAssignmentTargets(
@@ -609,11 +579,15 @@ internal class Compiler private constructor(
         }
     }
 
-    private fun compileOpenResultExpression(expression: Expression, register: Int) {
+    private fun compileOpenResultExpression(
+        expression: Expression,
+        register: Int,
+        resultCount: Int = OPEN_RESULT_COUNT,
+    ) {
         when (expression) {
-            is CallExpression -> compileCallExpression(expression, register, OPEN_RESULT_COUNT)
-            is MethodCallExpression -> compileMethodCallExpression(expression, register, OPEN_RESULT_COUNT)
-            is VarargExpression -> compileVarargExpression(expression, register, OPEN_RESULT_COUNT)
+            is CallExpression -> compileCallExpression(expression, register, resultCount)
+            is MethodCallExpression -> compileMethodCallExpression(expression, register, resultCount)
+            is VarargExpression -> compileVarargExpression(expression, register, resultCount)
             else -> throw unsupported(expression, "not an open result expression")
         }
     }

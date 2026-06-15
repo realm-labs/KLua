@@ -345,6 +345,89 @@ class LuaVmTest {
     }
 
     @Test
+    fun `expands final call results in assignment lists`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function values()
+                    return 1, nil, 3
+                end
+
+                local a, b, c, d = 0, values()
+                local e, f, g, h = values(), 4
+                a, b, c, d = 5, values()
+                local object = {
+                    method = function(self)
+                        return self.value, nil, 8
+                    end,
+                    value = 7,
+                }
+                local i, j, k = 6, object:method()
+                return a, b, c == nil, d, e, f, g, h, i, j, k
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(5),
+                LuaInteger(1),
+                LuaBoolean(true),
+                LuaInteger(3),
+                LuaInteger(1),
+                LuaInteger(4),
+                LuaNil,
+                LuaNil,
+                LuaInteger(6),
+                LuaInteger(7),
+                LuaNil,
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `evaluates extra assignment values for side effects`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local count = 0
+                local function mark(value)
+                    count = count + 1
+                    return value
+                end
+
+                local a = mark(1), mark(2)
+                a = mark(3), mark(4)
+                local b = mark(5), (function() return mark(6), mark(7) end)()
+                return a, b, count
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3), LuaInteger(5), LuaInteger(7)), result)
+    }
+
+    @Test
+    fun `expands final vararg values in assignment lists`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function probe(...)
+                    local a, b, c, d = 0, ...
+                    a, b, c, d = 1, ...
+                    return a, b, c, d
+                end
+
+                return probe("x", nil, "z")
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1), LuaString("x"), LuaNil, LuaString("z")), result)
+    }
+
+    @Test
     fun `reads global values from vm globals`() {
         val globals = LuaTable()
         globals.rawSet(LuaString("answer"), LuaInteger(42))
