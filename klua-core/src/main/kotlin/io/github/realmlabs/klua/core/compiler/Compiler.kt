@@ -503,11 +503,12 @@ internal class Compiler private constructor(
             line = statement.range.start.line,
             localDepth = localDepthOverride ?: nextLocalRegister,
             scopePath = blockScopePath.toList(),
-            visibleToOuterPendingGoto = localDepthOverride != null && blockScopePath.size > 1,
         )
         activeLabels += label
 
-        val matching = pendingGotos.filter { pending -> pending.name == statement.name }
+        val matching = pendingGotos.filter { pending ->
+            pending.name == statement.name && pending.scopePath == label.scopePath
+        }
         for (pending in matching) {
             patchGoto(pending, label)
         }
@@ -519,7 +520,7 @@ internal class Compiler private constructor(
     }
 
     private fun patchGoto(goto: PendingGoto, label: LabelTarget) {
-        if (!goto.scopePath.hasPrefix(label.scopePath) && !label.isVisibleToOuterPendingGoto(goto.scopePath)) {
+        if (!goto.scopePath.hasPrefix(label.scopePath)) {
             throw unsupported(goto.statement, "goto across block scopes is not supported")
         }
         if (goto.localDepth < label.localDepth) {
@@ -1077,10 +1078,6 @@ internal class Compiler private constructor(
         return size >= prefix.size && prefix.indices.all { index -> this[index] == prefix[index] }
     }
 
-    private fun LabelTarget.isVisibleToOuterPendingGoto(scopePath: List<Int>): Boolean {
-        return visibleToOuterPendingGoto && this.scopePath.dropLast(1) == scopePath
-    }
-
     private fun restoreLocals(
         savedLocals: LinkedHashMap<String, Int>,
         savedLocalAttributes: LinkedHashMap<String, LocalAttribute>,
@@ -1153,7 +1150,6 @@ internal class Compiler private constructor(
         val line: Int,
         val localDepth: Int,
         val scopePath: List<Int>,
-        val visibleToOuterPendingGoto: Boolean,
     )
 
     private data class PendingGoto(

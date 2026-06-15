@@ -1086,19 +1086,21 @@ class CompilerTest {
     }
 
     @Test
-    fun `allows goto into nested end label scope`() {
-        val prototype = Compiler.compile(
-            """
-            goto inside
-            do
-                ::inside::
-            end
-            return 1
-            """.trimIndent(),
-            "goto-nested-end-label.lua",
-        )
+    fun `rejects goto into nested end label scope`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                goto inside
+                do
+                    ::inside::
+                end
+                return 1
+                """.trimIndent(),
+                "goto-nested-end-label.lua",
+            )
+        }
 
-        assertEquals("goto-nested-end-label.lua", prototype.sourceName)
+        assertEquals("goto-nested-end-label.lua:1:1: no visible label 'inside' for <goto> at line 1", error.message)
     }
 
     @Test
@@ -1116,6 +1118,6 @@ class CompilerTest {
             )
         }
 
-        assertEquals("goto-block-scope.lua:1:1: goto across block scopes is not supported", error.message)
+        assertEquals("goto-block-scope.lua:1:1: no visible label 'inside' for <goto> at line 1", error.message)
     }
 }

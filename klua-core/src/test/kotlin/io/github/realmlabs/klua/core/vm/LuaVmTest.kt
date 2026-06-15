@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.compiler.Compiler
+import io.github.realmlabs.klua.core.compiler.CompilerException
 import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
@@ -1121,8 +1122,8 @@ class LuaVmTest {
     }
 
     @Test
-    fun `executes goto into nested end label`() {
-        val result = LuaVm().execute(
+    fun `rejects goto into nested label before execution`() {
+        assertFailsWith<CompilerException> {
             Compiler.compile(
                 """
                 local value = 0
@@ -1133,10 +1134,8 @@ class LuaVmTest {
                 end
                 return value
                 """.trimIndent(),
-            ),
-        )
-
-        assertEquals(listOf(LuaInteger(0)), result)
+            )
+        }
     }
 
     @Test
