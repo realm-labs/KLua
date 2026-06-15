@@ -250,8 +250,8 @@ internal object LuaDebugLibrary {
     private fun setLocal(context: LuaCallContext): LuaReturn {
         val target = threadTarget(context)
         val levelIndex = target.argumentOffset + 1
-        val index = requiredLocalIndex(context, target.argumentOffset + 2, "setlocal")
         val level = requiredStackLevel(context, levelIndex, "setlocal")
+        val index = requiredLocalIndex(context, target.argumentOffset + 2, "setlocal")
         if (level < 0) {
             throw levelOutOfRange(levelIndex, "setlocal")
         }
