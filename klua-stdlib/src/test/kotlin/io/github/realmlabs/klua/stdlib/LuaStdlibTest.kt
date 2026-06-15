@@ -4328,8 +4328,8 @@ class LuaStdlibTest {
                 local sizedStep = collectgarbage("step", 0)
                 local countType = type(collectgarbage("count", "ignored"))
                 local ok, message = pcall(collectgarbage, "step", "not-size")
-                local integerOk, integerMessage = pcall(collectgarbage, "step", 1.5)
-                return nilStep, sizedStep, countType, ok, message, integerOk, integerMessage
+                local fractionalOk, fractionalMessage = pcall(collectgarbage, "step", 1.5)
+                return nilStep, sizedStep, countType, ok, message, fractionalOk, fractionalMessage
                 """.trimIndent(),
                 "collectgarbage-step-size.lua",
             ),
