@@ -5278,27 +5278,21 @@ class LuaStdlibTest {
 
         assertEquals(
             LuaStatus.OK,
-            valueState.load("""return collectgarbage("param", "pause", false)""", "collectgarbage-param-value.lua"),
+            valueState.load(
+                """
+                local okBoolean, booleanMessage = pcall(collectgarbage, "param", "pause", false)
+                local okFraction, fractionMessage = pcall(collectgarbage, "param", "pause", 1.5)
+                return okBoolean, booleanMessage, okFraction, fractionMessage
+                """.trimIndent(),
+                "collectgarbage-param-value.lua",
+            ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, valueState.pcall(0, -1))
+        assertEquals(LuaStatus.OK, valueState.pcall(0, -1), valueState.toString(-1))
 
-        assertIs<LuaRuntimeException>(valueState.getLastError())
-        assertEquals("bad argument #3 to 'collectgarbage' (number expected)", valueState.toString(-1))
-
-        val integerState = LuaState.create()
-        LuaStdlib.openBase(integerState)
-
-        assertEquals(
-            LuaStatus.OK,
-            integerState.load("""return collectgarbage("param", "pause", 1.5)""", "collectgarbage-param-integer.lua"),
-        )
-        assertEquals(LuaStatus.RUNTIME_ERROR, integerState.pcall(0, -1))
-
-        assertIs<LuaRuntimeException>(integerState.getLastError())
-        assertEquals(
-            "bad argument #3 to 'collectgarbage' (number has no integer representation)",
-            integerState.toString(-1),
-        )
+        assertFalse(valueState.toBoolean(1))
+        assertEquals("bad argument #3 to 'collectgarbage' (number expected)", valueState.toString(2))
+        assertFalse(valueState.toBoolean(3))
+        assertEquals("bad argument #3 to 'collectgarbage' (number has no integer representation)", valueState.toString(4))
     }
 
     @Test
