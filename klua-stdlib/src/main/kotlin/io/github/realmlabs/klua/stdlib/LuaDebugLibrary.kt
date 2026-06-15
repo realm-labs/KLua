@@ -360,8 +360,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun requiredStackLevel(context: LuaCallContext, index: Int, functionName: String): Int {
-        return context.toInteger(index)?.toInt()
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+        return requiredNumberInteger(context, index, functionName).toInt()
     }
 
     private fun threadTarget(context: LuaCallContext): DebugThreadTarget {

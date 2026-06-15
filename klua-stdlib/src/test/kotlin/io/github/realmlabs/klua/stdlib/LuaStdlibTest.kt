@@ -1191,8 +1191,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local ok, message = pcall(debug.getinfo, "not-level")
-                return ok, message
+                local okString, stringMessage = pcall(debug.getinfo, "not-level")
+                local okFraction, fractionMessage = pcall(debug.getinfo, 1.5)
+                return okString, stringMessage, okFraction, fractionMessage
                 """.trimIndent(),
                 "debug-getinfo-level-type-error.lua",
             ),
@@ -1201,6 +1202,8 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #1 to 'getinfo' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'getinfo' (number has no integer representation)", state.toString(4))
     }
 
     @Test
@@ -1421,8 +1424,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local ok, message = pcall(debug.getlocal, "not-level", 1)
-                return ok, message
+                local okString, stringMessage = pcall(debug.getlocal, "not-level", 1)
+                local okFraction, fractionMessage = pcall(debug.getlocal, 1.5, 1)
+                return okString, stringMessage, okFraction, fractionMessage
                 """.trimIndent(),
                 "debug-getlocal-level-type-error.lua",
             ),
@@ -1431,6 +1435,8 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #1 to 'getlocal' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'getlocal' (number has no integer representation)", state.toString(4))
     }
 
     @Test
@@ -1741,8 +1747,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local ok, message = pcall(debug.setlocal, "not-level", 1, "ignored")
-                return ok, message
+                local okString, stringMessage = pcall(debug.setlocal, "not-level", 1, "ignored")
+                local okFraction, fractionMessage = pcall(debug.setlocal, 1.5, 1, "ignored")
+                return okString, stringMessage, okFraction, fractionMessage
                 """.trimIndent(),
                 "debug-setlocal-level-type-error.lua",
             ),
@@ -1751,6 +1758,8 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #1 to 'setlocal' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'setlocal' (number has no integer representation)", state.toString(4))
     }
 
     @Test
