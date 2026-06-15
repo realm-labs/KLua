@@ -28,6 +28,7 @@ internal object LuaTableLibrary {
         if (!isReadableLengthTableLike(context, 1)) {
             throw LuaRuntimeException("bad argument #1 to 'concat' (table expected)")
         }
+        val length = tableLength(context, 1)
 
         val separator = if (context.isNone(2) || context.isNil(2)) {
             ""
@@ -40,7 +41,7 @@ internal object LuaTableLibrary {
             requiredInteger(context, 3, "concat")
         }
         val end = if (context.isNone(4) || context.isNil(4)) {
-            tableConcatLength(context, 1)
+            length
         } else {
             requiredInteger(context, 4, "concat")
         }

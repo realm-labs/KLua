@@ -13221,6 +13221,29 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("object length is not an integer", state.toString(-1))
+
+        val explicitRangeState = LuaState.create()
+        LuaStdlib.openBase(explicitRangeState)
+        LuaStdlib.openTable(explicitRangeState)
+
+        assertEquals(
+            LuaStatus.OK,
+            explicitRangeState.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function()
+                        return 1.5
+                    end,
+                })
+                return table.concat(values, "", 2, 1)
+                """.trimIndent(),
+                "table-concat-explicit-range-length-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, explicitRangeState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(explicitRangeState.getLastError())
+        assertEquals("object length is not an integer", explicitRangeState.toString(-1))
     }
 
     @Test
