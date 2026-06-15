@@ -29,7 +29,11 @@ internal object LuaUtf8Library {
         val builder = StringBuilder()
         for (index in 1..context.argumentCount) {
             val codePoint = requiredCodePoint(context, index, "char")
-            builder.appendCodePoint(codePoint.toInt())
+            if (codePoint in HIGH_SURROGATE_START..LOW_SURROGATE_END) {
+                builder.append(codePoint.toInt().toChar())
+            } else {
+                builder.appendCodePoint(codePoint.toInt())
+            }
         }
         return LuaReturn.of(builder.toString())
     }
@@ -40,6 +44,7 @@ internal object LuaUtf8Library {
         val byteLength = utf8ByteLength(codePoints)
         val start = normalizedCodepointStart(context, 2, 1L, byteLength, "codepoint")
         val end = normalizedCodepointEnd(context, 3, start, byteLength, "codepoint")
+        val strict = !optionalBoolean(context, 4)
         if (start > end) {
             return LuaReturn.none()
         }
@@ -48,22 +53,34 @@ internal object LuaUtf8Library {
         }
         return LuaReturn.ofValues(
             byteOffsets.mapIndexedNotNull { index, byteOffset ->
-                if (byteOffset in start..end) codePoints[index].toLong() else null
+                if (byteOffset !in start..end) {
+                    null
+                } else {
+                    val codePoint = codePoints[index]
+                    if (strict && !isValidStrictUtf8CodePoint(codePoint)) {
+                        throw LuaRuntimeException("invalid UTF-8 code")
+                    }
+                    codePoint.toLong()
+                }
             },
         )
     }
 
     private fun utf8Codes(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "codes")
-        return LuaReturn.ofValues(listOf(LuaFunction(::utf8CodesIterator), text, 0L))
+        val strict = !optionalBoolean(context, 2)
+        return LuaReturn.ofValues(listOf(LuaFunction { iteratorContext -> utf8CodesIterator(iteratorContext, strict) }, text, 0L))
     }
 
-    private fun utf8CodesIterator(context: LuaCallContext): LuaReturn {
+    private fun utf8CodesIterator(context: LuaCallContext, strict: Boolean): LuaReturn {
         val text = requiredString(context, 1, "codes iterator")
         val codePoints = text.codePoints().toArray()
         val byteOffsets = utf8ByteOffsets(codePoints)
         val control = context.toInteger(2) ?: 0L
         val nextIndex = nextCodePointIndex(byteOffsets, control) ?: return LuaReturn.none()
+        if (strict && !isValidStrictUtf8CodePoint(codePoints[nextIndex])) {
+            throw LuaRuntimeException("invalid UTF-8 code")
+        }
         return LuaReturn.of(byteOffsets[nextIndex], codePoints[nextIndex].toLong())
     }
 
@@ -73,13 +90,24 @@ internal object LuaUtf8Library {
         val byteLength = utf8ByteLength(codePoints)
         val start = normalizedLenStart(context, 2, 1L, byteLength, "len")
         val end = normalizedLenEnd(context, 3, -1L, byteLength, "len")
+        val strict = !optionalBoolean(context, 4)
         if (start > end) {
             return LuaReturn.of(0L)
         }
         if (!isUtf8StartBytePosition(byteOffsets, start)) {
             return LuaReturn.of(null, start)
         }
-        return LuaReturn.of(byteOffsets.count { byteOffset -> byteOffset in start..end }.toLong())
+        var count = 0L
+        for (index in byteOffsets.indices) {
+            val byteOffset = byteOffsets[index]
+            if (byteOffset in start..end) {
+                if (strict && !isValidStrictUtf8CodePoint(codePoints[index])) {
+                    return LuaReturn.of(null, byteOffset)
+                }
+                count++
+            }
+        }
+        return LuaReturn.of(count)
     }
 
     private fun utf8Offset(context: LuaCallContext): LuaReturn {
@@ -132,10 +160,17 @@ internal object LuaUtf8Library {
 
     private fun requiredCodePoint(context: LuaCallContext, index: Int, functionName: String): Long {
         val codePoint = requiredInteger(context, index, functionName)
-        if (codePoint !in 0L..MAX_CODE_POINT || codePoint in HIGH_SURROGATE_START..LOW_SURROGATE_END) {
+        if (codePoint !in 0L..MAX_CODE_POINT) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (value out of range)")
         }
         return codePoint
+    }
+
+    private fun optionalBoolean(context: LuaCallContext, index: Int): Boolean {
+        if (context.isNone(index) || context.isNil(index)) {
+            return false
+        }
+        return context.get(index) != false
     }
 
     private fun normalizedCodepointStart(
@@ -231,6 +266,11 @@ internal object LuaUtf8Library {
             codePoint <= 0xFFFF -> 3
             else -> 4
         }
+    }
+
+    private fun isValidStrictUtf8CodePoint(codePoint: Int): Boolean {
+        return codePoint.toLong() in 0L..MAX_CODE_POINT &&
+            codePoint.toLong() !in HIGH_SURROGATE_START..LOW_SURROGATE_END
     }
 
     private fun utf8ByteLength(codePoints: IntArray): Long {

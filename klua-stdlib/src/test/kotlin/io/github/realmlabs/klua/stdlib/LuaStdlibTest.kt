@@ -12436,15 +12436,47 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `utf8 char rejects invalid code points`() {
+    fun `utf8 char allows surrogate code points and strict decoders reject them`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openUtf8(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return utf8.char(55296)""", "utf8-char-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local surrogate = utf8.char(55296)
+                local strictLength, strictPosition = utf8.len(surrogate)
+                local laxLength = utf8.len(surrogate, 1, -1, true)
+                local strictCodeOk, strictCodeMessage = pcall(utf8.codepoint, surrogate)
+                local laxCode = utf8.codepoint(surrogate, 1, -1, true)
+                local strictIterator = utf8.codes(surrogate)
+                local strictCodesOk, strictCodesMessage = pcall(strictIterator, surrogate, 0)
+                local laxIterator, laxState, laxControl = utf8.codes(surrogate, true)
+                local laxPosition, laxIteratorCode = laxIterator(laxState, laxControl)
+                local offsetStart, offsetEnd = utf8.offset(surrogate, 1)
+                return strictLength, strictPosition, laxLength,
+                    strictCodeOk, strictCodeMessage, laxCode,
+                    strictCodesOk, strictCodesMessage, laxPosition, laxIteratorCode,
+                    offsetStart, offsetEnd
+                """.trimIndent(),
+                "utf8-surrogate.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'char' (value out of range)", state.toString(-1))
+        assertTrue(state.isNil(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("invalid UTF-8 code", state.toString(5))
+        assertEquals(55296L, state.toInteger(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("invalid UTF-8 code", state.toString(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(55296L, state.toInteger(10))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals(3L, state.toInteger(12))
     }
 
     @Test
