@@ -11720,9 +11720,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return string.format("%a|%A|%.2a|%12a|%012a|%+12a|%.0a|%#.0a|%a|%A|%a|%A|%a|%A",
+                return string.format("%a|%A|%.2a|%12a|%012a|%+12a|%.0a|%#.0a|%a|%a|%a|%a|%A|%a|%A|%a|%A",
                     1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5,
-                    math.huge, math.huge, -math.huge, -math.huge, 0 / 0, 0 / 0)
+                    1.0, 0.0, -0.0, math.huge, math.huge, -math.huge, -math.huge, 0 / 0, 0 / 0)
                 """.trimIndent(),
                 "string-format-hex-float.lua",
             ),
@@ -11730,7 +11730,8 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(
-            "0x1.8p+0|0X1.8P+0|0x1.80p+0|    0x1.8p+0|0x00001.8p+0|   +0x1.8p+0|0x1p+0|0x1.p+0|inf|INF|-inf|-INF|nan|NAN",
+            "0x1.8p+0|0X1.8P+0|0x1.80p+0|    0x1.8p+0|0x00001.8p+0|   +0x1.8p+0|0x1p+0|0x1.p+0|" +
+                "0x1p+0|0x0p+0|-0x0p+0|inf|INF|-inf|-INF|nan|NAN",
             state.toString(1),
         )
     }

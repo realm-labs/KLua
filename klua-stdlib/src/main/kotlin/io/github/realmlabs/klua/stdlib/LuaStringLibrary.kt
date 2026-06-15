@@ -1099,15 +1099,42 @@ internal object LuaStringLibrary {
         if (!value.isFinite()) {
             return formatNonFiniteHexFloat(value, parsed, conversion)
         }
-        val formatted = parsed.toJavaSpecifier(conversion).formatWith(value)
-        return rebalanceHexFloatWidth(
-            normalizeHexFloatExponent(formatted),
-            formatted,
-            parsed,
-        )
+        val formatted = parsed.copy(width = null).toJavaSpecifier(conversion).formatWith(value)
+        return applyHexFloatWidth(canonicalizeHexFloat(formatted, parsed), parsed)
     }
 
-    private fun normalizeHexFloatExponent(value: String): String {
+    private fun canonicalizeHexFloat(value: String, parsed: FormatSpecifier): String {
+        val exponent = value.indexOfLast { char -> char == 'p' || char == 'P' }
+        if (exponent < 0) {
+            return value
+        }
+        val mantissa = if (parsed.precision == null && '#' !in parsed.flags) {
+            value.substring(0, exponent).removeSuffix(".0")
+        } else {
+            value.substring(0, exponent)
+        }
+        return signedHexFloatExponent(mantissa + value.substring(exponent))
+    }
+
+    private fun applyHexFloatWidth(value: String, parsed: FormatSpecifier): String {
+        val width = parsed.width ?: return value
+        if (value.length >= width) {
+            return value
+        }
+        if ('-' in parsed.flags) {
+            return value.padEnd(width, ' ')
+        }
+        if ('0' !in parsed.flags) {
+            return value.padStart(width, ' ')
+        }
+        val signLength = if (value.firstOrNull() in setOf('-', '+', ' ')) 1 else 0
+        val prefixLength = if (value.regionMatches(signLength, "0x", 0, 2, ignoreCase = true)) 2 else 0
+        val insertion = signLength + prefixLength
+        val padding = "0".repeat(width - value.length)
+        return value.substring(0, insertion) + padding + value.substring(insertion)
+    }
+
+    private fun signedHexFloatExponent(value: String): String {
         val exponent = value.indexOfLast { char -> char == 'p' || char == 'P' }
         if (exponent < 0) {
             return value
@@ -1117,36 +1144,6 @@ internal object LuaStringLibrary {
             return value
         }
         return value.substring(0, exponent + 1) + "+" + value.substring(exponent + 1)
-    }
-
-    private fun rebalanceHexFloatWidth(
-        normalized: String,
-        original: String,
-        parsed: FormatSpecifier,
-    ): String {
-        val width = parsed.width ?: return normalized
-        if (normalized.length <= width || original.length != width || normalized.length != width + 1) {
-            return normalized
-        }
-        if ('-' in parsed.flags && normalized.lastOrNull() == ' ') {
-            return normalized.dropLast(1)
-        }
-        if ('0' in parsed.flags) {
-            removeHexFloatZeroPadding(normalized)?.let { value -> return value }
-        }
-        return if (normalized.firstOrNull() == ' ') normalized.drop(1) else normalized
-    }
-
-    private fun removeHexFloatZeroPadding(value: String): String? {
-        val prefix = value.indexOf("0x", ignoreCase = true)
-        val exponent = value.indexOfLast { char -> char == 'p' || char == 'P' }
-        if (prefix < 0 || exponent < 0) {
-            return null
-        }
-        val firstDigit = prefix + 2
-        val zero = (firstDigit until exponent).firstOrNull { index -> value[index] == '0' }
-            ?: return null
-        return value.removeRange(zero, zero + 1)
     }
 
     private fun formatNonFiniteHexFloat(
@@ -1163,21 +1160,7 @@ internal object LuaStringLibrary {
         }.let { formatted ->
             if (conversion == 'A') formatted.uppercase(Locale.ROOT) else formatted
         }
-        return applyNumericWidth(text, parsed)
-    }
-
-    private fun applyNumericWidth(value: String, parsed: FormatSpecifier): String {
-        val width = parsed.width ?: return value
-        if (value.length >= width) {
-            return value
-        }
-        return if ('-' in parsed.flags) {
-            value.padEnd(width, ' ')
-        } else if ('0' in parsed.flags && value.firstOrNull() in setOf('-', '+', ' ')) {
-            value.first() + value.drop(1).padStart(width - 1, '0')
-        } else {
-            value.padStart(width, if ('0' in parsed.flags) '0' else ' ')
-        }
+        return applyHexFloatWidth(text, parsed)
     }
 
     private fun validateIntegerFormatFlags(
