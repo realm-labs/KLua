@@ -14385,6 +14385,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 char accepts surrogate code points as invalid strict utf8`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local surrogate = utf8.char(55296)
+                local strictLength, strictPosition = utf8.len(surrogate)
+                local laxLength = utf8.len(surrogate, 1, -1, true)
+                local strictOk, strictMessage = pcall(utf8.codepoint, surrogate)
+                local laxCodepoint = utf8.codepoint(surrogate, 1, -1, true)
+                return strictLength, strictPosition, laxLength,
+                    strictOk, strictMessage, laxCodepoint
+                """.trimIndent(),
+                "utf8-char-surrogate.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("invalid UTF-8 code", state.toString(5))
+        assertEquals(0xD800L, state.toInteger(6))
+    }
+
+    @Test
     fun `string match returns literal matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
