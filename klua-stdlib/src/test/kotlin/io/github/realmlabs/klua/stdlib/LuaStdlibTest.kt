@@ -12720,28 +12720,31 @@ class LuaStdlibTest {
     @Test
     fun `string format reports argument errors`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
-
-        assertEquals(LuaStatus.OK, state.load("""return string.format("%d", "bad")""", "string-format-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
-
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(-1))
-
-        val fractionalState = LuaState.create()
-        LuaStdlib.openString(fractionalState)
 
         assertEquals(
             LuaStatus.OK,
-            fractionalState.load("""return string.format("%d", 1.5)""", "string-format-integer-fractional-error.lua"),
+            state.load(
+                """
+                local okString, stringMessage = pcall(string.format, "%d", "bad")
+                local okFraction, fractionMessage = pcall(string.format, "%d", 1.5)
+                local okStringNumber, stringNumberMessage = pcall(string.format, "%d", "1.5")
+                return okString, stringMessage,
+                    okFraction, fractionMessage,
+                    okStringNumber, stringNumberMessage
+                """.trimIndent(),
+                "string-format-error.lua",
+            ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(fractionalState.getLastError())
-        assertEquals(
-            "bad argument #2 to 'format' (number has no integer representation)",
-            fractionalState.toString(-1),
-        )
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'format' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'format' (number has no integer representation)", state.toString(6))
     }
 
     @Test
@@ -12913,25 +12916,26 @@ class LuaStdlibTest {
     @Test
     fun `string format reports char argument errors`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.format("%c", "bad")""", "string-format-char-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
-
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(-1))
-
-        val fractionalState = LuaState.create()
-        LuaStdlib.openString(fractionalState)
-
-        assertEquals(LuaStatus.OK, fractionalState.load("""return string.format("%c", 1.5)""", "string-format-char-fractional-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
-
-        assertIs<LuaRuntimeException>(fractionalState.getLastError())
         assertEquals(
-            "bad argument #2 to 'format' (number has no integer representation)",
-            fractionalState.toString(-1),
+            LuaStatus.OK,
+            state.load(
+                """
+                local okString, stringMessage = pcall(string.format, "%c", "bad")
+                local okFraction, fractionMessage = pcall(string.format, "%c", 65.5)
+                return okString, stringMessage, okFraction, fractionMessage
+                """.trimIndent(),
+                "string-format-char-error.lua",
+            ),
         )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'format' (number has no integer representation)", state.toString(4))
     }
 
     @Test
