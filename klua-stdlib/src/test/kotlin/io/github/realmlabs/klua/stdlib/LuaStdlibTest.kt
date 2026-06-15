@@ -267,6 +267,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring uses string tostring metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = debug.getmetatable("")
+                debug.setmetatable("", {
+                    __tostring = function(value)
+                        return "string:" .. value
+                    end,
+                })
+                local text = tostring("alpha")
+                debug.setmetatable("", original)
+                return text
+                """.trimIndent(),
+                "string-tostring-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("string:alpha", state.toString(1))
+    }
+
+    @Test
     fun `tostring uses primitive type name metamethod for default identities`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
