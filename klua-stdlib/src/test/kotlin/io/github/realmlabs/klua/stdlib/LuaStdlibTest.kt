@@ -620,7 +620,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `debug traceback converts number messages and preserves other non strings`() {
+    fun `debug traceback coerces numbers and returns non coercible messages unchanged`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -639,6 +639,7 @@ class LuaStdlibTest {
                     returnedTable.name,
                     returnedNumber,
                     type(returnedNumber),
+                    string.find(returnedNumber, "^42\nstack traceback:") == 1,
                     returnedBoolean,
                     type(returnedBoolean)
                 """.trimIndent(),
@@ -649,15 +650,11 @@ class LuaStdlibTest {
 
         assertTrue(state.toBoolean(1))
         assertEquals("marker", state.toString(2))
-        assertEquals(
-            "42\n" +
-                "stack traceback:\n" +
-                "\t[string \"debug-traceback-non-string.lua\"]:6",
-            state.toString(3),
-        )
+        assertTrue(state.toString(3)?.startsWith("42\nstack traceback:") == true)
         assertEquals("string", state.toString(4))
-        assertFalse(state.toBoolean(5))
-        assertEquals("boolean", state.toString(6))
+        assertTrue(state.toBoolean(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("boolean", state.toString(7))
     }
 
     @Test

@@ -9,7 +9,7 @@ import io.github.realmlabs.klua.api.LuaState
 
 internal object LuaDebugLibrary {
     fun open(state: LuaState): LuaState {
-        state.register("klua_debug_traceback") { context -> LuaReturn.of(traceback(context)) }
+        state.register("klua_debug_traceback") { context -> traceback(context) }
         state.register("klua_debug_getinfo") { context -> getInfo(context) }
         state.register("klua_debug_getlocal") { context -> getLocal(context) }
         state.register("klua_debug_setlocal") { context -> setLocal(context) }
@@ -27,11 +27,10 @@ internal object LuaDebugLibrary {
         return state
     }
 
-    private fun traceback(context: LuaCallContext): String {
-        val message = if (context.isNil(1) || context.isNone(1)) {
-            null
-        } else {
-            context.toString(1)
+    private fun traceback(context: LuaCallContext): LuaReturn {
+        val message = when {
+            context.isNil(1) || context.isNone(1) -> null
+            else -> context.toString(1) ?: return LuaReturn.of(context.getLuaValue(1))
         }
         val level = optionalStackLevel(context, 2, 1, "traceback")
         val frames = if (level < 0) {
@@ -39,7 +38,7 @@ internal object LuaDebugLibrary {
         } else {
             context.luaFrames.drop(level)
         }
-        return formatTraceback(message, frames)
+        return LuaReturn.of(formatTraceback(message, frames))
     }
 
     private fun formatTraceback(message: String?, frames: List<LuaStackFrame>): String {
@@ -437,13 +436,6 @@ internal object LuaDebugLibrary {
         local klua_debug_registry = {}
 
         function debug.traceback(message, level)
-            if message == nil then
-                return klua_debug_traceback(nil, level)
-            end
-            local messageType = type(message)
-            if messageType ~= "string" and messageType ~= "number" then
-                return message
-            end
             return klua_debug_traceback(message, level)
         end
 
