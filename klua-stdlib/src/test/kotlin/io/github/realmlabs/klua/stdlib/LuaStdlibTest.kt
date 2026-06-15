@@ -12090,7 +12090,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string gsub reports invalid function and table replacement values`() {
+    fun `string gsub reports replacement type errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
@@ -12099,40 +12099,34 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local function functionReplacement(value)
-                    local ok, message = pcall(function()
-                        return string.gsub("a", "a", function()
-                            return value
-                        end)
-                    end)
-                    return ok, message
-                end
-                local function tableReplacement(value)
-                    local ok, message = pcall(function()
-                        return string.gsub("a", "a", { a = value })
-                    end)
-                    return ok, message
-                end
-                local okTableFunction, tableFunction = functionReplacement({})
-                local okNestedFunction, nestedFunction = functionReplacement(function() end)
-                local okBooleanFunction, booleanFunction = functionReplacement(true)
-                local okTableLookup, tableLookup = tableReplacement({})
-                return okTableFunction, tableFunction, okNestedFunction, nestedFunction,
-                    okBooleanFunction, booleanFunction, okTableLookup, tableLookup
+                local argumentOk, argumentMessage = pcall(string.gsub, "abc", "a", true)
+                local booleanFunctionOk, booleanFunctionMessage = pcall(string.gsub, "abc", "a", function()
+                    return true
+                end)
+                local nestedFunctionOk, nestedFunctionMessage = pcall(string.gsub, "abc", "a", function()
+                    return function() end
+                end)
+                local tableOk, tableMessage = pcall(string.gsub, "abc", "a", {
+                    a = {},
+                })
+                return argumentOk, argumentMessage,
+                    booleanFunctionOk, booleanFunctionMessage,
+                    nestedFunctionOk, nestedFunctionMessage,
+                    tableOk, tableMessage
                 """.trimIndent(),
-                "string-gsub-invalid-replacement-values.lua",
+                "string-gsub-replacement-errors.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("invalid replacement value (a table)", state.toString(2))
+        assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("invalid replacement value (a function)", state.toString(4))
+        assertEquals("bad argument #3 to 'gsub' (invalid replacement value (a boolean))", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("invalid replacement value (a boolean)", state.toString(6))
+        assertEquals("bad argument #3 to 'gsub' (invalid replacement value (a function))", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("invalid replacement value (a table)", state.toString(8))
+        assertEquals("bad argument #3 to 'gsub' (invalid replacement value (a table))", state.toString(8))
     }
 
     @Test

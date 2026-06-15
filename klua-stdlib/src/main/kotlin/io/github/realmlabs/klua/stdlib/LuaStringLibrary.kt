@@ -169,7 +169,10 @@ internal object LuaStringLibrary {
             is Double,
             -> luaNumberToString(value)
             is CharSequence -> value.toString()
-            else -> throw LuaRuntimeException("invalid replacement value (a ${gsubReplacementTypeName(context, value)})")
+            else -> {
+                val typeName = gsubReplacementTypeName(context, value)
+                throw LuaRuntimeException("bad argument #3 to 'gsub' (invalid replacement value (a $typeName))")
+            }
         }
     }
 
