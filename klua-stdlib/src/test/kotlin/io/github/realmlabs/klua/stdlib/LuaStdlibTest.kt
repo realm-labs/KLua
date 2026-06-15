@@ -13160,6 +13160,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codepoint honors lax invalid code points`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushString("\uD800")
+        state.setGlobal("surrogate")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local strictOk, strictMessage = pcall(utf8.codepoint, surrogate)
+                local laxValue = utf8.codepoint(surrogate, 1, -1, true)
+                return strictOk, strictMessage, laxValue
+                """.trimIndent(),
+                "utf8-codepoint-lax.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(false, state.toBoolean(1))
+        assertEquals("invalid UTF-8 code", state.toString(2))
+        assertEquals(0xD800L, state.toInteger(3))
+    }
+
+    @Test
     fun `utf8 codepoint reports range position errors`() {
         val startState = LuaState.create()
         LuaStdlib.openUtf8(startState)
@@ -13383,6 +13408,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codes honors lax invalid code points`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushString("\uD800")
+        state.setGlobal("surrogate")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local strictIterator, strictState, strictControl = utf8.codes(surrogate)
+                local strictOk, strictMessage = pcall(strictIterator, strictState, strictControl)
+                local laxIterator, laxState, laxControl = utf8.codes(surrogate, true)
+                local laxPosition, laxCodepoint = laxIterator(laxState, laxControl)
+                return strictOk, strictMessage, laxPosition, laxCodepoint
+                """.trimIndent(),
+                "utf8-codes-lax.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(false, state.toBoolean(1))
+        assertEquals("invalid UTF-8 code", state.toString(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(0xD800L, state.toInteger(4))
+    }
+
+    @Test
     fun `utf8 charpattern matches utf8 characters`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -13504,6 +13557,31 @@ class LuaStdlibTest {
         assertEquals(4L, state.toInteger(2))
         assertEquals(2L, state.toInteger(3))
         assertEquals(1L, state.toInteger(4))
+    }
+
+    @Test
+    fun `utf8 len honors lax invalid code points`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushString("\uD800")
+        state.setGlobal("surrogate")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local strictLength, strictPosition = utf8.len(surrogate)
+                local laxLength = utf8.len(surrogate, 1, -1, true)
+                return strictLength, strictPosition, laxLength
+                """.trimIndent(),
+                "utf8-len-lax.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
     }
 
     @Test
