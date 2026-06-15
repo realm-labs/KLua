@@ -1706,7 +1706,9 @@ class LuaStdlibTest {
                 local okIdIndex, idIndexResult = pcall(debug.upvalueid, left, 99)
                 local zeroId = debug.upvalueid(left, 0)
                 local okJoinFunction, joinFunctionMessage = pcall(debug.upvaluejoin, "not-function", 1, leftAgain, 1)
-                local okJoinOtherFunction, joinOtherFunctionMessage = pcall(debug.upvaluejoin, left, 1, "not-function", 1)
+                local okJoinOtherFunction, joinOtherFunctionMessage = pcall(function()
+                    debug.upvaluejoin(left, 1, "not-function", 1)
+                end)
                 local okJoinTarget, joinTargetMessage = pcall(debug.upvaluejoin, left, 99, leftAgain, 1)
                 return okGetFunction, getFunctionMessage,
                     okGetIndex, getIndexMessage,
@@ -1838,6 +1840,76 @@ class LuaStdlibTest {
         assertEquals("bad argument #3 to 'upvaluejoin' (function expected)", state.toString(12))
         assertFalse(state.toBoolean(13))
         assertEquals("bad argument #2 to 'upvaluejoin' (number expected)", state.toString(14))
+    }
+
+    @Test
+    fun `debug upvalue helpers validate indexes before function arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = "upvalue"
+                local function left()
+                    return value
+                end
+                local function right()
+                    return value
+                end
+
+                local okGet, getMessage = pcall(debug.getupvalue, "not-function", "not-index")
+                local okSetupMissing, setupMissingMessage = pcall(debug.setupvalue, "not-function", "not-index")
+                local okSetupIndex, setupIndexMessage = pcall(debug.setupvalue, "not-function", "not-index", "value")
+                local okId, idMessage = pcall(debug.upvalueid, "not-function", "not-index")
+                local okJoinTargetIndex, joinTargetIndexMessage =
+                    pcall(debug.upvaluejoin, "not-function", "not-index", "not-function", "not-index")
+                local okJoinTargetFunction, joinTargetFunctionMessage =
+                    pcall(debug.upvaluejoin, "not-function", 1, "not-function", "not-index")
+                local okJoinSourceIndex, joinSourceIndexMessage = pcall(function()
+                    debug.upvaluejoin(left, 1, "not-function", "not-index")
+                end)
+                local okJoinSourceFunction, joinSourceFunctionMessage = pcall(function()
+                    debug.upvaluejoin(left, 1, "not-function", 1)
+                end)
+                local okJoinValid, joinValidMessage = pcall(function()
+                    debug.upvaluejoin(left, 1, right, 1)
+                end)
+
+                return okGet, getMessage,
+                    okSetupMissing, setupMissingMessage,
+                    okSetupIndex, setupIndexMessage,
+                    okId, idMessage,
+                    okJoinTargetIndex, joinTargetIndexMessage,
+                    okJoinTargetFunction, joinTargetFunctionMessage,
+                    okJoinSourceIndex, joinSourceIndexMessage,
+                    okJoinSourceFunction, joinSourceFunctionMessage,
+                    okJoinValid, joinValidMessage
+                """.trimIndent(),
+                "debug-upvalue-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getupvalue' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'debug.setupvalue' (value expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'debug.setupvalue' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'debug.upvalueid' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #2 to 'debug.upvaluejoin' (integer expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #1 to 'debug.upvaluejoin' (function expected)", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("bad argument #4 to 'debug.upvaluejoin' (integer expected)", state.toString(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("bad argument #3 to 'debug.upvaluejoin' (function expected)", state.toString(16))
+        assertTrue(state.toBoolean(17), state.toString(18))
+        assertTrue(state.isNil(18))
     }
 
     @Test
