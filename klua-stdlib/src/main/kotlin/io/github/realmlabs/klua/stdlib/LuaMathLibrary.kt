@@ -320,6 +320,16 @@ internal object LuaMathLibrary {
             }
     }
 
+    private fun requiredNumberInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+        return context.toInteger(index) ?: throw LuaRuntimeException(
+            if (context.toNumber(index) != null) {
+                "bad argument #$index to '$functionName' (number has no integer representation)"
+            } else {
+                "bad argument #$index to '$functionName' (number expected)"
+            },
+        )
+    }
+
     private fun requireMathArguments(context: LuaCallContext, functionName: String) {
         if (context.argumentCount == 0) {
             throw LuaRuntimeException("bad argument #1 to '$functionName' (value expected)")

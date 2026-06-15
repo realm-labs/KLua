@@ -10019,24 +10019,25 @@ class LuaStdlibTest {
 
         val ldexpState = LuaState.create()
         LuaStdlib.openMath(ldexpState)
+        LuaStdlib.openBase(ldexpState)
 
-        assertEquals(LuaStatus.OK, ldexpState.load("""return math.ldexp(1, "x")""", "math-ldexp-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, ldexpState.pcall(0, -1))
-
-        assertIs<LuaRuntimeException>(ldexpState.getLastError())
-        assertEquals("bad argument #2 to 'ldexp' (number expected)", ldexpState.toString(-1))
-
-        val fractionalState = LuaState.create()
-        LuaStdlib.openMath(fractionalState)
-
-        assertEquals(LuaStatus.OK, fractionalState.load("""return math.ldexp(1, 1.5)""", "math-ldexp-fractional-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
-
-        assertIs<LuaRuntimeException>(fractionalState.getLastError())
         assertEquals(
-            "bad argument #2 to 'ldexp' (number has no integer representation)",
-            fractionalState.toString(-1),
+            LuaStatus.OK,
+            ldexpState.load(
+                """
+                local okString, stringMessage = pcall(math.ldexp, 1, "x")
+                local okFraction, fractionMessage = pcall(math.ldexp, 1, 1.5)
+                return okString, stringMessage, okFraction, fractionMessage
+                """.trimIndent(),
+                "math-ldexp-error.lua",
+            ),
         )
+        assertEquals(LuaStatus.OK, ldexpState.pcall(0, -1), ldexpState.toString(-1))
+
+        assertFalse(ldexpState.toBoolean(1))
+        assertEquals("bad argument #2 to 'ldexp' (number expected)", ldexpState.toString(2))
+        assertFalse(ldexpState.toBoolean(3))
+        assertEquals("bad argument #2 to 'ldexp' (number has no integer representation)", ldexpState.toString(4))
     }
 
     @Test
