@@ -2363,10 +2363,13 @@ class LuaStdlibTest {
                 local setValueOk, setValueMessage = pcall(debug.setuservalue, userdata)
                 local getIndexOk, getIndexMessage = pcall(debug.getuservalue, userdata, "bad")
                 local setIndexOk, setIndexMessage = pcall(debug.setuservalue, userdata, "value", "bad")
+                local setIndexFirstOk, setIndexFirstMessage =
+                    pcall(debug.setuservalue, "not-userdata", "value", "bad")
                 return setTargetOk, setTargetMessage,
                     setValueOk, setValueMessage,
                     getIndexOk, getIndexMessage,
-                    setIndexOk, setIndexMessage
+                    setIndexOk, setIndexMessage,
+                    setIndexFirstOk, setIndexFirstMessage
                 """.trimIndent(),
                 "debug-uservalue-errors.lua",
             ),
@@ -2381,6 +2384,8 @@ class LuaStdlibTest {
         assertEquals("bad argument #2 to 'getuservalue' (number expected)", state.toString(6))
         assertFalse(state.toBoolean(7))
         assertEquals("bad argument #3 to 'setuservalue' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #3 to 'setuservalue' (number expected)", state.toString(10))
     }
 
     @Test
