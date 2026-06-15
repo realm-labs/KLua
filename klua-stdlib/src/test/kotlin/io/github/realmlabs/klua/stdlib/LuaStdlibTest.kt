@@ -9191,7 +9191,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 return math.sqrt(9), math.exp(0), math.log(math.exp(1)), math.log(math.exp(1), nil), math.log(8, 2),
-                    math.deg(math.pi), math.rad(180)
+                    math.deg(math.pi), math.rad(180), math.log(1000, 10) == 3
                 """.trimIndent(),
                 "math-exp-angle.lua",
             ),
@@ -9205,6 +9205,7 @@ class LuaStdlibTest {
         assertEquals(3.0, state.toNumber(5) ?: error("missing log base result"), 1e-12)
         assertEquals(180.0, state.toNumber(6) ?: error("missing deg result"), 1e-12)
         assertEquals(Math.PI, state.toNumber(7) ?: error("missing rad result"), 1e-12)
+        assertTrue(state.toBoolean(8))
     }
 
     @Test

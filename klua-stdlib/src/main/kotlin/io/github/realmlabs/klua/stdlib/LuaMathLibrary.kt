@@ -152,11 +152,15 @@ internal object LuaMathLibrary {
     }
 
     private fun mathLog(context: LuaCallContext): LuaReturn {
-        val value = ln(requiredNumber(context, 1, "log"))
+        val number = requiredNumber(context, 1, "log")
         if (context.argumentCount < 2 || context.isNil(2)) {
-            return LuaReturn.of(value)
+            return LuaReturn.of(ln(number))
         }
-        return LuaReturn.of(value / ln(requiredNumber(context, 2, "log")))
+        val base = requiredNumber(context, 2, "log")
+        if (base == 10.0) {
+            return LuaReturn.of(java.lang.Math.log10(number))
+        }
+        return LuaReturn.of(ln(number) / ln(base))
     }
 
     private fun mathMax(context: LuaCallContext): LuaReturn {
