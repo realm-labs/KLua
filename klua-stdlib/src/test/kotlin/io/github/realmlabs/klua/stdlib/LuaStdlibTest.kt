@@ -14818,6 +14818,96 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move accepts table-like non-table sources and destinations`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                debug.setmetatable("source", {
+                    __index = function(value, index)
+                        return ({ "a", "b", "c" })[index]
+                    end,
+                })
+                debug.setmetatable(42, {
+                    __newindex = function(value, key, moved)
+                        writes[#writes + 1] = value .. ":" .. key .. ":" .. tostring(moved)
+                    end,
+                })
+
+                local destination = {}
+                local returnedTable = table.move("source", 1, 2, 2, destination)
+                local returnedValue = table.move("source", 2, 3, 5, 42)
+
+                return returnedTable == destination,
+                    destination[1], destination[2], destination[3],
+                    returnedValue,
+                    #writes, writes[1], writes[2]
+                """.trimIndent(),
+                "table-move-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.isNil(2))
+        assertEquals("a", state.toString(3))
+        assertEquals("b", state.toString(4))
+        assertEquals(42L, state.toInteger(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals("42:5:b", state.toString(7))
+        assertEquals("42:6:c", state.toString(8))
+    }
+
+    @Test
+    fun `table move rejects table-like values missing required methods`() {
+        val missingSourceState = LuaState.create()
+        LuaStdlib.openLibs(missingSourceState)
+
+        assertEquals(
+            LuaStatus.OK,
+            missingSourceState.load(
+                """
+                debug.setmetatable("source", {
+                    __newindex = function() end,
+                })
+                return table.move("source", 1, 1, 1, {})
+                """.trimIndent(),
+                "table-move-table-like-source-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, missingSourceState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(missingSourceState.getLastError())
+        assertEquals("bad argument #1 to 'move' (table expected)", missingSourceState.toString(-1))
+
+        val missingDestinationState = LuaState.create()
+        LuaStdlib.openLibs(missingDestinationState)
+
+        assertEquals(
+            LuaStatus.OK,
+            missingDestinationState.load(
+                """
+                debug.setmetatable(42, {
+                    __index = {
+                        [1] = "x",
+                    },
+                })
+                return table.move({ "x" }, 1, 1, 1, 42)
+                """.trimIndent(),
+                "table-move-table-like-destination-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, missingDestinationState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(missingDestinationState.getLastError())
+        assertEquals("bad argument #5 to 'move' (table expected)", missingDestinationState.toString(-1))
+    }
+
+    @Test
     fun `table move handles overlapping self moves`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
