@@ -77,14 +77,12 @@ internal object LuaDebugLibrary {
     }
 
     private fun getInfo(context: LuaCallContext): LuaReturn {
-        if (context.typeName(1) == "function") {
-            val info = context.getFunctionDebugInfo(1)
-            val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
-            rejectPrivateGetInfoOption(what)
-            return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
-        }
         val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
         rejectPrivateGetInfoOption(what)
+        if (context.typeName(1) == "function") {
+            val info = context.getFunctionDebugInfo(1)
+            return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
+        }
         val level = requiredStackLevel(context, "getinfo")
         if (level < 0) {
             return LuaReturn.of(null)

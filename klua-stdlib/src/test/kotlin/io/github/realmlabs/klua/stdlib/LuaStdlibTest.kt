@@ -1047,6 +1047,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo rejects leading internal function option before stack level`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.getinfo, "not-level", ">")
+                return ok, message
+                """.trimIndent(),
+                "debug-getinfo-leading-internal-option.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option '>')", state.toString(2))
+    }
+
+    @Test
     fun `debug getinfo reports non string what errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
