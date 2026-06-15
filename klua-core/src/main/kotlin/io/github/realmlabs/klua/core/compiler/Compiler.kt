@@ -465,9 +465,12 @@ internal class Compiler private constructor(
     private fun compileGoto(statement: GotoStatement) {
         val jump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        val close = writer.size
+        writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), statement.range.start.line)
         val pending = PendingGoto(
             name = statement.label,
             jump = jump,
+            close = close,
             line = statement.range.start.line,
             localDepth = nextLocalRegister,
             scopePath = blockScopePath.toList(),
@@ -510,6 +513,11 @@ internal class Compiler private constructor(
                 goto.statement,
                 "<goto ${goto.name}> at line ${goto.line} jumps into the scope of a local variable",
             )
+        }
+        if (hasCapturedLocals && label.localDepth < goto.localDepth) {
+            writer.patch(goto.jump, Instruction.abc(Opcode.CLOSE_UPVALUES, label.localDepth))
+            patchJump(goto.close, label.pc)
+            return
         }
         patchJump(goto.jump, label.pc)
     }
@@ -1106,6 +1114,7 @@ internal class Compiler private constructor(
     private data class PendingGoto(
         val name: String,
         val jump: Int,
+        val close: Int,
         val line: Int,
         val localDepth: Int,
         val scopePath: List<Int>,

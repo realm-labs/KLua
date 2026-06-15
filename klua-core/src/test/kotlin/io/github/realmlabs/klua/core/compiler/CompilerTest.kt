@@ -10,6 +10,7 @@ import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class CompilerTest {
     @Test
@@ -933,6 +934,33 @@ class CompilerTest {
         }
 
         assertEquals("duplicate-label.lua:2:1: label 'again' already defined", error.message)
+    }
+
+    @Test
+    fun `closes captured locals before goto escapes scope`() {
+        val prototype = Compiler.compile(
+            """
+            local function outer()
+                local get
+                do
+                    local captured = "live"
+                    get = function()
+                        return captured
+                    end
+                    goto done
+                end
+                ::done::
+                local captured = "shadow"
+                return get()
+            end
+            return outer()
+            """.trimIndent(),
+            "goto-close.lua",
+        )
+
+        val outer = prototype.nested.single()
+        val disassembly = Disassembler.disassemble(outer)
+        assertTrue(disassembly.contains("CLOSE_UPVALUES R1"), disassembly)
     }
 
     @Test
