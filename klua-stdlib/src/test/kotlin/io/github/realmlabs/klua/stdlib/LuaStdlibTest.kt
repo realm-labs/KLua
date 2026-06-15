@@ -12864,6 +12864,7 @@ class LuaStdlibTest {
     @Test
     fun `string gsub accepts function and table replacements`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
 
         assertEquals(
@@ -12890,8 +12891,24 @@ class LuaStdlibTest {
                     one = 1,
                     two = false,
                 })
+                local indexed, indexedCount = string.gsub("hello world unknown", "%a+", setmetatable({
+                    hello = "hi",
+                }, {
+                    __index = {
+                        world = "earth",
+                    },
+                }))
+                local functionIndexed, functionIndexedCount = string.gsub("a b c", "%a", setmetatable({}, {
+                    __index = function(_, key)
+                        if key == "c" then
+                            return false
+                        end
+                        return key .. key
+                    end,
+                }))
                 return swapped, swappedCount, wrapped, wrappedCount, kept, keptCount,
-                    mapped, mappedCount, numbered, numberedCount
+                    mapped, mappedCount, numbered, numberedCount,
+                    indexed, indexedCount, functionIndexed, functionIndexedCount
                 """.trimIndent(),
                 "string-gsub-replacement-types.lua",
             ),
@@ -12908,6 +12925,10 @@ class LuaStdlibTest {
         assertEquals(3L, state.toInteger(8))
         assertEquals("1 two", state.toString(9))
         assertEquals(2L, state.toInteger(10))
+        assertEquals("hi earth unknown", state.toString(11))
+        assertEquals(3L, state.toInteger(12))
+        assertEquals("aa bb c", state.toString(13))
+        assertEquals(3L, state.toInteger(14))
     }
 
     @Test
