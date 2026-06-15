@@ -612,23 +612,13 @@ internal object LuaTableLibrary {
 
     private fun tableUnpack(context: LuaCallContext): LuaReturn {
         val sourceType = context.typeName(1)
-        val isTable = context.isTable(1)
-        val isString = sourceType == "string"
-        val hasIndex = context.getTableField(context.getRawMetatable(1), "__index") != null
-
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
         } else {
             requiredInteger(context, 2, "unpack")
         }
         val end = if (context.isNone(3) || context.isNil(3)) {
-            when {
-                isTable -> tableLength(context, 1)
-                isString -> context.toString(1)?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0L
-                context.getTableField(context.getRawMetatable(1), "__len") != null -> tableLength(context, 1)
-                hasIndex -> tableLength(context, 1)
-                else -> throw LuaRuntimeException("attempt to get length of a $sourceType value")
-            }
+            tableUnpackDefaultEnd(context, sourceType)
         } else {
             requiredInteger(context, 3, "unpack")
         }
@@ -636,18 +626,47 @@ internal object LuaTableLibrary {
         if (start > end) {
             return LuaReturn.none()
         }
-        if (!isTable && !isString && !hasIndex) {
-            throw LuaRuntimeException("attempt to index a $sourceType value")
-        }
         tableUnpackResultCount(start, end)
 
         val values = mutableListOf<Any?>()
         var index = start
         while (index <= end) {
-            values += if (isTable || hasIndex) tableIndexValue(context, 1, index) else null
+            values += tableUnpackIndexValue(context, sourceType, index)
             index++
         }
         return LuaReturn.ofValues(values)
+    }
+
+    private fun tableUnpackDefaultEnd(context: LuaCallContext, sourceType: String): Long {
+        val length = context.getTableField(context.getMetatable(1), "__len")
+        if (length != null) {
+            return luaInteger(context.call(length, listOf(context.getLuaValue(1))).get(1))
+                ?: throw LuaRuntimeException("object length is not an integer")
+        }
+        return when {
+            context.isTable(1) -> context.tableLength(1) ?: 0L
+            sourceType == "string" -> context.toString(1)?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0L
+            else -> throw LuaRuntimeException("attempt to get length of a $sourceType value")
+        }
+    }
+
+    private fun tableUnpackIndexValue(context: LuaCallContext, sourceType: String, key: Any?): Any? {
+        val rawValue = context.getTableValue(1, key)
+        if (rawValue != null) {
+            return rawValue
+        }
+        val index = context.getTableField(context.getMetatable(1), "__index")
+        if (index == null) {
+            if (context.isTable(1)) {
+                return null
+            }
+            throw LuaRuntimeException("attempt to index a $sourceType value")
+        }
+        return try {
+            context.call(index, listOf(context.getLuaValue(1), key)).get(1)
+        } catch (_: IllegalArgumentException) {
+            context.getTableField(index, key)
+        }
     }
 
     private fun tableUnpackResultCount(start: Long, end: Long): Long {

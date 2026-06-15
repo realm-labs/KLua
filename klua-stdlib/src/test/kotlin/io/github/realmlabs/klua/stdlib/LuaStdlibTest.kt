@@ -16023,12 +16023,8 @@ class LuaStdlibTest {
                 local metaCount = select("#", table.unpack(fallback, 1, 3))
                 local metaFirst, metaSecond, metaThird = table.unpack(fallback, 1, 3)
                 local defaultMetaCount = select("#", table.unpack(fallback))
-                local stringCount = select("#", table.unpack("abc"))
-                local stringFirst, stringSecond, stringThird = table.unpack("abc")
-                local stringExplicitCount = select("#", table.unpack("abc", 2, 4))
                 return a, b, c, d, e, count, first, second, third,
-                    metaCount, metaFirst, metaSecond, metaThird, defaultMetaCount,
-                    stringCount, stringFirst, stringSecond, stringThird, stringExplicitCount
+                    metaCount, metaFirst, metaSecond, metaThird, defaultMetaCount
                 """.trimIndent(),
                 "table-unpack.lua",
             ),
@@ -16049,11 +16045,51 @@ class LuaStdlibTest {
         assertTrue(state.isNil(12))
         assertEquals("meta-third", state.toString(13))
         assertEquals(3L, state.toInteger(14))
-        assertEquals(3L, state.toInteger(15))
-        assertTrue(state.isNil(16))
-        assertTrue(state.isNil(17))
-        assertTrue(state.isNil(18))
-        assertEquals(3L, state.toInteger(19))
+    }
+
+    @Test
+    fun `table unpack accepts table-like non-table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+        LuaStdlib.openDebug(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable("proxy", {
+                    __len = function(value)
+                        return value == "proxy" and 3 or 0
+                    end,
+                    __index = function(value, index)
+                        return value == "proxy" and ({ "a", nil, "c" })[index] or nil
+                    end,
+                })
+                local defaultCount = select("#", table.unpack("proxy"))
+                local first, second, third = table.unpack("proxy")
+
+                debug.setmetatable(42, {
+                    __index = function(_, index)
+                        return ({ "explicit-a", "explicit-b" })[index]
+                    end,
+                })
+                local explicitCount = select("#", table.unpack(42, 1, 2))
+                local explicitFirst, explicitSecond = table.unpack(42, 1, 2)
+                return defaultCount, first, second, third, explicitCount, explicitFirst, explicitSecond
+                """.trimIndent(),
+                "table-unpack-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("a", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("c", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals("explicit-a", state.toString(6))
+        assertEquals("explicit-b", state.toString(7))
     }
 
     @Test
@@ -16116,11 +16152,19 @@ class LuaStdlibTest {
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return select("#", table.unpack({"a", "b"}, 3, 2))""", "table-unpack-empty.lua"),
+            state.load(
+                """
+                local tableCount = select("#", table.unpack({"a", "b"}, 3, 2))
+                local numberCount = select("#", table.unpack(42, 3, 2))
+                return tableCount, numberCount
+                """.trimIndent(),
+                "table-unpack-empty.lua",
+            ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(0L, state.toInteger(1))
+        assertEquals(0L, state.toInteger(2))
     }
 
     @Test
@@ -16270,6 +16314,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(indexState.getLastError())
         assertEquals("attempt to index a number value", indexState.toString(-1))
+
+        val stringState = LuaState.create()
+        LuaStdlib.openTable(stringState)
+
+        assertEquals(
+            LuaStatus.OK,
+            stringState.load("""return table.unpack("abc")""", "table-unpack-string-index-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, stringState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(stringState.getLastError())
+        assertEquals("attempt to index a string value", stringState.toString(-1))
     }
 }
 
