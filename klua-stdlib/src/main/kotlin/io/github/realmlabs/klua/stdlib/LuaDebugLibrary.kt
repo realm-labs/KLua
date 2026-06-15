@@ -80,23 +80,24 @@ internal object LuaDebugLibrary {
 
     private fun getInfo(context: LuaCallContext): LuaReturn {
         val target = threadTarget(context)
-        val what = optionalString(context, target.argumentOffset + 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
-        rejectPrivateGetInfoOption(what)
+        val optionIndex = target.argumentOffset + 2
+        val what = optionalString(context, optionIndex, DEFAULT_GETINFO_OPTIONS, "getinfo")
+        rejectPrivateGetInfoOption(what, optionIndex)
         val subjectIndex = target.argumentOffset + 1
         if (context.typeName(subjectIndex) == "function") {
             val info = context.getFunctionDebugInfo(subjectIndex)
-            return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(subjectIndex)))
+            return LuaReturn.of(functionInfoTable(info, what, optionIndex, context.getLuaValue(subjectIndex)))
         }
         val level = requiredStackLevel(context, subjectIndex, "getinfo")
         if (level < 0) {
             return LuaReturn.of(null)
         }
         val frame = target.frames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
-        return LuaReturn.of(frameInfoTable(frame, what))
+        return LuaReturn.of(frameInfoTable(frame, what, optionIndex))
     }
 
-    private fun frameInfoTable(frame: LuaStackFrame, what: String): Map<String, Any?> {
-        return debugInfoTable(what) { option, table ->
+    private fun frameInfoTable(frame: LuaStackFrame, what: String, optionIndex: Int): Map<String, Any?> {
+        return debugInfoTable(what, optionIndex) { option, table ->
             when (option) {
                 'S' -> {
                     table["what"] = luaFunctionWhat(frame.lineDefined)
@@ -120,9 +121,14 @@ internal object LuaDebugLibrary {
         }
     }
 
-    private fun functionInfoTable(info: LuaFunctionDebugInfo?, what: String, function: Any?): Map<String, Any?> {
+    private fun functionInfoTable(
+        info: LuaFunctionDebugInfo?,
+        what: String,
+        optionIndex: Int,
+        function: Any?,
+    ): Map<String, Any?> {
         if (info == null) {
-            return debugInfoTable(what) { option, table ->
+            return debugInfoTable(what, optionIndex) { option, table ->
                 when (option) {
                     'S' -> {
                         table["what"] = "C"
@@ -145,7 +151,7 @@ internal object LuaDebugLibrary {
                 }
             }
         }
-        return debugInfoTable(what) { option, table ->
+        return debugInfoTable(what, optionIndex) { option, table ->
             when (option) {
                 'S' -> {
                     table["what"] = luaFunctionWhat(info.lineDefined)
@@ -175,21 +181,22 @@ internal object LuaDebugLibrary {
 
     private fun debugInfoTable(
         what: String,
+        optionIndex: Int,
         addFields: (option: Char, table: MutableMap<String, Any?>) -> Unit,
     ): Map<String, Any?> {
         val table = linkedMapOf<String, Any?>()
         for (option in what) {
             if (option !in GETINFO_OPTIONS) {
-                throw LuaRuntimeException("bad argument #2 to 'getinfo' (invalid option)")
+                throw LuaRuntimeException("bad argument #$optionIndex to 'getinfo' (invalid option)")
             }
             addFields(option, table)
         }
         return table
     }
 
-    private fun rejectPrivateGetInfoOption(what: String) {
+    private fun rejectPrivateGetInfoOption(what: String, optionIndex: Int) {
         if (what.startsWith(">")) {
-            throw LuaRuntimeException("bad argument #2 to 'getinfo' (invalid option '>')")
+            throw LuaRuntimeException("bad argument #$optionIndex to 'getinfo' (invalid option '>')")
         }
     }
 

@@ -1080,6 +1080,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports shifted invalid what options for thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                end)
+                coroutine.resume(co)
+                local invalidOk, invalidMessage = pcall(debug.getinfo, co, 0, "x")
+                local internalOk, internalMessage = pcall(debug.getinfo, co, 0, ">")
+                return invalidOk, invalidMessage, internalOk, internalMessage
+                """.trimIndent(),
+                "debug-thread-getinfo-invalid-option.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'getinfo' (invalid option)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'getinfo' (invalid option '>')", state.toString(4))
+    }
+
+    @Test
     fun `debug getinfo rejects leading internal function option before stack level`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
