@@ -1253,6 +1253,25 @@ class LuaVmTest {
     }
 
     @Test
+    fun `numeric for closes captured loop locals before next iteration`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local getters = {}
+                for i = 1, 2 do
+                    getters[i] = function()
+                        return i
+                    end
+                end
+                return getters[1](), getters[2]()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1), LuaInteger(2)), result)
+    }
+
+    @Test
     fun `executes generic for loop`() {
         val result = LuaVm().execute(
             Compiler.compile(
@@ -1309,6 +1328,43 @@ class LuaVmTest {
         )
 
         assertEquals(listOf(LuaString("345")), result)
+    }
+
+    @Test
+    fun `generic for closes captured loop locals before next iteration`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function iter(state, key)
+                    local next = key + 1
+                    if next > state.n then
+                        return nil
+                    end
+                    return next, state[next]
+                end
+                local function iterator()
+                    return iter, {n = 2, "a", "b"}, 0
+                end
+                local indexGetters = {}
+                local valueGetters = {}
+                for index, value in iterator() do
+                    indexGetters[index] = function()
+                        return index
+                    end
+                    valueGetters[index] = function()
+                        return value
+                    end
+                end
+                return indexGetters[1](), valueGetters[1](),
+                    indexGetters[2](), valueGetters[2]()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(LuaInteger(1), LuaString("a"), LuaInteger(2), LuaString("b")),
+            result,
+        )
     }
 
     @Test

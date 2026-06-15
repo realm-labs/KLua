@@ -174,6 +174,12 @@ internal class Compiler private constructor(
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
         exitBlockScope(savedNextLocalRegister)
+        if (hasCapturedLocals) {
+            writer.emit(
+                Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister),
+                statement.range.start.line,
+            )
+        }
 
         val loopIndex = writer.size
         writer.emit(Instruction.abc(Opcode.FOR_LOOP, baseRegister, writer.jumpOffset(loopIndex, loopStart)), statement.range.start.line)
@@ -214,6 +220,12 @@ internal class Compiler private constructor(
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
         exitBlockScope(savedNextLocalRegister)
+        if (hasCapturedLocals) {
+            writer.emit(
+                Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister),
+                statement.range.start.line,
+            )
+        }
 
         val backJump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
