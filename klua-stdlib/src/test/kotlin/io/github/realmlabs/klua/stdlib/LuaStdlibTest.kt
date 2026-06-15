@@ -14895,6 +14895,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string char reports integer argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okString, stringMessage = pcall(string.char, "x")
+                local okFraction, fractionMessage = pcall(string.char, 65.5)
+                local okStringNumber, stringNumberMessage = pcall(string.char, "65.5")
+                return okString, stringMessage,
+                    okFraction, fractionMessage,
+                    okStringNumber, stringNumberMessage
+                """.trimIndent(),
+                "string-char-integer-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'char' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'char' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'char' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `openTable installs table concat`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
