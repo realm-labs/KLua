@@ -139,7 +139,7 @@ internal class Compiler private constructor(
         val savedNextLocalRegister = nextLocalRegister
         enterBlockScope()
         compileStatements(statements, endLabelLocalDepth = savedNextLocalRegister)
-        exitBlockScope()
+        exitBlockScope(savedNextLocalRegister)
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
 
@@ -167,7 +167,7 @@ internal class Compiler private constructor(
 
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
-        exitBlockScope()
+        exitBlockScope(savedNextLocalRegister)
 
         val loopIndex = writer.size
         writer.emit(Instruction.abc(Opcode.FOR_LOOP, baseRegister, writer.jumpOffset(loopIndex, loopStart)), statement.range.start.line)
@@ -207,7 +207,7 @@ internal class Compiler private constructor(
 
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
-        exitBlockScope()
+        exitBlockScope(savedNextLocalRegister)
 
         val backJump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
@@ -443,7 +443,7 @@ internal class Compiler private constructor(
 
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = savedNextLocalRegister)
-        exitBlockScope()
+        exitBlockScope(savedNextLocalRegister)
 
         val conditionRegister = nextLocalRegister
         compileExpression(statement.condition, conditionRegister)
@@ -476,6 +476,7 @@ internal class Compiler private constructor(
             line = statement.range.start.line,
             localDepth = nextLocalRegister,
             scopePath = blockScopePath.toList(),
+            closeDepth = null,
             statement = statement,
         )
         val label = findVisibleLabel(statement.label, blockScopePath)
@@ -520,8 +521,11 @@ internal class Compiler private constructor(
                 "<goto ${goto.name}> at line ${goto.line} jumps into the scope of a local variable",
             )
         }
-        if (hasCapturedLocals && label.localDepth < goto.localDepth) {
-            writer.patch(goto.jump, Instruction.abc(Opcode.CLOSE_UPVALUES, label.localDepth))
+        val closeDepth = goto.closeDepth ?: label.localDepth.takeIf { depth ->
+            hasCapturedLocals && depth < goto.localDepth
+        }
+        if (closeDepth != null) {
+            writer.patch(goto.jump, Instruction.abc(Opcode.CLOSE_UPVALUES, closeDepth))
             patchJump(goto.close, label.pc)
             return
         }
@@ -1041,8 +1045,18 @@ internal class Compiler private constructor(
         blockScopePath += nextBlockScopeId++
     }
 
-    private fun exitBlockScope() {
+    private fun exitBlockScope(outerLocalDepth: Int) {
         val exitingScopePath = blockScopePath.toList()
+        val outerScopePath = exitingScopePath.dropLast(1)
+        for (pending in pendingGotos) {
+            if (pending.scopePath.hasPrefix(exitingScopePath)) {
+                if (hasCapturedLocals && pending.localDepth > outerLocalDepth) {
+                    pending.closeDepth = pending.closeDepth ?: outerLocalDepth
+                }
+                pending.localDepth = outerLocalDepth
+                pending.scopePath = outerScopePath
+            }
+        }
         activeLabels.removeAll { label -> label.scopePath.hasPrefix(exitingScopePath) }
         blockScopePath.removeLast()
     }
@@ -1124,8 +1138,9 @@ internal class Compiler private constructor(
         val jump: Int,
         val close: Int,
         val line: Int,
-        val localDepth: Int,
-        val scopePath: List<Int>,
+        var localDepth: Int,
+        var scopePath: List<Int>,
+        var closeDepth: Int?,
         val statement: GotoStatement,
     )
 

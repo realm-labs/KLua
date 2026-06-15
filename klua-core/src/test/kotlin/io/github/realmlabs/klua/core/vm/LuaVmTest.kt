@@ -1101,6 +1101,26 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes exported goto to following outer label`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local value = 0
+                do
+                    local skipped = 1
+                    goto done
+                    value = skipped
+                end
+                ::done::
+                return value
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(0)), result)
+    }
+
+    @Test
     fun `executes numeric for loop`() {
         val result = LuaVm().execute(
             Compiler.compile(

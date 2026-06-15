@@ -989,6 +989,30 @@ class CompilerTest {
     }
 
     @Test
+    fun `rejects exported goto into later outer local scope`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local outer = 0
+                do
+                    local inner = 1
+                    goto done
+                end
+                local later = 2
+                ::done::
+                return outer
+                """.trimIndent(),
+                "goto-export-local-scope.lua",
+            )
+        }
+
+        assertEquals(
+            "goto-export-local-scope.lua:4:5: <goto done> at line 4 jumps into the scope of a local variable",
+            error.message,
+        )
+    }
+
+    @Test
     fun `closes captured locals before goto escapes scope`() {
         val prototype = Compiler.compile(
             """
