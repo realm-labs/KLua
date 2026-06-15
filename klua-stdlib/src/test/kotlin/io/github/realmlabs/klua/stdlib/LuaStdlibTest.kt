@@ -14781,6 +14781,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert wraps first empty slot like lua integer arithmetic`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local appendWrites = {}
+                local appendTarget = setmetatable({}, {
+                    __len = function()
+                        return math.maxinteger
+                    end,
+                    __newindex = function(_, key, value)
+                        appendWrites[#appendWrites + 1] = tostring(key) .. ":" .. value
+                    end,
+                })
+                table.insert(appendTarget, "tail")
+
+                local positionedWrites = {}
+                local positionedTarget = setmetatable({}, {
+                    __len = function()
+                        return math.maxinteger
+                    end,
+                    __newindex = function(_, key, value)
+                        positionedWrites[#positionedWrites + 1] = tostring(key) .. ":" .. value
+                    end,
+                })
+                table.insert(positionedTarget, 1, "head")
+
+                return appendWrites[1], positionedWrites[1]
+                """.trimIndent(),
+                "table-insert-wrapped-first-empty.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("${Long.MIN_VALUE}:tail", state.toString(1))
+        assertEquals("1:head", state.toString(2))
+    }
+
+    @Test
     fun `table insert writes missing slots through newindex metamethod`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
