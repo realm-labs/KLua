@@ -1086,13 +1086,30 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects goto into nested block scope`() {
+    fun `allows goto into nested end label scope`() {
+        val prototype = Compiler.compile(
+            """
+            goto inside
+            do
+                ::inside::
+            end
+            return 1
+            """.trimIndent(),
+            "goto-nested-end-label.lua",
+        )
+
+        assertEquals("goto-nested-end-label.lua", prototype.sourceName)
+    }
+
+    @Test
+    fun `rejects goto into nested non end label scope`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile(
                 """
                 goto inside
                 do
                     ::inside::
+                    local value = 1
                 end
                 """.trimIndent(),
                 "goto-block-scope.lua",
