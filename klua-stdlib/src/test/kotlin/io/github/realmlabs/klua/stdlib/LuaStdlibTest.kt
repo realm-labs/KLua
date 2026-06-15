@@ -2441,12 +2441,16 @@ class LuaStdlibTest {
                 local setValueOk, setValueMessage = pcall(debug.setuservalue, userdata)
                 local getIndexOk, getIndexMessage = pcall(debug.getuservalue, userdata, "bad")
                 local setIndexOk, setIndexMessage = pcall(debug.setuservalue, userdata, "value", "bad")
+                local getIndexFractionOk, getIndexFractionMessage = pcall(debug.getuservalue, userdata, 1.5)
+                local setIndexFractionOk, setIndexFractionMessage = pcall(debug.setuservalue, userdata, "value", 1.5)
                 local setIndexFirstOk, setIndexFirstMessage =
                     pcall(debug.setuservalue, "not-userdata", "value", "bad")
                 return setTargetOk, setTargetMessage,
                     setValueOk, setValueMessage,
                     getIndexOk, getIndexMessage,
                     setIndexOk, setIndexMessage,
+                    getIndexFractionOk, getIndexFractionMessage,
+                    setIndexFractionOk, setIndexFractionMessage,
                     setIndexFirstOk, setIndexFirstMessage
                 """.trimIndent(),
                 "debug-uservalue-errors.lua",
@@ -2463,7 +2467,11 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(7))
         assertEquals("bad argument #3 to 'setuservalue' (number expected)", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertEquals("bad argument #3 to 'setuservalue' (number expected)", state.toString(10))
+        assertEquals("bad argument #2 to 'getuservalue' (number has no integer representation)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #3 to 'setuservalue' (number has no integer representation)", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("bad argument #3 to 'setuservalue' (number expected)", state.toString(14))
     }
 
     @Test
@@ -2789,12 +2797,21 @@ class LuaStdlibTest {
 
         assertEquals(
             LuaStatus.OK,
-            state.load("""return debug.sethook(function() end, "", "not-count")""", "debug-sethook-count-error.lua"),
+            state.load(
+                """
+                local okString, stringMessage = pcall(debug.sethook, function() end, "", "not-count")
+                local okFraction, fractionMessage = pcall(debug.sethook, function() end, "", 1.5)
+                return okString, stringMessage, okFraction, fractionMessage
+                """.trimIndent(),
+                "debug-sethook-count-error.lua",
+            ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'sethook' (number expected)", state.toString(-1))
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'sethook' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'sethook' (number has no integer representation)", state.toString(4))
     }
 
     @Test
