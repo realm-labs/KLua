@@ -387,6 +387,16 @@ internal object LuaDebugLibrary {
         }
     }
 
+    private fun requiredNumberInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+        return context.toInteger(index) ?: throw LuaRuntimeException(
+            if (context.toNumber(index) != null) {
+                "bad argument #$index to '$functionName' (number has no integer representation)"
+            } else {
+                "bad argument #$index to '$functionName' (number expected)"
+            },
+        )
+    }
+
     private fun getMetatable(context: LuaCallContext): LuaReturn {
         requireValueArgument(context, 1, "getmetatable")
         return LuaReturn.of(context.getRawMetatable(1))

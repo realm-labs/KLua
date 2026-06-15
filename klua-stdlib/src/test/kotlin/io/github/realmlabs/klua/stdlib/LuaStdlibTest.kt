@@ -615,8 +615,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local ok, message = pcall(debug.traceback, "boom", "not-level")
-                return ok, message
+                local okString, stringMessage = pcall(debug.traceback, "boom", "not-level")
+                local okFraction, fractionMessage = pcall(debug.traceback, "boom", 1.5)
+                return okString, stringMessage, okFraction, fractionMessage
                 """.trimIndent(),
                 "debug-traceback-level-type-error.lua",
             ),
@@ -625,6 +626,8 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #2 to 'traceback' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'traceback' (number has no integer representation)", state.toString(4))
     }
 
     @Test
