@@ -16359,16 +16359,35 @@ class LuaStdlibTest {
         assertEquals("bad argument #5 to 'move' (table expected)", state.toString(4))
 
         val orderState = LuaState.create()
+        LuaStdlib.openBase(orderState)
         LuaStdlib.openTable(orderState)
 
         assertEquals(
             LuaStatus.OK,
-            orderState.load("""return table.move("not-table", "not-integer", 1, 1)""", "table-move-validation-order.lua"),
+            orderState.load(
+                """
+                local okString, stringMessage = pcall(table.move, "not-table", "not-integer", 1, 1)
+                local okFirst, firstMessage = pcall(table.move, {}, 1.5, 1, 1)
+                local okLast, lastMessage = pcall(table.move, {}, 1, "1.5", 1)
+                local okTarget, targetMessage = pcall(table.move, {}, 1, 1, 1.5)
+                return okString, stringMessage,
+                    okFirst, firstMessage,
+                    okLast, lastMessage,
+                    okTarget, targetMessage
+                """.trimIndent(),
+                "table-move-validation-order.lua",
+            ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, orderState.pcall(0, -1))
+        assertEquals(LuaStatus.OK, orderState.pcall(0, -1), orderState.toString(-1))
 
-        assertIs<LuaRuntimeException>(orderState.getLastError())
-        assertEquals("bad argument #2 to 'move' (number expected)", orderState.toString(-1))
+        assertFalse(orderState.toBoolean(1))
+        assertEquals("bad argument #2 to 'move' (number expected)", orderState.toString(2))
+        assertFalse(orderState.toBoolean(3))
+        assertEquals("bad argument #2 to 'move' (number has no integer representation)", orderState.toString(4))
+        assertFalse(orderState.toBoolean(5))
+        assertEquals("bad argument #3 to 'move' (number has no integer representation)", orderState.toString(6))
+        assertFalse(orderState.toBoolean(7))
+        assertEquals("bad argument #4 to 'move' (number has no integer representation)", orderState.toString(8))
     }
 
     @Test
