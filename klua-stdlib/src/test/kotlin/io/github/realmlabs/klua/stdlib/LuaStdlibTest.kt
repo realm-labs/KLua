@@ -10191,6 +10191,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math ult reports integer argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okString, stringMessage = pcall(math.ult, "x", 1)
+                local okLeftFraction, leftFractionMessage = pcall(math.ult, 1.5, 2)
+                local okRightFraction, rightFractionMessage = pcall(math.ult, 1, "2.5")
+                return okString, stringMessage,
+                    okLeftFraction, leftFractionMessage,
+                    okRightFraction, rightFractionMessage
+                """.trimIndent(),
+                "math-ult-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'ult' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'ult' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'ult' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `math type classifies integer and float numbers`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
