@@ -7271,6 +7271,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine isyieldable reports dead coroutines as not yieldable`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                    return "done"
+                end)
+                local before = coroutine.isyieldable(co)
+                local firstOk, yielded = coroutine.resume(co)
+                local suspended = coroutine.isyieldable(co)
+                local secondOk, returned = coroutine.resume(co)
+                local dead = coroutine.isyieldable(co)
+                return before, firstOk, yielded, suspended, secondOk, returned, dead
+                """.trimIndent(),
+                "coroutine-isyieldable-dead.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("pause", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("done", state.toString(6))
+        assertFalse(state.toBoolean(7))
+    }
+
+    @Test
     fun `coroutine status reports main thread as normal inside resumed coroutine`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -7853,7 +7887,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
         assertFalse(state.toBoolean(6))
-        assertTrue(state.toBoolean(7))
+        assertFalse(state.toBoolean(7))
         assertEquals("dead", state.toString(8))
     }
 

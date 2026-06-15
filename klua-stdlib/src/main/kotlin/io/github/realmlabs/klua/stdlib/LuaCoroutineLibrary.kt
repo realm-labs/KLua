@@ -191,7 +191,7 @@ internal object LuaCoroutineLibrary {
             return LuaReturn.of(runtime.running != null)
         }
         val coroutine = requiredCoroutine(context, 1, "isyieldable")
-        return LuaReturn.of(!coroutine.isMain)
+        return LuaReturn.of(!coroutine.isMain && coroutine.status != CoroutineStatus.DEAD)
     }
 
     private fun coroutineStatus(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
