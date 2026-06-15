@@ -2738,6 +2738,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package loaders report source compatible package field type errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = false
+                local pathOk, pathMessage = pcall(package.searchers[2], "missing")
+
+                package.path = "?.lua"
+                package.searchers = false
+                local searchersOk, searchersMessage = pcall(require, "missing")
+
+                return pathOk, pathMessage, searchersOk, searchersMessage
+                """.trimIndent(),
+                "package-loader-field-type-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("'package.path' must be a string", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("'package.searchers' must be a table", state.toString(4))
+    }
+
+    @Test
     fun `require appends string searcher diagnostics and skips false searchers`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
