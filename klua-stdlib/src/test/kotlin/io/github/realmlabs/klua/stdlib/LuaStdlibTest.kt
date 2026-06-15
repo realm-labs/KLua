@@ -1455,7 +1455,11 @@ class LuaStdlibTest {
                     local okStack, stackMessage = pcall(debug.getlocal, 1, "not-index")
                     local okLevel, levelMessage = pcall(debug.getlocal, "not-level", "not-index")
                     local okFunction, functionMessage = pcall(debug.getlocal, target, "not-index")
-                    return okStack, stackMessage, okLevel, levelMessage, okFunction, functionMessage
+                    local okFraction, fractionMessage = pcall(debug.getlocal, 1, 1.5)
+                    return okStack, stackMessage,
+                        okLevel, levelMessage,
+                        okFunction, functionMessage,
+                        okFraction, fractionMessage
                 end
 
                 return probe()
@@ -1471,6 +1475,8 @@ class LuaStdlibTest {
         assertEquals("bad argument #2 to 'getlocal' (number expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("bad argument #2 to 'getlocal' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'getlocal' (number has no integer representation)", state.toString(8))
     }
 
     @Test
@@ -1793,8 +1799,9 @@ class LuaStdlibTest {
             state.load(
                 """
                 local function probe()
-                    local ok, message = pcall(debug.setlocal, 1, "not-index", "ignored")
-                    return ok, message
+                    local okString, stringMessage = pcall(debug.setlocal, 1, "not-index", "ignored")
+                    local okFraction, fractionMessage = pcall(debug.setlocal, 1, 1.5, "ignored")
+                    return okString, stringMessage, okFraction, fractionMessage
                 end
 
                 return probe()
@@ -1806,6 +1813,8 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #2 to 'setlocal' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'setlocal' (number has no integer representation)", state.toString(4))
     }
 
     @Test
