@@ -10667,6 +10667,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random reports integer argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okUpper, upperMessage = pcall(math.random, 1.5)
+                local okLower, lowerMessage = pcall(math.random, "1.5", 3)
+                local okRange, rangeMessage = pcall(math.random, 1, "3.5")
+                return okUpper, upperMessage, okLower, lowerMessage, okRange, rangeMessage
+                """.trimIndent(),
+                "math-random-integer-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'random' (number has no integer representation)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'random' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'random' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `math random reports extra argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -10711,6 +10739,36 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(1))
         assertEquals(2L, state.toInteger(2))
         assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `math randomseed reports integer argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okFirst, firstMessage = pcall(math.randomseed, "x")
+                local okFirstFraction, firstFractionMessage = pcall(math.randomseed, 1.5)
+                local okSecondFraction, secondFractionMessage = pcall(math.randomseed, 1, "2.5")
+                return okFirst, firstMessage,
+                    okFirstFraction, firstFractionMessage,
+                    okSecondFraction, secondFractionMessage
+                """.trimIndent(),
+                "math-randomseed-integer-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'randomseed' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'randomseed' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'randomseed' (number has no integer representation)", state.toString(6))
     }
 
     @Test
