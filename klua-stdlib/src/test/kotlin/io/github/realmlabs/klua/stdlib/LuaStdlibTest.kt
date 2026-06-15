@@ -2816,6 +2816,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package c root searcher reports root misses and module file diagnostics`() {
+        val root = Files.createTempDirectory("klua-c-root-searcher")
+        val module = root.resolve("root.dll")
+        Files.writeString(module, "not really a dynamic library")
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.cpath = "${root.luaPath()}/?.dll"
+                local plainMessage, plainExtra = package.searchers[4]("plain")
+                local missingMessage, missingExtra = package.searchers[4]("missing.child")
+                local foundMessage, foundExtra = package.searchers[4]("root.child")
+                package.cpath = false
+                local cpathOk, cpathMessage = pcall(package.searchers[4], "root.child")
+                return plainMessage, plainExtra, missingMessage, missingExtra,
+                    foundMessage, foundExtra, cpathOk, cpathMessage, package._moduleRoot
+                """.trimIndent(),
+                "package-c-root-searcher.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.toString(3)?.contains("no file '${root}/missing.dll'") == true)
+        assertTrue(state.isNil(4))
+        assertEquals("no module 'root.child' in file '${root}/root.dll'", state.toString(5))
+        assertTrue(state.isNil(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toString(8)?.startsWith("stdlib-package.lua:") == true, state.toString(8))
+        assertTrue(state.toString(8)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(8))
+        assertTrue(state.isNil(9))
+    }
+
+    @Test
     fun `require appends string searcher diagnostics and skips false searchers`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
