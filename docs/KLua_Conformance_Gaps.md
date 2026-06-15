@@ -10,7 +10,6 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 ## Debug Library
 
 - Optional thread arguments for `debug.traceback`, `debug.getinfo`, `debug.getlocal`, `debug.setlocal`, `debug.sethook`, and `debug.gethook` are not implemented yet.
-- `debug.getuservalue` and `debug.setuservalue` are not implemented; host userdata currently has no Lua uservalue storage.
 - `debug.setmetatable` is table-backed only; Lua 5.5 allows setting metatables on any value type supported by the runtime.
 
 ## Package Library

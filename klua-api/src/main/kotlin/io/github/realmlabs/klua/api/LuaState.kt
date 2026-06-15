@@ -26,9 +26,9 @@ class LuaState private constructor(
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
-    private val userValues = IdentityHashMap<Any, LuaStackValue>()
     private val userMetatables = IdentityHashMap<Any, LuaStackValue.TableValue>()
     private val coreBackedNativeGlobals = mutableSetOf<String>()
+    private val userValues = IdentityHashMap<Any, MutableMap<Int, LuaStackValue>>()
     private var lastError: LuaException? = null
 
     companion object {
@@ -1670,20 +1670,21 @@ class LuaState private constructor(
         }
 
         override fun getUserValue(index: Int, userValueIndex: Int): LuaReturn? {
-            val userData = valueAt(index) as? LuaStackValue.UserDataValue ?: return null
-            if (userValueIndex != 1) {
+            if (userValueIndex <= 0) {
                 return null
             }
-            val userValue = userValues[userData.value] ?: LuaStackValue.Nil
-            return LuaReturn.of(userValue.toPublicCallReturnValue(), true)
+            val userData = toUserData(index) ?: return null
+            val value = userValues[userData]?.get(userValueIndex) ?: LuaStackValue.Nil
+            return LuaReturn.of(value.toPublicCallReturnValue(), true)
         }
 
         override fun setUserValue(index: Int, userValueIndex: Int, value: Any?): Boolean {
-            val userData = valueAt(index) as? LuaStackValue.UserDataValue ?: return false
-            if (userValueIndex != 1) {
+            if (userValueIndex <= 0) {
                 return false
             }
-            userValues[userData.value] = value.toStackValue()
+            val userData = toUserData(index) ?: return false
+            val values = userValues.getOrPut(userData) { linkedMapOf() }
+            values[userValueIndex] = value.toStackValue()
             return true
         }
 

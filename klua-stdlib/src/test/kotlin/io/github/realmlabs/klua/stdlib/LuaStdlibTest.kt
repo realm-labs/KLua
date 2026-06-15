@@ -2030,6 +2030,89 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug uservalue functions preserve host userdata values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val hostUserData = Any()
+        state.register("hostUserData") { LuaReturn.of(hostUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local userdata = hostUserData()
+                local initial, initialOk = debug.getuservalue(userdata)
+                local marker = {name = "marker"}
+                local returned = debug.setuservalue(userdata, marker)
+                local stored, storedOk = debug.getuservalue(userdata)
+                local nilReturned = debug.setuservalue(userdata, nil, 2)
+                local nilValue, nilOk = debug.getuservalue(userdata, 2)
+                local invalidSet = debug.setuservalue(userdata, "ignored", 0)
+                local invalidValue, invalidOk = debug.getuservalue(userdata, 0)
+                local nonUserdata, nonUserdataOk = debug.getuservalue({})
+                return initial, initialOk,
+                    returned == userdata, stored == marker, stored.name, storedOk,
+                    nilReturned == userdata, nilValue, nilOk,
+                    invalidSet, invalidValue, invalidOk,
+                    nonUserdata, nonUserdataOk
+                """.trimIndent(),
+                "debug-uservalue.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("marker", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.isNil(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.isNil(10))
+        assertTrue(state.isNil(11))
+        assertTrue(state.isNil(12))
+        assertTrue(state.isNil(13))
+        assertTrue(state.isNil(14))
+    }
+
+    @Test
+    fun `debug uservalue functions validate arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.register("hostUserData") { LuaReturn.of(Any()) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local userdata = hostUserData()
+                local setTargetOk, setTargetMessage = pcall(debug.setuservalue, {}, "value")
+                local setValueOk, setValueMessage = pcall(debug.setuservalue, userdata)
+                local getIndexOk, getIndexMessage = pcall(debug.getuservalue, userdata, "bad")
+                local setIndexOk, setIndexMessage = pcall(debug.setuservalue, userdata, "value", "bad")
+                return setTargetOk, setTargetMessage,
+                    setValueOk, setValueMessage,
+                    getIndexOk, getIndexMessage,
+                    setIndexOk, setIndexMessage
+                """.trimIndent(),
+                "debug-uservalue-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'setuservalue' (userdata expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'setuservalue' (value expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'getuservalue' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #3 to 'setuservalue' (number expected)", state.toString(8))
+    }
+
+    @Test
     fun `debug sethook and gethook preserve line hook state`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -6160,7 +6243,8 @@ class LuaStdlibTest {
                     storedPresent,
                     marker.extra,
                     debug.getuservalue(host, 2),
-                    debug.setuservalue(host, "ignored", 2)
+                    debug.setuservalue(host, "ignored", 2) == host,
+                    debug.getuservalue(host, 2)
                 """.trimIndent(),
                 "debug-uservalue.lua",
             ),
@@ -6174,7 +6258,8 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(5))
         assertEquals(42L, state.toInteger(6))
         assertTrue(state.isNil(7))
-        assertTrue(state.isNil(8))
+        assertTrue(state.toBoolean(8))
+        assertEquals("ignored", state.toString(9))
     }
 
     @Test
