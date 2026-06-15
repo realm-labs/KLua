@@ -367,7 +367,7 @@ internal class Parser private constructor(
 
         if (operator != null) {
             val token = previous()
-            val expression = unary()
+            val expression = expression(UNARY_PRECEDENCE)
             return UnaryExpression(operator, expression, SourceRange(token.range.start, expression.range.end))
         }
 
@@ -636,6 +636,8 @@ internal class Parser private constructor(
     )
 
     companion object {
+        private const val UNARY_PRECEDENCE = 11
+
         fun parse(source: String, sourceName: String = "chunk"): Chunk {
             return Parser(Lexer(source, sourceName).tokenize()).parseChunk()
         }

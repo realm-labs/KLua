@@ -123,6 +123,21 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes power before unary operators`() {
+        val result = LuaVm().execute(Compiler.compile("return -2 ^ 2, (-2) ^ 2, 2 ^ -2, -2 ^ -2"))
+
+        assertEquals(
+            listOf(
+                LuaFloat(-4.0),
+                LuaFloat(4.0),
+                LuaFloat(0.25),
+                LuaFloat(-0.25),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `executes hexadecimal numeric literals`() {
         val result = LuaVm().execute(Compiler.compile("return 0xff, 0x1.8p1, 0x0.1E"))
 

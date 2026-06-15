@@ -310,6 +310,27 @@ class ParserTest {
     }
 
     @Test
+    fun `parses power before unary operators`() {
+        val chunk = Parser.parse("""return -2 ^ 2, #"ab" ^ 2, -2 * 3""")
+        val statement = assertIs<ReturnStatement>(chunk.statements.single())
+
+        val negatedPower = assertIs<UnaryExpression>(statement.values[0])
+        assertEquals(UnaryOperator.NEGATE, negatedPower.operator)
+        val power = assertIs<BinaryExpression>(negatedPower.expression)
+        assertEquals(BinaryOperator.POWER, power.operator)
+
+        val lengthOfPower = assertIs<UnaryExpression>(statement.values[1])
+        assertEquals(UnaryOperator.LENGTH, lengthOfPower.operator)
+        val stringPower = assertIs<BinaryExpression>(lengthOfPower.expression)
+        assertEquals(BinaryOperator.POWER, stringPower.operator)
+
+        val multiply = assertIs<BinaryExpression>(statement.values[2])
+        assertEquals(BinaryOperator.MULTIPLY, multiply.operator)
+        val negatedLeft = assertIs<UnaryExpression>(multiply.left)
+        assertEquals(UnaryOperator.NEGATE, negatedLeft.operator)
+    }
+
+    @Test
     fun `parses unary and binary bitwise tilde by position`() {
         val chunk = Parser.parse("return ~mask ~ 255")
         val statement = assertIs<ReturnStatement>(chunk.statements.single())
