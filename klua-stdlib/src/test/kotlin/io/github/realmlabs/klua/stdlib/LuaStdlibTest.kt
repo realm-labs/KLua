@@ -12,6 +12,7 @@ import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.function.Consumer
+import java.util.function.Supplier
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -5566,6 +5567,69 @@ class LuaStdlibTest {
         assertEquals("attempt to load a text chunk (mode is 'b')", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("bad argument #3 to 'load' (invalid mode)", state.toString(6))
+    }
+
+    @Test
+    fun `loadfile compiles chunks from configured standard input`() {
+        val state = LuaState.create(
+            LuaConfig(
+                standardInput = Supplier {
+                    "local add = ...; value = value + add; return value"
+                },
+            ),
+        )
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local env = {value = 40}
+                local chunk = loadfile(nil, "t", env)
+                local info = debug.getinfo(chunk, "S")
+                return chunk(2), env.value, info.source
+                """.trimIndent(),
+                "loadfile-stdin.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(42L, state.toInteger(2))
+        assertEquals("=stdin", state.toString(3))
+    }
+
+    @Test
+    fun `dofile executes configured standard input chunks`() {
+        val sources = mutableListOf(
+            """return "omitted", 41""",
+            """return "nil", 42""",
+        )
+        val state = LuaState.create(
+            LuaConfig(
+                standardInput = Supplier { sources.removeAt(0) },
+            ),
+        )
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local omittedName, omittedValue = dofile()
+                local nilName, nilValue = dofile(nil)
+                return omittedName, omittedValue, nilName, nilValue
+                """.trimIndent(),
+                "dofile-stdin.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("omitted", state.toString(1))
+        assertEquals(41L, state.toInteger(2))
+        assertEquals("nil", state.toString(3))
+        assertEquals(42L, state.toInteger(4))
+        assertTrue(sources.isEmpty())
     }
 
     @Test

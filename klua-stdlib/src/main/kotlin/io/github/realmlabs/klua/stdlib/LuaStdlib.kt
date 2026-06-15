@@ -59,12 +59,12 @@ public object LuaStdlib {
             garbageCollectorMode = result.mode
             result.returnValue
         }
-        state.register("dofile", ::dofile)
+        state.register("dofile") { context -> dofile(context, state) }
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
         state.register("ipairs", ::ipairs)
         state.register("load", ::load)
-        state.register("loadfile", ::loadfile)
+        state.register("loadfile") { context -> loadfile(context, state) }
         state.register("next", ::next)
         state.register("pairs", ::pairs)
         registerYieldable(state, "pcall", ::pcall)
@@ -264,13 +264,14 @@ public object LuaStdlib {
         }
     }
 
-    private fun loadfile(context: LuaCallContext): LuaReturn {
+    private fun loadfile(context: LuaCallContext, state: LuaState): LuaReturn {
         val mode = loadMode(context, 2, "loadfile")
-        return loadFile(context, "loadfile", mode, environmentIndex = 3)
+        return loadFile(context, state, "loadfile", mode, environmentIndex = 3)
     }
 
     private fun loadFile(
         context: LuaCallContext,
+        state: LuaState,
         functionName: String,
         mode: String,
         environmentIndex: Int?,
@@ -285,7 +286,7 @@ public object LuaStdlib {
         }
         val source = try {
             if (filename == null) {
-                String(System.`in`.readBytes(), StandardCharsets.UTF_8)
+                state.config.standardInput.get()
             } else {
                 Files.readString(Path.of(filename))
             }
@@ -312,8 +313,8 @@ public object LuaStdlib {
         val provided: Boolean,
     )
 
-    private fun dofile(context: LuaCallContext): LuaReturn {
-        val loaded = loadFile(context, "dofile", "bt", environmentIndex = null)
+    private fun dofile(context: LuaCallContext, state: LuaState): LuaReturn {
+        val loaded = loadFile(context, state, "dofile", "bt", environmentIndex = null)
         val function = loaded.get(1)
         if (function == null) {
             throw LuaRuntimeException(loaded.get(2)?.toString() ?: "cannot load file")
