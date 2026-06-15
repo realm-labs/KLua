@@ -11454,6 +11454,18 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(hexState.getLastError())
         assertEquals("invalid conversion '%h' to 'format'", hexState.toString(-1))
+
+        val uppercaseFloatState = LuaState.create()
+        LuaStdlib.openString(uppercaseFloatState)
+
+        assertEquals(
+            LuaStatus.OK,
+            uppercaseFloatState.load("""return string.format("%F", 1)""", "string-format-uppercase-float-error.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, uppercaseFloatState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(uppercaseFloatState.getLastError())
+        assertEquals("invalid conversion '%F' to 'format'", uppercaseFloatState.toString(-1))
     }
 
     @Test
