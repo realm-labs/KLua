@@ -135,8 +135,24 @@ internal object LuaPackageLibrary {
             error("'package." .. field .. "' must be a string", 0)
         end
 
-        local function openFunctionName(name)
+        local function nativeOpenName(name)
             return "luaopen_" .. string.gsub(name, "%.", "_")
+        end
+
+        local function loadNative(filename, name)
+            local normalized = string.gsub(name, "%.", "_")
+            local mark = string.find(normalized, "-", 1, true)
+            if mark ~= nil then
+                local loader, loadError, where = package.loadlib(
+                    filename,
+                    "luaopen_" .. string.sub(normalized, 1, mark - 1)
+                )
+                if loader ~= nil or where ~= "init" then
+                    return loader, loadError, where
+                end
+                return package.loadlib(filename, "luaopen_" .. string.sub(normalized, mark + 1))
+            end
+            return package.loadlib(filename, nativeOpenName(name))
         end
 
         package.searchers = {
@@ -167,7 +183,7 @@ internal object LuaPackageLibrary {
                 if filename == nil then
                     return searchError
                 end
-                local loader, loadError = package.loadlib(filename, openFunctionName(name))
+                local loader, loadError = loadNative(filename, name)
                 if loader == nil then
                     error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" .. loadError)
                 end

@@ -3218,8 +3218,10 @@ class LuaStdlibTest {
         val root = Files.createTempDirectory("klua-c-searcher")
         val module = root.resolve("native.dll")
         Files.createDirectories(root.resolve("dotted"))
+        Files.createDirectories(root.resolve("v1-compat"))
         Files.writeString(module, "not really a dynamic library")
         Files.writeString(root.resolve("dotted").resolve("native.dll"), "not really a dynamic library")
+        Files.writeString(root.resolve("v1-compat").resolve("native.dll"), "not really a dynamic library")
 
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -3237,10 +3239,22 @@ class LuaStdlibTest {
                     return nil, "recorded"
                 end
                 local dottedOk, dottedMessage = pcall(package.searchers[3], "dotted.native")
+                local attempts = {}
+                package.loadlib = function(_, init)
+                    attempts[#attempts + 1] = init
+                    if init == "luaopen_compat_native" then
+                        return function()
+                            return "hyphen-loaded"
+                        end
+                    end
+                    return nil, "missing init", "init"
+                end
+                local hyphenLoader, hyphenFile = package.searchers[3]("v1-compat.native")
                 package.cpath = false
                 local cpathOk, cpathMessage = pcall(package.searchers[3], "native")
                 return missingMessage, missingExtra, foundOk, foundMessage,
                     dottedOk, dottedMessage, requestedInit,
+                    attempts[1], attempts[2], hyphenLoader(), hyphenFile,
                     cpathOk, cpathMessage
                 """.trimIndent(),
                 "package-c-searcher.lua",
@@ -3262,9 +3276,13 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertTrue(state.toString(6)?.contains("recorded") == true, state.toString(6))
         assertEquals("luaopen_dotted_native", state.toString(7))
-        assertFalse(state.toBoolean(8))
-        assertTrue(state.toString(9)?.startsWith("stdlib-package.lua:") == true, state.toString(9))
-        assertTrue(state.toString(9)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(9))
+        assertEquals("luaopen_v1", state.toString(8))
+        assertEquals("luaopen_compat_native", state.toString(9))
+        assertEquals("hyphen-loaded", state.toString(10))
+        assertTrue(state.toString(11)?.endsWith("native.dll") == true, state.toString(11))
+        assertFalse(state.toBoolean(12))
+        assertTrue(state.toString(13)?.startsWith("stdlib-package.lua:") == true, state.toString(13))
+        assertTrue(state.toString(13)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(13))
     }
 
     @Test
