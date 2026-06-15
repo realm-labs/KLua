@@ -4,7 +4,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 ## Language And VM
 
-- `goto` and labels are tokenized but not represented in the AST or compiled.
+- Full cross-scope `goto` and label semantics are still being hardened; current support covers AST representation, compilation, VM execution, end-of-block labels, exported pending gotos, and close-aware escaping jumps.
 - `<close>` local declarations are parsed, then rejected by the compiler because to-be-closed variable semantics are not implemented.
 
 ## Debug Library
