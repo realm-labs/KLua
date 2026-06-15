@@ -288,10 +288,10 @@ internal object LuaDebugLibrary {
         val index = requiredUpvalueLookupIndex(context, 2, "upvalueid")
         requireFunction(context, 1, "upvalueid")
         if (index <= 0) {
-            return LuaReturn.of(null)
+            return LuaReturn.none()
         }
         val id = context.getUpvalueId(1, index)
-            ?: return LuaReturn.of(null)
+            ?: return LuaReturn.none()
         return LuaReturn.of(id)
     }
 
