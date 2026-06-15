@@ -426,8 +426,12 @@ internal object LuaDebugLibrary {
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
-        return context.toString(index)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+        return if (context.isNone(index) || context.isNil(index)) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+        } else {
+            context.toString(index)
+                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+        }
     }
 
     private const val DEBUG_SOURCE: String = """
