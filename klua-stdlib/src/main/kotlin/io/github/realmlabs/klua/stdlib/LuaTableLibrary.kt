@@ -706,6 +706,16 @@ internal object LuaTableLibrary {
         }
     }
 
+    private fun requiredNumberInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+        return context.toInteger(index) ?: throw LuaRuntimeException(
+            if (context.toNumber(index) != null) {
+                "bad argument #$index to '$functionName' (number has no integer representation)"
+            } else {
+                "bad argument #$index to '$functionName' (number expected)"
+            },
+        )
+    }
+
     private fun luaInteger(value: Any?): Long? {
         return when (value) {
             is Byte -> value.toLong()

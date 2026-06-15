@@ -15304,6 +15304,28 @@ class LuaStdlibTest {
         assertIs<LuaRuntimeException>(typeState.getLastError())
         assertEquals("bad argument #1 to 'create' (number expected)", typeState.toString(-1))
 
+        val fractionalState = LuaState.create()
+        LuaStdlib.openBase(fractionalState)
+        LuaStdlib.openTable(fractionalState)
+
+        assertEquals(
+            LuaStatus.OK,
+            fractionalState.load(
+                """
+                local okSeq, seqMessage = pcall(table.create, 1.5)
+                local okRec, recMessage = pcall(table.create, 0, "1.5")
+                return okSeq, seqMessage, okRec, recMessage
+                """.trimIndent(),
+                "table-create-fractional-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, fractionalState.pcall(0, -1), fractionalState.toString(-1))
+
+        assertFalse(fractionalState.toBoolean(1))
+        assertEquals("bad argument #1 to 'create' (number has no integer representation)", fractionalState.toString(2))
+        assertFalse(fractionalState.toBoolean(3))
+        assertEquals("bad argument #2 to 'create' (number has no integer representation)", fractionalState.toString(4))
+
         val sequenceState = LuaState.create()
         LuaStdlib.openTable(sequenceState)
 
