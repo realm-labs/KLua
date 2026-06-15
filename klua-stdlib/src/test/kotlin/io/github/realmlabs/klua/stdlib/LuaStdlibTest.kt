@@ -5682,6 +5682,8 @@ class LuaStdlibTest {
             state.load(
                 """
                 local metatable = debug.getmetatable("text")
+                local okMissing, missingMessage = pcall(debug.getmetatable)
+                local explicitNil = debug.getmetatable(nil)
                 local replacement = {__index = {custom = 11}}
                 local okTable, returned = pcall(debug.setmetatable, "text", replacement)
                 local raw = debug.getmetatable("other")
@@ -5691,6 +5693,9 @@ class LuaStdlibTest {
                 local okMeta, metaMessage = pcall(debug.setmetatable, {}, "not-table")
                 return type(metatable),
                     metatable.__index == string,
+                    okMissing,
+                    missingMessage,
+                    explicitNil == nil,
                     okTable,
                     returned,
                     raw == replacement,
@@ -5706,13 +5711,16 @@ class LuaStdlibTest {
 
         assertEquals("table", state.toString(1))
         assertTrue(state.toBoolean(2))
-        assertTrue(state.toBoolean(3))
-        assertEquals("text", state.toString(4))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'getmetatable' (value expected)", state.toString(4))
         assertTrue(state.toBoolean(5))
-        assertEquals(11L, state.toInteger(6))
-        assertEquals(3L, state.toInteger(7))
-        assertFalse(state.toBoolean(8))
-        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(9))
+        assertTrue(state.toBoolean(6))
+        assertEquals("text", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals(11L, state.toInteger(9))
+        assertEquals(3L, state.toInteger(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #2 to 'setmetatable' (nil or table expected)", state.toString(12))
     }
 
     @Test
