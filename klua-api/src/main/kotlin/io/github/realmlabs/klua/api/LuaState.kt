@@ -1224,6 +1224,14 @@ class LuaState private constructor(
         override fun setLocal(level: Int, index: Int, value: Any?): String? {
             return coroutine.setLocal(level, index, value.toCoreReturnValue())
         }
+
+        override fun setDebugHook(function: Any?, mask: String, count: Int): Boolean {
+            return coroutine.setDebugHook(function?.toCoreReturnValue(), mask, count)
+        }
+
+        override fun getDebugHook(): LuaReturn {
+            return coroutine.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
+        }
     }
 
     private inner class DefaultLuaCallContext(

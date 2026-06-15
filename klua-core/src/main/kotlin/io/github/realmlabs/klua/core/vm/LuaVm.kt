@@ -59,6 +59,26 @@ internal class LuaVm(
         return setLocal(thread.stackFrames(), level, index, value)
     }
 
+    internal fun setDebugHook(function: LuaValue, mask: String, count: Int): Boolean {
+        if (function == LuaNil) {
+            debugHook = null
+            return true
+        }
+        if (function !is LuaClosure && function !is LuaNativeFunction) {
+            throw LuaVmException("bad argument #1 to 'debug.sethook' (function expected)")
+        }
+        debugHook = DebugHookState(
+            function,
+            canonicalHookMask(mask),
+            count.coerceAtLeast(0),
+        )
+        return true
+    }
+
+    internal fun getDebugHook(): LuaNativeDebugHook? {
+        return debugHook?.toNativeHook()
+    }
+
     internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return returnedValues(callValue(callee, arguments))
     }
@@ -481,24 +501,7 @@ internal class LuaVm(
 
     private fun setDebugHook(arguments: List<LuaValue>, index: Int, mask: String, count: Int): Boolean {
         val function = if (index <= 0) LuaNil else arguments.getOrElse(index - 1) { LuaNil }
-        if (function == LuaNil) {
-            debugHook = null
-            return true
-        }
-        if (function !is LuaClosure && function !is LuaNativeFunction) {
-            throw LuaVmException("bad argument #1 to 'debug.sethook' (function expected)")
-        }
-        val normalizedMask = normalizedDebugHookMask(mask)
-        if (normalizedMask.isEmpty() && count <= 0) {
-            debugHook = null
-            return true
-        }
-        debugHook = DebugHookState(
-            function,
-            normalizedMask,
-            count,
-        )
-        return true
+        return setDebugHook(function, mask, count)
     }
 
     private fun dispatchDebugCall() {

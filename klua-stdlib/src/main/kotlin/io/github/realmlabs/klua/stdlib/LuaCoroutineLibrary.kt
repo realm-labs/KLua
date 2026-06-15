@@ -332,6 +332,14 @@ internal object LuaCoroutineLibrary {
             return (handle as? LuaDebuggableCoroutineHandle)?.setLocal(level, index, value)
         }
 
+        override fun setDebugHook(function: Any?, mask: String, count: Int): Boolean {
+            return (handle as? LuaDebuggableCoroutineHandle)?.setDebugHook(function, mask, count) ?: false
+        }
+
+        override fun getDebugHook(): LuaReturn {
+            return (handle as? LuaDebuggableCoroutineHandle)?.getDebugHook() ?: LuaReturn.of(null)
+        }
+
         fun rememberCloseError(errorValue: Any?) {
             closeError = errorValue
             hasCloseError = true

@@ -738,6 +738,21 @@ public class KLuaCoreCoroutine internal constructor(
         val luaValue = value.toLuaValueOrNull(globals) ?: return null
         return vm.setLocal(level, index, luaValue)
     }
+
+    public fun setDebugHook(function: KLuaCoreValue?, mask: String, count: Int): Boolean {
+        val luaValue = function?.toLuaValueOrNull(globals) ?: LuaNil
+        return vm.setDebugHook(luaValue, mask, count)
+    }
+
+    public fun getDebugHook(): KLuaCoreDebugHook? {
+        return vm.getDebugHook()?.let { hook ->
+            KLuaCoreDebugHook(
+                toPublicValue(hook.function, globals),
+                hook.mask,
+                hook.count,
+            )
+        }
+    }
 }
 
 private fun LuaExecutionResult.toCoroutineExecution(globals: KLuaCoreGlobals): KLuaCoreCoroutineExecution {

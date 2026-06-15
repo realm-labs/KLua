@@ -22,7 +22,7 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_getmetatable") { context -> getMetatable(context) }
         state.register("klua_debug_setmetatable") { context -> setMetatable(context) }
         state.register("klua_debug_sethook") { context -> setHook(context) }
-        state.register("klua_debug_gethook") { context -> context.getDebugHook() }
+        state.register("klua_debug_gethook") { context -> getHook(context) }
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
         return state
     }
@@ -398,15 +398,21 @@ internal object LuaDebugLibrary {
     }
 
     private fun setHook(context: LuaCallContext): LuaReturn {
-        if (context.isNone(1) || context.isNil(1)) {
-            context.setDebugHook(1, "", 0)
+        val target = threadTarget(context)
+        val hookIndex = target.argumentOffset + 1
+        if (context.isNone(hookIndex) || context.isNil(hookIndex)) {
+            target.setDebugHook(context, hookIndex, "", 0)
             return LuaReturn.of()
         }
-        val mask = requiredString(context, 2, "sethook")
-        requireFunction(context, 1, "sethook")
-        val count = optionalInteger(context, 3, 0, "sethook").toInt()
-        context.setDebugHook(1, mask, count)
+        val mask = requiredString(context, target.argumentOffset + 2, "sethook")
+        requireFunction(context, hookIndex, "sethook")
+        val count = optionalInteger(context, target.argumentOffset + 3, 0, "sethook").toInt()
+        target.setDebugHook(context, hookIndex, mask, count)
         return LuaReturn.of()
+    }
+
+    private fun getHook(context: LuaCallContext): LuaReturn {
+        return threadTarget(context).getDebugHook(context)
     }
 
     private fun optionalInteger(
@@ -530,12 +536,15 @@ internal object LuaDebugLibrary {
             return klua_debug_setmetatable(value, ...)
         end
 
-        function debug.sethook(hook, mask, count)
-            return klua_debug_sethook(hook, mask, count)
+        function debug.sethook(threadOrHook, hookOrMask, maskOrCount, count)
+            if type(threadOrHook) == "thread" then
+                return klua_debug_sethook(threadOrHook, hookOrMask, maskOrCount, count)
+            end
+            return klua_debug_sethook(threadOrHook, hookOrMask, maskOrCount)
         end
 
-        function debug.gethook()
-            return klua_debug_gethook()
+        function debug.gethook(thread)
+            return klua_debug_gethook(thread)
         end
     """
 
@@ -554,15 +563,35 @@ internal object LuaDebugLibrary {
 
         abstract fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String?
 
+        abstract fun setDebugHook(context: LuaCallContext, index: Int, mask: String, count: Int): Boolean
+
+        abstract fun getDebugHook(context: LuaCallContext): LuaReturn
+
         class Current(frames: List<LuaStackFrame>) : DebugThreadTarget(0, frames) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
                 return context.setLocal(level, index, value)
+            }
+
+            override fun setDebugHook(context: LuaCallContext, index: Int, mask: String, count: Int): Boolean {
+                return context.setDebugHook(index, mask, count)
+            }
+
+            override fun getDebugHook(context: LuaCallContext): LuaReturn {
+                return context.getDebugHook()
             }
         }
 
         class Coroutine(private val coroutine: LuaDebugThread) : DebugThreadTarget(1, coroutine.luaFrames) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
                 return coroutine.setLocal(level, index, value)
+            }
+
+            override fun setDebugHook(context: LuaCallContext, index: Int, mask: String, count: Int): Boolean {
+                return coroutine.setDebugHook(context.getLuaValue(index), mask, count)
+            }
+
+            override fun getDebugHook(context: LuaCallContext): LuaReturn {
+                return coroutine.getDebugHook()
             }
         }
     }

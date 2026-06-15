@@ -2298,6 +2298,85 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook and gethook accept suspended coroutine thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local events = {}
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                    local value = 1
+                    value = value + 1
+                    return value
+                end)
+                local firstOk, firstValue = coroutine.resume(co)
+
+                local function hook(event, line)
+                    if event == "line" then
+                        events[#events + 1] = line
+                    end
+                end
+
+                debug.sethook(co, hook, "l", 0)
+                local installed, mask, count = debug.gethook(co)
+                local secondOk, result = coroutine.resume(co)
+                debug.sethook(co)
+                local cleared = debug.gethook(co)
+                return firstOk, firstValue, installed == hook, mask, count,
+                    secondOk, result, #events > 0, cleared
+                """.trimIndent(),
+                "debug-thread-sethook.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("l", state.toString(4))
+        assertEquals(0L, state.toInteger(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals(2L, state.toInteger(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.isNil(9))
+    }
+
+    @Test
+    fun `debug sethook reports shifted thread argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                end)
+                coroutine.resume(co)
+                local okHook, hookMessage = pcall(debug.sethook, co, "not-function", "l", 0)
+                local okMask, maskMessage = pcall(debug.sethook, co, function() end, nil, 0)
+                local okCount, countMessage = pcall(debug.sethook, co, function() end, "", "bad")
+                return okHook, hookMessage, okMask, maskMessage, okCount, countMessage
+                """.trimIndent(),
+                "debug-thread-sethook-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.sethook' (function expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'debug.sethook' (string expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #4 to 'debug.sethook' (number expected)", state.toString(6))
+    }
+
+    @Test
     fun `debug count hook runs after configured instruction intervals`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
