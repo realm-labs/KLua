@@ -987,6 +987,28 @@ class LuaVmTest {
     }
 
     @Test
+    fun `repeat closes captured body locals before next iteration`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local getters = {}
+                local i = 1
+                repeat
+                    local captured = i
+                    getters[i] = function()
+                        return captured
+                    end
+                    i = i + 1
+                until i > 2
+                return getters[1](), getters[2]()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1), LuaInteger(2)), result)
+    }
+
+    @Test
     fun `executes break in while loop`() {
         val result = LuaVm().execute(
             Compiler.compile(

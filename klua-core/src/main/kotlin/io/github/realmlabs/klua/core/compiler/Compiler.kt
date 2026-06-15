@@ -451,7 +451,19 @@ internal class Compiler private constructor(
 
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.condition.range.start.line)
-        patchTest(testIndex, loopStart)
+        if (hasCapturedLocals) {
+            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister), statement.condition.range.start.line)
+            val exitJump = writer.size
+            writer.emit(Instruction.abc(Opcode.JMP, 0), statement.condition.range.start.line)
+            patchTest(testIndex, writer.size)
+            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister), statement.condition.range.start.line)
+            val repeatJump = writer.size
+            writer.emit(Instruction.abc(Opcode.JMP, 0), statement.condition.range.start.line)
+            patchJump(repeatJump, loopStart)
+            patchJump(exitJump, writer.size)
+        } else {
+            patchTest(testIndex, loopStart)
+        }
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
