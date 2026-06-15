@@ -13462,7 +13462,9 @@ class LuaStdlibTest {
                     utf8.len(text, 2, 5),
                     utf8.len(text, 2, 6),
                     utf8.len(text, 6, 6),
-                    utf8.len(text, 3, 2)
+                    utf8.len(text, 3, 2),
+                    utf8.len(text, 1, 4),
+                    utf8.len(text, 2, 4)
                 """.trimIndent(),
                 "utf8-len-byte-ranges.lua",
             ),
@@ -13474,6 +13476,8 @@ class LuaStdlibTest {
         assertEquals(2L, state.toInteger(3))
         assertEquals(1L, state.toInteger(4))
         assertEquals(0L, state.toInteger(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
     }
 
     @Test
