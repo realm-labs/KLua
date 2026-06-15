@@ -83,7 +83,7 @@ internal object LuaDebugLibrary {
         val what = optionalString(context, target.argumentOffset + 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
         rejectPrivateGetInfoOption(what)
         val subjectIndex = target.argumentOffset + 1
-        if (target.isCurrentThread && context.typeName(subjectIndex) == "function") {
+        if (context.typeName(subjectIndex) == "function") {
             val info = context.getFunctionDebugInfo(subjectIndex)
             return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(subjectIndex)))
         }
@@ -209,7 +209,7 @@ internal object LuaDebugLibrary {
         val target = threadTarget(context)
         val index = requiredLocalIndex(context, target.argumentOffset + 2, "getlocal")
         val subjectIndex = target.argumentOffset + 1
-        if (target.isCurrentThread && context.typeName(subjectIndex) == "function") {
+        if (context.typeName(subjectIndex) == "function") {
             if (index <= 0) {
                 return LuaReturn.of(null)
             }

@@ -1225,6 +1225,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo accepts function subjects after thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                end)
+                coroutine.resume(co)
+
+                local function probe(first, ...)
+                    return first, ...
+                end
+                local info = debug.getinfo(co, probe, "Su")
+                return info.source, info.what, info.linedefined, info.lastlinedefined,
+                    info.nparams, info.isvararg
+                """.trimIndent(),
+                "debug-thread-getinfo-function.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("debug-thread-getinfo-function.lua", state.toString(1))
+        assertEquals("Lua", state.toString(2))
+        assertEquals(6L, state.toInteger(3))
+        assertEquals(8L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertTrue(state.toBoolean(6))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -1431,6 +1465,38 @@ class LuaStdlibTest {
         assertEquals("head", state.toString(5))
         assertTrue(state.isNil(6))
         assertTrue(state.isNil(7))
+    }
+
+    @Test
+    fun `debug getlocal accepts function subjects after thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                end)
+                coroutine.resume(co)
+
+                local function fixed(first, second)
+                    return first, second
+                end
+                local first = debug.getlocal(co, fixed, 1)
+                local second = debug.getlocal(co, fixed, 2)
+                local missing = debug.getlocal(co, fixed, 3)
+                return first, second, missing
+                """.trimIndent(),
+                "debug-thread-getlocal-function.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("first", state.toString(1))
+        assertEquals("second", state.toString(2))
+        assertTrue(state.isNil(3))
     }
 
     @Test
