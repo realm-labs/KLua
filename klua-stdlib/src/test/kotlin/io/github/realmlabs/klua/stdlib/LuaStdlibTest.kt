@@ -7129,6 +7129,73 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine resume preserves host error objects`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        state.register("hostError") { context ->
+            throw LuaRuntimeException(
+                "table",
+                errorObject = context.getTable(1),
+                hasErrorObject = true,
+            )
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local marker = {name = "host-marker"}
+                local co = coroutine.create(hostError)
+                local ok, err = coroutine.resume(co, marker)
+                return ok, err == marker, err.name, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-host-error-object.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("host-marker", state.toString(3))
+        assertEquals("dead", state.toString(4))
+    }
+
+    @Test
+    fun `coroutine resume rejects normal coroutines`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outer
+                outer = coroutine.create(function()
+                    local inner = coroutine.create(function()
+                        local ok, message = coroutine.resume(outer)
+                        return ok, message, coroutine.status(outer)
+                    end)
+                    return coroutine.resume(inner)
+                end)
+                local outerOk, innerOk, resumeOk, message, outerStatusDuringInner =
+                    coroutine.resume(outer)
+                return outerOk, innerOk, resumeOk, message,
+                    outerStatusDuringInner, coroutine.status(outer)
+                """.trimIndent(),
+                "coroutine-resume-normal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("cannot resume non-suspended coroutine", state.toString(4))
+        assertEquals("normal", state.toString(5))
+        assertEquals("dead", state.toString(6))
+    }
+
+    @Test
     fun `coroutine wrap resumes yielding functions and raises failures`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
