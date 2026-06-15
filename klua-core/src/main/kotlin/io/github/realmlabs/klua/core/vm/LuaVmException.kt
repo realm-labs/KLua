@@ -10,16 +10,25 @@ internal class LuaVmException(
     val errorObject: LuaValue? = null,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause) {
-    fun withLocation(sourceName: String, line: Int): LuaVmException {
+    fun withFrame(frame: CallFrame, line: Int): LuaVmException {
         if (line <= 0) {
             return this
         }
-        val frame = LuaVmStackFrame(sourceName, line)
+        val stackFrame = LuaVmStackFrame(
+            frame.prototype.sourceName,
+            line,
+            frame.prototype.lineDefined,
+            frame.prototype.lastLineDefined,
+            frame.prototype.upvalues.size,
+            frame.prototype.numParams,
+            frame.prototype.isVararg,
+            frame.prototype.validBreakpointLines.toList(),
+        )
         return LuaVmException(
             message ?: "runtime error",
-            this.sourceName ?: sourceName,
+            this.sourceName ?: stackFrame.sourceName,
             this.line ?: line,
-            luaFrames + frame,
+            luaFrames + stackFrame,
             errorObject,
             this,
         )
@@ -29,4 +38,10 @@ internal class LuaVmException(
 internal data class LuaVmStackFrame(
     val sourceName: String,
     val line: Int = 0,
+    val lineDefined: Int = 0,
+    val lastLineDefined: Int = 0,
+    val upvalueCount: Int = 0,
+    val parameterCount: Int = 0,
+    val isVararg: Boolean = false,
+    val activeLines: List<Int> = emptyList(),
 )

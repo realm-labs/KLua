@@ -233,7 +233,7 @@ internal class LuaVm(
                         }
                     }
                 } catch (error: LuaVmException) {
-                    throw error.withLocation(frame.prototype.sourceName, frame.lineForPc(pc))
+                    throw error.withFrame(frame, frame.lineForPc(pc))
                 }
             }
 

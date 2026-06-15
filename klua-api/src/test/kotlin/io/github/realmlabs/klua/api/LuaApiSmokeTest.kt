@@ -203,11 +203,11 @@ class LuaApiSmokeTest {
 
         assertEquals(
             listOf(
-                LuaStackFrame("api-trace.lua", 2),
-                LuaStackFrame("api-trace.lua", 5),
-                LuaStackFrame("api-trace.lua", 7),
+                "api-trace.lua" to 2,
+                "api-trace.lua" to 5,
+                "api-trace.lua" to 7,
             ),
-            error.luaFrames,
+            error.luaFrames.map { frame -> frame.sourceName to frame.line },
         )
         assertEquals(
             "attempt to perform arithmetic on string\n" +
@@ -269,11 +269,11 @@ class LuaApiSmokeTest {
         assertEquals("host boom", error.message)
         assertEquals(
             listOf(
-                LuaStackFrame("[Kotlin]: explode", 0),
-                LuaStackFrame("api-host-trace.lua", 2),
-                LuaStackFrame("api-host-trace.lua", 4),
+                "[Kotlin]: explode" to 0,
+                "api-host-trace.lua" to 2,
+                "api-host-trace.lua" to 4,
             ),
-            error.luaFrames,
+            error.luaFrames.map { frame -> frame.sourceName to frame.line },
         )
         assertEquals(
             "host boom\n" +
@@ -311,11 +311,11 @@ class LuaApiSmokeTest {
         assertEquals("userdata boom", error.message)
         assertEquals(
             listOf(
-                LuaStackFrame("[Kotlin]: HostObject.explode", 0),
-                LuaStackFrame("api-userdata-host-trace.lua", 2),
-                LuaStackFrame("api-userdata-host-trace.lua", 4),
+                "[Kotlin]: HostObject.explode" to 0,
+                "api-userdata-host-trace.lua" to 2,
+                "api-userdata-host-trace.lua" to 4,
             ),
-            error.luaFrames,
+            error.luaFrames.map { frame -> frame.sourceName to frame.line },
         )
         assertEquals(
             "userdata boom\n" +
@@ -349,10 +349,10 @@ class LuaApiSmokeTest {
         assertEquals(3, error.line)
         assertEquals(
             listOf(
-                LuaStackFrame("api-coroutine-trace.lua", 3),
-                LuaStackFrame("api-coroutine-trace.lua", 5),
+                "api-coroutine-trace.lua" to 3,
+                "api-coroutine-trace.lua" to 5,
             ),
-            error.luaFrames,
+            error.luaFrames.map { frame -> frame.sourceName to frame.line },
         )
         assertEquals(
             "attempt to perform arithmetic on string\n" +

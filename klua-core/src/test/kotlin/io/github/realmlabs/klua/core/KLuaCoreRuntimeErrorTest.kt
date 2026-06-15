@@ -40,11 +40,11 @@ class KLuaCoreRuntimeErrorTest {
         assertEquals("attempt to perform arithmetic on string", error.message)
         assertEquals(
             listOf(
-                KLuaCoreStackFrame("core-trace.lua", 2),
-                KLuaCoreStackFrame("core-trace.lua", 5),
-                KLuaCoreStackFrame("core-trace.lua", 7),
+                "core-trace.lua" to 2,
+                "core-trace.lua" to 5,
+                "core-trace.lua" to 7,
             ),
-            error.luaFrames,
+            error.luaFrames.map { frame -> frame.sourceName to frame.line },
         )
         assertEquals(
             "attempt to perform arithmetic on string\n" +
@@ -76,5 +76,34 @@ class KLuaCoreRuntimeErrorTest {
                 "\t/tmp/core-file-trace.lua:4",
             error.traceback,
         )
+    }
+
+    @Test
+    fun `runtime error frames preserve function debug metadata`() {
+        val result = KLuaCoreRuntime.execute(
+            """
+            local captured = 1
+            local function inner(first, ...)
+                local _ = captured
+                return "x" + first
+            end
+            local function outer()
+                return inner(1, 2, 3)
+            end
+            return outer()
+            """.trimIndent(),
+            "core-frame-metadata.lua",
+        )
+
+        val error = assertIs<KLuaCoreExecution.RuntimeError>(result)
+        val inner = error.luaFrames[0]
+        assertEquals("core-frame-metadata.lua", inner.sourceName)
+        assertEquals(4, inner.line)
+        assertEquals(2, inner.lineDefined)
+        assertEquals(5, inner.lastLineDefined)
+        assertEquals(1, inner.upvalueCount)
+        assertEquals(1, inner.parameterCount)
+        assertEquals(true, inner.isVararg)
+        assertEquals(listOf(3, 4), inner.activeLines)
     }
 }

@@ -947,7 +947,18 @@ private fun LuaVmException.rootCause(): Throwable? {
 }
 
 private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> {
-    return map { frame -> KLuaCoreStackFrame(frame.sourceName, frame.line) }
+    return map { frame ->
+        KLuaCoreStackFrame(
+            frame.sourceName,
+            frame.line,
+            frame.lineDefined,
+            frame.lastLineDefined,
+            frame.upvalueCount,
+            frame.parameterCount,
+            frame.isVararg,
+            frame.activeLines,
+        )
+    }
 }
 
 private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaCoreGlobals): List<KLuaCoreStackFrame> {
