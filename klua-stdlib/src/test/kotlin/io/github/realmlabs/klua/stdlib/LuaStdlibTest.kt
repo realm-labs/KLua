@@ -14325,12 +14325,24 @@ class LuaStdlibTest {
     @Test
     fun `utf8 codepoint returns no values for empty byte ranges`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openUtf8(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return utf8.codepoint("abc", 4, 3)""", "utf8-codepoint-empty.lua"))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local explicitCount = select("#", utf8.codepoint("abc", 4, 3))
+                local beforeStartCount = select("#", utf8.codepoint("abc", 1, -5))
+                return explicitCount, beforeStartCount
+                """.trimIndent(),
+                "utf8-codepoint-empty.lua",
+            ),
+        )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals(0, state.getTop())
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(0L, state.toInteger(2))
     }
 
     @Test
@@ -14715,7 +14727,7 @@ class LuaStdlibTest {
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return utf8.len("abc", 4), utf8.len("abc", 3, 2), utf8.len("", 1, 0)""",
+                """return utf8.len("abc", 4), utf8.len("abc", 3, 2), utf8.len("", 1, 0), utf8.len("abc", 1, -5)""",
                 "utf8-len-empty-ranges.lua",
             ),
         )
@@ -14724,6 +14736,7 @@ class LuaStdlibTest {
         assertEquals(0L, state.toInteger(1))
         assertEquals(0L, state.toInteger(2))
         assertEquals(0L, state.toInteger(3))
+        assertEquals(0L, state.toInteger(4))
     }
 
     @Test

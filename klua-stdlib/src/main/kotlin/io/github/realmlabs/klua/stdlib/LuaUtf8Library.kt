@@ -214,7 +214,7 @@ internal object LuaUtf8Library {
         } else {
             requiredNumberInteger(context, index, functionName)
         }
-        val normalized = if (position < 0L) length + position + 1L else position
+        val normalized = if (position < 0L) (length + position + 1L).coerceAtLeast(0L) else position
         if (normalized < 0L || normalized > length) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (out of bounds)")
         }
@@ -252,7 +252,7 @@ internal object LuaUtf8Library {
         } else {
             requiredNumberInteger(context, index, functionName)
         }
-        val normalized = if (position < 0L) length + position + 1L else position
+        val normalized = if (position < 0L) (length + position + 1L).coerceAtLeast(0L) else position
         if (normalized < 0L || normalized > length) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (final position out of bounds)")
         }
