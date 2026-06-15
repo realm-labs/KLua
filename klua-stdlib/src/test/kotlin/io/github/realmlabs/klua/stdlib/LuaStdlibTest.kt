@@ -427,7 +427,8 @@ class LuaStdlibTest {
                     type(debug.upvalueid), type(debug.upvaluejoin), type(debug.getuservalue),
                     type(debug.setuservalue), type(debug.getmetatable), type(debug.setmetatable), type(debug.getregistry),
                     type(debug.sethook), type(debug.gethook), debug.traceback("boom"),
-                    type(info), info.what, info.source, info.currentline
+                    type(info), info.what, info.source, info.currentline,
+                    type(debug.debug), pcall(debug.debug)
                 """.trimIndent(),
                 "debug-openlibs.lua",
             ),
@@ -455,6 +456,8 @@ class LuaStdlibTest {
         assertEquals("main", state.toString(19))
         assertEquals("debug-openlibs.lua", state.toString(20))
         assertEquals(1L, state.toInteger(21))
+        assertEquals("function", state.toString(22))
+        assertTrue(state.toBoolean(23))
     }
 
     @Test

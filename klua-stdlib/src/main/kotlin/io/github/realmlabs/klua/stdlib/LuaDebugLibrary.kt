@@ -435,6 +435,9 @@ internal object LuaDebugLibrary {
         debug = debug or {}
         local klua_debug_registry = {}
 
+        function debug.debug()
+        end
+
         function debug.traceback(message, level)
             return klua_debug_traceback(message, level)
         end
