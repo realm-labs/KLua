@@ -158,8 +158,18 @@ internal object LuaUtf8Library {
             }
     }
 
+    private fun requiredNumberInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+        return context.toInteger(index) ?: throw LuaRuntimeException(
+            if (context.toNumber(index) != null) {
+                "bad argument #$index to '$functionName' (number has no integer representation)"
+            } else {
+                "bad argument #$index to '$functionName' (number expected)"
+            },
+        )
+    }
+
     private fun requiredCodePoint(context: LuaCallContext, index: Int, functionName: String): Long {
-        val codePoint = requiredInteger(context, index, functionName)
+        val codePoint = requiredNumberInteger(context, index, functionName)
         if (codePoint !in 0L..MAX_CODE_POINT) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (value out of range)")
         }
