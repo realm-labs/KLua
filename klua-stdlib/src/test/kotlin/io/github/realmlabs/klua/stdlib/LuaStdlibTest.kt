@@ -2692,11 +2692,14 @@ class LuaStdlibTest {
         assertEquals("loaded:1", state.toString(1))
         assertEquals("loaded:1", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(4))
+        assertTrue(state.toString(4)?.startsWith("stdlib-package.lua:") == true, state.toString(4))
+        assertTrue(state.toString(4)?.endsWith(": bad argument #1 to 'require' (string expected)") == true, state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(6))
+        assertTrue(state.toString(6)?.startsWith("stdlib-package.lua:") == true, state.toString(6))
+        assertTrue(state.toString(6)?.endsWith(": bad argument #1 to 'require' (string expected)") == true, state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(8))
+        assertTrue(state.toString(8)?.startsWith("stdlib-package.lua:") == true, state.toString(8))
+        assertTrue(state.toString(8)?.endsWith(": bad argument #1 to 'require' (string expected)") == true, state.toString(8))
     }
 
     @Test
@@ -2764,9 +2767,11 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("'package.path' must be a string", state.toString(2))
+        assertTrue(state.toString(2)?.startsWith("stdlib-package.lua:") == true, state.toString(2))
+        assertTrue(state.toString(2)?.endsWith(": 'package.path' must be a string") == true, state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("'package.searchers' must be a table", state.toString(4))
+        assertTrue(state.toString(4)?.startsWith("stdlib-package.lua:") == true, state.toString(4))
+        assertTrue(state.toString(4)?.endsWith(": 'package.searchers' must be a table") == true, state.toString(4))
     }
 
     @Test
@@ -2797,13 +2802,17 @@ class LuaStdlibTest {
         assertTrue(state.toString(1)?.contains("no file '${root}/missing.dll'") == true)
         assertTrue(state.isNil(2))
         assertFalse(state.toBoolean(3))
-        assertEquals(
-            "error loading module 'native' from file '${root}/native.dll':\n\t" +
-                "dynamic libraries not enabled; check your Lua installation",
+        assertTrue(state.toString(4)?.startsWith("stdlib-package.lua:") == true, state.toString(4))
+        assertTrue(
+            state.toString(4)?.endsWith(
+                ": error loading module 'native' from file '${root}/native.dll':\n\t" +
+                    "dynamic libraries not enabled; check your Lua installation",
+            ) == true,
             state.toString(4),
         )
         assertFalse(state.toBoolean(5))
-        assertEquals("'package.cpath' must be a string", state.toString(6))
+        assertTrue(state.toString(6)?.startsWith("stdlib-package.lua:") == true, state.toString(6))
+        assertTrue(state.toString(6)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(6))
     }
 
     @Test

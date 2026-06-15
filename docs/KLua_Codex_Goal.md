@@ -184,7 +184,7 @@ Remaining major gaps:
 - Broader Lua language and conformance hardening.
 - Known Lua 5.5 language gaps include `goto`/labels and to-be-closed local semantics; `<const>` locals are parsed and enforced, while `<close>` locals are currently rejected before execution.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
-- Known debug-library gaps include optional thread arguments for debug functions, full `debug.getuservalue`/`debug.setuservalue` userdata support, non-table metatables through `debug.setmetatable`, and Lua-style source-prefixing for `error(message, level)`.
+- Known debug-library gaps include optional thread arguments for debug functions, full `debug.getuservalue`/`debug.setuservalue` userdata support, and non-table metatables through `debug.setmetatable`.
 - Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.5 conformance coverage beyond the current Lua-backed and protected-call yield/resume paths.
 - Error handling, tracebacks, and debug metadata.
 - Debug hooks and source-level debugger.

@@ -136,35 +136,19 @@ public object LuaStdlib {
         if (!context.toBoolean(1)) {
             requireAnyArgument(context, "assert")
             val errorObject = if (context.isNone(2)) "assertion failed!" else argumentValue(context, 2)
-            throw luaError(locationPrefixedError(context, 1, errorObject))
+            throw luaError(errorObject, errorLocationPrefix(context, 1L))
         }
         return LuaReturn.ofValues((1..context.argumentCount).map { index -> argumentValue(context, index) })
     }
 
     private fun error(context: LuaCallContext): LuaReturn {
-        val level = if (context.isNone(2) || context.isNil(2)) {
-            1
+        val level = if (!context.isNone(2) && !context.isNil(2)) {
+            requiredNumberIndex(context, 2, "error")
         } else {
-            requiredNumberIndex(context, 2, "error").toInt()
+            1L
         }
         val errorObject = if (context.isNone(1)) null else argumentValue(context, 1)
-        throw luaError(locationPrefixedError(context, level, errorObject))
-    }
-
-    private fun locationPrefixedError(context: LuaCallContext, level: Int, errorObject: Any?): Any? {
-        if (level <= 0 || errorObject !is CharSequence) {
-            return errorObject
-        }
-        val frame = context.luaFrames.getOrNull(level - 1) ?: return errorObject
-        return buildString {
-            append(luaShortSourceName(frame.sourceName))
-            if (frame.line > 0) {
-                append(':')
-                append(frame.line)
-            }
-            append(": ")
-            append(errorObject)
-        }
+        throw luaError(errorObject, errorLocationPrefix(context, level))
     }
 
     private fun collectgarbage(
@@ -657,15 +641,31 @@ public object LuaStdlib {
         }
     }
 
-    private fun luaError(errorObject: Any?): LuaRuntimeException {
+    private fun luaError(errorObject: Any?, prefix: String = ""): LuaRuntimeException {
         if (errorObject == null) {
             return LuaRuntimeException("<no error object>", errorObject = null, hasErrorObject = true)
         }
+        val prefixedErrorObject = if (errorObject is CharSequence && prefix.isNotEmpty()) {
+            prefix + errorObject
+        } else {
+            errorObject
+        }
         val message = when (errorObject) {
-            is CharSequence -> errorObject.toString()
+            is CharSequence -> prefixedErrorObject.toString()
             else -> luaErrorTypeName(errorObject)
         }
-        return LuaRuntimeException(message, errorObject = errorObject, hasErrorObject = true)
+        return LuaRuntimeException(message, errorObject = prefixedErrorObject, hasErrorObject = true)
+    }
+
+    private fun errorLocationPrefix(context: LuaCallContext, level: Long): String {
+        if (level <= 0L || level > Int.MAX_VALUE) {
+            return ""
+        }
+        val frame = context.luaFrames.getOrNull(level.toInt() - 1) ?: return ""
+        if (frame.line <= 0) {
+            return ""
+        }
+        return "${luaShortSourceName(frame.sourceName)}:${frame.line}: "
     }
 
     private fun errorObject(exception: LuaException): Any? {

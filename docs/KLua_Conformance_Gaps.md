@@ -6,7 +6,6 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 - `goto` and labels are tokenized but not represented in the AST or compiled.
 - `<close>` local declarations are parsed, then rejected by the compiler because to-be-closed variable semantics are not implemented.
-- `error(message, level)` accepts the level argument for validation, but string errors are not yet prefixed with the Lua source location selected by that level.
 
 ## Debug Library
 
