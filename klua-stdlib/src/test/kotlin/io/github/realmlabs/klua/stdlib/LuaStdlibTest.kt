@@ -3217,7 +3217,9 @@ class LuaStdlibTest {
     fun `package c searcher reports cpath misses and dynamic loading failures`() {
         val root = Files.createTempDirectory("klua-c-searcher")
         val module = root.resolve("native.dll")
+        Files.createDirectories(root.resolve("dotted"))
         Files.writeString(module, "not really a dynamic library")
+        Files.writeString(root.resolve("dotted").resolve("native.dll"), "not really a dynamic library")
 
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -3229,9 +3231,17 @@ class LuaStdlibTest {
                 package.cpath = "${root.luaPath()}/?.dll"
                 local missingMessage, missingExtra = package.searchers[3]("missing")
                 local foundOk, foundMessage = pcall(package.searchers[3], "native")
+                local requestedInit
+                package.loadlib = function(_, init)
+                    requestedInit = init
+                    return nil, "recorded"
+                end
+                local dottedOk, dottedMessage = pcall(package.searchers[3], "dotted.native")
                 package.cpath = false
                 local cpathOk, cpathMessage = pcall(package.searchers[3], "native")
-                return missingMessage, missingExtra, foundOk, foundMessage, cpathOk, cpathMessage
+                return missingMessage, missingExtra, foundOk, foundMessage,
+                    dottedOk, dottedMessage, requestedInit,
+                    cpathOk, cpathMessage
                 """.trimIndent(),
                 "package-c-searcher.lua",
             ),
@@ -3250,8 +3260,11 @@ class LuaStdlibTest {
             state.toString(4),
         )
         assertFalse(state.toBoolean(5))
-        assertTrue(state.toString(6)?.startsWith("stdlib-package.lua:") == true, state.toString(6))
-        assertTrue(state.toString(6)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(6))
+        assertTrue(state.toString(6)?.contains("recorded") == true, state.toString(6))
+        assertEquals("luaopen_dotted_native", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertTrue(state.toString(9)?.startsWith("stdlib-package.lua:") == true, state.toString(9))
+        assertTrue(state.toString(9)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(9))
     }
 
     @Test

@@ -135,6 +135,10 @@ internal object LuaPackageLibrary {
             error("'package." .. field .. "' must be a string", 0)
         end
 
+        local function openFunctionName(name)
+            return "luaopen_" .. string.gsub(name, "%.", "_")
+        end
+
         package.searchers = {
             function(name)
                 local loader = preloadTable[name]
@@ -163,8 +167,11 @@ internal object LuaPackageLibrary {
                 if filename == nil then
                     return searchError
                 end
-                error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" ..
-                    "$DYNAMIC_LIBRARIES_DISABLED_MESSAGE", 0)
+                local loader, loadError = package.loadlib(filename, openFunctionName(name))
+                if loader == nil then
+                    error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" .. loadError)
+                end
+                return loader, filename
             end,
 
             function(name)
