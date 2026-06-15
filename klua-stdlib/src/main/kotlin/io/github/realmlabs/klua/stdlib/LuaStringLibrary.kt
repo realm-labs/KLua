@@ -828,9 +828,9 @@ internal object LuaStringLibrary {
             'A',
             -> formatHexFloatValue(context, index, specifier, conversion)
             'c' -> {
-                validateCharacterFormatSpecifier(specifier)
+                val parsed = validateCharacterFormatSpecifier(specifier)
                 val code = requiredFormatInteger(context, index)
-                specifier.formatWith(code.toInt() and 0xff)
+                parsed.toJavaSpecifier('c').formatWith(code.toInt() and 0xff)
             }
             'p' -> formatPointerValue(context, index, specifier)
             'q' -> {
@@ -980,11 +980,12 @@ internal object LuaStringLibrary {
         }
     }
 
-    private fun validateCharacterFormatSpecifier(specifier: String) {
+    private fun validateCharacterFormatSpecifier(specifier: String): FormatSpecifier {
         val parsed = parseFormatSpecifier(specifier)
         if (parsed.flags.any { flag -> flag != '-' } || parsed.precision != null) {
             throw invalidConversionSpecification(specifier)
         }
+        return parsed
     }
 
     private fun validateStringFormatSpecifier(specifier: String) {
