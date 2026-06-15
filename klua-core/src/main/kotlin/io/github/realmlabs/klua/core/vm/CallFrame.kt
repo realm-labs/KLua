@@ -1,7 +1,6 @@
 package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.Prototype
-import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
@@ -11,7 +10,7 @@ internal data class CallFrame(
     val stack: LuaStack,
     val varargs: MutableList<LuaValue> = mutableListOf(),
     val upvalues: List<LuaUpvalue> = emptyList(),
-    val globals: LuaTable,
+    val globals: LuaValue,
     var pc: Int = 0,
     var openResultBase: Int = 0,
     var openResultCount: Int = 0,

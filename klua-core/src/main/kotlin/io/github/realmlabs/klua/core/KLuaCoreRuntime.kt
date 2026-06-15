@@ -182,7 +182,24 @@ public object KLuaCoreRuntime {
         chunk: KLuaCoreChunk,
         globals: KLuaCoreGlobals,
     ): KLuaCoreValue.FunctionValue {
-        val closure = LuaClosure(chunk.prototype, globals = globals.table)
+        return createChunkFunctionValue(chunk, globals, globals.table)
+    }
+
+    public fun createChunkFunctionValue(
+        chunk: KLuaCoreChunk,
+        globals: KLuaCoreGlobals,
+        environment: KLuaCoreValue,
+    ): KLuaCoreValue.FunctionValue? {
+        val environmentValue = environment.toLuaValueOrNull(globals) ?: return null
+        return createChunkFunctionValue(chunk, globals, environmentValue)
+    }
+
+    private fun createChunkFunctionValue(
+        chunk: KLuaCoreChunk,
+        globals: KLuaCoreGlobals,
+        environmentValue: LuaValue,
+    ): KLuaCoreValue.FunctionValue {
+        val closure = LuaClosure(chunk.prototype, globals = environmentValue)
         return KLuaCoreValue.FunctionValue { arguments ->
             callPublicLuaFunction(closure, arguments, globals)
         }.also { functionValue ->
@@ -401,14 +418,6 @@ public class KLuaCoreGlobals internal constructor(
     public companion object {
         @JvmStatic
         public fun create(): KLuaCoreGlobals = KLuaCoreGlobals()
-    }
-
-    public fun withTable(tableValue: KLuaCoreValue.TableValue): KLuaCoreGlobals? {
-        val luaTable = tableValue.toLuaValueOrNull(this) as? LuaTable ?: return null
-        return KLuaCoreGlobals(luaTable).also { globals ->
-            globals.userDataTypes.putAll(userDataTypes)
-            globals.userDataProperties.putAll(userDataProperties)
-        }
     }
 
     public fun get(name: String): KLuaCoreValue = toPublicValue(table.rawGet(LuaString(name)), this)

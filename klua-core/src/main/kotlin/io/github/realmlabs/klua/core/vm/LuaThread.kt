@@ -28,7 +28,7 @@ internal class LuaThread {
         prototype: Prototype,
         arguments: List<LuaValue>,
         upvalues: List<LuaUpvalue> = emptyList(),
-        globals: LuaTable = LuaTable(),
+        globals: LuaValue = LuaTable(),
         function: LuaValue = LuaClosure(prototype, upvalues.toMutableList(), globals),
     ): CallFrame {
         val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))

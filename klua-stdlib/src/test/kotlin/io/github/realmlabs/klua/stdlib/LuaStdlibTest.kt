@@ -5189,8 +5189,10 @@ class LuaStdlibTest {
                 local nilLocalOnly = load("local value = 24; return value", "load-nil-env-local.lua", "t", nil)
                 local nilGlobalRead = load("return missing", "load-nil-env-global.lua", "t", nil)
                 local nilOk, nilMessage = pcall(nilGlobalRead)
+                local stringLocalOnly = load("local value = 23; return value", "load-string-env-local.lua", "t", "environment")
                 return type(localOnly), localOnly(), type(globalRead), ok, message,
-                    type(nilLocalOnly), nilLocalOnly(), type(nilGlobalRead), nilOk, nilMessage
+                    type(nilLocalOnly), nilLocalOnly(), type(nilGlobalRead), nilOk, nilMessage,
+                    type(stringLocalOnly), stringLocalOnly()
                 """.trimIndent(),
                 "load-boolean-env-driver.lua",
             ),
@@ -5208,6 +5210,8 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(8))
         assertFalse(state.toBoolean(9))
         assertTrue(state.toString(10)?.contains("attempt to index nil") == true)
+        assertEquals("function", state.toString(11))
+        assertEquals(23L, state.toInteger(12))
     }
 
     @Test
