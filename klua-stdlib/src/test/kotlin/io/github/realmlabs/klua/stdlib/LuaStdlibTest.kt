@@ -1522,7 +1522,9 @@ class LuaStdlibTest {
                 local n1, v1 = debug.getupvalue(capture, 1)
                 local n2, v2 = debug.getupvalue(capture, 2)
                 local missing = debug.getupvalue(capture, 99)
-                return n1, v1, n2, v2, missing
+                local missingCount = select("#", debug.getupvalue(capture, 99))
+                local zeroCount = select("#", debug.getupvalue(capture, 0))
+                return n1, v1, n2, v2, missing, missingCount, zeroCount
                 """.trimIndent(),
                 "debug-getupvalue.lua",
             ),
@@ -1534,6 +1536,8 @@ class LuaStdlibTest {
         assertEquals("count", state.toString(3))
         assertEquals(42L, state.toInteger(4))
         assertTrue(state.isNil(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals(0L, state.toInteger(7))
     }
 
     @Test
@@ -1809,8 +1813,10 @@ class LuaStdlibTest {
                 local n1 = debug.setupvalue(capture, 1, "new")
                 local n2 = debug.setupvalue(capture, 2, 99)
                 local missing = debug.setupvalue(capture, 99, "ignored")
+                local missingCount = select("#", debug.setupvalue(capture, 99, "ignored"))
+                local zeroCount = select("#", debug.setupvalue(capture, 0, "ignored"))
                 local v1, v2 = capture()
-                return n1, n2, missing, v1, v2
+                return n1, n2, missing, missingCount, zeroCount, v1, v2
                 """.trimIndent(),
                 "debug-setupvalue.lua",
             ),
@@ -1820,8 +1826,10 @@ class LuaStdlibTest {
         assertEquals("secret", state.toString(1))
         assertEquals("count", state.toString(2))
         assertTrue(state.isNil(3))
-        assertEquals("new", state.toString(4))
-        assertEquals(99L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals("new", state.toString(6))
+        assertEquals(99L, state.toInteger(7))
     }
 
     @Test
@@ -1841,10 +1849,11 @@ class LuaStdlibTest {
                 local okMissing, missingMessage = pcall(debug.setupvalue, capture, 1)
                 local okMissingType, missingTypeMessage = pcall(debug.setupvalue, "not-function", 1)
                 local okInvalidIndex, invalidIndexResult = pcall(debug.setupvalue, capture, 99, "ignored")
+                local invalidPcallCount = select("#", pcall(debug.setupvalue, capture, 99, "ignored"))
                 return okMissing, missingMessage,
                     okMissingType, missingTypeMessage,
                     okInvalidIndex, invalidIndexResult,
-                    capture()
+                    invalidPcallCount, capture()
                 """.trimIndent(),
                 "debug-setupvalue-value-error.lua",
             ),
@@ -1857,7 +1866,8 @@ class LuaStdlibTest {
         assertEquals("bad argument #3 to 'setupvalue' (value expected)", state.toString(4))
         assertTrue(state.toBoolean(5))
         assertTrue(state.isNil(6))
-        assertEquals("old", state.toString(7))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals("old", state.toString(8))
     }
 
     @Test
