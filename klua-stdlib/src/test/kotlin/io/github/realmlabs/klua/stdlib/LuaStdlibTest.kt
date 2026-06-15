@@ -806,8 +806,8 @@ class LuaStdlibTest {
                 local literalInfo = debug.getinfo(literal, "S")
                 local file = load("return 1", "@/tmp/loaded-main.lua")
                 local fileInfo = debug.getinfo(file, "S")
-                return frameInfo.what, frameInfo.linedefined,
-                    plainInfo.what, plainInfo.linedefined, plainInfo.short_src,
+                return frameInfo.what, frameInfo.linedefined, frameInfo.lastlinedefined,
+                    plainInfo.what, plainInfo.linedefined, plainInfo.lastlinedefined, plainInfo.short_src,
                     literalInfo.source, literalInfo.short_src,
                     fileInfo.source, fileInfo.short_src
                 """.trimIndent(),
@@ -818,13 +818,15 @@ class LuaStdlibTest {
 
         assertEquals("main", state.toString(1))
         assertEquals(0L, state.toInteger(2))
-        assertEquals("main", state.toString(3))
-        assertEquals(0L, state.toInteger(4))
-        assertEquals("""[string "loaded-main.lua"]""", state.toString(5))
-        assertEquals("=literal chunk", state.toString(6))
-        assertEquals("literal chunk", state.toString(7))
-        assertEquals("@/tmp/loaded-main.lua", state.toString(8))
-        assertEquals("/tmp/loaded-main.lua", state.toString(9))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals("main", state.toString(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals("""[string "loaded-main.lua"]""", state.toString(7))
+        assertEquals("=literal chunk", state.toString(8))
+        assertEquals("literal chunk", state.toString(9))
+        assertEquals("@/tmp/loaded-main.lua", state.toString(10))
+        assertEquals("/tmp/loaded-main.lua", state.toString(11))
     }
 
     @Test

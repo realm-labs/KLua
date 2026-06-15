@@ -192,6 +192,37 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun rawEqual(left: KLuaCoreValue, right: KLuaCoreValue): Boolean {
+        if (left.publicTypeName() != right.publicTypeName()) {
+            return false
+        }
+        return when (left) {
+            KLuaCoreValue.Nil -> true
+            is KLuaCoreValue.BooleanValue -> left.value == (right as KLuaCoreValue.BooleanValue).value
+            is KLuaCoreValue.IntegerValue -> left.value.toDouble() == right.coreNumber()
+            is KLuaCoreValue.NumberValue -> left.value == right.coreNumber()
+            is KLuaCoreValue.StringValue -> left.value == (right as KLuaCoreValue.StringValue).value
+            is KLuaCoreValue.FunctionValue -> {
+                val rightFunction = right as KLuaCoreValue.FunctionValue
+                when {
+                    left.sourceFunction != null && rightFunction.sourceFunction != null ->
+                        left.sourceFunction === rightFunction.sourceFunction
+                    else -> left.function === rightFunction.function
+                }
+            }
+            is KLuaCoreValue.TableValue -> {
+                val rightTable = right as KLuaCoreValue.TableValue
+                when {
+                    left.sourceTable != null && rightTable.sourceTable != null ->
+                        left.sourceTable === rightTable.sourceTable
+                    else -> left === rightTable
+                }
+            }
+            is KLuaCoreValue.UserDataValue -> left.value === (right as KLuaCoreValue.UserDataValue).value
+            is KLuaCoreValue.UnsupportedValue -> left === right
+        }
+    }
+
     public fun sameFunctionIdentity(left: KLuaCoreValue.FunctionValue, right: KLuaCoreValue.FunctionValue): Boolean {
         val leftSource = left.sourceFunction
         val rightSource = right.sourceFunction
