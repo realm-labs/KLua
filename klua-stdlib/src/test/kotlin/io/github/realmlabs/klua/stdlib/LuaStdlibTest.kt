@@ -2420,10 +2420,10 @@ class LuaStdlibTest {
                     return { name = name, calls = calls }
                 end
 
-                local first, firstExtra = require("demo")
-                local second, secondExtra = require("demo")
-                return first.name, first.calls, firstExtra, first == second,
-                    package.loaded.demo == first, secondExtra == nil
+                local first, firstData = require("demo")
+                local second, secondData = require("demo")
+                return first.name, first.calls, firstData,
+                    first == second, package.loaded.demo == first, secondData
                 """.trimIndent(),
                 "require-preload-cache.lua",
             ),
@@ -2435,7 +2435,7 @@ class LuaStdlibTest {
         assertEquals(":preload:", state.toString(3))
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
-        assertTrue(state.toBoolean(6))
+        assertTrue(state.isNil(6))
     }
 
     @Test
@@ -2805,10 +2805,10 @@ class LuaStdlibTest {
             state.load(
                 """
                 package.path = "${root.luaPath()}/?.lua"
-                local first, firstExtra = require("alpha.beta")
-                local second, secondExtra = require("alpha.beta")
-                return first.name, first.filename, firstExtra,
-                    first == second, package.loaded["alpha.beta"] == first, secondExtra == nil
+                local first, firstPath = require("alpha.beta")
+                local second, secondPath = require("alpha.beta")
+                return first.name, first.filename, firstPath,
+                    first == second, package.loaded["alpha.beta"] == first, secondPath
                 """.trimIndent(),
                 "require-file.lua",
             ),
@@ -2820,7 +2820,7 @@ class LuaStdlibTest {
         assertTrue(state.toString(3)?.endsWith("beta.lua") == true)
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
-        assertTrue(state.toBoolean(6))
+        assertTrue(state.isNil(6))
     }
 
     @Test
