@@ -550,15 +550,14 @@ public object LuaStdlib {
         requireAnyArgument(context, "tonumber")
         if (!context.isNone(2) && !context.isNil(2)) {
             val base = requiredTonumberBase(context)
-            return when (val value = argumentValue(context, 1)) {
-                is CharSequence -> {
-                    if (base !in 2L..36L) {
-                        throw LuaRuntimeException("bad argument #2 to 'tonumber' (base out of range)")
-                    }
-                    LuaReturn.of(parseBasedInteger(value.toString(), base.toInt()))
-                }
-                else -> throw LuaRuntimeException("bad argument #1 to 'tonumber' (string expected)")
+            val value = argumentValue(context, 1)
+            if (value !is CharSequence) {
+                throw LuaRuntimeException("bad argument #1 to 'tonumber' (string expected)")
             }
+            if (base !in 2L..36L) {
+                throw LuaRuntimeException("bad argument #2 to 'tonumber' (base out of range)")
+            }
+            return LuaReturn.of(parseBasedInteger(value.toString(), base.toInt()))
         }
         val value = argumentValue(context, 1) ?: return LuaReturn.of(null)
         return when (value) {

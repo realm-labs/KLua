@@ -3880,6 +3880,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber explicit base validates value before base range`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return tonumber(10, 1)""", "tonumber-base-order-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'tonumber' (string expected)", state.toString(-1))
+    }
+
+    @Test
     fun `tonumber rejects out of range base`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
