@@ -7964,6 +7964,61 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine yield honors host callback yield boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        state.register("callPlain") { context ->
+            context.call(1, emptyList())
+        }
+        state.register(
+            "callYieldable",
+            LuaYieldableFunction { context ->
+                context.call(1, emptyList())
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local blocked = coroutine.create(function()
+                    return callPlain(function()
+                        return coroutine.yield("blocked")
+                    end)
+                end)
+                local blockedOk, blockedMessage = coroutine.resume(blocked)
+
+                local allowed = coroutine.create(function()
+                    return callYieldable(function()
+                        local resumed = coroutine.yield("allowed")
+                        return resumed
+                    end)
+                end)
+                local firstOk, yielded = coroutine.resume(allowed)
+                local statusAfterYield = coroutine.status(allowed)
+                local secondOk, returned = coroutine.resume(allowed, "done")
+
+                return blockedOk, blockedMessage, coroutine.status(blocked),
+                    firstOk, yielded, statusAfterYield,
+                    secondOk, returned, coroutine.status(allowed)
+                """.trimIndent(),
+                "coroutine-yield-host-callback-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("allowed", state.toString(5))
+        assertEquals("suspended", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("done", state.toString(8))
+        assertEquals("dead", state.toString(9))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)
