@@ -5094,24 +5094,38 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
+                local minormul = collectgarbage("param", "minormul")
+                local majorminor = collectgarbage("param", "majorminor")
+                local minormajor = collectgarbage("param", "minormajor")
                 local pause = collectgarbage("param", "pause")
                 local previous = collectgarbage("param", "pause", 300)
                 local updated = collectgarbage("param", "pause")
                 local query = collectgarbage("param", "pause", nil)
                 local unchanged = collectgarbage("param", "pause", -1)
-                return pause, previous, updated, query, unchanged, collectgarbage("param", "stepmul")
+                local stepmul = collectgarbage("param", "stepmul")
+                local stepsize = collectgarbage("param", "stepsize")
+                local previousStepSize = collectgarbage("param", "stepsize", 8192)
+                local updatedStepSize = collectgarbage("param", "stepsize")
+                return minormul, majorminor, minormajor, pause, previous, updated, query, unchanged,
+                    stepmul, stepsize, previousStepSize, updatedStepSize
                 """.trimIndent(),
                 "collectgarbage-param.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals(250L, state.toInteger(1))
-        assertEquals(250L, state.toInteger(2))
-        assertEquals(300L, state.toInteger(3))
-        assertEquals(300L, state.toInteger(4))
-        assertEquals(300L, state.toInteger(5))
-        assertEquals(200L, state.toInteger(6))
+        assertEquals(20L, state.toInteger(1))
+        assertEquals(50L, state.toInteger(2))
+        assertEquals(68L, state.toInteger(3))
+        assertEquals(250L, state.toInteger(4))
+        assertEquals(250L, state.toInteger(5))
+        assertEquals(300L, state.toInteger(6))
+        assertEquals(300L, state.toInteger(7))
+        assertEquals(300L, state.toInteger(8))
+        assertEquals(200L, state.toInteger(9))
+        assertEquals(9600L, state.toInteger(10))
+        assertEquals(9600L, state.toInteger(11))
+        assertEquals(8192L, state.toInteger(12))
     }
 
     @Test
