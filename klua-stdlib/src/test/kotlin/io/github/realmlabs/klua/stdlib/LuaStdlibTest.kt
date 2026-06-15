@@ -3892,6 +3892,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber explicit base rejects non integral numeric bases before value type`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okFloat, floatMessage = pcall(tonumber, 10, 1.5)
+                local okString, stringMessage = pcall(tonumber, "10", "1.5")
+                return okFloat, floatMessage, okString, stringMessage
+                """.trimIndent(),
+                "tonumber-fractional-base.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'tonumber' (number has no integer representation)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'tonumber' (number has no integer representation)", state.toString(4))
+    }
+
+    @Test
     fun `tonumber rejects out of range base`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
