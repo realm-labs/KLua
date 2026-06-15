@@ -2770,6 +2770,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package c searcher reports cpath misses and dynamic loading failures`() {
+        val root = Files.createTempDirectory("klua-c-searcher")
+        val module = root.resolve("native.dll")
+        Files.writeString(module, "not really a dynamic library")
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.cpath = "${root.luaPath()}/?.dll"
+                local missingMessage, missingExtra = package.searchers[3]("missing")
+                local foundOk, foundMessage = pcall(package.searchers[3], "native")
+                package.cpath = false
+                local cpathOk, cpathMessage = pcall(package.searchers[3], "native")
+                return missingMessage, missingExtra, foundOk, foundMessage, cpathOk, cpathMessage
+                """.trimIndent(),
+                "package-c-searcher.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toString(1)?.contains("no file '${root}/missing.dll'") == true)
+        assertTrue(state.isNil(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals(
+            "error loading module 'native' from file '${root}/native.dll':\n\t" +
+                "dynamic libraries not enabled; check your Lua installation",
+            state.toString(4),
+        )
+        assertFalse(state.toBoolean(5))
+        assertEquals("'package.cpath' must be a string", state.toString(6))
+    }
+
+    @Test
     fun `require appends string searcher diagnostics and skips false searchers`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
