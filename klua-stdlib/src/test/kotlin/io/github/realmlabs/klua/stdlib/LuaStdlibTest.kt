@@ -3962,6 +3962,18 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `assert prefixes default string errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return assert(false)""", "assert-default.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("[string \"assert-default.lua\"]:1: assertion failed!", state.toString(-1))
+    }
+
+    @Test
     fun `assert preserves lua error objects`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
