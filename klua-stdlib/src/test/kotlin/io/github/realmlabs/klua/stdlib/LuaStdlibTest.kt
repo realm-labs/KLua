@@ -14345,6 +14345,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codepoint reports position argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okStartString, startStringMessage = pcall(utf8.codepoint, "abc", "bad")
+                local okStartFraction, startFractionMessage = pcall(utf8.codepoint, "abc", 1.5)
+                local okEndFraction, endFractionMessage = pcall(utf8.codepoint, "abc", 1, "1.5")
+                return okStartString, startStringMessage,
+                    okStartFraction, startFractionMessage,
+                    okEndFraction, endFractionMessage
+                """.trimIndent(),
+                "utf8-codepoint-position-argument-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'utf8.codepoint' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'utf8.codepoint' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'utf8.codepoint' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `utf8 codes returns codepoint iterator`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -14642,6 +14672,36 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(endState.getLastError())
         assertEquals("bad argument #3 to 'len' (final position out of bounds)", endState.toString(-1))
+    }
+
+    @Test
+    fun `utf8 len reports position argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okStartString, startStringMessage = pcall(utf8.len, "abc", "bad")
+                local okStartFraction, startFractionMessage = pcall(utf8.len, "abc", 1.5)
+                local okEndFraction, endFractionMessage = pcall(utf8.len, "abc", 1, "1.5")
+                return okStartString, startStringMessage,
+                    okStartFraction, startFractionMessage,
+                    okEndFraction, endFractionMessage
+                """.trimIndent(),
+                "utf8-len-position-argument-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'utf8.len' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'utf8.len' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'utf8.len' (number has no integer representation)", state.toString(6))
     }
 
     @Test
