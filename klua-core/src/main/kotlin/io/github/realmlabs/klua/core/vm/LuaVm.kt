@@ -67,10 +67,15 @@ internal class LuaVm(
         if (function !is LuaClosure && function !is LuaNativeFunction) {
             throw LuaVmException("bad argument #1 to 'debug.sethook' (function expected)")
         }
+        val canonicalMask = canonicalHookMask(mask)
+        if (canonicalMask.isEmpty() && count <= 0) {
+            debugHook = null
+            return true
+        }
         debugHook = DebugHookState(
             function,
-            canonicalHookMask(mask),
-            count.coerceAtLeast(0),
+            canonicalMask,
+            count,
         )
         return true
     }

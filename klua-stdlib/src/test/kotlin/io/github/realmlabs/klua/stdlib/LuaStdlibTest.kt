@@ -2711,6 +2711,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook clears inert hooks and preserves negative active counts`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local hook = function() end
+                debug.sethook(hook, "", 0)
+                local clearedZero = debug.gethook()
+                debug.sethook(hook, "", -1)
+                local clearedNegative = debug.gethook()
+                debug.sethook(hook, "l", -3)
+                local installed, mask, count = debug.gethook()
+                debug.sethook()
+                return clearedZero, clearedNegative, installed == hook, mask, count
+                """.trimIndent(),
+                "debug-sethook-inert-count.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("l", state.toString(4))
+        assertEquals(-3L, state.toInteger(5))
+    }
+
+    @Test
     fun `debug sethook preserves negative count for event hooks`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
