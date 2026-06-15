@@ -3175,8 +3175,9 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals("\n\tno field package.preload['missing']", state.toString(1))
+        assertEquals("no field package.preload['missing']", state.toString(1))
         assertTrue(state.isNil(2))
+        assertTrue(state.toString(3)?.startsWith("no file '") == true, state.toString(3))
         assertTrue(state.toString(3)?.contains("no file '${root}/missing.lua'") == true)
         assertTrue(state.isNil(4))
     }
@@ -3379,7 +3380,7 @@ class LuaStdlibTest {
                         return false, "\n\tignored false extra"
                     end,
                     function()
-                        return "\n\tkept first"
+                        return "kept first"
                     end,
                 }
                 return pcall(require, "custom")
@@ -3392,7 +3393,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         val message = state.toString(2) ?: ""
         assertTrue(message.contains("module 'custom' not found"))
-        assertTrue(message.contains("kept first"))
+        assertTrue(message.contains("\n\tkept first"))
         assertFalse(message.contains("ignored nil extra"))
         assertFalse(message.contains("ignored false extra"))
     }
