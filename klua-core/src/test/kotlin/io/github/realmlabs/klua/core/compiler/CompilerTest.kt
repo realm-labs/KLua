@@ -937,6 +937,41 @@ class CompilerTest {
     }
 
     @Test
+    fun `allows duplicate labels in disjoint blocks`() {
+        val prototype = Compiler.compile(
+            """
+            do
+                ::again::
+            end
+            do
+                ::again::
+            end
+            return 1
+            """.trimIndent(),
+            "disjoint-labels.lua",
+        )
+
+        assertEquals("disjoint-labels.lua", prototype.sourceName)
+    }
+
+    @Test
+    fun `does not resolve gotos to labels outside visible scope`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                do
+                    ::inside::
+                end
+                goto inside
+                """.trimIndent(),
+                "out-of-scope-label.lua",
+            )
+        }
+
+        assertEquals("out-of-scope-label.lua:4:1: no visible label 'inside' for <goto> at line 4", error.message)
+    }
+
+    @Test
     fun `closes captured locals before goto escapes scope`() {
         val prototype = Compiler.compile(
             """

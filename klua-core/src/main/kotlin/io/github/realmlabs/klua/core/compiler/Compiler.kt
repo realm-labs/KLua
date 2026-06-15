@@ -69,7 +69,7 @@ internal class Compiler private constructor(
     private val upvalueIndexes = linkedMapOf<String, Int>()
     private val localVars = mutableListOf<LocalVarBuilder>()
     private val loopBreaks = mutableListOf<MutableList<Int>>()
-    private val labels = linkedMapOf<String, LabelTarget>()
+    private val activeLabels = mutableListOf<LabelTarget>()
     private val pendingGotos = mutableListOf<PendingGoto>()
     private val blockScopePath = mutableListOf(0)
     private var nextLocalRegister = 0
@@ -476,7 +476,7 @@ internal class Compiler private constructor(
             scopePath = blockScopePath.toList(),
             statement = statement,
         )
-        val label = labels[statement.label]
+        val label = findVisibleLabel(statement.label, blockScopePath)
         if (label == null) {
             pendingGotos += pending
             return
@@ -485,7 +485,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileLabel(statement: LabelStatement) {
-        if (labels.containsKey(statement.name)) {
+        if (activeLabels.any { label -> label.name == statement.name }) {
             throw unsupported(statement, "label '${statement.name}' already defined")
         }
         val label = LabelTarget(
@@ -495,13 +495,17 @@ internal class Compiler private constructor(
             localDepth = nextLocalRegister,
             scopePath = blockScopePath.toList(),
         )
-        labels[statement.name] = label
+        activeLabels += label
 
         val matching = pendingGotos.filter { pending -> pending.name == statement.name }
         for (pending in matching) {
             patchGoto(pending, label)
         }
         pendingGotos.removeAll(matching.toSet())
+    }
+
+    private fun findVisibleLabel(name: String, scopePath: List<Int>): LabelTarget? {
+        return activeLabels.lastOrNull { label -> label.name == name && scopePath.hasPrefix(label.scopePath) }
     }
 
     private fun patchGoto(goto: PendingGoto, label: LabelTarget) {
@@ -1036,6 +1040,8 @@ internal class Compiler private constructor(
     }
 
     private fun exitBlockScope() {
+        val exitingScopePath = blockScopePath.toList()
+        activeLabels.removeAll { label -> label.scopePath.hasPrefix(exitingScopePath) }
         blockScopePath.removeLast()
     }
 
