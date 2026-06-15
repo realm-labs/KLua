@@ -4923,15 +4923,26 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `select reports fractional number index errors`() {
+    fun `select rejects non integral numeric indexes`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return select(1.5, "a")""", "select-fractional-index.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okFloat, floatMessage = pcall(select, 1.5, "a", "b")
+                local okString, stringMessage = pcall(select, "1.5", "a", "b")
+                return okFloat, floatMessage, okString, stringMessage
+                """.trimIndent(),
+                "select-fractional-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'select' (number has no integer representation)", state.toString(-1))
+        assertEquals("bad argument #1 to 'select' (number has no integer representation)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'select' (number has no integer representation)", state.toString(4))
     }
 
     @Test
@@ -6387,7 +6398,9 @@ class LuaStdlibTest {
                 local okNil, nilMessage = pcall(iterator, values, nil)
                 local okString, stringMessage = pcall(iterator, values, "not-index")
                 local okFractional, fractionalMessage = pcall(iterator, values, 0.5)
-                return okNil, nilMessage, okString, stringMessage, okFractional, fractionalMessage
+                local okStringFraction, stringFractionMessage = pcall(iterator, values, "1.5")
+                return okNil, nilMessage, okString, stringMessage,
+                    okFractional, fractionalMessage, okStringFraction, stringFractionMessage
                 """.trimIndent(),
                 "ipairs-iterator-index-error.lua",
             ),
@@ -6402,6 +6415,11 @@ class LuaStdlibTest {
         assertEquals(
             "bad argument #2 to 'ipairs iterator' (number has no integer representation)",
             state.toString(6),
+        )
+        assertFalse(state.toBoolean(7))
+        assertEquals(
+            "bad argument #2 to 'ipairs iterator' (number has no integer representation)",
+            state.toString(8),
         )
     }
 

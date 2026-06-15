@@ -348,7 +348,7 @@ public object LuaStdlib {
     private fun ipairs(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "ipairs")
         val iterator = LuaFunction { iteratorContext ->
-            val nextIndex = requiredIteratorInteger(iteratorContext, 2, "ipairs iterator") + 1L
+            val nextIndex = requiredNumberInteger(iteratorContext, 2, "ipairs iterator") + 1L
             val indexed = indexValue(iteratorContext, 1, nextIndex)
             val value = if (indexed.handled) {
                 indexed.value
@@ -506,7 +506,7 @@ public object LuaStdlib {
             return LuaReturn.of((context.argumentCount - 1).toLong())
         }
 
-        val index = requiredNumberIndex(context, 1, "select")
+        val index = requiredNumberInteger(context, 1, "select")
         val start = when {
             index > 0L -> index + 1L
             index < 0L -> context.argumentCount + index + 1L
@@ -773,9 +773,9 @@ public object LuaStdlib {
             }
     }
 
-    private fun requiredIteratorInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+    private fun requiredNumberInteger(context: LuaCallContext, index: Int, functionName: String): Long {
         return context.toInteger(index) ?: throw LuaRuntimeException(
-            if (context.typeName(index) == "number") {
+            if (context.toNumber(index) != null) {
                 "bad argument #$index to '$functionName' (number has no integer representation)"
             } else {
                 "bad argument #$index to '$functionName' (number expected)"
