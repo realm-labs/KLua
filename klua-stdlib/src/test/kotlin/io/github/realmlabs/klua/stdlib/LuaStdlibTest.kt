@@ -3345,7 +3345,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(6))
         assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(7))
         assertFalse(state.toBoolean(8))
-        assertEquals("<no error object>", state.toString(9))
+        assertTrue(state.isNil(9))
     }
 
     @Test
@@ -3434,9 +3434,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("marker", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("<no error object>", state.toString(5))
+        assertTrue(state.isNil(5))
         assertFalse(state.toBoolean(6))
-        assertEquals("<no error object>", state.toString(7))
+        assertTrue(state.isNil(7))
         assertFalse(state.toBoolean(8))
         assertTrue(state.toBoolean(9))
     }
