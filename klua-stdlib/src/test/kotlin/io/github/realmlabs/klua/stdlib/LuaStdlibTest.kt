@@ -9297,6 +9297,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random advances state before argument validation`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                math.randomseed(123, 456)
+                local first = math.random(0)
+                local second = math.random(0)
+                math.randomseed(123, 456)
+                local ok, message = pcall(math.random, "bad")
+                local afterError = math.random(0)
+                return ok, message, afterError == second, afterError ~= first
+                """.trimIndent(),
+                "math-random-validation-state.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'random' (number expected)", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+    }
+
+    @Test
     fun `math random reports extra argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
