@@ -258,7 +258,8 @@ internal object LuaStringLibrary {
             requiredInteger(context, 3, "find")
         }
         val plain = context.toBoolean(4)
-        val startIndex = text.luaByteSearchStartToCharIndex(start)
+        val searchStart = text.luaByteSearchStart(start)
+        val startIndex = searchStart.charIndex
         val match = if (plain) {
             LuaStringPattern.literal(pattern).find(text, startIndex)
         } else {
@@ -267,9 +268,12 @@ internal object LuaStringLibrary {
         if (match == null) {
             return LuaReturn.of(null)
         }
+        val initialEmptyMatch = match.isEmptyAt(startIndex)
         return LuaReturn.ofValues(
-            listOf(text.luaBytePosition(match.startIndex), text.luaByteEndPosition(match.endIndex)) +
-                text.luaByteCaptures(match.captures),
+            listOf(
+                text.luaByteStartPosition(match.startIndex, searchStart, initialEmptyMatch),
+                text.luaByteEndPosition(match.endIndex, searchStart, initialEmptyMatch),
+            ) + text.luaByteCaptures(match.captures, searchStart, initialEmptyMatch),
         )
     }
 
@@ -282,7 +286,9 @@ internal object LuaStringLibrary {
             requiredInteger(context, 3, "gmatch")
         }
         val compiledPattern = LuaStringPattern.compileGmatch(pattern)
-        var cursor = text.luaByteSearchStartToCharIndex(start)
+        val searchStart = text.luaByteSearchStart(start)
+        var cursor = searchStart.charIndex
+        var firstSearch = true
         val iterator = LuaFunction { _ ->
             if (cursor > text.length) {
                 LuaReturn.of(null)
@@ -291,13 +297,15 @@ internal object LuaStringLibrary {
                 if (match == null) {
                     LuaReturn.of(null)
                 } else {
+                    val initialEmptyMatch = firstSearch && match.isEmptyAt(searchStart.charIndex)
+                    firstSearch = false
                     cursor = if (match.startIndex == match.endIndex) {
                         match.endIndex + 1
                     } else {
                         match.endIndex
                     }
                     if (match.captures.isNotEmpty()) {
-                        LuaReturn.ofValues(text.luaByteCaptures(match.captures))
+                        LuaReturn.ofValues(text.luaByteCaptures(match.captures, searchStart, initialEmptyMatch))
                     } else {
                         LuaReturn.of(text.substring(match.startIndex, match.endIndex))
                     }
@@ -365,13 +373,14 @@ internal object LuaStringLibrary {
         } else {
             requiredInteger(context, 3, "match")
         }
-        val startIndex = text.luaByteSearchStartToCharIndex(start)
+        val searchStart = text.luaByteSearchStart(start)
+        val startIndex = searchStart.charIndex
         val match = LuaStringPattern.compile(pattern).find(text, startIndex)
         if (match == null) {
             return LuaReturn.of(null)
         }
         if (match.captures.isNotEmpty()) {
-            return LuaReturn.ofValues(text.luaByteCaptures(match.captures))
+            return LuaReturn.ofValues(text.luaByteCaptures(match.captures, searchStart, match.isEmptyAt(startIndex)))
         }
         return LuaReturn.of(text.substring(match.startIndex, match.endIndex))
     }
@@ -1484,6 +1493,10 @@ internal object LuaStringLibrary {
     }
 
     private fun String.luaByteSearchStartToCharIndex(index: Long): Int {
+        return luaByteSearchStart(index).charIndex
+    }
+
+    private fun String.luaByteSearchStart(index: Long): LuaByteSearchStart {
         val byteLength = luaByteLength()
         val normalized = when {
             index > 0L -> index
@@ -1492,38 +1505,71 @@ internal object LuaStringLibrary {
             else -> byteLength + index + 1L
         }
         if (normalized > byteLength + 1L) {
-            return length + 1
+            return LuaByteSearchStart(length + 1, normalized)
         }
         if (normalized == byteLength + 1L) {
-            return length
+            return LuaByteSearchStart(length, normalized)
         }
 
         var bytePosition = 1L
         for (charIndex in indices) {
             val charBytes = this[charIndex].toString().toByteArray(StandardCharsets.UTF_8).size.toLong()
             if (bytePosition >= normalized) {
-                return charIndex
+                return LuaByteSearchStart(charIndex, normalized)
             }
             bytePosition += charBytes
         }
-        return length
+        return LuaByteSearchStart(length, normalized)
+    }
+
+    private fun String.luaByteStartPosition(
+        charIndex: Int,
+        searchStart: LuaByteSearchStart,
+        initialEmptyMatch: Boolean,
+    ): Long {
+        return if (initialEmptyMatch) searchStart.bytePosition else luaBytePosition(charIndex)
     }
 
     private fun String.luaBytePosition(charIndex: Int): Long {
         return substring(0, charIndex).luaByteLength() + 1L
     }
 
-    private fun String.luaByteEndPosition(charIndex: Int): Long {
-        return substring(0, charIndex).luaByteLength()
+    private fun String.luaByteEndPosition(
+        charIndex: Int,
+        searchStart: LuaByteSearchStart? = null,
+        initialEmptyMatch: Boolean = false,
+    ): Long {
+        return if (initialEmptyMatch && searchStart != null) {
+            searchStart.bytePosition - 1L
+        } else {
+            substring(0, charIndex).luaByteLength()
+        }
     }
 
-    private fun String.luaByteCaptures(captures: List<Any?>): List<Any?> {
+    private fun String.luaByteCaptures(
+        captures: List<Any?>,
+        searchStart: LuaByteSearchStart? = null,
+        initialEmptyMatch: Boolean = false,
+    ): List<Any?> {
         return captures.map { capture ->
             if (capture is Long) {
-                luaBytePosition((capture - 1L).toInt())
+                if (initialEmptyMatch && searchStart != null && capture == searchStart.charIndex + 1L) {
+                    searchStart.bytePosition
+                } else {
+                    luaBytePosition((capture - 1L).toInt())
+                }
             } else {
                 capture
             }
         }
     }
+}
+
+private data class LuaByteSearchStart(
+    val charIndex: Int,
+    val bytePosition: Long,
+)
+
+private fun LuaPatternMatch.isEmptyAt(charIndex: Int): Boolean {
+    return startIndex == charIndex && endIndex == charIndex
 }
