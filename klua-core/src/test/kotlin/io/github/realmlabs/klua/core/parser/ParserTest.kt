@@ -74,6 +74,44 @@ class ParserTest {
     }
 
     @Test
+    fun `return terminates the current block`() {
+        val topLevelError = assertFailsWith<ParserException> {
+            Parser.parse(
+                """
+                return 1
+                local x = 2
+                """.trimIndent(),
+                "return-last.lua",
+            )
+        }
+        assertEquals("return-last.lua:2:1: expected end of input", topLevelError.message)
+
+        val nestedError = assertFailsWith<ParserException> {
+            Parser.parse(
+                """
+                if true then
+                    return 1
+                    local x = 2
+                end
+                """.trimIndent(),
+                "return-block-last.lua",
+            )
+        }
+        assertEquals("return-block-last.lua:3:5: expected 'end' after if statement", nestedError.message)
+    }
+
+    @Test
+    fun `return allows only one optional trailing semicolon`() {
+        val chunk = Parser.parse("return 1;", "return-semicolon.lua")
+        assertIs<ReturnStatement>(chunk.statements.single())
+
+        val error = assertFailsWith<ParserException> {
+            Parser.parse("return 1; ;", "return-extra-semicolon.lua")
+        }
+        assertEquals("return-extra-semicolon.lua:1:11: expected end of input", error.message)
+    }
+
+    @Test
     fun `parses local variable attributes`() {
         val chunk = Parser.parse("local x <const>, y <close>, z = 1, 2, 3")
 

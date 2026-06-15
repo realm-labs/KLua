@@ -64,7 +64,11 @@ internal class Parser private constructor(
             if (match(TokenKind.SEMICOLON)) {
                 continue
             }
-            statements += statement()
+            val parsed = statement()
+            statements += parsed
+            if (parsed is ReturnStatement) {
+                return statements
+            }
         }
         return statements
     }
