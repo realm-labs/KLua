@@ -11753,10 +11753,9 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string format string conversion uses table tostring metamethods`() {
+    fun `string format string conversion uses tostring metadata`() {
         val state = LuaState.create()
-        LuaStdlib.openBase(state)
-        LuaStdlib.openString(state)
+        LuaStdlib.openLibs(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -11767,9 +11766,20 @@ class LuaStdlibTest {
                         return "table:" .. target.name
                     end,
                 })
+                debug.setmetatable("alpha", {
+                    __tostring = function(target)
+                        return "string:" .. target
+                    end,
+                })
+                local function fn() end
+                debug.setmetatable(fn, { __name = "Callable" })
                 local formatted = string.format("%s", value)
+                local formattedString = string.format("%s", "alpha")
+                local formattedFunction = string.format("%s", fn)
                 local ok, message = pcall(string.format, "%q", value)
-                return formatted, ok, message
+                debug.setmetatable("alpha", nil)
+                debug.setmetatable(fn, nil)
+                return formatted, formattedString, formattedFunction, ok, message
                 """.trimIndent(),
                 "string-format-tostring-metamethod.lua",
             ),
@@ -11777,8 +11787,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("table:formatted", state.toString(1))
-        assertFalse(state.toBoolean(2))
-        assertEquals("bad argument #2 to 'format' (value has no literal form)", state.toString(3))
+        assertEquals("string:alpha", state.toString(2))
+        assertTrue(state.toString(3)?.matches(Regex("""Callable: [0-9a-f]+""")) == true)
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #2 to 'format' (value has no literal form)", state.toString(5))
     }
 
     @Test

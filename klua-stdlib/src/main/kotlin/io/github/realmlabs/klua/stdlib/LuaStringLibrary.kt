@@ -1335,22 +1335,23 @@ internal object LuaStringLibrary {
     }
 
     private fun toLuaString(context: LuaCallContext, index: Int): String {
+        tostringMetamethod(context, index)?.let { return it }
         return when (context.typeName(index)) {
             "nil" -> "nil"
             "boolean" -> context.toBoolean(index).toString()
             "number" -> luaNumberToString(context.get(index))
             "string" -> context.toString(index) ?: context.typeName(index)
-            "userdata" -> context.get(index)?.toString() ?: "userdata"
-            "function" -> context.get(index)?.typedPointerString("function") ?: "function"
-            "table" -> tableToLuaString(context, index)
+            "userdata" -> context.get(index)?.typedPointerString(tostringPointerName(context, index, "userdata")) ?: "userdata"
+            "function" -> context.get(index)?.typedPointerString(tostringPointerName(context, index, "function")) ?: "function"
+            "table" -> context.getTable(index)?.typedPointerString(tostringPointerName(context, index, "table")) ?: context.typeName(index)
             else -> context.typeName(index)
         }
     }
 
-    private fun tableToLuaString(context: LuaCallContext, index: Int): String {
+    private fun tostringMetamethod(context: LuaCallContext, index: Int): String? {
         val metamethod = context.getTableField(context.getMetatable(index), "__tostring")
-            ?: return context.getTable(index)?.typedPointerString("table") ?: context.typeName(index)
-        return when (val result = context.call(metamethod, listOf(context.getTable(index))).get(1)) {
+            ?: return null
+        return when (val result = context.call(metamethod, listOf(formatArgumentValue(context, index))).get(1)) {
             is Byte -> result.toLong().toString()
             is Short -> result.toLong().toString()
             is Int -> result.toLong().toString()
@@ -1406,8 +1407,19 @@ internal object LuaStringLibrary {
         return isFinite() && this % 1.0 == 0.0
     }
 
+    private fun tostringPointerName(context: LuaCallContext, index: Int, defaultName: String): String {
+        return (context.getTableField(context.getMetatable(index), "__name") as? CharSequence)?.toString() ?: defaultName
+    }
+
     private fun Any.typedPointerString(typeName: String): String {
         return "$typeName: ${System.identityHashCode(this).toString(16)}"
+    }
+
+    private fun formatArgumentValue(context: LuaCallContext, index: Int): Any? {
+        return when (context.typeName(index)) {
+            "table" -> context.getTable(index)
+            else -> context.get(index)
+        }
     }
 
     private fun String.luaByteLength(): Long {
