@@ -3268,11 +3268,12 @@ class LuaStdlibTest {
                 """
                 package.cpath = "${root.luaPath()}/?.dll"
                 local plainMessage, plainExtra = package.searchers[4]("plain")
+                local plainCount = select("#", package.searchers[4]("plain"))
                 local missingMessage, missingExtra = package.searchers[4]("missing.child")
                 local foundMessage, foundExtra = package.searchers[4]("root.child")
                 package.cpath = false
                 local cpathOk, cpathMessage = pcall(package.searchers[4], "root.child")
-                return plainMessage, plainExtra, missingMessage, missingExtra,
+                return plainMessage, plainExtra, plainCount, missingMessage, missingExtra,
                     foundMessage, foundExtra, cpathOk, cpathMessage, package._moduleRoot
                 """.trimIndent(),
                 "package-c-root-searcher.lua",
@@ -3282,14 +3283,15 @@ class LuaStdlibTest {
 
         assertTrue(state.isNil(1))
         assertTrue(state.isNil(2))
-        assertTrue(state.toString(3)?.contains("no file '${root}/missing.dll'") == true)
-        assertTrue(state.isNil(4))
-        assertEquals("no module 'root.child' in file '${root}/root.dll'", state.toString(5))
-        assertTrue(state.isNil(6))
-        assertFalse(state.toBoolean(7))
-        assertTrue(state.toString(8)?.startsWith("stdlib-package.lua:") == true, state.toString(8))
-        assertTrue(state.toString(8)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(8))
-        assertTrue(state.isNil(9))
+        assertEquals(0L, state.toInteger(3))
+        assertTrue(state.toString(4)?.contains("no file '${root}/missing.dll'") == true)
+        assertTrue(state.isNil(5))
+        assertEquals("no module 'root.child' in file '${root}/root.dll'", state.toString(6))
+        assertTrue(state.isNil(7))
+        assertFalse(state.toBoolean(8))
+        assertTrue(state.toString(9)?.startsWith("stdlib-package.lua:") == true, state.toString(9))
+        assertTrue(state.toString(9)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(9))
+        assertTrue(state.isNil(10))
     }
 
     @Test
