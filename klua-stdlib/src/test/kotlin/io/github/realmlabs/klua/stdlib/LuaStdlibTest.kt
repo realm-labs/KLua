@@ -4440,6 +4440,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `xpcall returns exactly one error handler result`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local multiCount = select("#", xpcall(function()
+                    error("boom")
+                end, function(message)
+                    return "first", "second"
+                end))
+                local multiOk, first, second = xpcall(function()
+                    error("boom")
+                end, function(message)
+                    return "first", "second"
+                end)
+                local nilCount = select("#", xpcall(function()
+                    error("boom")
+                end, function(message)
+                end))
+                local nilOk, nilError = xpcall(function()
+                    error("boom")
+                end, function(message)
+                end)
+                return multiCount, multiOk, first, second, nilCount, nilOk, nilError
+                """.trimIndent(),
+                "xpcall-handler-result-count.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("first", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals(2L, state.toInteger(5))
+        assertFalse(state.toBoolean(6))
+        assertTrue(state.isNil(7))
+    }
+
+    @Test
     fun `xpcall can yield and resume inside coroutine`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
