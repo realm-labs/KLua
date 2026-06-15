@@ -8007,6 +8007,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math abs preserves mininteger wraparound`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = math.abs(math.mininteger)
+                return value, math.type(value), value == math.mininteger
+                """.trimIndent(),
+                "math-abs-mininteger.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Long.MIN_VALUE, state.toInteger(1))
+        assertEquals("integer", state.toString(2))
+        assertTrue(state.toBoolean(3))
+    }
+
+    @Test
     fun `math floor and ceil preserve numeric subtype by range`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
