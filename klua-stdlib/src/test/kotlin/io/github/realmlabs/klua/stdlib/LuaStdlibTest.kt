@@ -4390,6 +4390,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load reports multiple to be closed locals`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local explicitChunk, explicitMessage =
+                    load("local x <close>, y <close> = nil, nil", "multiple-close.lua")
+                local prefixedChunk, prefixedMessage =
+                    load("local <close> x, y = nil, nil", "prefixed-multiple-close.lua")
+                return explicitChunk, explicitMessage, prefixedChunk, prefixedMessage
+                """.trimIndent(),
+                "load-multiple-close-driver.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("multiple-close.lua:1:26: multiple to-be-closed variables in local list", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals(
+            "prefixed-multiple-close.lua:1:18: multiple to-be-closed variables in local list",
+            state.toString(4),
+        )
+    }
+
+    @Test
     fun `load converts numeric reader function results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

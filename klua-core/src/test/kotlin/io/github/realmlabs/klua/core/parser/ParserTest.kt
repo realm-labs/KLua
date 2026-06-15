@@ -148,6 +148,25 @@ class ParserTest {
     }
 
     @Test
+    fun `reports multiple to be closed locals in one local list`() {
+        val explicitError = assertFailsWith<ParserException> {
+            Parser.parse("local x <close>, y <close> = nil, nil", "multiple-close.lua")
+        }
+        assertEquals(
+            "multiple-close.lua:1:26: multiple to-be-closed variables in local list",
+            explicitError.message,
+        )
+
+        val prefixedError = assertFailsWith<ParserException> {
+            Parser.parse("local <close> x, y = nil, nil", "prefixed-multiple-close.lua")
+        }
+        assertEquals(
+            "prefixed-multiple-close.lua:1:18: multiple to-be-closed variables in local list",
+            prefixedError.message,
+        )
+    }
+
+    @Test
     fun `parses if elseif else blocks`() {
         val chunk = Parser.parse(
             """

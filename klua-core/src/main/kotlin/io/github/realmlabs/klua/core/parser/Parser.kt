@@ -98,10 +98,18 @@ internal class Parser private constructor(
         val names = mutableListOf<String>()
         val attributes = mutableListOf<LocalAttribute>()
         val defaultAttribute = localAttribute(LocalAttribute.NONE)
+        var hasCloseAttribute = false
         do {
             val name = consume(TokenKind.IDENTIFIER, "expected local variable name")
             names += name.literal as String
-            attributes += localAttribute(defaultAttribute)
+            val attribute = localAttribute(defaultAttribute)
+            if (attribute == LocalAttribute.CLOSE) {
+                if (hasCloseAttribute) {
+                    throw errorAt(previous(), "multiple to-be-closed variables in local list")
+                }
+                hasCloseAttribute = true
+            }
+            attributes += attribute
         } while (match(TokenKind.COMMA))
 
         val values = if (match(TokenKind.ASSIGN)) expressionList() else emptyList()
