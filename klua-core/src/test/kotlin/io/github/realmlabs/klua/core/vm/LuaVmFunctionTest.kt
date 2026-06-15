@@ -454,6 +454,31 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `break out of loop closes captured locals before register reuse`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function outer()
+                    local get
+                    while true do
+                        local captured = "live"
+                        get = function()
+                            return captured
+                        end
+                        break
+                    end
+                    local captured = "shadow"
+                    return get()
+                end
+                return outer()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaString("live")), result)
+    }
+
+    @Test
     fun `passes no arguments from empty open call arguments`() {
         val result = LuaVm().execute(
             Compiler.compile(

@@ -725,6 +725,32 @@ class CompilerTest {
     }
 
     @Test
+    fun `closes captured locals before break exits loop scope`() {
+        val prototype = Compiler.compile(
+            """
+            local function outer()
+                local get
+                while true do
+                    local captured = "live"
+                    get = function()
+                        return captured
+                    end
+                    break
+                end
+                local captured = "shadow"
+                return get()
+            end
+            return outer()
+            """.trimIndent(),
+            "break-close.lua",
+        )
+
+        val outer = prototype.nested.single()
+        val disassembly = Disassembler.disassemble(outer)
+        assertTrue(disassembly.contains("CLOSE_UPVALUES R1"), disassembly)
+    }
+
+    @Test
     fun `compiles numeric for loop`() {
         val prototype = Compiler.compile(
             """

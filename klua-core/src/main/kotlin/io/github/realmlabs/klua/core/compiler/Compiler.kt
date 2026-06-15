@@ -68,7 +68,7 @@ internal class Compiler private constructor(
     private val upvalues = mutableListOf<UpvalueDescriptor>()
     private val upvalueIndexes = linkedMapOf<String, Int>()
     private val localVars = mutableListOf<LocalVarBuilder>()
-    private val loopBreaks = mutableListOf<MutableList<Int>>()
+    private val loopBreaks = mutableListOf<MutableList<BreakJump>>()
     private val activeLabels = mutableListOf<LabelTarget>()
     private val pendingGotos = mutableListOf<PendingGoto>()
     private val blockScopePath = mutableListOf(0)
@@ -172,7 +172,7 @@ internal class Compiler private constructor(
         val loopIndex = writer.size
         writer.emit(Instruction.abc(Opcode.FOR_LOOP, baseRegister, writer.jumpOffset(loopIndex, loopStart)), statement.range.start.line)
         patchForTest(testIndex, writer.size)
-        patchLoopBreaks(breaks, writer.size)
+        patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
@@ -213,7 +213,7 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
         patchJump(backJump, loopStart)
         patchTest(testIndex, writer.size)
-        patchLoopBreaks(breaks, writer.size)
+        patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
@@ -418,6 +418,7 @@ internal class Compiler private constructor(
 
     private fun compileWhile(statement: WhileStatement) {
         val breaks = pushLoopBreaks()
+        val savedNextLocalRegister = nextLocalRegister
         val loopStart = writer.size
         val conditionRegister = nextLocalRegister
         compileExpression(statement.condition, conditionRegister)
@@ -431,7 +432,7 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
         patchJump(backJump, loopStart)
         patchTest(testIndex, writer.size)
-        patchLoopBreaks(breaks, writer.size)
+        patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
     }
 
     private fun compileRepeat(statement: RepeatStatement) {
@@ -451,7 +452,7 @@ internal class Compiler private constructor(
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.condition.range.start.line)
         patchTest(testIndex, loopStart)
-        patchLoopBreaks(breaks, writer.size)
+        patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
@@ -461,7 +462,12 @@ internal class Compiler private constructor(
             ?: throw unsupported(statement, "'break' outside loop")
         val breakJump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
-        breaks += breakJump
+        val close = if (hasCapturedLocals) {
+            writer.size.also { writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), statement.range.start.line) }
+        } else {
+            null
+        }
+        breaks += BreakJump(breakJump, close, nextLocalRegister)
     }
 
     private fun compileGoto(statement: GotoStatement) {
@@ -1024,16 +1030,21 @@ internal class Compiler private constructor(
         writer.patch(index, Instruction.abc(Opcode.FOR_TEST, register, writer.jumpOffset(index, targetIndex)))
     }
 
-    private fun pushLoopBreaks(): MutableList<Int> {
-        val breaks = mutableListOf<Int>()
+    private fun pushLoopBreaks(): MutableList<BreakJump> {
+        val breaks = mutableListOf<BreakJump>()
         loopBreaks += breaks
         return breaks
     }
 
-    private fun patchLoopBreaks(breaks: MutableList<Int>, targetIndex: Int) {
+    private fun patchLoopBreaks(breaks: MutableList<BreakJump>, targetIndex: Int, closeDepth: Int) {
         require(loopBreaks.removeLast() === breaks) { "loop break stack is unbalanced" }
-        for (jump in breaks) {
-            patchJump(jump, targetIndex)
+        for (breakJump in breaks) {
+            if (breakJump.close != null && closeDepth < breakJump.localDepth) {
+                writer.patch(breakJump.jump, Instruction.abc(Opcode.CLOSE_UPVALUES, closeDepth))
+                patchJump(breakJump.close, targetIndex)
+            } else {
+                patchJump(breakJump.jump, targetIndex)
+            }
         }
     }
 
@@ -1124,6 +1135,12 @@ internal class Compiler private constructor(
 
         data class Register(val register: Int) : PreparedAssignmentKey
     }
+
+    private data class BreakJump(
+        val jump: Int,
+        val close: Int?,
+        val localDepth: Int,
+    )
 
     private data class LabelTarget(
         val name: String,
