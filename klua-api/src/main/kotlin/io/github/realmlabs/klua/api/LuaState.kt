@@ -67,10 +67,28 @@ class LuaState private constructor(
         val functionIndex = stack.size - argumentCount - 1
         require(functionIndex in stack.indices) { "stack does not contain a callable value" }
 
-        return when (val callable = stack[functionIndex]) {
+        return pcallStackValue(functionIndex, stack[functionIndex], resultCount)
+    }
+
+    private fun pcallStackValue(
+        functionIndex: Int,
+        callable: LuaStackValue,
+        resultCount: Int,
+        depth: Int = 0,
+    ): LuaStatus {
+        return when (callable) {
             is LuaStackValue.ChunkValue -> pcallChunk(functionIndex, callable, resultCount)
             is LuaStackValue.NativeFunctionValue -> pcallNativeFunction(functionIndex, callable, resultCount)
-            else -> runtimeCallError(functionIndex, attemptToCallMessage(callable))
+            else -> {
+                val callTarget = callMetamethod(callable)
+                if (callTarget != null && depth < MAX_CALL_METAMETHOD_DEPTH) {
+                    stack[functionIndex] = callTarget
+                    stack.add(functionIndex + 1, callable)
+                    pcallStackValue(functionIndex, callTarget, resultCount, depth + 1)
+                } else {
+                    runtimeCallError(functionIndex, attemptToCallMessage(callTarget ?: callable))
+                }
+            }
         }
     }
 
@@ -1173,6 +1191,16 @@ class LuaState private constructor(
         return "attempt to call a ${stackTypeName(value)} value"
     }
 
+    private fun callMetamethod(value: LuaStackValue?): LuaStackValue? {
+        val metatable = when (value) {
+            is LuaStackValue.TableValue -> value.metatable
+            is LuaStackValue.UserDataValue -> userMetatables[value.value]
+            null -> null
+            else -> KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, stackTypeName(value))?.toStackValue()
+        }
+        return metatable?.fields?.get(callMetamethodKey)
+    }
+
     private fun toApiStackFrames(frames: List<KLuaCoreStackFrame>): List<LuaStackFrame> {
         return frames.map { frame ->
             LuaStackFrame(
@@ -1495,16 +1523,6 @@ class LuaState private constructor(
                 )
             }
             throw IllegalArgumentException(attemptToCallMessage(callTarget ?: value))
-        }
-
-        private fun callMetamethod(value: LuaStackValue?): LuaStackValue? {
-            val metatable = when (value) {
-                is LuaStackValue.TableValue -> value.metatable
-                is LuaStackValue.UserDataValue -> userMetatables[value.value]
-                null -> null
-                else -> KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, stackTypeName(value))?.toStackValue()
-            }
-            return metatable?.fields?.get(callMetamethodKey)
         }
 
         override fun getTable(index: Int): Any? {

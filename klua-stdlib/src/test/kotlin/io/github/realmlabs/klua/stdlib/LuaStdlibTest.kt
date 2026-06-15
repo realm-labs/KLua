@@ -4131,6 +4131,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `state pcall invokes callable table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return setmetatable({prefix = "ok"}, {
+                    __call = function(self, value)
+                        return self.prefix .. value
+                    end,
+                })
+                """.trimIndent(),
+                "state-pcall-callable-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        state.pushString("!")
+        assertEquals(LuaStatus.OK, state.pcall(1, -1), state.toString(-1))
+        assertEquals("ok!", state.toString(1))
+
+        state.setTop(0)
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return setmetatable({}, {
+                    __call = function()
+                        error("boom")
+                    end,
+                })
+                """.trimIndent(),
+                "state-pcall-callable-table-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertTrue(
+            state.toString(-1)?.startsWith("state-pcall-callable-table-error.lua:") == true,
+            state.toString(-1),
+        )
+        assertTrue(state.toString(-1)?.endsWith(": boom") == true, state.toString(-1))
+    }
+
+    @Test
     fun `pcall can yield and resume inside coroutine`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
