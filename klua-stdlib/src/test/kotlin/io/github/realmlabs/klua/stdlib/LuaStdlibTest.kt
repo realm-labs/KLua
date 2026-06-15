@@ -15817,7 +15817,13 @@ class LuaStdlibTest {
                 local missingOk, missingMessage = pcall(table.insert, {})
                 local extraOk, extraMessage = pcall(table.insert, {}, 1, "x", "extra")
                 local boundsOk, boundsMessage = pcall(table.insert, {}, 2, "x")
-                return missingOk, missingMessage, extraOk, extraMessage, boundsOk, boundsMessage
+                local stringOk, stringMessage = pcall(table.insert, {}, "not-index", "x")
+                local fractionOk, fractionMessage = pcall(table.insert, {}, 1.5, "x")
+                return missingOk, missingMessage,
+                    extraOk, extraMessage,
+                    boundsOk, boundsMessage,
+                    stringOk, stringMessage,
+                    fractionOk, fractionMessage
                 """.trimIndent(),
                 "table-insert-arity-error.lua",
             ),
@@ -15830,6 +15836,10 @@ class LuaStdlibTest {
         assertEquals("wrong number of arguments to 'insert'", arityState.toString(4))
         assertFalse(arityState.toBoolean(5))
         assertEquals("bad argument #2 to 'insert' (position out of bounds)", arityState.toString(6))
+        assertFalse(arityState.toBoolean(7))
+        assertEquals("bad argument #2 to 'insert' (number expected)", arityState.toString(8))
+        assertFalse(arityState.toBoolean(9))
+        assertEquals("bad argument #2 to 'insert' (number has no integer representation)", arityState.toString(10))
     }
 
     @Test
