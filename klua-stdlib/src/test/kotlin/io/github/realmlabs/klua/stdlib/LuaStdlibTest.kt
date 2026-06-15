@@ -12964,11 +12964,11 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #3 to 'gsub' (invalid replacement value (a boolean))", state.toString(4))
+        assertEquals("invalid replacement value (a boolean)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #3 to 'gsub' (invalid replacement value (a function))", state.toString(6))
+        assertEquals("invalid replacement value (a function)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #3 to 'gsub' (invalid replacement value (a table))", state.toString(8))
+        assertEquals("invalid replacement value (a table)", state.toString(8))
     }
 
     @Test

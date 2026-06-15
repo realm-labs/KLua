@@ -171,7 +171,7 @@ internal object LuaStringLibrary {
             is CharSequence -> value.toString()
             else -> {
                 val typeName = gsubReplacementTypeName(context, value)
-                throw LuaRuntimeException("bad argument #3 to 'gsub' (invalid replacement value (a $typeName))")
+                throw LuaRuntimeException("invalid replacement value (a $typeName)")
             }
         }
     }
