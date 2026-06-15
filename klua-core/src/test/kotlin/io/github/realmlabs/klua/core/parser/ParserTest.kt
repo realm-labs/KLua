@@ -12,11 +12,13 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.KeyedTableEntry
+import io.github.realmlabs.klua.core.ast.LabelStatement
 import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalAttribute
@@ -237,6 +239,22 @@ class ParserTest {
 
         val loop = assertIs<WhileStatement>(chunk.statements.single())
         assertIs<BreakStatement>(loop.block.single())
+    }
+
+    @Test
+    fun `parses labels and goto statements`() {
+        val chunk = Parser.parse(
+            """
+            goto done
+            ::done::
+            """.trimIndent(),
+        )
+
+        val goto = assertIs<GotoStatement>(chunk.statements[0])
+        assertEquals("done", goto.label)
+
+        val label = assertIs<LabelStatement>(chunk.statements[1])
+        assertEquals("done", label.name)
     }
 
     @Test

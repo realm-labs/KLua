@@ -1045,6 +1045,42 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes forward goto to label`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local value = "before"
+                goto done
+                value = "skipped"
+                ::done::
+                return value
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaString("before")), result)
+    }
+
+    @Test
+    fun `executes backward goto from nested block to outer label`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local value = 0
+                ::again::
+                value = value + 1
+                if value < 3 then
+                    goto again
+                end
+                return value
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(3)), result)
+    }
+
+    @Test
     fun `executes numeric for loop`() {
         val result = LuaVm().execute(
             Compiler.compile(

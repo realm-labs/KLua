@@ -16,11 +16,13 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.KeyedTableEntry
+import io.github.realmlabs.klua.core.ast.LabelStatement
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalAttribute
 import io.github.realmlabs.klua.core.ast.LocalFunctionStatement
@@ -78,6 +80,8 @@ internal class Parser private constructor(
             match(TokenKind.LOCAL) -> localStatement(previous())
             match(TokenKind.RETURN) -> returnStatement(previous())
             match(TokenKind.BREAK) -> breakStatement(previous())
+            match(TokenKind.GOTO) -> gotoStatement(previous())
+            match(TokenKind.DOUBLE_COLON) -> labelStatement(previous())
             match(TokenKind.DO) -> doStatement(previous())
             match(TokenKind.IF) -> ifStatement(previous())
             match(TokenKind.WHILE) -> whileStatement(previous())
@@ -238,6 +242,17 @@ internal class Parser private constructor(
             return BreakStatement(SourceRange(start.range.start, previous().range.end))
         }
         return BreakStatement(start.range)
+    }
+
+    private fun gotoStatement(start: Token): GotoStatement {
+        val label = consume(TokenKind.IDENTIFIER, "expected label name after 'goto'")
+        return GotoStatement(label.literal as String, SourceRange(start.range.start, label.range.end))
+    }
+
+    private fun labelStatement(start: Token): LabelStatement {
+        val label = consume(TokenKind.IDENTIFIER, "expected label name after '::'")
+        val end = consume(TokenKind.DOUBLE_COLON, "expected '::' after label name")
+        return LabelStatement(label.literal as String, SourceRange(start.range.start, end.range.end))
     }
 
     private fun doStatement(start: Token): DoStatement {

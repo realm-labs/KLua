@@ -14,11 +14,13 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
 import io.github.realmlabs.klua.core.ast.IndexAssignmentTarget
 import io.github.realmlabs.klua.core.ast.IntegerExpression
 import io.github.realmlabs.klua.core.ast.KeyedTableEntry
+import io.github.realmlabs.klua.core.ast.LabelStatement
 import io.github.realmlabs.klua.core.ast.ListTableEntry
 import io.github.realmlabs.klua.core.ast.LocalAssignmentTarget
 import io.github.realmlabs.klua.core.ast.LocalAttribute
@@ -67,15 +69,20 @@ internal class Compiler private constructor(
     private val upvalueIndexes = linkedMapOf<String, Int>()
     private val localVars = mutableListOf<LocalVarBuilder>()
     private val loopBreaks = mutableListOf<MutableList<Int>>()
+    private val labels = linkedMapOf<String, LabelTarget>()
+    private val pendingGotos = mutableListOf<PendingGoto>()
+    private val blockScopePath = mutableListOf(0)
     private var nextLocalRegister = 0
     private var maxRegister = 0
     private var hasCapturedLocals = false
+    private var nextBlockScopeId = 1
 
     fun compile(chunk: Chunk): Prototype {
         if (chunk.statements.isEmpty()) {
             emitImplicitReturn(chunk.range.start.line)
         } else {
             compileStatements(chunk.statements)
+            resolvePendingGotos()
             if (chunk.statements.last() !is ReturnStatement) {
                 emitImplicitReturn(chunk.range.end.line)
             }
@@ -110,6 +117,8 @@ internal class Compiler private constructor(
                 is LocalFunctionStatement -> compileLocalFunction(statement)
                 is ReturnStatement -> compileReturn(statement)
                 is BreakStatement -> compileBreak(statement)
+                is GotoStatement -> compileGoto(statement)
+                is LabelStatement -> compileLabel(statement)
             }
         }
     }
@@ -126,7 +135,9 @@ internal class Compiler private constructor(
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
+        enterBlockScope()
         compileStatements(statements)
+        exitBlockScope()
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
 
@@ -152,7 +163,9 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.FOR_TEST, baseRegister), statement.range.start.line)
         val loopStart = writer.size
 
+        enterBlockScope()
         compileStatements(statement.block)
+        exitBlockScope()
 
         val loopIndex = writer.size
         writer.emit(Instruction.abc(Opcode.FOR_LOOP, baseRegister, writer.jumpOffset(loopIndex, loopStart)), statement.range.start.line)
@@ -190,7 +203,9 @@ internal class Compiler private constructor(
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.TEST, valueBase), statement.range.start.line)
 
+        enterBlockScope()
         compileStatements(statement.block)
+        exitBlockScope()
 
         val backJump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
@@ -424,7 +439,9 @@ internal class Compiler private constructor(
         val savedNextLocalRegister = nextLocalRegister
         val loopStart = writer.size
 
+        enterBlockScope()
         compileStatements(statement.block)
+        exitBlockScope()
 
         val conditionRegister = nextLocalRegister
         compileExpression(statement.condition, conditionRegister)
@@ -443,6 +460,63 @@ internal class Compiler private constructor(
         val breakJump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
         breaks += breakJump
+    }
+
+    private fun compileGoto(statement: GotoStatement) {
+        val jump = writer.size
+        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        val pending = PendingGoto(
+            name = statement.label,
+            jump = jump,
+            line = statement.range.start.line,
+            localDepth = nextLocalRegister,
+            scopePath = blockScopePath.toList(),
+            statement = statement,
+        )
+        val label = labels[statement.label]
+        if (label == null) {
+            pendingGotos += pending
+            return
+        }
+        patchGoto(pending, label)
+    }
+
+    private fun compileLabel(statement: LabelStatement) {
+        if (labels.containsKey(statement.name)) {
+            throw unsupported(statement, "label '${statement.name}' already defined")
+        }
+        val label = LabelTarget(
+            name = statement.name,
+            pc = writer.size,
+            line = statement.range.start.line,
+            localDepth = nextLocalRegister,
+            scopePath = blockScopePath.toList(),
+        )
+        labels[statement.name] = label
+
+        val matching = pendingGotos.filter { pending -> pending.name == statement.name }
+        for (pending in matching) {
+            patchGoto(pending, label)
+        }
+        pendingGotos.removeAll(matching.toSet())
+    }
+
+    private fun patchGoto(goto: PendingGoto, label: LabelTarget) {
+        if (!goto.scopePath.hasPrefix(label.scopePath)) {
+            throw unsupported(goto.statement, "goto across block scopes is not supported")
+        }
+        if (goto.localDepth < label.localDepth) {
+            throw unsupported(
+                goto.statement,
+                "<goto ${goto.name}> at line ${goto.line} jumps into the scope of a local variable",
+            )
+        }
+        patchJump(goto.jump, label.pc)
+    }
+
+    private fun resolvePendingGotos() {
+        val pending = pendingGotos.firstOrNull() ?: return
+        throw unsupported(pending.statement, "no visible label '${pending.name}' for <goto> at line ${pending.line}")
     }
 
     private fun compileReturn(statement: ReturnStatement) {
@@ -949,6 +1023,18 @@ internal class Compiler private constructor(
         return CompilerException(target.range.start, "attempt to assign to const variable '${target.name}'")
     }
 
+    private fun enterBlockScope() {
+        blockScopePath += nextBlockScopeId++
+    }
+
+    private fun exitBlockScope() {
+        blockScopePath.removeLast()
+    }
+
+    private fun List<Int>.hasPrefix(prefix: List<Int>): Boolean {
+        return size >= prefix.size && prefix.indices.all { index -> this[index] == prefix[index] }
+    }
+
     private fun restoreLocals(
         savedLocals: LinkedHashMap<String, Int>,
         savedLocalAttributes: LinkedHashMap<String, LocalAttribute>,
@@ -1008,6 +1094,23 @@ internal class Compiler private constructor(
 
         data class Register(val register: Int) : PreparedAssignmentKey
     }
+
+    private data class LabelTarget(
+        val name: String,
+        val pc: Int,
+        val line: Int,
+        val localDepth: Int,
+        val scopePath: List<Int>,
+    )
+
+    private data class PendingGoto(
+        val name: String,
+        val jump: Int,
+        val line: Int,
+        val localDepth: Int,
+        val scopePath: List<Int>,
+        val statement: GotoStatement,
+    )
 
     private fun unsupported(statement: Statement, message: String): CompilerException {
         return CompilerException(statement.range.start, message)

@@ -910,4 +910,65 @@ class CompilerTest {
 
         assertEquals("bad-break.lua:1:1: 'break' outside loop", error.message)
     }
+
+    @Test
+    fun `rejects unresolved goto labels`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("goto missing", "bad-goto.lua")
+        }
+
+        assertEquals("bad-goto.lua:1:1: no visible label 'missing' for <goto> at line 1", error.message)
+    }
+
+    @Test
+    fun `rejects duplicate labels`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                ::again::
+                ::again::
+                """.trimIndent(),
+                "duplicate-label.lua",
+            )
+        }
+
+        assertEquals("duplicate-label.lua:2:1: label 'again' already defined", error.message)
+    }
+
+    @Test
+    fun `rejects goto into local variable scope`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                goto done
+                local value = 1
+                ::done::
+                return value
+                """.trimIndent(),
+                "goto-local-scope.lua",
+            )
+        }
+
+        assertEquals(
+            "goto-local-scope.lua:1:1: <goto done> at line 1 jumps into the scope of a local variable",
+            error.message,
+        )
+    }
+
+    @Test
+    fun `rejects goto into nested block scope`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                goto inside
+                do
+                    ::inside::
+                end
+                """.trimIndent(),
+                "goto-block-scope.lua",
+            )
+        }
+
+        assertEquals("goto-block-scope.lua:1:1: goto across block scopes is not supported", error.message)
+    }
 }

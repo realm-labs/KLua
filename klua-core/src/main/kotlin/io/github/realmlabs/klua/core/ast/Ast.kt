@@ -71,6 +71,16 @@ internal data class BreakStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class GotoStatement(
+    val label: String,
+    override val range: SourceRange,
+) : Statement
+
+internal data class LabelStatement(
+    val name: String,
+    override val range: SourceRange,
+) : Statement
+
 internal data class DoStatement(
     val block: List<Statement>,
     override val range: SourceRange,

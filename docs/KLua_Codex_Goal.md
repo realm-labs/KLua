@@ -165,7 +165,7 @@ Current implemented areas:
 
 - Multi-module Gradle project with Kotlin/JVM 17 modules and tests.
 - Lexer and parser for current supported Lua syntax.
-- AST model, compiler, internal bytecode, prototype model with a consolidated debug-info view and serialization-friendly snapshot hook covering source IDs, valid breakpoint line metadata, local variable debug ranges, upvalue name metadata, and function definition line ranges, Lua-style const local and for-control assignment rejection, plus constant pool and disassembler.
+- AST model, compiler, internal bytecode, prototype model with a consolidated debug-info view and serialization-friendly snapshot hook covering source IDs, valid breakpoint line metadata, local variable debug ranges, upvalue name metadata, function definition line ranges, Lua-style const local and for-control assignment rejection, and conservative same-scope `goto`/label compilation, plus constant pool and disassembler.
 - Interpreter VM with core values, stack/frame execution, expressions, locals, branches, loops, functions, calls, returns, varargs, tables, closures, upvalues, metatables, metamethods, globals, native functions, basic userdata bindings, and internal thread/yield/resume/dead-state plumbing.
 - Java-friendly `LuaState` API, high-level `Lua` facade, Kotlin convenience helpers, single-target runtime configuration, and JMH module baseline.
 - Runtime errors preserve structured source-name, line, Lua call-frame metadata, registered global and userdata host/native call-frame metadata, readable traceback strings, and API-visible explicit error objects from VM bytecode positions through core execution results, API runtime exceptions, direct native protected calls, and API coroutine runtime results, and host exceptions can survive as runtime error causes.
@@ -182,7 +182,7 @@ Current implemented areas:
 Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
-- Known Lua 5.5 language gaps include `goto`/labels and to-be-closed local semantics; `<const>` locals are parsed and enforced, while `<close>` locals are currently rejected before execution.
+- Known Lua 5.5 language gaps include full cross-scope `goto`/label semantics and to-be-closed local semantics; `<const>` locals are parsed and enforced, while `<close>` locals are currently rejected before execution.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
 - Known debug-library gaps include optional thread arguments for debug functions.
 - Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.5 conformance coverage beyond the current Lua-backed and protected-call yield/resume paths.
