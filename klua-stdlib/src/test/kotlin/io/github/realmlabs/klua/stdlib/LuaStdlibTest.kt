@@ -11207,6 +11207,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string search functions report init argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okFindString, findStringMessage = pcall(string.find, "abc", "a", "bad")
+                local okFindFraction, findFractionMessage = pcall(string.find, "abc", "a", 1.5)
+                local okMatchFraction, matchFractionMessage = pcall(string.match, "abc", "a", "1.5")
+                local okGmatchFraction, gmatchFractionMessage = pcall(string.gmatch, "abc", "a", 1.5)
+                return okFindString, findStringMessage,
+                    okFindFraction, findFractionMessage,
+                    okMatchFraction, matchFractionMessage,
+                    okGmatchFraction, gmatchFractionMessage
+                """.trimIndent(),
+                "string-search-init-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #3 to 'find' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #3 to 'find' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'match' (number has no integer representation)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #3 to 'gmatch' (number has no integer representation)", state.toString(8))
+    }
+
+    @Test
     fun `string find and match allow empty matches at string end`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
