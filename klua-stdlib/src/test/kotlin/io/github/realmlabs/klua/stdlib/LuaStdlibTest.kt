@@ -4130,26 +4130,26 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return error("boom", false)""", "error-level-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
-
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'error' (number expected)", state.toString(-1))
-
-        val fractionalState = LuaState.create()
-        LuaStdlib.openBase(fractionalState)
-
         assertEquals(
             LuaStatus.OK,
-            fractionalState.load("""return error("boom", 1.5)""", "error-level-fractional-error.lua"),
+            state.load(
+                """
+                local okBoolean, booleanMessage = pcall(error, "boom", false)
+                local okFloat, floatMessage = pcall(error, "boom", 1.5)
+                local okString, stringMessage = pcall(error, "boom", "1.5")
+                return okBoolean, booleanMessage, okFloat, floatMessage, okString, stringMessage
+                """.trimIndent(),
+                "error-level-error.lua",
+            ),
         )
-        assertEquals(LuaStatus.RUNTIME_ERROR, fractionalState.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(fractionalState.getLastError())
-        assertEquals(
-            "bad argument #2 to 'error' (number has no integer representation)",
-            fractionalState.toString(-1),
-        )
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'error' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'error' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'error' (number has no integer representation)", state.toString(6))
     }
 
     @Test

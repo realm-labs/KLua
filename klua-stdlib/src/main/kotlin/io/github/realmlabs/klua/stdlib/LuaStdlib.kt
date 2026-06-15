@@ -153,7 +153,7 @@ public object LuaStdlib {
 
     private fun error(context: LuaCallContext): LuaReturn {
         val level = if (!context.isNone(2) && !context.isNil(2)) {
-            requiredNumberIndex(context, 2, "error")
+            requiredNumberInteger(context, 2, "error")
         } else {
             1L
         }
