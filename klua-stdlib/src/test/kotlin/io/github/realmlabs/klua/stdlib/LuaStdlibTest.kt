@@ -15651,6 +15651,92 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort accepts table-like non-table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+        LuaStdlib.openDebug(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                debug.setmetatable("proxy", {
+                    __len = function(value)
+                        return value == "proxy" and 3 or 0
+                    end,
+                    __index = function(value, index)
+                        return value == "proxy" and ({ 3, 1, 2 })[index] or nil
+                    end,
+                    __newindex = function(value, key, sorted)
+                        writes[#writes + 1] = value .. ":" .. key .. ":" .. tostring(sorted)
+                    end,
+                })
+                table.sort("proxy")
+                return #writes, writes[1], writes[2], writes[3]
+                """.trimIndent(),
+                "table-sort-table-like.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("proxy:1:1", state.toString(2))
+        assertEquals("proxy:2:2", state.toString(3))
+        assertEquals("proxy:3:3", state.toString(4))
+    }
+
+    @Test
+    fun `table sort rejects table-like values missing required methods`() {
+        val indexState = LuaState.create()
+        LuaStdlib.openBase(indexState)
+        LuaStdlib.openTable(indexState)
+        LuaStdlib.openDebug(indexState)
+
+        assertEquals(
+            LuaStatus.OK,
+            indexState.load(
+                """
+                debug.setmetatable("proxy", {
+                    __len = function() return 2 end,
+                    __newindex = function() end,
+                })
+                return table.sort("proxy")
+                """.trimIndent(),
+                "table-sort-table-like-index-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, indexState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(indexState.getLastError())
+        assertEquals("bad argument #1 to 'sort' (table expected)", indexState.toString(-1))
+
+        val newIndexState = LuaState.create()
+        LuaStdlib.openBase(newIndexState)
+        LuaStdlib.openTable(newIndexState)
+        LuaStdlib.openDebug(newIndexState)
+
+        assertEquals(
+            LuaStatus.OK,
+            newIndexState.load(
+                """
+                debug.setmetatable(42, {
+                    __len = function() return 2 end,
+                    __index = { 2, 1 },
+                })
+                return table.sort(42)
+                """.trimIndent(),
+                "table-sort-table-like-newindex-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, newIndexState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(newIndexState.getLastError())
+        assertEquals("bad argument #1 to 'sort' (table expected)", newIndexState.toString(-1))
+    }
+
+    @Test
     fun `table insert reports cyclic table newindex chains`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
