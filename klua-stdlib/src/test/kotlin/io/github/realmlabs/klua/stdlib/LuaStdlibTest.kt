@@ -14484,20 +14484,21 @@ class LuaStdlibTest {
                     end,
                 })
                 table.sort(values)
-                return #writes, writes[1], writes[2], writes[3], rawget(values, 1), rawget(values, 2), rawget(values, 3)
+                return #writes, writes[1], writes[2], writes[3], writes[4], rawget(values, 1), rawget(values, 2), rawget(values, 3)
                 """.trimIndent(),
                 "table-sort-newindex.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals(3L, state.toInteger(1))
-        assertEquals("1:1", state.toString(2))
-        assertEquals("2:2", state.toString(3))
-        assertEquals("3:3", state.toString(4))
-        assertTrue(state.isNil(5))
+        assertEquals(4L, state.toInteger(1))
+        assertEquals("1:2", state.toString(2))
+        assertEquals("3:3", state.toString(3))
+        assertEquals("2:3", state.toString(4))
+        assertEquals("1:1", state.toString(5))
         assertTrue(state.isNil(6))
         assertTrue(state.isNil(7))
+        assertTrue(state.isNil(8))
     }
 
     @Test
@@ -14565,7 +14566,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals(1L, state.toInteger(1))
-        assertEquals(2L, state.toInteger(2))
+        assertEquals(3L, state.toInteger(2))
         assertEquals(3L, state.toInteger(3))
         assertTrue(state.isNil(4))
         assertTrue(state.isNil(5))
@@ -14810,6 +14811,28 @@ class LuaStdlibTest {
 
         assertEquals(2L, state.toInteger(1))
         assertEquals(1L, state.toInteger(2))
+    }
+
+    @Test
+    fun `table sort reports invalid comparator order for partitioned ranges`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {1, 2, 3, 4}
+                return pcall(table.sort, values, function() return true end)
+                """.trimIndent(),
+                "table-sort-invalid-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("invalid order function for sorting", state.toString(2))
     }
 
     @Test

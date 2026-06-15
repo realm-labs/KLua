@@ -434,27 +434,98 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #2 to 'sort' (function expected)")
         }
 
-        val values = mutableListOf<Any?>()
-        var index = 1L
-        while (index <= length) {
-            values += tableIndexValue(context, index)
-            index++
-        }
-
-        for (currentIndex in 1 until values.size) {
-            val value = values[currentIndex]
-            var cursor = currentIndex - 1
-            while (cursor >= 0 && tableSortBefore(context, value, values[cursor], hasComparator)) {
-                values[cursor + 1] = values[cursor]
-                cursor--
-            }
-            values[cursor + 1] = value
-        }
-
-        for (valueIndex in values.indices) {
-            tableSetValue(context, 1, valueIndex.toLong() + 1L, values[valueIndex])
-        }
+        tableSortRange(context, 1L, length, hasComparator)
         return LuaReturn.none()
+    }
+
+    private fun tableSortRange(context: LuaCallContext, lowIndex: Long, highIndex: Long, hasComparator: Boolean) {
+        var low = lowIndex
+        var high = highIndex
+        while (low < high) {
+            if (tableSortBefore(context, tableIndexValue(context, high), tableIndexValue(context, low), hasComparator)) {
+                tableSortSwap(context, low, high)
+            }
+            if (high - low == 1L) {
+                return
+            }
+
+            val pivotIndex = (low + high) / 2L
+            if (tableSortBefore(context, tableIndexValue(context, pivotIndex), tableIndexValue(context, low), hasComparator)) {
+                tableSortSwap(context, pivotIndex, low)
+            } else if (tableSortBefore(
+                    context,
+                    tableIndexValue(context, high),
+                    tableIndexValue(context, pivotIndex),
+                    hasComparator,
+                )
+            ) {
+                tableSortSwap(context, pivotIndex, high)
+            }
+            if (high - low == 2L) {
+                return
+            }
+
+            val pivot = tableIndexValue(context, pivotIndex)
+            tableSetValue(context, 1, pivotIndex, tableIndexValue(context, high - 1L))
+            tableSetValue(context, 1, high - 1L, pivot)
+            val partitionIndex = tableSortPartition(context, low, high, pivot, hasComparator)
+
+            if (partitionIndex - low < high - partitionIndex) {
+                tableSortRange(context, low, partitionIndex - 1L, hasComparator)
+                low = partitionIndex + 1L
+            } else {
+                tableSortRange(context, partitionIndex + 1L, high, hasComparator)
+                high = partitionIndex - 1L
+            }
+        }
+    }
+
+    private fun tableSortPartition(
+        context: LuaCallContext,
+        low: Long,
+        high: Long,
+        pivot: Any?,
+        hasComparator: Boolean,
+    ): Long {
+        var left = low
+        var right = high - 1L
+        while (true) {
+            do {
+                left++
+                val leftValue = tableIndexValue(context, left)
+                if (!tableSortBefore(context, leftValue, pivot, hasComparator)) {
+                    break
+                }
+                if (left == high - 1L) {
+                    throw LuaRuntimeException("invalid order function for sorting")
+                }
+            } while (true)
+
+            do {
+                right--
+                val rightValue = tableIndexValue(context, right)
+                if (!tableSortBefore(context, pivot, rightValue, hasComparator)) {
+                    break
+                }
+                if (right < left) {
+                    throw LuaRuntimeException("invalid order function for sorting")
+                }
+            } while (true)
+
+            if (right < left) {
+                tableSetValue(context, 1, high - 1L, tableIndexValue(context, left))
+                tableSetValue(context, 1, left, pivot)
+                return left
+            }
+
+            tableSortSwap(context, left, right)
+        }
+    }
+
+    private fun tableSortSwap(context: LuaCallContext, left: Long, right: Long) {
+        val leftValue = tableIndexValue(context, left)
+        tableSetValue(context, 1, left, tableIndexValue(context, right))
+        tableSetValue(context, 1, right, leftValue)
     }
 
     private fun tableSortBefore(
