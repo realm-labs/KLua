@@ -1195,7 +1195,7 @@ class LuaState private constructor(
 
     private inner class CoreBackedLuaCoroutine(
         private val coroutine: KLuaCoreCoroutine,
-    ) : LuaCoroutineHandle {
+    ) : LuaDebuggableCoroutineHandle {
         override fun resume(arguments: List<Any?>): LuaCoroutineResult {
             val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
             val coreArguments = arguments.map { argument -> argument.toStackValue().toCoreValue(tableCache) }
@@ -1216,6 +1216,13 @@ class LuaState private constructor(
                     hasErrorObject = result.errorObject != null,
                 )
             }
+        }
+
+        override val luaFrames: List<LuaStackFrame>
+            get() = toApiStackFrames(coroutine.luaFrames)
+
+        override fun setLocal(level: Int, index: Int, value: Any?): String? {
+            return coroutine.setLocal(level, index, value.toCoreReturnValue())
         }
     }
 

@@ -28,15 +28,18 @@ internal object LuaDebugLibrary {
     }
 
     private fun traceback(context: LuaCallContext): LuaReturn {
+        val target = threadTarget(context)
         val message = when {
-            context.isNil(1) || context.isNone(1) -> null
-            else -> context.toString(1) ?: return LuaReturn.of(context.getLuaValue(1))
+            context.isNil(target.argumentOffset + 1) || context.isNone(target.argumentOffset + 1) -> null
+            else -> context.toString(target.argumentOffset + 1)
+                ?: return LuaReturn.of(context.getLuaValue(target.argumentOffset + 1))
         }
-        val level = optionalStackLevel(context, 2, 1, "traceback")
+        val defaultLevel = if (target.isCurrentThread) 1 else 0
+        val level = optionalStackLevel(context, target.argumentOffset + 2, defaultLevel, "traceback")
         val frames = if (level < 0) {
             emptyList()
         } else {
-            context.luaFrames.drop(level)
+            target.frames.drop(level)
         }
         return LuaReturn.of(formatTraceback(message, frames))
     }
@@ -76,17 +79,19 @@ internal object LuaDebugLibrary {
     }
 
     private fun getInfo(context: LuaCallContext): LuaReturn {
-        val what = optionalString(context, 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
+        val target = threadTarget(context)
+        val what = optionalString(context, target.argumentOffset + 2, DEFAULT_GETINFO_OPTIONS, "getinfo")
         rejectPrivateGetInfoOption(what)
-        if (context.typeName(1) == "function") {
-            val info = context.getFunctionDebugInfo(1)
-            return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(1)))
+        val subjectIndex = target.argumentOffset + 1
+        if (target.isCurrentThread && context.typeName(subjectIndex) == "function") {
+            val info = context.getFunctionDebugInfo(subjectIndex)
+            return LuaReturn.of(functionInfoTable(info, what, context.getLuaValue(subjectIndex)))
         }
-        val level = requiredStackLevel(context, "getinfo")
+        val level = requiredStackLevel(context, subjectIndex, "getinfo")
         if (level < 0) {
             return LuaReturn.of(null)
         }
-        val frame = context.luaFrames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
+        val frame = target.frames.drop(level).firstOrNull() ?: return LuaReturn.of(null)
         return LuaReturn.of(frameInfoTable(frame, what))
     }
 
@@ -201,20 +206,25 @@ internal object LuaDebugLibrary {
     private fun luaFunctionWhat(lineDefined: Int): String = if (lineDefined == 0) "main" else "Lua"
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
-        val index = requiredLocalIndex(context, 2, "getlocal")
-        if (context.typeName(1) == "function") {
+        val target = threadTarget(context)
+        val index = requiredLocalIndex(context, target.argumentOffset + 2, "getlocal")
+        val subjectIndex = target.argumentOffset + 1
+        if (target.isCurrentThread && context.typeName(subjectIndex) == "function") {
             if (index <= 0) {
                 return LuaReturn.of(null)
             }
-            val info = context.getFunctionDebugInfo(1) ?: return LuaReturn.of(null)
+            val info = context.getFunctionDebugInfo(subjectIndex) ?: return LuaReturn.of(null)
             return LuaReturn.of(info.parameterNames.getOrNull(index - 1))
         }
-        val level = requiredStackLevel(context, "getlocal")
-        if (level < 0) {
-            throw LuaRuntimeException("bad argument #1 to 'getlocal' (level out of range)")
+        val level = requiredStackLevel(context, subjectIndex, "getlocal")
+        if (index == 0) {
+            return LuaReturn.of(null)
         }
-        val frame = context.luaFrames.drop(level).firstOrNull()
-            ?: throw LuaRuntimeException("bad argument #1 to 'getlocal' (level out of range)")
+        if (level < 0) {
+            throw levelOutOfRange(target.argumentOffset + 1, "getlocal")
+        }
+        val frame = target.frames.drop(level).firstOrNull()
+            ?: throw levelOutOfRange(target.argumentOffset + 1, "getlocal")
         if (index < 0) {
             val varargIndex = -index - 1
             if (varargIndex !in frame.varargs.indices) {
@@ -231,18 +241,20 @@ internal object LuaDebugLibrary {
     }
 
     private fun setLocal(context: LuaCallContext): LuaReturn {
-        val level = requiredStackLevel(context, "setlocal")
-        val index = requiredLocalIndex(context, 2, "setlocal")
+        val target = threadTarget(context)
+        val levelIndex = target.argumentOffset + 1
+        val index = requiredLocalIndex(context, target.argumentOffset + 2, "setlocal")
+        val level = requiredStackLevel(context, levelIndex, "setlocal")
         if (level < 0) {
-            throw LuaRuntimeException("bad argument #1 to 'setlocal' (level out of range)")
+            throw levelOutOfRange(levelIndex, "setlocal")
         }
-        context.luaFrames.drop(level).firstOrNull()
-            ?: throw LuaRuntimeException("bad argument #1 to 'setlocal' (level out of range)")
-        requireValueArgument(context, 3, "setlocal")
+        target.frames.drop(level).firstOrNull()
+            ?: throw levelOutOfRange(levelIndex, "setlocal")
+        requireValueArgument(context, target.argumentOffset + 3, "setlocal")
         if (index == 0) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(context.setLocal(level, index, context.get(3)))
+        return LuaReturn.of(target.setLocal(context, level, index, context.get(target.argumentOffset + 3)))
     }
 
     private fun getUpvalue(context: LuaCallContext): LuaReturn {
@@ -340,8 +352,19 @@ internal object LuaDebugLibrary {
         return requiredIntegerArgument(context, index, functionName)
     }
 
-    private fun requiredStackLevel(context: LuaCallContext, functionName: String): Int {
-        return requiredIntegerArgument(context, 1, functionName)
+    private fun requiredStackLevel(context: LuaCallContext, index: Int, functionName: String): Int {
+        return context.toInteger(index)?.toInt()
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
+    }
+
+    private fun threadTarget(context: LuaCallContext): DebugThreadTarget {
+        val coroutine = context.toUserData(1, LuaDebugThread::class.java)
+            ?: return DebugThreadTarget.Current(context.luaFrames)
+        return DebugThreadTarget.Coroutine(coroutine)
+    }
+
+    private fun levelOutOfRange(index: Int, functionName: String): LuaRuntimeException {
+        return LuaRuntimeException("bad argument #$index to '$functionName' (level out of range)")
     }
 
     private fun optionalStackLevel(
@@ -438,24 +461,36 @@ internal object LuaDebugLibrary {
         function debug.debug()
         end
 
-        function debug.traceback(message, level)
-            return klua_debug_traceback(message, level)
+        function debug.traceback(messageOrThread, messageOrLevel, level)
+            if type(messageOrThread) == "thread" then
+                return klua_debug_traceback(messageOrThread, messageOrLevel, level)
+            end
+            return klua_debug_traceback(messageOrThread, messageOrLevel)
         end
 
         function debug.getregistry()
             return klua_debug_registry
         end
 
-        function debug.getinfo(threadOrLevel, what)
-            return klua_debug_getinfo(threadOrLevel, what)
+        function debug.getinfo(threadOrLevel, levelOrWhat, what)
+            if type(threadOrLevel) == "thread" then
+                return klua_debug_getinfo(threadOrLevel, levelOrWhat, what)
+            end
+            return klua_debug_getinfo(threadOrLevel, levelOrWhat)
         end
 
-        function debug.getlocal(threadOrLevel, index)
-            return klua_debug_getlocal(threadOrLevel, index)
+        function debug.getlocal(threadOrLevel, levelOrIndex, index)
+            if type(threadOrLevel) == "thread" then
+                return klua_debug_getlocal(threadOrLevel, levelOrIndex, index)
+            end
+            return klua_debug_getlocal(threadOrLevel, levelOrIndex)
         end
 
-        function debug.setlocal(threadOrLevel, index, ...)
-            return klua_debug_setlocal(threadOrLevel, index, ...)
+        function debug.setlocal(threadOrLevel, levelOrIndex, ...)
+            if type(threadOrLevel) == "thread" then
+                return klua_debug_setlocal(threadOrLevel, levelOrIndex, ...)
+            end
+            return klua_debug_setlocal(threadOrLevel, levelOrIndex, ...)
         end
 
         function debug.getupvalue(func, index)
@@ -509,4 +544,26 @@ internal object LuaDebugLibrary {
     private const val VARARG_LOCAL_NAME = "(vararg)"
     private const val TRACEBACK_HEAD_LEVELS = 10
     private const val TRACEBACK_TAIL_LEVELS = 11
+
+    private sealed class DebugThreadTarget(
+        val argumentOffset: Int,
+        val frames: List<LuaStackFrame>,
+    ) {
+        val isCurrentThread: Boolean
+            get() = this is Current
+
+        abstract fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String?
+
+        class Current(frames: List<LuaStackFrame>) : DebugThreadTarget(0, frames) {
+            override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
+                return context.setLocal(level, index, value)
+            }
+        }
+
+        class Coroutine(private val coroutine: LuaDebugThread) : DebugThreadTarget(1, coroutine.luaFrames) {
+            override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
+                return coroutine.setLocal(level, index, value)
+            }
+        }
+    }
 }

@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaCoroutineFunction
 import io.github.realmlabs.klua.api.LuaCoroutineHandle
 import io.github.realmlabs.klua.api.LuaCoroutineResult
+import io.github.realmlabs.klua.api.LuaDebuggableCoroutineHandle
 import io.github.realmlabs.klua.api.LuaException
 import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
@@ -321,8 +322,15 @@ internal object LuaCoroutineLibrary {
         val isMain: Boolean = false,
         var closeError: Any? = null,
         var hasCloseError: Boolean = false,
-    ) : LuaTypedValue {
+    ) : LuaTypedValue, LuaDebugThread {
         override val luaTypeName: String = "thread"
+
+        override val luaFrames: List<io.github.realmlabs.klua.api.LuaStackFrame>
+            get() = (handle as? LuaDebuggableCoroutineHandle)?.luaFrames ?: emptyList()
+
+        override fun setLocal(level: Int, index: Int, value: Any?): String? {
+            return (handle as? LuaDebuggableCoroutineHandle)?.setLocal(level, index, value)
+        }
 
         fun rememberCloseError(errorValue: Any?) {
             closeError = errorValue

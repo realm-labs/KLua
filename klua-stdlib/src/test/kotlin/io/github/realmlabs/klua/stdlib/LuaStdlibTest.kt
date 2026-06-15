@@ -661,6 +661,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug traceback accepts suspended coroutine thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local function leaf()
+                        coroutine.yield("pause")
+                    end
+                    leaf()
+                end)
+
+                local ok, value = coroutine.resume(co)
+                local trace = debug.traceback(co, "boom")
+                return ok, value,
+                    string.find(trace, "^boom\nstack traceback:") == 1,
+                    string.find(trace, "debug%-thread%-traceback%.lua:") ~= nil
+                """.trimIndent(),
+                "debug-thread-traceback.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+    }
+
+    @Test
     fun `debug getinfo returns lua frame source and current line`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -1158,6 +1191,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo accepts suspended coroutine thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local function leaf()
+                        coroutine.yield("pause")
+                    end
+                    leaf()
+                end)
+
+                local ok, value = coroutine.resume(co)
+                local info = debug.getinfo(co, 0, "Sl")
+                local missing = debug.getinfo(co, 99)
+                return ok, value, info.source, info.what, info.currentline > 0, missing
+                """.trimIndent(),
+                "debug-thread-getinfo.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertEquals("debug-thread-getinfo.lua", state.toString(3))
+        assertEquals("Lua", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -1364,6 +1431,86 @@ class LuaStdlibTest {
         assertEquals("head", state.toString(5))
         assertTrue(state.isNil(6))
         assertTrue(state.isNil(7))
+    }
+
+    @Test
+    fun `debug getlocal and setlocal access active varargs`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe(...)
+                    local firstName, firstValue = debug.getlocal(1, -1)
+                    local secondName, secondValue = debug.getlocal(1, -2)
+                    local missing = debug.getlocal(1, -3)
+                    local changedName = debug.setlocal(1, -1, "changed")
+                    local changedReadName, changedReadValue = debug.getlocal(1, -1)
+                    local firstVararg, secondVararg = ...
+                    return firstName, firstValue, secondName, secondValue, missing,
+                        changedName, changedReadName, changedReadValue, firstVararg, secondVararg
+                end
+
+                return probe("first", "second")
+                """.trimIndent(),
+                "debug-vararg-local.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("(vararg)", state.toString(1))
+        assertEquals("first", state.toString(2))
+        assertEquals("(vararg)", state.toString(3))
+        assertEquals("second", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertEquals("(vararg)", state.toString(6))
+        assertEquals("(vararg)", state.toString(7))
+        assertEquals("changed", state.toString(8))
+        assertEquals("changed", state.toString(9))
+        assertEquals("second", state.toString(10))
+    }
+
+    @Test
+    fun `debug getlocal and setlocal accept suspended coroutine thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local function leaf()
+                        local text = "old"
+                        coroutine.yield("pause")
+                        return text
+                    end
+                    return leaf()
+                end)
+
+                local firstOk, firstValue = coroutine.resume(co)
+                local name, value = debug.getlocal(co, 0, 1)
+                local changedName = debug.setlocal(co, 0, 1, "new")
+                local readName, changedValue = debug.getlocal(co, 0, 1)
+                local secondOk, result = coroutine.resume(co)
+                return firstOk, firstValue, name, value, changedName, readName, changedValue, secondOk, result
+                """.trimIndent(),
+                "debug-thread-local.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertEquals("text", state.toString(3))
+        assertEquals("old", state.toString(4))
+        assertEquals("text", state.toString(5))
+        assertEquals("text", state.toString(6))
+        assertEquals("new", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("new", state.toString(9))
     }
 
     @Test

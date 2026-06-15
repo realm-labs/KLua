@@ -51,6 +51,14 @@ internal class LuaVm(
     internal val currentFrame: CallFrame?
         get() = thread.currentFrame
 
+    internal fun stackFrames(): List<LuaNativeStackFrame> {
+        return luaStackFrames(thread.stackFrames())
+    }
+
+    internal fun setLocal(level: Int, index: Int, value: LuaValue): String? {
+        return setLocal(thread.stackFrames(), level, index, value)
+    }
+
     internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
         return returnedValues(callValue(callee, arguments))
     }

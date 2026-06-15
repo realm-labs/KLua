@@ -730,6 +730,14 @@ public class KLuaCoreCoroutine internal constructor(
             started = true
         }
     }
+
+    public val luaFrames: List<KLuaCoreStackFrame>
+        get() = vm.stackFrames().toCoreStackFramesFromNative(globals)
+
+    public fun setLocal(level: Int, index: Int, value: KLuaCoreValue): String? {
+        val luaValue = value.toLuaValueOrNull(globals) ?: return null
+        return vm.setLocal(level, index, luaValue)
+    }
 }
 
 private fun LuaExecutionResult.toCoroutineExecution(globals: KLuaCoreGlobals): KLuaCoreCoroutineExecution {
