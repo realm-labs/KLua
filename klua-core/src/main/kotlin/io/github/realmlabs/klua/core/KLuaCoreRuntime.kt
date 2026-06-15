@@ -823,6 +823,14 @@ private fun KLuaCoreValue.publicTypeName(): String {
     }
 }
 
+private fun KLuaCoreValue.coreNumber(): Double? {
+    return when (this) {
+        is KLuaCoreValue.IntegerValue -> value.toDouble()
+        is KLuaCoreValue.NumberValue -> value
+        else -> null
+    }
+}
+
 private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? {
     return toLuaValueOrNull(globals, IdentityHashMap())
 }

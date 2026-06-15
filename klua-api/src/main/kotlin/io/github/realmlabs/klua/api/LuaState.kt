@@ -1132,6 +1132,40 @@ class LuaState private constructor(
         }
     }
 
+    private fun rawEqualStackValues(left: LuaStackValue?, right: LuaStackValue?): Boolean {
+        if (stackTypeName(left) != stackTypeName(right)) {
+            return false
+        }
+        return when (left) {
+            LuaStackValue.Nil -> true
+            is LuaStackValue.BooleanValue -> left.value == (right as LuaStackValue.BooleanValue).value
+            is LuaStackValue.IntegerValue -> left.value.toDouble() == stackNumber(right)
+            is LuaStackValue.NumberValue -> left.value == stackNumber(right)
+            is LuaStackValue.StringValue -> left.value == (right as LuaStackValue.StringValue).value
+            is LuaStackValue.TableValue -> left === right
+            is LuaStackValue.ChunkValue -> left === right
+            is LuaStackValue.NativeFunctionValue -> {
+                val rightFunction = right as LuaStackValue.NativeFunctionValue
+                when {
+                    left.coreFunction != null && rightFunction.coreFunction != null ->
+                        KLuaCoreRuntime.sameFunctionIdentity(left.coreFunction, rightFunction.coreFunction)
+                    else -> left.function === rightFunction.function
+                }
+            }
+            is LuaStackValue.UserDataValue -> left.value === (right as LuaStackValue.UserDataValue).value
+            is LuaStackValue.UnsupportedValue -> left === right
+            null -> right == null
+        }
+    }
+
+    private fun stackNumber(value: LuaStackValue?): Double? {
+        return when (value) {
+            is LuaStackValue.IntegerValue -> value.value.toDouble()
+            is LuaStackValue.NumberValue -> value.value
+            else -> null
+        }
+    }
+
     private fun attemptToCallMessage(value: LuaStackValue?): String {
         return "attempt to call a ${stackTypeName(value)} value"
     }
