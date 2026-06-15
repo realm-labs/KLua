@@ -262,6 +262,31 @@ internal object LuaTableLibrary {
             ?: throw LuaRuntimeException("object length is not an integer")
     }
 
+    private fun requireTableLike(
+        context: LuaCallContext,
+        index: Int,
+        functionName: String,
+        read: Boolean,
+        write: Boolean,
+        length: Boolean,
+    ) {
+        if (context.isTable(index)) {
+            return
+        }
+        val metatable = try {
+            context.getMetatable(index)
+        } catch (_: IllegalArgumentException) {
+            null
+        }
+        val hasRequiredMetamethods =
+            (!read || context.getTableField(metatable, "__index") != null) &&
+                (!write || context.getTableField(metatable, "__newindex") != null) &&
+                (!length || context.getTableField(metatable, "__len") != null)
+        if (!hasRequiredMetamethods) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (table expected)")
+        }
+    }
+
     private fun tableCreate(context: LuaCallContext): LuaReturn {
         val sequenceSize = requiredInteger(context, 1, "create")
         val recordSize = if (context.isNone(2) || context.isNil(2)) {
