@@ -883,6 +883,27 @@ class LuaVmTest {
     }
 
     @Test
+    fun `do block closes captured locals before register reuse`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local getter
+                do
+                    local captured = "block"
+                    getter = function()
+                        return captured
+                    end
+                end
+                local captured = "shadow"
+                return getter()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaString("block")), result)
+    }
+
+    @Test
     fun `executes while loop`() {
         val result = LuaVm().execute(
             Compiler.compile(

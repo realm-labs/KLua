@@ -140,6 +140,12 @@ internal class Compiler private constructor(
         enterBlockScope()
         compileStatements(statements, endLabelLocalDepth = savedNextLocalRegister)
         exitBlockScope(savedNextLocalRegister)
+        if (hasCapturedLocals) {
+            writer.emit(
+                Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister),
+                statements.lastOrNull()?.range?.end?.line ?: 0,
+            )
+        }
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
     }
 
