@@ -17670,6 +17670,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table unpack reports range argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okStartString, startStringMessage = pcall(table.unpack, {"a"}, "x", 1)
+                local okStartFraction, startFractionMessage = pcall(table.unpack, {"a"}, 1.5, 1)
+                local okEndFraction, endFractionMessage = pcall(table.unpack, {"a"}, 1, "1.5")
+                return okStartString, startStringMessage,
+                    okStartFraction, startFractionMessage,
+                    okEndFraction, endFractionMessage
+                """.trimIndent(),
+                "table-unpack-range-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'unpack' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'unpack' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'unpack' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `table unpack reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)
