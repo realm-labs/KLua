@@ -5975,6 +5975,71 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pairs and ipairs support non-table metatables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable("proxy", {
+                    __pairs = function(value)
+                        local done = false
+                        return function(state, key)
+                            if done then
+                                return nil
+                            end
+                            done = true
+                            return "seen", state .. ":" .. tostring(key)
+                        end, value, "start", "closed"
+                    end,
+                    __index = function(_, key)
+                        if key <= 2 then
+                            return "v" .. key
+                        end
+                        return nil
+                    end,
+                })
+
+                local pairCount = select("#", pairs("proxy"))
+                local pairIterator, pairState, pairKey, pairClose = pairs("proxy")
+                local firstKey, firstValue = pairIterator(pairState, pairKey)
+                local secondKey = pairIterator(pairState, firstKey)
+
+                local firstIndex, firstValueFromIpairs
+                local secondIndex, secondValueFromIpairs
+                for index, value in ipairs("proxy") do
+                    if index == 1 then
+                        firstIndex, firstValueFromIpairs = index, value
+                    else
+                        secondIndex, secondValueFromIpairs = index, value
+                    end
+                end
+
+                debug.setmetatable("proxy", nil)
+                return pairCount, pairState, pairKey, pairClose, firstKey, firstValue, secondKey,
+                    firstIndex, firstValueFromIpairs, secondIndex, secondValueFromIpairs
+                """.trimIndent(),
+                "pairs-ipairs-non-table-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(4L, state.toInteger(1))
+        assertEquals("proxy", state.toString(2))
+        assertEquals("start", state.toString(3))
+        assertEquals("closed", state.toString(4))
+        assertEquals("seen", state.toString(5))
+        assertEquals("proxy:start", state.toString(6))
+        assertTrue(state.isNil(7))
+        assertEquals(1L, state.toInteger(8))
+        assertEquals("v1", state.toString(9))
+        assertEquals(2L, state.toInteger(10))
+        assertEquals("v2", state.toString(11))
+    }
+
+    @Test
     fun `ipairs iterator reports index argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
