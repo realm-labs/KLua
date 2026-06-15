@@ -11714,18 +11714,25 @@ class LuaStdlibTest {
     @Test
     fun `string format renders hexadecimal float conversions`() {
         val state = LuaState.create()
-        LuaStdlib.openString(state)
+        LuaStdlib.openLibs(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return string.format("%a|%A|%.2a|%12a|%012a|%+12a|%.0a|%#.0a", 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5)""",
+                """
+                return string.format("%a|%A|%.2a|%12a|%012a|%+12a|%.0a|%#.0a|%a|%A|%a|%A|%a|%A",
+                    1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5, 1.5,
+                    math.huge, math.huge, -math.huge, -math.huge, 0 / 0, 0 / 0)
+                """.trimIndent(),
                 "string-format-hex-float.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals("0x1.8p+0|0X1.8P+0|0x1.80p+0|    0x1.8p+0|0x00001.8p+0|   +0x1.8p+0|0x1p+0|0x1.p+0", state.toString(1))
+        assertEquals(
+            "0x1.8p+0|0X1.8P+0|0x1.80p+0|    0x1.8p+0|0x00001.8p+0|   +0x1.8p+0|0x1p+0|0x1.p+0|inf|INF|-inf|-INF|nan|NAN",
+            state.toString(1),
+        )
     }
 
     @Test
