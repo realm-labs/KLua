@@ -16721,13 +16721,29 @@ class LuaStdlibTest {
     @Test
     fun `table remove reports position argument errors`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openTable(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return table.remove({"a"}, 3)""", "table-remove-position-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okString, stringMessage = pcall(table.remove, {"a"}, "not-index")
+                local okFraction, fractionMessage = pcall(table.remove, {"a"}, 1.5)
+                local okBounds, boundsMessage = pcall(table.remove, {"a"}, 3)
+                return okString, stringMessage, okFraction, fractionMessage, okBounds, boundsMessage
+                """.trimIndent(),
+                "table-remove-position-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #2 to 'remove' (position out of bounds)", state.toString(-1))
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'remove' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'remove' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'remove' (position out of bounds)", state.toString(6))
     }
 
     @Test
