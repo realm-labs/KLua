@@ -2711,6 +2711,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package searchers return source compatible miss diagnostics`() {
+        val root = Files.createTempDirectory("klua-searcher-miss")
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = "${root.luaPath()}/?.lua"
+                local preloadMessage, preloadExtra = package.searchers[1]("missing")
+                local luaMessage, luaExtra = package.searchers[2]("missing")
+                return preloadMessage, preloadExtra, luaMessage, luaExtra
+                """.trimIndent(),
+                "package-searcher-miss.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("\n\tno field package.preload['missing']", state.toString(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.toString(3)?.contains("no file '${root}/missing.lua'") == true)
+        assertTrue(state.isNil(4))
+    }
+
+    @Test
     fun `require appends string searcher diagnostics and skips false searchers`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

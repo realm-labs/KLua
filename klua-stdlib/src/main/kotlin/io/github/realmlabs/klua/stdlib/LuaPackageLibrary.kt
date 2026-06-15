@@ -141,7 +141,7 @@ internal object LuaPackageLibrary {
                 if loader ~= nil then
                     return loader, ":preload:"
                 end
-                return "no field package.preload['" .. name .. "']"
+                return "\n\tno field package.preload['" .. name .. "']"
             end,
 
             function(name)
