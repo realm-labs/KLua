@@ -7101,6 +7101,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine resume preserves lua error objects`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local marker = {name = "marker"}
+                local co = coroutine.create(function()
+                    error(marker)
+                end)
+                local ok, err = coroutine.resume(co)
+                return ok, err == marker, err.name, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-error-object.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("marker", state.toString(3))
+        assertEquals("dead", state.toString(4))
+    }
+
+    @Test
     fun `coroutine wrap resumes yielding functions and raises failures`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
