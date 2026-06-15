@@ -222,7 +222,7 @@ internal object LuaPackageLibrary {
                     return value, extra
                 end
                 if loaderType == "string" then
-                    errors = errors .. "\n\t" .. loader
+                    errors = errors .. loader
                 end
                 index = index + 1
             end

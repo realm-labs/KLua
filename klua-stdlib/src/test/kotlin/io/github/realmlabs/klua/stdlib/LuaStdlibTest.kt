@@ -3308,6 +3308,9 @@ class LuaStdlibTest {
                     function()
                         return false
                     end,
+                    function()
+                        return false, "\n\tignored extra miss"
+                    end,
                 }
                 local ok, message = pcall(require, "custom")
                 return ok, message, package._searcherResultType
