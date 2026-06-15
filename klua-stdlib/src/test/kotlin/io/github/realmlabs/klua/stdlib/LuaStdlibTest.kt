@@ -4096,6 +4096,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pcall invokes callable table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local callable = setmetatable({prefix = "ok"}, {
+                    __call = function(self, value)
+                        return self.prefix .. value
+                    end,
+                })
+                local ok, value = pcall(callable, "!")
+                local failing = setmetatable({}, {
+                    __call = function()
+                        error("boom")
+                    end,
+                })
+                local failed, message = pcall(failing)
+                return ok, value, failed, message
+                """.trimIndent(),
+                "pcall-callable-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("ok!", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toString(4)?.startsWith("pcall-callable-table.lua:") == true, state.toString(4))
+        assertTrue(state.toString(4)?.endsWith(": boom") == true, state.toString(4))
+    }
+
+    @Test
     fun `pcall can yield and resume inside coroutine`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -4290,6 +4325,45 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("error in error handling", state.toString(2))
+    }
+
+    @Test
+    fun `xpcall invokes callable table values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local callable = setmetatable({prefix = "ok"}, {
+                    __call = function(self, value)
+                        return self.prefix .. value
+                    end,
+                })
+                local ok, value = xpcall(callable, function(message)
+                    return "handled:" .. message
+                end, "!")
+                local failing = setmetatable({}, {
+                    __call = function()
+                        error("boom")
+                    end,
+                })
+                local failed, handled = xpcall(failing, function(message)
+                    return "handled:" .. message
+                end)
+                return ok, value, failed, handled
+                """.trimIndent(),
+                "xpcall-callable-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("ok!", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toString(4)?.startsWith("handled:xpcall-callable-table.lua:") == true, state.toString(4))
+        assertTrue(state.toString(4)?.endsWith(": boom") == true, state.toString(4))
     }
 
     @Test

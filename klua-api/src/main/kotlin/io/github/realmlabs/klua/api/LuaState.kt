@@ -20,6 +20,8 @@ import java.math.BigInteger
 import java.util.IdentityHashMap
 import java.util.function.Consumer
 
+private const val MAX_CALL_METAMETHOD_DEPTH = 16
+
 class LuaState private constructor(
     val config: LuaConfig,
 ) {
@@ -29,6 +31,7 @@ class LuaState private constructor(
     private val userMetatables = IdentityHashMap<Any, LuaStackValue.TableValue>()
     private val coreBackedNativeGlobals = mutableSetOf<String>()
     private val userValues = IdentityHashMap<Any, MutableMap<Int, LuaStackValue>>()
+    private val callMetamethodKey = LuaStackValue.StringValue("__call")
     private var lastError: LuaException? = null
 
     companion object {
@@ -1377,16 +1380,11 @@ class LuaState private constructor(
         }
 
         override fun call(index: Int, arguments: List<Any?>): LuaReturn {
-            val function = valueAt(index) as? LuaStackValue.NativeFunctionValue
-                ?: throw IllegalArgumentException(attemptToCallMessage(valueAt(index)))
-            return callFunction(function, arguments)
+            return callStackValue(valueAt(index), arguments)
         }
 
         override fun call(function: Any?, arguments: List<Any?>): LuaReturn {
-            val stackFunction = function.toStackValue()
-            val nativeFunction = stackFunction as? LuaStackValue.NativeFunctionValue
-                ?: throw IllegalArgumentException(attemptToCallMessage(stackFunction))
-            return callFunction(nativeFunction, arguments)
+            return callStackValue(function.toStackValue(), arguments)
         }
 
         override fun yield(values: List<Any?>): Nothing {
@@ -1478,6 +1476,35 @@ class LuaState private constructor(
                     isYieldable,
                 ),
             )
+        }
+
+        private fun callStackValue(
+            value: LuaStackValue?,
+            arguments: List<Any?>,
+            depth: Int = 0,
+        ): LuaReturn {
+            if (value is LuaStackValue.NativeFunctionValue) {
+                return callFunction(value, arguments)
+            }
+            val callTarget = callMetamethod(value)
+            if (callTarget != null && depth < MAX_CALL_METAMETHOD_DEPTH) {
+                return callStackValue(
+                    callTarget,
+                    listOf(value?.toPublicCallReturnValue()) + arguments,
+                    depth + 1,
+                )
+            }
+            throw IllegalArgumentException(attemptToCallMessage(callTarget ?: value))
+        }
+
+        private fun callMetamethod(value: LuaStackValue?): LuaStackValue? {
+            val metatable = when (value) {
+                is LuaStackValue.TableValue -> value.metatable
+                is LuaStackValue.UserDataValue -> userMetatables[value.value]
+                null -> null
+                else -> KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, stackTypeName(value))?.toStackValue()
+            }
+            return metatable?.fields?.get(callMetamethodKey)
         }
 
         override fun getTable(index: Int): Any? {
