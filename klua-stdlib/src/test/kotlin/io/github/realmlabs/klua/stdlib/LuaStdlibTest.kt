@@ -14467,6 +14467,18 @@ class LuaStdlibTest {
         assertEquals("bad argument #1 to 'move' (table expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("bad argument #5 to 'move' (table expected)", state.toString(4))
+
+        val orderState = LuaState.create()
+        LuaStdlib.openTable(orderState)
+
+        assertEquals(
+            LuaStatus.OK,
+            orderState.load("""return table.move("not-table", "not-integer", 1, 1)""", "table-move-validation-order.lua"),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, orderState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(orderState.getLastError())
+        assertEquals("bad argument #2 to 'move' (number expected)", orderState.toString(-1))
     }
 
     @Test
