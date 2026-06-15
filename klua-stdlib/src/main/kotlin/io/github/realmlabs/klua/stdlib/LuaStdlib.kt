@@ -745,11 +745,6 @@ public object LuaStdlib {
         return "attempt to load a text chunk (mode is '$mode')"
     }
 
-    private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
-        return context.toInteger(index)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (integer expected)")
-    }
-
     private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {
         return context.toNumber(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
