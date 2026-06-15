@@ -2266,6 +2266,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug upvalue helpers report nonintegral index errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function make(value)
+                    return function()
+                        return value
+                    end
+                end
+                local left = make("left")
+                local right = make("right")
+                local okGet, getMessage = pcall(debug.getupvalue, left, 1.5)
+                local okSetup, setupMessage = pcall(debug.setupvalue, left, 1.5, "value")
+                local okId, idMessage = pcall(debug.upvalueid, left, 1.5)
+                local okJoinTarget, joinTargetMessage = pcall(debug.upvaluejoin, left, 1.5, right, 1)
+                return okGet, getMessage,
+                    okSetup, setupMessage,
+                    okId, idMessage,
+                    okJoinTarget, joinTargetMessage
+                """.trimIndent(),
+                "debug-upvalue-nonintegral-index-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'getupvalue' (number has no integer representation)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'setupvalue' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'upvalueid' (number has no integer representation)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'upvaluejoin' (number has no integer representation)", state.toString(8))
+    }
+
+    @Test
     fun `debug setupvalue mutates lua closure upvalues`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
