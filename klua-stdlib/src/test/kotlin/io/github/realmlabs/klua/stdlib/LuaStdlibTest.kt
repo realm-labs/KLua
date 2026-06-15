@@ -10935,6 +10935,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string sub reports range argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okStartString, startStringMessage = pcall(string.sub, "ABC", "x", 1)
+                local okStartFraction, startFractionMessage = pcall(string.sub, "ABC", 1.5, 1)
+                local okEndFraction, endFractionMessage = pcall(string.sub, "ABC", 1, "1.5")
+                return okStartString, startStringMessage,
+                    okStartFraction, startFractionMessage,
+                    okEndFraction, endFractionMessage
+                """.trimIndent(),
+                "string-sub-range-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'sub' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'sub' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'sub' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `string lower and upper use ascii byte case mapping`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
