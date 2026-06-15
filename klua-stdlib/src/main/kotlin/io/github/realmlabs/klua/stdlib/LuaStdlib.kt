@@ -97,6 +97,16 @@ public object LuaStdlib {
         val returnValue: LuaReturn,
     )
 
+    private data class LoadFileSource(
+        val source: String,
+        val chunkName: String,
+    )
+
+    private data class LoadFileRead(
+        val source: LoadFileSource? = null,
+        val error: String? = null,
+    )
+
     @JvmStatic
     public fun openMath(state: LuaState): LuaState {
         return LuaMathLibrary.open(state)
@@ -284,6 +294,33 @@ public object LuaStdlib {
         if ('t' !in mode) {
             return LuaReturn.of(null, textChunkModeError(mode))
         }
+        val read = readLoadFileSource(filename, state)
+        val source = read.source
+            ?: return LuaReturn.of(null, read.error ?: "cannot read file '$filename'")
+        val environment = if (environmentIndex == null) {
+            LoadEnvironment(null, provided = false)
+        } else {
+            optionalLoadEnvironment(context, environmentIndex)
+        }
+        return context.load(source.source, source.chunkName, environment.value, environment.provided)
+    }
+
+    private fun dofile(context: LuaCallContext, state: LuaState): LuaReturn {
+        val filename = if (context.isNone(1) || context.isNil(1)) {
+            null
+        } else {
+            requiredString(context, 1, "dofile")
+        }
+        val read = readLoadFileSource(filename, state)
+        val source = read.source
+            ?: throw LuaRuntimeException(read.error ?: "cannot read file '$filename'")
+        val loaded = context.load(source.source, source.chunkName)
+        val function = loaded.get(1)
+            ?: throw LuaRuntimeException(loaded.get(2)?.toString() ?: "cannot load file")
+        return context.call(function, emptyList())
+    }
+
+    private fun readLoadFileSource(filename: String?, state: LuaState): LoadFileRead {
         val source = try {
             if (filename == null) {
                 state.config.standardInput.get()
@@ -291,14 +328,9 @@ public object LuaStdlib {
                 Files.readString(Path.of(filename))
             }
         } catch (error: IOException) {
-            return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
+            return LoadFileRead(error = error.message ?: "cannot read file '$filename'")
         }
-        val environment = if (environmentIndex == null) {
-            LoadEnvironment(null, provided = false)
-        } else {
-            optionalLoadEnvironment(context, environmentIndex)
-        }
-        return context.load(source, filename ?: "=stdin", environment.value, environment.provided)
+        return LoadFileRead(source = LoadFileSource(source, filename ?: "=stdin"))
     }
 
     private fun optionalLoadEnvironment(context: LuaCallContext, index: Int): LoadEnvironment {
@@ -312,15 +344,6 @@ public object LuaStdlib {
         val value: Any?,
         val provided: Boolean,
     )
-
-    private fun dofile(context: LuaCallContext, state: LuaState): LuaReturn {
-        val loaded = loadFile(context, state, "dofile", "bt", environmentIndex = null)
-        val function = loaded.get(1)
-        if (function == null) {
-            throw LuaRuntimeException(loaded.get(2)?.toString() ?: "cannot load file")
-        }
-        return context.call(function, emptyList())
-    }
 
     private fun ipairs(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "ipairs")
