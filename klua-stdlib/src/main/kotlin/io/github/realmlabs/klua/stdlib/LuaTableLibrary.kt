@@ -404,6 +404,10 @@ internal object LuaTableLibrary {
         if (!validTableRemovePosition(position, length)) {
             throw LuaRuntimeException("bad argument #2 to 'remove' (position out of bounds)")
         }
+        if (position > length || position == 0L) {
+            tableSetValue(context, 1, position, null)
+            return LuaReturn.of(null)
+        }
 
         val removed = tableIndexValue(context, position)
         var index = position

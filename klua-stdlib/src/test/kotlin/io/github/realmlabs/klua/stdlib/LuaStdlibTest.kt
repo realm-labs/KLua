@@ -14625,7 +14625,9 @@ class LuaStdlibTest {
                     end,
                 })
                 local removed = table.remove(values, 1)
-                return removed, #writes, writes[1], writes[2], rawget(values, 1), rawget(values, 2)
+                local trailing = table.remove(values, 3)
+                return removed, #writes, writes[1], writes[2], writes[3],
+                    trailing, rawget(values, 1), rawget(values, 2), rawget(values, 3)
                 """.trimIndent(),
                 "table-remove-newindex.lua",
             ),
@@ -14633,11 +14635,14 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("a", state.toString(1))
-        assertEquals(2L, state.toInteger(2))
+        assertEquals(3L, state.toInteger(2))
         assertEquals("1:b", state.toString(3))
         assertEquals("2:nil", state.toString(4))
-        assertTrue(state.isNil(5))
+        assertEquals("3:nil", state.toString(5))
         assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.isNil(8))
+        assertTrue(state.isNil(9))
     }
 
     @Test
