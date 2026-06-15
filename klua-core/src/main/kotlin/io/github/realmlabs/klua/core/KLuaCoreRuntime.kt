@@ -779,6 +779,34 @@ public class KLuaCoreCoroutine internal constructor(
         }
     }
 
+    public fun close(): KLuaCoreCoroutineExecution {
+        if (dead) {
+            return KLuaCoreCoroutineExecution.Returned(emptyList())
+        }
+        val continuation = pendingContinuation
+        pendingContinuation = null
+        dead = true
+        return if (continuation == null) {
+            KLuaCoreCoroutineExecution.Returned(emptyList())
+        } else {
+            try {
+                when (val result = continuation.resume(emptyList())) {
+                    is LuaExecutionResult.Returned -> KLuaCoreCoroutineExecution.Returned(emptyList())
+                    is LuaExecutionResult.Yielded -> KLuaCoreCoroutineExecution.RuntimeError("attempt to yield while closing coroutine")
+                }
+            } catch (error: LuaVmException) {
+                KLuaCoreCoroutineExecution.RuntimeError(
+                    error.message ?: "runtime error",
+                    error.sourceName,
+                    error.line,
+                    error.rootCause(),
+                    error.luaFrames.toCoreStackFrames(),
+                    error.errorObject?.let { toPublicValue(it, globals) },
+                )
+            }
+        }
+    }
+
     public val luaFrames: List<KLuaCoreStackFrame>
         get() = vm.stackFrames().toCoreStackFramesFromNative(globals)
 

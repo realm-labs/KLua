@@ -1249,6 +1249,26 @@ class LuaState private constructor(
             }
         }
 
+        override fun close(): LuaCoroutineResult {
+            return when (val result = coroutine.close()) {
+                is KLuaCoreCoroutineExecution.Returned -> LuaCoroutineResult.Returned(
+                    result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
+                )
+                is KLuaCoreCoroutineExecution.Yielded -> LuaCoroutineResult.RuntimeError(
+                    "attempt to yield while closing coroutine",
+                )
+                is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(
+                    result.message,
+                    sourceName = result.sourceName,
+                    line = result.line,
+                    cause = result.cause,
+                    luaFrames = toApiStackFrames(result.luaFrames),
+                    errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                    hasErrorObject = result.errorObject != null,
+                )
+            }
+        }
+
         override val luaFrames: List<LuaStackFrame>
             get() = toApiStackFrames(coroutine.luaFrames)
 

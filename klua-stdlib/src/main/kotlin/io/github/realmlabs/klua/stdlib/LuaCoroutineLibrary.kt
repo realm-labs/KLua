@@ -183,8 +183,42 @@ internal object LuaCoroutineLibrary {
             coroutine.status = CoroutineStatus.DEAD
             context.yield(listOf(SelfCloseSignal))
         }
+        coroutine.handle?.let { handle ->
+            return closeCoroutineHandle(coroutine, handle)
+        }
+        if (coroutine.pendingYield != null) {
+            return closeHostYieldableCoroutine(coroutine)
+        }
         coroutine.status = CoroutineStatus.DEAD
         return LuaReturn.of(true)
+    }
+
+    private fun closeCoroutineHandle(coroutine: LuaCoroutine, handle: LuaCoroutineHandle): LuaReturn {
+        coroutine.status = CoroutineStatus.DEAD
+        return when (val result = handle.close()) {
+            is LuaCoroutineResult.Returned -> LuaReturn.of(true)
+            is LuaCoroutineResult.Yielded -> LuaReturn.of(false, "attempt to yield while closing coroutine")
+            is LuaCoroutineResult.RuntimeError -> {
+                LuaReturn.of(false, if (result.hasErrorObject) result.errorObject else result.message)
+            }
+        }
+    }
+
+    private fun closeHostYieldableCoroutine(coroutine: LuaCoroutine): LuaReturn {
+        val yield = coroutine.pendingYield
+            ?: return LuaReturn.of(true)
+        coroutine.pendingYield = null
+        coroutine.status = CoroutineStatus.DEAD
+        return try {
+            yield.continueWith(emptyList())
+            LuaReturn.of(true)
+        } catch (exception: LuaYieldException) {
+            LuaReturn.of(false, "attempt to yield while closing coroutine")
+        } catch (exception: LuaException) {
+            LuaReturn.of(false, coroutineErrorObject(exception))
+        } catch (exception: RuntimeException) {
+            LuaReturn.of(false, exception.message ?: exception::class.java.simpleName)
+        }
     }
 
     private fun coroutineIsYieldable(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {

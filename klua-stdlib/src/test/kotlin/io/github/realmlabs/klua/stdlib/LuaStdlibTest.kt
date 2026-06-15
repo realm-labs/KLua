@@ -9133,6 +9133,87 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine close reports suspended host continuation failures`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostYieldThenFail",
+            LuaYieldableFunction { context ->
+                try {
+                    context.yield(listOf("pause"))
+                } catch (yield: LuaYieldException) {
+                    throw yield.withContinuation {
+                        throw LuaRuntimeException("close boom")
+                    }
+                }
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(hostYieldThenFail)
+                local resumeOk, yielded = coroutine.resume(co)
+                local closeOk, closeMessage = coroutine.close(co)
+                return resumeOk, yielded, closeOk, closeMessage, coroutine.status(co),
+                    coroutine.resume(co)
+                """.trimIndent(),
+                "coroutine-close-host-failure.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("close boom", state.toString(4))
+        assertEquals("dead", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("cannot resume dead coroutine", state.toString(7))
+    }
+
+    @Test
+    fun `coroutine close completes suspended host continuations`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+        val closed = mutableListOf<String>()
+        state.register(
+            "hostYieldThenClose",
+            LuaYieldableFunction { context ->
+                try {
+                    context.yield(listOf("pause"))
+                } catch (yield: LuaYieldException) {
+                    throw yield.withContinuation {
+                        closed += "closed"
+                        LuaReturn.none()
+                    }
+                }
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(hostYieldThenClose)
+                local resumeOk, yielded = coroutine.resume(co)
+                local closeOk = coroutine.close(co)
+                return resumeOk, yielded, closeOk, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-close-host-success.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("dead", state.toString(4))
+        assertEquals(listOf("closed"), closed)
+    }
+
+    @Test
     fun `coroutine close lets running coroutine close itself`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
