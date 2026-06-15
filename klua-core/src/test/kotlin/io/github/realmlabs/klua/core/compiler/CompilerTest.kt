@@ -1015,6 +1015,23 @@ class CompilerTest {
     }
 
     @Test
+    fun `allows goto to label before trailing semicolon no ops`() {
+        val prototype = Compiler.compile(
+            """
+            do
+                goto done
+                local value = 1
+                ::done::;;
+            end
+            return 2
+            """.trimIndent(),
+            "goto-end-label-semicolon.lua",
+        )
+
+        assertEquals("goto-end-label-semicolon.lua", prototype.sourceName)
+    }
+
+    @Test
     fun `rejects exported goto into later outer local scope`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile(
