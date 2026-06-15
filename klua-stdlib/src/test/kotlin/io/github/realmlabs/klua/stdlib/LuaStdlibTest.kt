@@ -13171,6 +13171,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pack reports integer argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local okString, stringMessage = pcall(string.pack, "b", "bad")
+                local okFraction, fractionMessage = pcall(string.pack, "b", 1.5)
+                local okStringNumber, stringNumberMessage = pcall(string.pack, "b", "1.5")
+                return okString, stringMessage,
+                    okFraction, fractionMessage,
+                    okStringNumber, stringNumberMessage
+                """.trimIndent(),
+                "string-pack-integer-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'pack' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'pack' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'pack' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
     fun `string pack reports format errors with pack caller`() {
         fun assertPackError(chunk: String, chunkName: String, expected: String) {
             val state = LuaState.create()
