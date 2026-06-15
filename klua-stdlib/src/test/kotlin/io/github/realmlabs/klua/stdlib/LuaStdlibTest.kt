@@ -3719,6 +3719,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `xpcall reports error handler failures`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return xpcall(function()
+                    error("boom")
+                end, function()
+                    error("handler boom")
+                end)
+                """.trimIndent(),
+                "xpcall-handler-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("error in error handling", state.toString(2))
+    }
+
+    @Test
     fun `xpcall can yield and resume inside coroutine`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -3833,6 +3857,40 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(8))
         assertEquals("done", state.toString(9))
         assertEquals("dead", state.toString(10))
+    }
+
+    @Test
+    fun `xpcall reports error handler failures after yield`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    return xpcall(function()
+                        error("boom")
+                    end, function()
+                        coroutine.yield("handling")
+                        error("handler boom")
+                    end)
+                end)
+                local firstOk, yielded = coroutine.resume(co)
+                local secondOk, protectedOk, message = coroutine.resume(co)
+                return firstOk, yielded, secondOk, protectedOk, message, coroutine.status(co)
+                """.trimIndent(),
+                "xpcall-handler-yield-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("handling", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("error in error handling", state.toString(5))
+        assertEquals("dead", state.toString(6))
     }
 
     @Test
