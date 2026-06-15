@@ -1285,6 +1285,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal validates local index before stack level`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.getlocal, "not-level", "not-index")
+                return ok, message
+                """.trimIndent(),
+                "debug-getlocal-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(2))
+    }
+
+    @Test
     fun `debug getlocal returns function parameter names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
