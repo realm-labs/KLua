@@ -7262,6 +7262,71 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `non-table unary metamethods handle source operators`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local minusArgs
+                debug.setmetatable(false, {
+                    __unm = function(left, right)
+                        minusArgs = { left, right, left == right }
+                        return "negated"
+                    end,
+                })
+
+                local marker = function() end
+                local bitwiseArgs
+                debug.setmetatable(marker, {
+                    __bnot = function(left, right)
+                        bitwiseArgs = { left == marker, right == marker, left == right }
+                        return "inverted"
+                    end,
+                })
+
+                local minusResult = -false
+                local bitwiseResult = ~marker
+                local missingMinusOk, missingMinusMessage = pcall(function()
+                    return -"plain"
+                end)
+                local missingBitwiseOk, missingBitwiseMessage = pcall(function()
+                    return ~"plain"
+                end)
+
+                debug.setmetatable(false, nil)
+                debug.setmetatable(marker, nil)
+
+                return minusResult, minusArgs[1], minusArgs[2], minusArgs[3],
+                    bitwiseResult, bitwiseArgs[1], bitwiseArgs[2], bitwiseArgs[3],
+                    missingMinusOk, missingMinusMessage,
+                    missingBitwiseOk, missingBitwiseMessage
+                """.trimIndent(),
+                "non-table-unary-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("negated", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("inverted", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertFalse(state.toBoolean(9))
+        assertTrue(state.toString(10)?.endsWith("attempt to perform arithmetic on string") == true, state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertTrue(
+            state.toString(12)?.endsWith("attempt to perform bitwise operation on string") == true,
+            state.toString(12),
+        )
+    }
+
+    @Test
     fun `debug metatable functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
