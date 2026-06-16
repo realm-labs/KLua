@@ -9426,7 +9426,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 local now = os.time()
-                return type(os), type(os.clock), type(os.difftime), type(os.getenv), type(os.time),
+                return type(os), type(os.clock), type(os.date), type(os.difftime), type(os.getenv), type(os.time),
                     type(now), os.difftime(now, now)
                 """.trimIndent(),
                 "open-libs-os.lua",
@@ -9439,8 +9439,9 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(3))
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
-        assertEquals("number", state.toString(6))
-        assertEquals(0.0, state.toNumber(7) ?: error("missing difftime result"), 0.0)
+        assertEquals("function", state.toString(6))
+        assertEquals("number", state.toString(7))
+        assertEquals(0.0, state.toNumber(8) ?: error("missing difftime result"), 0.0)
     }
 
     @Test
@@ -9551,6 +9552,74 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os date returns source compatible utc date tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local epoch = os.date("!*t", 0)
+                local nextDay = os.date("!*t", 86400)
+                return epoch.year, epoch.month, epoch.day,
+                    epoch.hour, epoch.min, epoch.sec,
+                    epoch.wday, epoch.yday, epoch.isdst,
+                    nextDay.day, nextDay.wday, nextDay.yday
+                """.trimIndent(),
+                "os-date-utc-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1970L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals(5L, state.toInteger(7))
+        assertEquals(1L, state.toInteger(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals(2L, state.toInteger(10))
+        assertEquals(6L, state.toInteger(11))
+        assertEquals(2L, state.toInteger(12))
+    }
+
+    @Test
+    fun `os date local table results roundtrip through os time`() {
+        val state = LuaState.create()
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local source = {year = 2020, month = 1, day = 2, hour = 3, min = 4, sec = 5}
+                local time = os.time(source)
+                local date = os.date("*t", time)
+                local roundtrip = os.time(date)
+                return os.difftime(roundtrip, time),
+                    date.year, date.month, date.day, date.hour, date.min, date.sec,
+                    date.wday ~= nil, date.yday
+                """.trimIndent(),
+                "os-date-local-roundtrip.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0.0, state.toNumber(1) ?: error("missing difftime result"), 0.0)
+        assertEquals(2020L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals(3L, state.toInteger(5))
+        assertEquals(4L, state.toInteger(6))
+        assertEquals(5L, state.toInteger(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals(2L, state.toInteger(9))
+    }
+
+    @Test
     fun `os time and difftime report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -9567,13 +9636,17 @@ class LuaStdlibTest {
                 local rightOk, rightMessage = pcall(os.difftime, 1, 1.5)
                 local missingEnv = os.getenv("KLUA_ENV_DOES_NOT_EXIST_0123456789")
                 local envOk, envMessage = pcall(os.getenv, {})
+                local dateFormatOk, dateFormatMessage = pcall(os.date, "%Y", 0)
+                local dateTimeOk, dateTimeMessage = pcall(os.date, "!*t", "bad")
                 return tableOk, tableMessage,
                     missingOk, missingMessage,
                     fieldOk, fieldMessage,
                     leftOk, leftMessage,
                     rightOk, rightMessage,
                     missingEnv,
-                    envOk, envMessage
+                    envOk, envMessage,
+                    dateFormatOk, dateFormatMessage,
+                    dateTimeOk, dateTimeMessage
                 """.trimIndent(),
                 "os-time-errors.lua",
             ),
@@ -9593,6 +9666,10 @@ class LuaStdlibTest {
         assertTrue(state.isNil(11))
         assertFalse(state.toBoolean(12))
         assertEquals("bad argument #1 to 'os.getenv' (string expected)", state.toString(13))
+        assertFalse(state.toBoolean(14))
+        assertEquals("bad argument #1 to 'os.date' (unsupported date format)", state.toString(15))
+        assertFalse(state.toBoolean(16))
+        assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(17))
     }
 
     @Test

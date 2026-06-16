@@ -8,12 +8,15 @@ import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.time.ZoneOffset
+import java.time.ZonedDateTime
 
 internal object LuaOsLibrary {
     fun open(state: LuaState): LuaState {
         val startNanos = System.nanoTime()
         state.newTable()
         setFunctionField(state, "clock") { context -> clock(context, startNanos) }
+        setFunctionField(state, "date", ::date)
         setFunctionField(state, "difftime", ::difftime)
         setFunctionField(state, "getenv", ::getenv)
         setFunctionField(state, "time", ::time)
@@ -33,6 +36,33 @@ internal object LuaOsLibrary {
 
     private fun getenv(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(System.getenv(requiredString(context, 1, "os.getenv")))
+    }
+
+    private fun date(context: LuaCallContext): LuaReturn {
+        val format = if (context.isNone(1) || context.isNil(1)) {
+            "%c"
+        } else {
+            requiredString(context, 1, "os.date")
+        }
+        val time = if (context.isNone(2) || context.isNil(2)) {
+            Instant.now().epochSecond
+        } else {
+            requiredTime(context, 2, "os.date")
+        }
+
+        val utc = format.startsWith('!')
+        val body = if (utc) format.substring(1) else format
+        if (body != "*t") {
+            throw LuaRuntimeException("bad argument #1 to 'os.date' (unsupported date format)")
+        }
+
+        val zone = if (utc) ZoneOffset.UTC else ZoneId.systemDefault()
+        val dateTime = try {
+            Instant.ofEpochSecond(time).atZone(zone)
+        } catch (_: DateTimeException) {
+            throw LuaRuntimeException("date result cannot be represented in this installation")
+        }
+        return LuaReturn.of(dateTimeFields(dateTime))
     }
 
     private fun time(context: LuaCallContext): LuaReturn {
@@ -75,6 +105,20 @@ internal object LuaOsLibrary {
         context.setTableValue(1, "isdst", normalized.zone.rules.isDaylightSavings(normalized.toInstant()))
 
         return LuaReturn.of(normalized.toEpochSecond())
+    }
+
+    private fun dateTimeFields(dateTime: ZonedDateTime): LinkedHashMap<String, Any?> {
+        return linkedMapOf(
+            "year" to dateTime.year.toLong(),
+            "month" to dateTime.monthValue.toLong(),
+            "day" to dateTime.dayOfMonth.toLong(),
+            "hour" to dateTime.hour.toLong(),
+            "min" to dateTime.minute.toLong(),
+            "sec" to dateTime.second.toLong(),
+            "wday" to (dateTime.dayOfWeek.value % 7L + 1L),
+            "yday" to dateTime.dayOfYear.toLong(),
+            "isdst" to dateTime.zone.rules.isDaylightSavings(dateTime.toInstant()),
+        )
     }
 
     private fun requiredTime(context: LuaCallContext, index: Int, functionName: String): Long {
