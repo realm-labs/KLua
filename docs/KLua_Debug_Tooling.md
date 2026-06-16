@@ -22,7 +22,7 @@ Current behavior:
 
 - the input script is parsed and compiled through the public `Lua` facade;
 - syntax errors are reported without writing a package;
-- successful compilation writes a bytecode package that can be passed to `Lua.loadBytecode` or `LuaState.loadBytecode`.
+- successful compilation writes a bytecode package that can be passed to `Lua.loadBytecode`, `LuaState.loadBytecode`, or the CLI debugger runner when the program path ends in `.kluac`.
 
 ## CLI Debugger
 
@@ -50,7 +50,7 @@ quit
 Current behavior:
 
 - `break <file>:<line>` registers a source-line breakpoint in the `BreakpointManager`.
-- `run` loads and executes the configured script through the public `Lua` API, passing any script arguments.
+- `run` loads and executes the configured script through the public `Lua` API, passing any script arguments. Paths ending in `.kluac` are read as KLua bytecode packages; other paths are read as Lua source.
 - `continue`, `next`, `step`, and `out` update `DebugController` state.
 - `print <expr>` evaluates a top-level expression by loading `return <expr>` through the public `Lua` API.
 - `bt` and `locals` are command-compatible placeholders until suspended-frame integration is available.
