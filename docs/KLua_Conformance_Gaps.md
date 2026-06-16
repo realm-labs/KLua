@@ -15,6 +15,10 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 - Native C module loading is intentionally unavailable in the pure Kotlin runtime. `package.loadlib` exposes the Lua fallback-style unsupported result, and the C/C-root searcher slots can report `package.cpath` misses or dynamic-loading failures but cannot create native loaders.
 
+## OS Library
+
+- `os.exit` is not implemented yet. Lua 5.5 maps boolean or integer status values to process termination and can optionally close the Lua state first; KLua still needs an embedder-safe API shape for process termination before exposing this function.
+
 ## Strings And UTF-8
 
 - KLua strings are still JVM-string-backed rather than byte-string-faithful in all standard-library paths. This leaves Lua 5.5 byte-level behavior incomplete for cases such as `utf8.char` accepting extended UTF-8 values up to `MAXUTF` and validating or iterating malformed byte sequences.
