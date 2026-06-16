@@ -744,7 +744,11 @@ class LuaState private constructor(
                 }
 
                 override fun createCoroutine(): LuaCoroutineHandle {
-                    val coroutine = KLuaCoreRuntime.createCoroutine(functionValue, coreGlobals)
+                    val coroutine = KLuaCoreRuntime.createCoroutine(
+                        functionValue,
+                        coreGlobals,
+                        KLuaCoreExecutionLimits(config.instructionLimit),
+                    )
                         ?: throw LuaRuntimeException("cannot create coroutine from function")
                     return CoreBackedLuaCoroutine(coroutine)
                 }

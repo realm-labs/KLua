@@ -446,6 +446,21 @@ class LuaApiSmokeTest {
         )
     }
 
+    @Test
+    fun `facade coroutine resumes enforce configured instruction limits`() {
+        val lua = Lua.create(LuaConfig(instructionLimit = 10))
+        val function = lua.load(
+            "return function() while true do end end",
+            "api-coroutine-budget.lua",
+        ).eval().get(1) as LuaCoroutineFunction
+
+        val error = assertIs<LuaCoroutineResult.RuntimeError>(function.createCoroutine().resume(emptyList()))
+
+        assertEquals("instruction limit exceeded", error.message)
+        assertEquals("api-coroutine-budget.lua", error.sourceName)
+        assertEquals(1, error.line)
+    }
+
     private data class HostObject(
         var name: String,
     )

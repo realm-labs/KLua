@@ -145,4 +145,30 @@ class KLuaCoreRuntimeCoroutineTest {
             coroutine.resume(emptyList()),
         )
     }
+
+    @Test
+    fun `core coroutine runner enforces instruction limits`() {
+        val globals = KLuaCoreGlobals.create()
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile("return function() while true do end end", "core-coroutine-budget.lua"),
+        ).chunk
+        val function = assertIs<KLuaCoreValue.FunctionValue>(
+            assertIs<KLuaCoreExecution.Success>(
+                KLuaCoreRuntime.execute(chunk, emptyList(), globals),
+            ).values.single(),
+        )
+        val coroutine = assertNotNull(
+            KLuaCoreRuntime.createCoroutine(
+                function,
+                globals,
+                KLuaCoreExecutionLimits(instructionLimit = 10),
+            ),
+        )
+
+        val error = assertIs<KLuaCoreCoroutineExecution.RuntimeError>(coroutine.resume(emptyList()))
+
+        assertEquals("instruction limit exceeded", error.message)
+        assertEquals("core-coroutine-budget.lua", error.sourceName)
+        assertEquals(1, error.line)
+    }
 }

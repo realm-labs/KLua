@@ -170,9 +170,10 @@ public object KLuaCoreRuntime {
     public fun createCoroutine(
         function: KLuaCoreValue.FunctionValue,
         globals: KLuaCoreGlobals,
+        limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
     ): KLuaCoreCoroutine? {
         val sourceFunction = function.sourceFunction ?: return null
-        return KLuaCoreCoroutine(sourceFunction, function.sourceGlobals ?: globals)
+        return KLuaCoreCoroutine(sourceFunction, function.sourceGlobals ?: globals, limits)
     }
 
     public fun createFunctionValue(
@@ -781,6 +782,7 @@ public fun interface KLuaCoreContinuation {
 public class KLuaCoreCoroutine internal constructor(
     private val function: LuaValue,
     private val globals: KLuaCoreGlobals,
+    private val limits: KLuaCoreExecutionLimits,
 ) {
     private val vm = LuaVm(
         globals.table,
@@ -789,6 +791,7 @@ public class KLuaCoreCoroutine internal constructor(
         isStringMetatableConfigured = { globals.stringMetatableConfigured },
         currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
         currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
+        instructionLimit = limits.instructionLimit,
     )
     private var started = false
     private var dead = false
