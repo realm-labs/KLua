@@ -2391,6 +2391,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setupvalue preserves table values in lua closure upvalues`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = {name = "old"}
+                local function capture()
+                    return value
+                end
+                local replacement = {name = "new"}
+                local changedName = debug.setupvalue(capture, 1, replacement)
+                local readName, readValue = debug.getupvalue(capture, 1)
+                local captured = capture()
+                return changedName, readName, readValue == replacement,
+                    captured == replacement, captured.name
+                """.trimIndent(),
+                "debug-setupvalue-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("value", state.toString(1))
+        assertEquals("value", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("new", state.toString(5))
+    }
+
+    @Test
     fun `debug setupvalue requires replacement value`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

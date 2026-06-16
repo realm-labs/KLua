@@ -280,7 +280,7 @@ internal object LuaDebugLibrary {
         if (index <= 0) {
             return LuaReturn.none()
         }
-        val name = context.setUpvalue(1, index, context.get(3)) ?: return LuaReturn.none()
+        val name = context.setUpvalue(1, index, context.getLuaValue(3)) ?: return LuaReturn.none()
         return LuaReturn.of(name)
     }
 
