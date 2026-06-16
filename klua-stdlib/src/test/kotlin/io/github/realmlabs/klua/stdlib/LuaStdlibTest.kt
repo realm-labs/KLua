@@ -9587,7 +9587,8 @@ class LuaStdlibTest {
                 """
                 local now = os.time()
                 return type(os), type(os.clock), type(os.date), type(os.difftime), type(os.getenv),
-                    type(os.remove), type(os.rename), type(os.setlocale), type(os.time), type(os.tmpname),
+                    type(os.execute), type(os.remove), type(os.rename), type(os.setlocale),
+                    type(os.time), type(os.tmpname),
                     type(now), os.difftime(now, now)
                 """.trimIndent(),
                 "open-libs-os.lua",
@@ -9605,8 +9606,9 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(8))
         assertEquals("function", state.toString(9))
         assertEquals("function", state.toString(10))
-        assertEquals("number", state.toString(11))
-        assertEquals(0.0, state.toNumber(12) ?: error("missing difftime result"), 0.0)
+        assertEquals("function", state.toString(11))
+        assertEquals("number", state.toString(12))
+        assertEquals(0.0, state.toNumber(13) ?: error("missing difftime result"), 0.0)
     }
 
     @Test
@@ -9876,6 +9878,41 @@ class LuaStdlibTest {
             Files.deleteIfExists(first)
             Files.deleteIfExists(second)
         }
+    }
+
+    @Test
+    fun `os execute reports shell command statuses`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local shellAvailable = os.execute()
+                local ok, okKind, okCode = os.execute("exit 0")
+                local failed, failedKind, failedCode = os.execute("exit 7")
+                local typeOk, typeMessage = pcall(os.execute, {})
+                return shellAvailable,
+                    ok, okKind, okCode,
+                    failed, failedKind, failedCode,
+                    typeOk, typeMessage
+                """.trimIndent(),
+                "os-execute.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("exit", state.toString(3))
+        assertEquals(0L, state.toInteger(4))
+        assertTrue(state.isNil(5))
+        assertEquals("exit", state.toString(6))
+        assertEquals(7L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #1 to 'os.execute' (string expected)", state.toString(9))
     }
 
     @Test

@@ -27,6 +27,7 @@ internal object LuaOsLibrary {
         setFunctionField(state, "clock") { context -> clock(context, startNanos) }
         setFunctionField(state, "date", ::date)
         setFunctionField(state, "difftime", ::difftime)
+        setFunctionField(state, "execute", ::execute)
         setFunctionField(state, "getenv", ::getenv)
         setFunctionField(state, "remove", ::remove)
         setFunctionField(state, "rename", ::rename)
@@ -45,6 +46,27 @@ internal object LuaOsLibrary {
         val first = requiredTime(context, 1, "os.difftime")
         val second = requiredTime(context, 2, "os.difftime")
         return LuaReturn.of((first - second).toDouble())
+    }
+
+    private fun execute(context: LuaCallContext): LuaReturn {
+        if (context.isNone(1) || context.isNil(1)) {
+            return LuaReturn.of(true)
+        }
+        val command = requiredString(context, 1, "os.execute")
+        val exitCode = try {
+            ProcessBuilder(shellCommand(command))
+                .inheritIO()
+                .start()
+                .waitFor()
+        } catch (_: IOException) {
+            return LuaReturn.of(null, "exit", 1L)
+        } catch (_: SecurityException) {
+            return LuaReturn.of(null, "exit", 1L)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw LuaRuntimeException("interrupted while executing command")
+        }
+        return executeResult(exitCode)
     }
 
     private fun getenv(context: LuaCallContext): LuaReturn {
@@ -141,6 +163,22 @@ internal object LuaOsLibrary {
             LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}")
         } catch (error: SecurityException) {
             LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}")
+        }
+    }
+
+    private fun executeResult(exitCode: Int): LuaReturn {
+        return if (exitCode == 0) {
+            LuaReturn.of(true, "exit", 0L)
+        } else {
+            LuaReturn.of(null, "exit", exitCode.toLong())
+        }
+    }
+
+    private fun shellCommand(command: String): List<String> {
+        return if (isWindows()) {
+            listOf("cmd", "/c", command)
+        } else {
+            listOf("sh", "-c", command)
         }
     }
 
@@ -406,6 +444,10 @@ internal object LuaOsLibrary {
 
     private fun localeName(locale: Locale): String {
         return if (locale == Locale.ROOT) "C" else locale.toString()
+    }
+
+    private fun isWindows(): Boolean {
+        return System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
     }
 
     private fun Double.luaInteger(): Long? {
