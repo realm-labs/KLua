@@ -10,7 +10,7 @@ internal object LuaUtf8Library {
     private const val MAX_CODE_POINT = 0x10FFFFL
     private const val HIGH_SURROGATE_START = 0xD800L
     private const val LOW_SURROGATE_END = 0xDFFFL
-    private const val CHAR_PATTERN = "[%z\u0001-\u007F\u00C2-\u00FD][\u0080-\u00BF]*"
+    private const val CHAR_PATTERN = "[\u0000-\u007F\u00C2-\u00FD][\u0080-\u00BF]*"
 
     fun open(state: LuaState): LuaState {
         state.newTable()

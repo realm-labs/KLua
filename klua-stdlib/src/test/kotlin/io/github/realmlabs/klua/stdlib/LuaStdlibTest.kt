@@ -16175,17 +16175,23 @@ class LuaStdlibTest {
             state.load(
                 """
                 local iterator = string.gmatch("A" .. utf8.char(233) .. "Z", utf8.charpattern)
-                return iterator(), iterator(), iterator(), iterator()
+                local b1, b2, b3, b4 = string.byte(utf8.charpattern, 1, 4)
+                return b1, b2, b3, b4,
+                    iterator(), iterator(), iterator(), iterator()
                 """.trimIndent(),
                 "utf8-charpattern.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals("A", state.toString(1))
-        assertEquals("é", state.toString(2))
-        assertEquals("Z", state.toString(3))
-        assertTrue(state.isNil(4))
+        assertEquals('['.code.toLong(), state.toInteger(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals('-'.code.toLong(), state.toInteger(3))
+        assertEquals(0x7FL, state.toInteger(4))
+        assertEquals("A", state.toString(5))
+        assertEquals("é", state.toString(6))
+        assertEquals("Z", state.toString(7))
+        assertTrue(state.isNil(8))
     }
 
     @Test
