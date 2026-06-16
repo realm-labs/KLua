@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.core
 
+import io.github.realmlabs.klua.core.bytecode.BytecodePackageCodec
+import io.github.realmlabs.klua.core.bytecode.BytecodePackageDecode
 import io.github.realmlabs.klua.core.compiler.Compiler
 import io.github.realmlabs.klua.core.compiler.CompilerException
 import io.github.realmlabs.klua.core.bytecode.Prototype
@@ -38,6 +40,20 @@ public object KLuaCoreRuntime {
             KLuaCoreLoad.SyntaxError(error.message ?: "parser error")
         } catch (error: CompilerException) {
             KLuaCoreLoad.SyntaxError(error.message ?: "compiler error")
+        }
+    }
+
+    public fun compileBytecode(source: String, chunkName: String): KLuaCoreBytecodeLoad {
+        return when (val load = compile(source, chunkName)) {
+            is KLuaCoreLoad.Success -> KLuaCoreBytecodeLoad.Success(BytecodePackageCodec.encode(load.chunk.prototype))
+            is KLuaCoreLoad.SyntaxError -> KLuaCoreBytecodeLoad.SyntaxError(load.message)
+        }
+    }
+
+    public fun loadBytecode(bytes: ByteArray): KLuaCoreLoad {
+        return when (val decoded = BytecodePackageCodec.decode(bytes)) {
+            is BytecodePackageDecode.Decoded -> KLuaCoreLoad.Success(KLuaCoreChunk(decoded.prototype))
+            is BytecodePackageDecode.Invalid -> KLuaCoreLoad.SyntaxError(decoded.reason)
         }
     }
 
@@ -648,6 +664,24 @@ public sealed interface KLuaCoreLoad {
     public data class SyntaxError(
         public val message: String,
     ) : KLuaCoreLoad
+}
+
+public sealed interface KLuaCoreBytecodeLoad {
+    public data class Success(
+        public val bytes: ByteArray,
+    ) : KLuaCoreBytecodeLoad {
+        override fun equals(other: Any?): Boolean {
+            if (this === other) return true
+            if (other !is Success) return false
+            return bytes.contentEquals(other.bytes)
+        }
+
+        override fun hashCode(): Int = bytes.contentHashCode()
+    }
+
+    public data class SyntaxError(
+        public val message: String,
+    ) : KLuaCoreBytecodeLoad
 }
 
 public sealed interface KLuaCoreExecution {
