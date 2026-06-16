@@ -9966,6 +9966,7 @@ class LuaStdlibTest {
                 local missingEnv = os.getenv("KLUA_ENV_DOES_NOT_EXIST_0123456789")
                 local envOk, envMessage = pcall(os.getenv, {})
                 local dateFormatOk, dateFormatMessage = pcall(os.date, "%Q", 0)
+                local dateAliasOk, dateAliasMessage = pcall(os.date, "%h", 0)
                 local dateTimeOk, dateTimeMessage = pcall(os.date, "!*t", "bad")
                 local missingRemove, missingRemoveMessage, missingRemoveCode = os.remove("KLUA_OS_MISSING_FILE_0123456789")
                 local missingRename, missingRenameMessage, missingRenameCode =
@@ -9983,6 +9984,7 @@ class LuaStdlibTest {
                     missingEnv,
                     envOk, envMessage,
                     dateFormatOk, dateFormatMessage,
+                    dateAliasOk, dateAliasMessage,
                     dateTimeOk, dateTimeMessage,
                     missingRemove, missingRemoveMessage, missingRemoveCode,
                     missingRename, missingRenameMessage, missingRenameCode,
@@ -10013,23 +10015,25 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(14))
         assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%Q')", state.toString(15))
         assertFalse(state.toBoolean(16))
-        assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(17))
-        assertTrue(state.isNil(18))
-        assertTrue(state.toString(19)?.contains("KLUA_OS_MISSING_FILE_0123456789") == true, state.toString(19))
-        assertEquals(1L, state.toInteger(20))
-        assertTrue(state.isNil(21))
-        assertTrue(state.toString(22)?.contains("KLUA_OS_MISSING_RENAME_0123456789") == true, state.toString(22))
-        assertEquals(1L, state.toInteger(23))
-        assertFalse(state.toBoolean(24))
-        assertEquals("bad argument #1 to 'os.remove' (string expected)", state.toString(25))
+        assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%h')", state.toString(17))
+        assertFalse(state.toBoolean(18))
+        assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(19))
+        assertTrue(state.isNil(20))
+        assertTrue(state.toString(21)?.contains("KLUA_OS_MISSING_FILE_0123456789") == true, state.toString(21))
+        assertEquals(1L, state.toInteger(22))
+        assertTrue(state.isNil(23))
+        assertTrue(state.toString(24)?.contains("KLUA_OS_MISSING_RENAME_0123456789") == true, state.toString(24))
+        assertEquals(1L, state.toInteger(25))
         assertFalse(state.toBoolean(26))
-        assertEquals("bad argument #2 to 'os.rename' (string expected)", state.toString(27))
+        assertEquals("bad argument #1 to 'os.remove' (string expected)", state.toString(27))
         assertFalse(state.toBoolean(28))
-        assertEquals("bad argument #1 to 'os.setlocale' (string expected)", state.toString(29))
+        assertEquals("bad argument #2 to 'os.rename' (string expected)", state.toString(29))
         assertFalse(state.toBoolean(30))
-        assertEquals("bad argument #2 to 'os.setlocale' (string expected)", state.toString(31))
+        assertEquals("bad argument #1 to 'os.setlocale' (string expected)", state.toString(31))
         assertFalse(state.toBoolean(32))
-        assertEquals("bad argument #2 to 'os.setlocale' (invalid option 'bad')", state.toString(33))
+        assertEquals("bad argument #2 to 'os.setlocale' (string expected)", state.toString(33))
+        assertFalse(state.toBoolean(34))
+        assertEquals("bad argument #2 to 'os.setlocale' (invalid option 'bad')", state.toString(35))
     }
 
     @Test

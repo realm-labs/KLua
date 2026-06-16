@@ -276,9 +276,7 @@ internal object LuaOsLibrary {
         return when (conversion) {
             'a' -> dateTime.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault()))
             'A' -> dateTime.format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
-            'b',
-            'h',
-            -> dateTime.format(DateTimeFormatter.ofPattern("MMM", Locale.getDefault()))
+            'b' -> dateTime.format(DateTimeFormatter.ofPattern("MMM", Locale.getDefault()))
             'B' -> dateTime.format(DateTimeFormatter.ofPattern("MMMM", Locale.getDefault()))
             'c' -> formatDate("%a %b %d %H:%M:%S %Y", dateTime)
             'C' -> twoDigits(java.lang.Math.floorDiv(dateTime.year, 100))
