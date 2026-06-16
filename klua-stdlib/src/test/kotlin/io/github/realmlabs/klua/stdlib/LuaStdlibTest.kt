@@ -9426,7 +9426,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 local now = os.time()
-                return type(os), type(os.clock), type(os.difftime), type(os.time),
+                return type(os), type(os.clock), type(os.difftime), type(os.getenv), type(os.time),
                     type(now), os.difftime(now, now)
                 """.trimIndent(),
                 "open-libs-os.lua",
@@ -9438,8 +9438,9 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(2))
         assertEquals("function", state.toString(3))
         assertEquals("function", state.toString(4))
-        assertEquals("number", state.toString(5))
-        assertEquals(0.0, state.toNumber(6) ?: error("missing difftime result"), 0.0)
+        assertEquals("function", state.toString(5))
+        assertEquals("number", state.toString(6))
+        assertEquals(0.0, state.toNumber(7) ?: error("missing difftime result"), 0.0)
     }
 
     @Test
@@ -9564,11 +9565,15 @@ class LuaStdlibTest {
                 local fieldOk, fieldMessage = pcall(os.time, {year = 2020, month = "jan", day = 1})
                 local leftOk, leftMessage = pcall(os.difftime, "bad", 1)
                 local rightOk, rightMessage = pcall(os.difftime, 1, 1.5)
+                local missingEnv = os.getenv("KLUA_ENV_DOES_NOT_EXIST_0123456789")
+                local envOk, envMessage = pcall(os.getenv, {})
                 return tableOk, tableMessage,
                     missingOk, missingMessage,
                     fieldOk, fieldMessage,
                     leftOk, leftMessage,
-                    rightOk, rightMessage
+                    rightOk, rightMessage,
+                    missingEnv,
+                    envOk, envMessage
                 """.trimIndent(),
                 "os-time-errors.lua",
             ),
@@ -9585,6 +9590,9 @@ class LuaStdlibTest {
         assertEquals("bad argument #1 to 'os.difftime' (number expected)", state.toString(8))
         assertFalse(state.toBoolean(9))
         assertEquals("bad argument #2 to 'os.difftime' (number has no integer representation)", state.toString(10))
+        assertTrue(state.isNil(11))
+        assertFalse(state.toBoolean(12))
+        assertEquals("bad argument #1 to 'os.getenv' (string expected)", state.toString(13))
     }
 
     @Test

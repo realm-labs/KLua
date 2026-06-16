@@ -15,6 +15,7 @@ internal object LuaOsLibrary {
         state.newTable()
         setFunctionField(state, "clock") { context -> clock(context, startNanos) }
         setFunctionField(state, "difftime", ::difftime)
+        setFunctionField(state, "getenv", ::getenv)
         setFunctionField(state, "time", ::time)
         state.setGlobal("os")
         return state
@@ -28,6 +29,10 @@ internal object LuaOsLibrary {
         val first = requiredTime(context, 1, "os.difftime")
         val second = requiredTime(context, 2, "os.difftime")
         return LuaReturn.of((first - second).toDouble())
+    }
+
+    private fun getenv(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(System.getenv(requiredString(context, 1, "os.getenv")))
     }
 
     private fun time(context: LuaCallContext): LuaReturn {
@@ -80,6 +85,11 @@ internal object LuaOsLibrary {
                 "bad argument #$index to '$functionName' (number expected)"
             },
         )
+    }
+
+    private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
+        return context.toString(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
     }
 
     private fun requiredDateField(context: LuaCallContext, key: String): Long {
