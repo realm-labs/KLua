@@ -3442,14 +3442,11 @@ class LuaStdlibTest {
         assertEquals("loaded:1", state.toString(1))
         assertEquals("loaded:1", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertTrue(state.toString(4)?.startsWith("stdlib-package.lua:") == true, state.toString(4))
-        assertTrue(state.toString(4)?.endsWith(": bad argument #1 to 'require' (string expected)") == true, state.toString(4))
+        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertTrue(state.toString(6)?.startsWith("stdlib-package.lua:") == true, state.toString(6))
-        assertTrue(state.toString(6)?.endsWith(": bad argument #1 to 'require' (string expected)") == true, state.toString(6))
+        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(6))
         assertFalse(state.toBoolean(7))
-        assertTrue(state.toString(8)?.startsWith("stdlib-package.lua:") == true, state.toString(8))
-        assertTrue(state.toString(8)?.endsWith(": bad argument #1 to 'require' (string expected)") == true, state.toString(8))
+        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(8))
     }
 
     @Test
@@ -3462,6 +3459,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         val message = state.toString(-1) ?: ""
+        assertTrue(message.startsWith("require-missing.lua:"), message)
         assertTrue(message.contains("module 'missing' not found"))
         assertTrue(message.contains("no field package.preload['missing']"))
     }
@@ -3521,8 +3519,7 @@ class LuaStdlibTest {
         assertTrue(state.toString(2)?.startsWith("stdlib-package.lua:") == true, state.toString(2))
         assertTrue(state.toString(2)?.endsWith(": 'package.path' must be a string") == true, state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertTrue(state.toString(4)?.startsWith("stdlib-package.lua:") == true, state.toString(4))
-        assertTrue(state.toString(4)?.endsWith(": 'package.searchers' must be a table") == true, state.toString(4))
+        assertEquals("'package.searchers' must be a table", state.toString(4))
     }
 
     @Test
