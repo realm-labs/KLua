@@ -83,7 +83,7 @@ internal object LuaOsLibrary {
     }
 
     private fun requiredDateField(context: LuaCallContext, key: String): Long {
-        val value = context.getTableValue(1, key)
+        val value = dateTableField(context, key)
             ?: throw LuaRuntimeException("field '$key' missing in date table")
         val integer = luaInteger(value)
             ?: throw LuaRuntimeException("field '$key' is not an integer")
@@ -91,10 +91,23 @@ internal object LuaOsLibrary {
     }
 
     private fun optionalDateField(context: LuaCallContext, key: String, defaultValue: Long): Long {
-        val value = context.getTableValue(1, key) ?: return defaultValue
+        val value = dateTableField(context, key) ?: return defaultValue
         val integer = luaInteger(value)
             ?: throw LuaRuntimeException("field '$key' is not an integer")
         return checkedDateField(key, integer)
+    }
+
+    private fun dateTableField(context: LuaCallContext, key: String): Any? {
+        val rawValue = context.getTableValue(1, key)
+        if (rawValue != null) {
+            return rawValue
+        }
+        val index = context.getTableField(context.getMetatable(1), "__index") ?: return null
+        return try {
+            context.call(index, listOf(context.getLuaValue(1), key)).get(1)
+        } catch (_: IllegalArgumentException) {
+            context.getTableField(index, key)
+        }
     }
 
     private fun checkedDateField(key: String, value: Long): Long {
