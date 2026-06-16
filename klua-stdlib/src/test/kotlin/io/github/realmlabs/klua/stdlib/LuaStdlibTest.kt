@@ -13,6 +13,7 @@ import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
+import java.util.TimeZone
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 import java.util.function.Supplier
@@ -9713,6 +9714,40 @@ class LuaStdlibTest {
         assertEquals("day", state.toString(4))
         assertEquals(2020L, state.toInteger(5))
         assertEquals(2020L, state.toInteger(6))
+    }
+
+    @Test
+    fun `os time honors isdst field for ambiguous local times`() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local daylight = {year = 2021, month = 11, day = 7, hour = 1, min = 30, sec = 0, isdst = true}
+                    local standard = {year = 2021, month = 11, day = 7, hour = 1, min = 30, sec = 0, isdst = false}
+                    local daylightTime = os.time(daylight)
+                    local standardTime = os.time(standard)
+                    return daylightTime, standardTime, standardTime - daylightTime,
+                        daylight.isdst, standard.isdst
+                    """.trimIndent(),
+                    "os-time-isdst.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1636263000L, state.toInteger(1))
+            assertEquals(1636266600L, state.toInteger(2))
+            assertEquals(3600L, state.toInteger(3))
+            assertTrue(state.toBoolean(4))
+            assertFalse(state.toBoolean(5))
+        } finally {
+            TimeZone.setDefault(previous)
+        }
     }
 
     @Test

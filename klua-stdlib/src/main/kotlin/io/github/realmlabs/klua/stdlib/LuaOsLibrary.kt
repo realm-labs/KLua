@@ -196,15 +196,16 @@ internal object LuaOsLibrary {
         val hour = optionalDateField(context, "hour", 12L)
         val minute = optionalDateField(context, "min", 0L)
         val second = optionalDateField(context, "sec", 0L)
+        val requestedIsDst = optionalDateBooleanField(context, "isdst")
 
         val normalized = try {
-            LocalDateTime.of(year, 1, 1, 0, 0, 0)
+            val localDateTime = LocalDateTime.of(year, 1, 1, 0, 0, 0)
                 .plusMonths(month - 1L)
                 .plusDays(day - 1L)
                 .plusHours(hour)
                 .plusMinutes(minute)
                 .plusSeconds(second)
-                .atZone(ZoneId.systemDefault())
+            localDateTime.atSystemZone(requestedIsDst)
         } catch (_: DateTimeException) {
             throw LuaRuntimeException("time result cannot be represented in this installation")
         } catch (_: ArithmeticException) {
@@ -222,6 +223,21 @@ internal object LuaOsLibrary {
         context.setTableValue(1, "isdst", normalized.zone.rules.isDaylightSavings(normalized.toInstant()))
 
         return LuaReturn.of(normalized.toEpochSecond())
+    }
+
+    private fun LocalDateTime.atSystemZone(requestedIsDst: Boolean?): ZonedDateTime {
+        val zone = ZoneId.systemDefault()
+        if (requestedIsDst == null) {
+            return atZone(zone)
+        }
+        val matchingOffset = zone.rules.getValidOffsets(this).firstOrNull { offset ->
+            zone.rules.isDaylightSavings(atOffset(offset).toInstant()) == requestedIsDst
+        }
+        return if (matchingOffset == null) {
+            atZone(zone)
+        } else {
+            ZonedDateTime.ofLocal(this, zone, matchingOffset)
+        }
     }
 
     private fun dateTimeFields(dateTime: ZonedDateTime): LinkedHashMap<String, Any?> {
@@ -393,6 +409,11 @@ internal object LuaOsLibrary {
         val integer = luaInteger(value)
             ?: throw LuaRuntimeException("field '$key' is not an integer")
         return checkedDateField(key, integer)
+    }
+
+    private fun optionalDateBooleanField(context: LuaCallContext, key: String): Boolean? {
+        val value = dateTableField(context, key) ?: return null
+        return value != false
     }
 
     private fun dateTableField(context: LuaCallContext, key: String): Any? {
