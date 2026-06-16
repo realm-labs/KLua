@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.api.LuaConfig
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaStandardLibrary
 import io.github.realmlabs.klua.api.LuaStatus
 import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
@@ -508,6 +509,41 @@ class LuaStdlibTest {
         assertEquals("table", state.toString(2))
         assertEquals("table", state.toString(3))
         assertEquals("table", state.toString(4))
+    }
+
+    @Test
+    fun `openLibs installs only whitelisted standard libraries`() {
+        val state = LuaState.create(
+            LuaConfig(
+                standardLibraries = setOf(
+                    LuaStandardLibrary.BASE,
+                    LuaStandardLibrary.MATH,
+                ),
+            ),
+        )
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return type(math), type(string), type(table), type(utf8), type(coroutine),
+                    type(package), type(require), type(os), type(debug)
+                """.trimIndent(),
+                "stdlib-whitelist.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals("nil", state.toString(2))
+        assertEquals("nil", state.toString(3))
+        assertEquals("nil", state.toString(4))
+        assertEquals("nil", state.toString(5))
+        assertEquals("nil", state.toString(6))
+        assertEquals("nil", state.toString(7))
+        assertEquals("nil", state.toString(8))
+        assertEquals("nil", state.toString(9))
     }
 
     @Test

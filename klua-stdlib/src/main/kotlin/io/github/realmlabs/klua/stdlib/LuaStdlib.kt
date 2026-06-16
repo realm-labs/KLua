@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaStandardLibrary
 import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.continueWith
@@ -26,15 +27,32 @@ public object LuaStdlib {
 
     @JvmStatic
     public fun openLibs(state: LuaState, output: Consumer<String>): LuaState {
-        openBase(state, output)
-        openMath(state)
-        openString(state)
-        openTable(state)
-        openUtf8(state)
-        openCoroutine(state)
-        openPackage(state)
-        openOs(state)
-        if (state.config.debugEnabled) {
+        val libraries = state.config.standardLibraries
+        if (LuaStandardLibrary.BASE in libraries) {
+            openBase(state, output)
+        }
+        if (LuaStandardLibrary.MATH in libraries) {
+            openMath(state)
+        }
+        if (LuaStandardLibrary.STRING in libraries) {
+            openString(state)
+        }
+        if (LuaStandardLibrary.TABLE in libraries) {
+            openTable(state)
+        }
+        if (LuaStandardLibrary.UTF8 in libraries) {
+            openUtf8(state)
+        }
+        if (LuaStandardLibrary.COROUTINE in libraries) {
+            openCoroutine(state)
+        }
+        if (LuaStandardLibrary.PACKAGE in libraries) {
+            openPackage(state)
+        }
+        if (LuaStandardLibrary.OS in libraries) {
+            openOs(state)
+        }
+        if (LuaStandardLibrary.DEBUG in libraries && state.config.debugEnabled) {
             openDebug(state)
         }
         return state

@@ -9,6 +9,7 @@ data class LuaConfig @JvmOverloads constructor(
         String(System.`in`.readAllBytes(), StandardCharsets.UTF_8)
     },
     val instructionLimit: Long = 0,
+    val standardLibraries: Set<LuaStandardLibrary> = LuaStandardLibrary.all(),
 ) {
     init {
         require(instructionLimit >= 0) { "instructionLimit must be non-negative" }
