@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.api
 
 import java.nio.charset.StandardCharsets
+import java.util.Collections
 import java.util.function.Supplier
 
 data class LuaConfig @JvmOverloads constructor(
@@ -16,6 +17,6 @@ data class LuaConfig @JvmOverloads constructor(
     }
 
     internal fun snapshot(): LuaConfig {
-        return copy(standardLibraries = standardLibraries.toSet())
+        return copy(standardLibraries = Collections.unmodifiableSet(standardLibraries.toSet()))
     }
 }

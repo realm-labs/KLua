@@ -51,6 +51,10 @@ class LuaFacadeJavaTest {
         libraries.add(LuaStandardLibrary.MATH);
 
         assertEquals(Set.of(LuaStandardLibrary.BASE), lua.getConfig().getStandardLibraries());
+        assertThrows(
+                UnsupportedOperationException.class,
+                () -> lua.getConfig().getStandardLibraries().add(LuaStandardLibrary.MATH)
+        );
     }
 
     @Test
