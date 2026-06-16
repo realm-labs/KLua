@@ -56,6 +56,79 @@ class BytecodePackageTest {
     }
 
     @Test
+    fun `rejects invalid payload metadata`() {
+        assertEquals(
+            BytecodePackageValidation.Invalid("invalid KLua bytecode payload size -1"),
+            BytecodePackageValidator.validate(BytecodePackageHeader(payloadSize = -1)),
+        )
+        assertEquals(
+            BytecodePackageValidation.Invalid("invalid KLua bytecode payload checksum 0x100000000"),
+            BytecodePackageValidator.validate(BytecodePackageHeader(payloadChecksum = 0x1_0000_0000L)),
+        )
+    }
+
+    @Test
+    fun `builds bytecode package header for payload checksums`() {
+        assertEquals(
+            BytecodePackageHeader(
+                flags = 0,
+                payloadSize = 9,
+                payloadChecksum = 0xcbf4_3926L,
+            ),
+            BytecodePackageHeader.forPayload("123456789".encodeToByteArray(), flags = 0),
+        )
+    }
+
+    @Test
+    fun `validates bytecode package payload checksums`() {
+        val payload = "123456789".encodeToByteArray()
+        val header = BytecodePackageHeader.forPayload(payload)
+
+        assertEquals(
+            BytecodePackageValidation.Valid,
+            BytecodePackagePayloadValidator.validate(header, payload, offset = 0),
+        )
+    }
+
+    @Test
+    fun `rejects truncated bytecode package payloads`() {
+        assertEquals(
+            BytecodePackageValidation.Invalid("truncated KLua bytecode payload"),
+            BytecodePackagePayloadValidator.validate(
+                BytecodePackageHeader(payloadSize = 2, payloadChecksum = 0),
+                byteArrayOf(0x01),
+                offset = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `payload validator rejects invalid payload metadata`() {
+        assertEquals(
+            BytecodePackageValidation.Invalid("invalid KLua bytecode payload size -1"),
+            BytecodePackagePayloadValidator.validate(
+                BytecodePackageHeader(payloadSize = -1),
+                byteArrayOf(),
+                offset = 0,
+            ),
+        )
+    }
+
+    @Test
+    fun `rejects mismatched bytecode package payload checksums`() {
+        assertEquals(
+            BytecodePackageValidation.Invalid(
+                "KLua bytecode payload checksum mismatch: expected 0x0, got 0xa505df1b",
+            ),
+            BytecodePackagePayloadValidator.validate(
+                BytecodePackageHeader(payloadSize = 1, payloadChecksum = 0),
+                byteArrayOf(0x01),
+                offset = 0,
+            ),
+        )
+    }
+
+    @Test
     fun `encodes current bytecode package header deterministically`() {
         assertContentEquals(
             byteArrayOf(
@@ -80,6 +153,14 @@ class BytecodePackageTest {
                 0x00,
                 0x00,
                 0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
             ),
             BytecodePackageHeaderCodec.encode(),
         )

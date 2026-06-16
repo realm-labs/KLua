@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.core.bytecode
 
+import java.util.zip.CRC32
+
 internal const val KLUA_BYTECODE_MAGIC: String = "KLua"
 internal const val KLUA_BYTECODE_FORMAT_VERSION: Int = 1
 internal const val KLUA_BYTECODE_SOURCE_LANGUAGE: String = "Lua55"
@@ -7,13 +9,29 @@ internal const val KLUA_BYTECODE_FLAG_DEBUG_INFO: Int = 1
 private const val KLUA_BYTECODE_SUPPORTED_FLAGS: Int = KLUA_BYTECODE_FLAG_DEBUG_INFO
 private const val BYTECODE_HEADER_MAGIC_SIZE: Int = 4
 private const val BYTECODE_HEADER_INT_SIZE: Int = 4
+private const val UINT32_MAX: Long = 0xffff_ffffL
 
 internal data class BytecodePackageHeader(
     val magic: String = KLUA_BYTECODE_MAGIC,
     val formatVersion: Int = KLUA_BYTECODE_FORMAT_VERSION,
     val sourceLanguage: String = KLUA_BYTECODE_SOURCE_LANGUAGE,
     val flags: Int = KLUA_BYTECODE_FLAG_DEBUG_INFO,
-)
+    val payloadSize: Int = 0,
+    val payloadChecksum: Long = 0,
+) {
+    companion object {
+        fun forPayload(
+            payload: ByteArray,
+            flags: Int = KLUA_BYTECODE_FLAG_DEBUG_INFO,
+        ): BytecodePackageHeader {
+            return BytecodePackageHeader(
+                flags = flags,
+                payloadSize = payload.size,
+                payloadChecksum = crc32(payload),
+            )
+        }
+    }
+}
 
 internal sealed interface BytecodePackageValidation {
     data object Valid : BytecodePackageValidation
@@ -55,6 +73,42 @@ internal object BytecodePackageValidator {
             )
         }
 
+        if (header.payloadSize < 0) {
+            return BytecodePackageValidation.Invalid("invalid KLua bytecode payload size ${header.payloadSize}")
+        }
+
+        if (header.payloadChecksum < 0 || header.payloadChecksum > UINT32_MAX) {
+            return BytecodePackageValidation.Invalid(
+                "invalid KLua bytecode payload checksum 0x${header.payloadChecksum.toString(16)}",
+            )
+        }
+
+        return BytecodePackageValidation.Valid
+    }
+}
+
+internal object BytecodePackagePayloadValidator {
+    fun validate(
+        header: BytecodePackageHeader,
+        bytes: ByteArray,
+        offset: Int,
+    ): BytecodePackageValidation {
+        when (val validation = BytecodePackageValidator.validate(header)) {
+            BytecodePackageValidation.Valid -> Unit
+            is BytecodePackageValidation.Invalid -> return validation
+        }
+
+        if (offset < 0 || offset > bytes.size || header.payloadSize > bytes.size - offset) {
+            return BytecodePackageValidation.Invalid("truncated KLua bytecode payload")
+        }
+
+        val actualChecksum = crc32(bytes, offset, header.payloadSize)
+        if (actualChecksum != header.payloadChecksum) {
+            return BytecodePackageValidation.Invalid(
+                "KLua bytecode payload checksum mismatch: expected 0x${header.payloadChecksum.toString(16)}, got 0x${actualChecksum.toString(16)}",
+            )
+        }
+
         return BytecodePackageValidation.Valid
     }
 }
@@ -73,6 +127,8 @@ internal object BytecodePackageHeaderCodec {
                 BYTECODE_HEADER_INT_SIZE +
                 BYTECODE_HEADER_INT_SIZE +
                 sourceLanguageBytes.size +
+                BYTECODE_HEADER_INT_SIZE +
+                BYTECODE_HEADER_INT_SIZE +
                 BYTECODE_HEADER_INT_SIZE,
         )
         var position = 0
@@ -82,7 +138,9 @@ internal object BytecodePackageHeaderCodec {
         position = writeInt(output, position, sourceLanguageBytes.size)
         sourceLanguageBytes.copyInto(output, destinationOffset = position)
         position += sourceLanguageBytes.size
-        writeInt(output, position, header.flags)
+        position = writeInt(output, position, header.flags)
+        position = writeInt(output, position, header.payloadSize)
+        writeInt(output, position, header.payloadChecksum.toInt())
 
         return output
     }
@@ -128,11 +186,25 @@ internal object BytecodePackageHeaderCodec {
         val flags = readInt(bytes, position)
         position += BYTECODE_HEADER_INT_SIZE
 
+        if (!hasBytes(bytes, position, BYTECODE_HEADER_INT_SIZE)) {
+            return BytecodePackageHeaderDecode.Invalid("truncated KLua bytecode header")
+        }
+        val payloadSize = readInt(bytes, position)
+        position += BYTECODE_HEADER_INT_SIZE
+
+        if (!hasBytes(bytes, position, BYTECODE_HEADER_INT_SIZE)) {
+            return BytecodePackageHeaderDecode.Invalid("truncated KLua bytecode header")
+        }
+        val payloadChecksum = readUInt(bytes, position)
+        position += BYTECODE_HEADER_INT_SIZE
+
         val header = BytecodePackageHeader(
             magic = magic,
             formatVersion = formatVersion,
             sourceLanguage = sourceLanguage,
             flags = flags,
+            payloadSize = payloadSize,
+            payloadChecksum = payloadChecksum,
         )
         return when (val validation = BytecodePackageValidator.validate(header)) {
             BytecodePackageValidation.Valid -> BytecodePackageHeaderDecode.Decoded(header, position)
@@ -158,4 +230,14 @@ internal object BytecodePackageHeaderCodec {
             ((bytes[offset + 2].toInt() and 0xff) shl 8) or
             (bytes[offset + 3].toInt() and 0xff)
     }
+
+    private fun readUInt(bytes: ByteArray, offset: Int): Long {
+        return readInt(bytes, offset).toLong() and UINT32_MAX
+    }
+}
+
+private fun crc32(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size): Long {
+    val checksum = CRC32()
+    checksum.update(bytes, offset, length)
+    return checksum.value
 }
