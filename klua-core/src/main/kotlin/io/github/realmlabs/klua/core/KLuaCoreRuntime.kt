@@ -456,6 +456,16 @@ public class KLuaCoreGlobals internal constructor(
         }
     }
 
+    public fun setUserDataMetatable(value: Any, metatable: KLuaCoreValue.TableValue?) {
+        if (metatable == null) {
+            userDataMetatables.remove(value)
+            return
+        }
+        val luaMetatable = metatable.toLuaValueOrNull(this) as? LuaTable
+            ?: throw LuaVmException("metatable must be a table")
+        userDataMetatables[value] = luaMetatable
+    }
+
     public fun setFunction(name: String, function: KLuaCoreFunction) {
         table.rawSet(
             LuaString(name),

@@ -7157,6 +7157,67 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `userdata equality metamethods handle source operators`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val leftUserData = Any()
+        val rightUserData = Any()
+        state.register("leftUserData") { LuaReturn.of(leftUserData) }
+        state.register("rightUserData") { LuaReturn.of(rightUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local left = leftUserData()
+                local right = rightUserData()
+                local calls = {}
+
+                debug.setmetatable(left, {
+                    __eq = function(a, b)
+                        calls[#calls + 1] = { "left", a == left, b == right }
+                        return true
+                    end,
+                })
+
+                local sameIdentity = left == left
+                local leftResult = left == right
+                local crossTypeResult = left == {}
+
+                debug.setmetatable(left, nil)
+                debug.setmetatable(right, {
+                    __eq = function(a, b)
+                        calls[#calls + 1] = { "right", a == left, b == right }
+                        return true
+                    end,
+                })
+
+                local rightResult = left == right
+                debug.setmetatable(right, nil)
+
+                return sameIdentity,
+                    leftResult, calls[1][1], calls[1][2], calls[1][3],
+                    crossTypeResult,
+                    rightResult, calls[2][1], calls[2][2], calls[2][3]
+                """.trimIndent(),
+                "userdata-equality-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("left", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertFalse(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("right", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+    }
+
+    @Test
     fun `non-table newindex metamethods handle source assignments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

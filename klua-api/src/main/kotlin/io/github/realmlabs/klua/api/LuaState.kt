@@ -1189,8 +1189,13 @@ class LuaState private constructor(
             is LuaStackValue.UserDataValue -> {
                 if (newMetatable == null) {
                     userMetatables.remove(value.value)
+                    coreGlobals.setUserDataMetatable(value.value, null)
                 } else {
                     userMetatables[value.value] = newMetatable
+                    coreGlobals.setUserDataMetatable(
+                        value.value,
+                        newMetatable.toCoreValue() as KLuaCoreValue.TableValue,
+                    )
                 }
                 KLuaCoreRuntime.setUserDataMetatable(
                     coreGlobals,
