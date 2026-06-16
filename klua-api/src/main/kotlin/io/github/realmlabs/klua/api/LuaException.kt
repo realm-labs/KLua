@@ -34,6 +34,8 @@ data class LuaStackFrame(
     val function: Any? = null,
     val varargs: List<Any?> = emptyList(),
     val locals: List<LuaLocalVariable> = emptyList(),
+    val callSiteName: String? = null,
+    val callSiteNameWhat: String = "",
 )
 
 data class LuaLocalVariable(

@@ -1337,6 +1337,8 @@ class LuaState private constructor(
                         local.value.toStackValue().toPublicCallReturnValue(),
                     )
                 },
+                callSiteName = frame.callSiteName,
+                callSiteNameWhat = frame.callSiteNameWhat,
             )
         }
     }

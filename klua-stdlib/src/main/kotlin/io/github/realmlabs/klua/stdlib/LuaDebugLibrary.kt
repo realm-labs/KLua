@@ -107,7 +107,12 @@ internal object LuaDebugLibrary {
                     table["lastlinedefined"] = frame.lastLineDefined.toLong()
                 }
                 'l' -> table["currentline"] = frame.line.toLong()
-                'n' -> table["namewhat"] = ""
+                'n' -> {
+                    if (frame.callSiteName != null) {
+                        table["name"] = frame.callSiteName
+                    }
+                    table["namewhat"] = frame.callSiteNameWhat
+                }
                 'u' -> {
                     table["nups"] = frame.upvalueCount.toLong()
                     table["nparams"] = frame.parameterCount.toLong()

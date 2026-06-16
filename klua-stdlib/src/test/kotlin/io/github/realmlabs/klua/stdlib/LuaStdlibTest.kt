@@ -834,6 +834,75 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports active frame call site names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local seen = {}
+                local function record()
+                    local info = debug.getinfo(1, "n")
+                    seen[#seen + 1] = info.name
+                    seen[#seen + 1] = info.namewhat
+                end
+
+                local object = {}
+                function object:method()
+                    local info = debug.getinfo(1, "n")
+                    seen[#seen + 1] = info.name
+                    seen[#seen + 1] = info.namewhat
+                end
+                object.field = record
+
+                do
+                    local function localProbe()
+                        local info = debug.getinfo(1, "n")
+                        seen[#seen + 1] = info.name
+                        seen[#seen + 1] = info.namewhat
+                    end
+                    localProbe()
+                end
+                do
+                    local upvalueProbe = record
+                    local function nested()
+                        upvalueProbe()
+                    end
+                    nested()
+                end
+                function globalProbe()
+                    local info = debug.getinfo(1, "n")
+                    seen[#seen + 1] = info.name
+                    seen[#seen + 1] = info.namewhat
+                end
+
+                globalProbe()
+                object.field()
+                object:method()
+
+                return seen[1], seen[2], seen[3], seen[4], seen[5], seen[6],
+                    seen[7], seen[8], seen[9], seen[10]
+                """.trimIndent(),
+                "debug-getinfo-names.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("localProbe", state.toString(1))
+        assertEquals("local", state.toString(2))
+        assertEquals("upvalueProbe", state.toString(3))
+        assertEquals("upvalue", state.toString(4))
+        assertEquals("globalProbe", state.toString(5))
+        assertEquals("global", state.toString(6))
+        assertEquals("field", state.toString(7))
+        assertEquals("field", state.toString(8))
+        assertEquals("method", state.toString(9))
+        assertEquals("method", state.toString(10))
+    }
+
+    @Test
     fun `debug getinfo reports main chunk source metadata`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

@@ -756,6 +756,8 @@ public data class KLuaCoreStackFrame(
     public val function: KLuaCoreValue? = null,
     public val varargs: List<KLuaCoreValue> = emptyList(),
     public val locals: List<KLuaCoreLocalVariable> = emptyList(),
+    public val callSiteName: String? = null,
+    public val callSiteNameWhat: String = "",
 )
 
 public data class KLuaCoreLocalVariable(
@@ -1128,6 +1130,8 @@ private fun List<LuaVmStackFrame>.toCoreStackFrames(): List<KLuaCoreStackFrame> 
             frame.parameterCount,
             frame.isVararg,
             frame.activeLines,
+            callSiteName = frame.callSiteName,
+            callSiteNameWhat = frame.callSiteNameWhat,
         )
     }
 }
@@ -1151,6 +1155,8 @@ private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaC
                     toPublicValue(local.value, globals),
                 )
             },
+            callSiteName = frame.callSiteName,
+            callSiteNameWhat = frame.callSiteNameWhat,
         )
     }
 }

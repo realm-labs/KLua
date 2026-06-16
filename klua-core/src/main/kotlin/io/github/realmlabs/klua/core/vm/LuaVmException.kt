@@ -23,6 +23,8 @@ internal class LuaVmException(
             frame.prototype.numParams,
             frame.prototype.isVararg,
             frame.prototype.validBreakpointLines.toList(),
+            callSiteName = frame.callSiteName,
+            callSiteNameWhat = frame.callSiteNameWhat,
         )
         return LuaVmException(
             message ?: "runtime error",
@@ -44,4 +46,6 @@ internal data class LuaVmStackFrame(
     val parameterCount: Int = 0,
     val isVararg: Boolean = false,
     val activeLines: List<Int> = emptyList(),
+    val callSiteName: String? = null,
+    val callSiteNameWhat: String = "",
 )

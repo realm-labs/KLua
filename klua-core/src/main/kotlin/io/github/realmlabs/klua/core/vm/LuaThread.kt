@@ -30,6 +30,8 @@ internal class LuaThread {
         upvalues: List<LuaUpvalue> = emptyList(),
         globals: LuaValue = LuaTable(),
         function: LuaValue = LuaClosure(prototype, upvalues.toMutableList(), globals),
+        callSiteName: String? = null,
+        callSiteNameWhat: String = "",
     ): CallFrame {
         val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
         for (index in 0 until prototype.numParams) {
@@ -40,7 +42,16 @@ internal class LuaThread {
         } else {
             mutableListOf()
         }
-        val frame = CallFrame(prototype, function, stack, varargs, upvalues, globals)
+        val frame = CallFrame(
+            prototype,
+            function,
+            stack,
+            varargs,
+            upvalues,
+            globals,
+            callSiteName,
+            callSiteNameWhat,
+        )
         pushFrame(frame)
         return frame
     }

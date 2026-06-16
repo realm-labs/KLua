@@ -11,6 +11,8 @@ internal data class CallFrame(
     val varargs: MutableList<LuaValue> = mutableListOf(),
     val upvalues: List<LuaUpvalue> = emptyList(),
     val globals: LuaValue,
+    val callSiteName: String? = null,
+    val callSiteNameWhat: String = "",
     var pc: Int = 0,
     var openResultBase: Int = 0,
     var openResultCount: Int = 0,

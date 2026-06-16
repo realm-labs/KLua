@@ -52,6 +52,8 @@ class KLuaCoreRuntimeBytecodeTest {
         assertEquals("bytecode-error.lua", error.sourceName)
         assertEquals(2, error.line)
         assertEquals(listOf(2, 4), error.luaFrames.map { frame -> frame.line })
+        assertEquals(listOf("fail", null), error.luaFrames.map { frame -> frame.callSiteName })
+        assertEquals(listOf("local", ""), error.luaFrames.map { frame -> frame.callSiteNameWhat })
     }
 
     @Test
@@ -73,11 +75,11 @@ class KLuaCoreRuntimeBytecodeTest {
             KLuaCoreRuntime.compileBytecode("return 1", "versioned.lua"),
         ).bytes
         val unsupported = bytecode.copyOf()
-        writeInt(unsupported, "KLua".length, 2)
+        writeInt(unsupported, "KLua".length, 3)
 
         val error = assertIs<KLuaCoreLoad.SyntaxError>(KLuaCoreRuntime.loadBytecode(unsupported))
 
-        assertEquals("unsupported KLua bytecode format version 2", error.message)
+        assertEquals("unsupported KLua bytecode format version 3", error.message)
     }
 
     @Test

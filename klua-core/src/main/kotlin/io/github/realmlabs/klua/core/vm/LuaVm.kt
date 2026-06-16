@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.core.vm
 
+import io.github.realmlabs.klua.core.bytecode.CallSiteInfo
 import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
@@ -165,6 +166,7 @@ internal class LuaVm(
     private fun executeFrame(
         function: LuaClosure,
         arguments: List<LuaValue>,
+        callSiteInfo: CallSiteInfo? = null,
     ): LuaExecutionResult {
         val frame = thread.pushCall(
             function.prototype,
@@ -172,6 +174,8 @@ internal class LuaVm(
             function.upvalues,
             globals = function.globals ?: globals,
             function = function,
+            callSiteName = callSiteInfo?.name,
+            callSiteNameWhat = callSiteInfo?.nameWhat ?: "",
         )
         return runFrameAndPopOnCompletion(frame)
     }
@@ -322,7 +326,7 @@ internal class LuaVm(
         val base = register(frame, Instruction.a(instruction))
         val callee = stack.get(base)
         val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
-        val results = callValue(callee, arguments)
+        val results = callValue(callee, arguments, callSiteInfo(frame, frame.pc - 1))
         val expectedResults = Instruction.c(instruction)
         if (results is LuaExecutionResult.Yielded) {
             frame.pendingCallResultBase = base
@@ -379,9 +383,14 @@ internal class LuaVm(
         }
     }
 
-    private fun callValue(callee: LuaValue, arguments: List<LuaValue>, callMetamethodDepth: Int = 0): LuaExecutionResult {
+    private fun callValue(
+        callee: LuaValue,
+        arguments: List<LuaValue>,
+        callSiteInfo: CallSiteInfo? = null,
+        callMetamethodDepth: Int = 0,
+    ): LuaExecutionResult {
         return when (callee) {
-            is LuaClosure -> executeFrame(callee, arguments)
+            is LuaClosure -> executeFrame(callee, arguments, callSiteInfo)
             is LuaNativeFunction -> callNativeResult(callee, arguments)
             is LuaTable -> {
                 callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callMetamethodDepth)
@@ -422,8 +431,12 @@ internal class LuaVm(
             is LuaClosure -> executeFrame(call, metamethodArguments)
             is LuaNativeFunction -> callNativeResult(call, metamethodArguments)
             LuaNil -> throw LuaVmException("attempt to call $callErrorTypeName")
-            else -> callValue(call, metamethodArguments, callMetamethodDepth + 1)
+            else -> callValue(call, metamethodArguments, callMetamethodDepth = callMetamethodDepth + 1)
         }
+    }
+
+    private fun callSiteInfo(frame: CallFrame, pc: Int): CallSiteInfo? {
+        return frame.prototype.callSiteInfo.firstOrNull { info -> info.pc == pc }
     }
 
     private fun callNative(function: LuaNativeFunction, arguments: List<LuaValue>): List<LuaValue> {
@@ -485,6 +498,8 @@ internal class LuaVm(
                     function = frame.function,
                     varargs = frame.varargs.toList(),
                     locals = activeLocals(frame, pc),
+                    callSiteName = frame.callSiteName,
+                    callSiteNameWhat = frame.callSiteNameWhat,
                 )
             }
         }

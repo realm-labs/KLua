@@ -29,6 +29,7 @@ internal object BytecodePrototypeCodec {
         output.writeStringArray(prototype.upvalueNames)
         output.writeLocalVars(prototype.localVars)
         output.writeIntArray(prototype.lineInfo)
+        output.writeCallSiteInfo(prototype.callSiteInfo)
         output.writeIntArray(prototype.validBreakpointLines)
         output.writeInt(prototype.nested.size)
         prototype.nested.forEach { nested -> output.writeBytes(encode(nested)) }
@@ -69,6 +70,7 @@ internal object BytecodePrototypeCodec {
         val upvalueNames = reader.readStringArray() ?: return reader.invalid()
         val localVars = reader.readLocalVars() ?: return reader.invalid()
         val lineInfo = reader.readIntArray("line info") ?: return reader.invalid()
+        val callSiteInfo = reader.readCallSiteInfo() ?: return reader.invalid()
         val validBreakpointLines = reader.readIntArray("valid breakpoint line") ?: return reader.invalid()
         val nestedCount = reader.readCount("nested prototype") ?: return reader.invalid()
         val nested = ArrayList<Prototype>(nestedCount)
@@ -93,6 +95,7 @@ internal object BytecodePrototypeCodec {
                 upvalueNames = upvalueNames,
                 localVars = localVars,
                 lineInfo = lineInfo,
+                callSiteInfo = callSiteInfo,
                 maxStackSize = maxStackSize,
                 numParams = numParams,
                 isVararg = isVararg,
@@ -136,6 +139,15 @@ internal object BytecodePrototypeCodec {
             writeInt(local.slot)
             writeInt(local.startPc)
             writeInt(local.endPc)
+        }
+    }
+
+    private fun ByteArrayOutputStream.writeCallSiteInfo(callSiteInfo: Array<CallSiteInfo>) {
+        writeInt(callSiteInfo.size)
+        callSiteInfo.forEach { callSite ->
+            writeInt(callSite.pc)
+            writeString(callSite.name)
+            writeString(callSite.nameWhat)
         }
     }
 
@@ -209,6 +221,16 @@ private class PrototypeReader(
             val startPc = readInt() ?: return null
             val endPc = readInt() ?: return null
             LocalVarInfo(name, slot, startPc, endPc)
+        }
+    }
+
+    fun readCallSiteInfo(): Array<CallSiteInfo>? {
+        val count = readCount("call site") ?: return null
+        return Array(count) {
+            val pc = readInt() ?: return null
+            val name = readString() ?: return null
+            val nameWhat = readString() ?: return null
+            CallSiteInfo(pc, name, nameWhat)
         }
     }
 

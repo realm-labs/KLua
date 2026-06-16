@@ -36,8 +36,8 @@ class BytecodePackageTest {
     @Test
     fun `rejects unsupported bytecode format versions`() {
         assertEquals(
-            BytecodePackageValidation.Invalid("unsupported KLua bytecode format version 2"),
-            BytecodePackageValidator.validate(BytecodePackageHeader(formatVersion = 2)),
+            BytecodePackageValidation.Invalid("unsupported KLua bytecode format version 3"),
+            BytecodePackageValidator.validate(BytecodePackageHeader(formatVersion = 3)),
         )
     }
 
@@ -141,7 +141,7 @@ class BytecodePackageTest {
                 0x00,
                 0x00,
                 0x00,
-                0x01,
+                0x02,
                 0x00,
                 0x00,
                 0x00,
@@ -198,10 +198,10 @@ class BytecodePackageTest {
     fun `decode rejects unsupported encoded header values`() {
         val encoded = BytecodePackageHeaderCodec.encode()
         val bytes = encoded.copyOf()
-        bytes[7] = 2
+        bytes[7] = 3
 
         assertEquals(
-            BytecodePackageHeaderDecode.Invalid("unsupported KLua bytecode format version 2"),
+            BytecodePackageHeaderDecode.Invalid("unsupported KLua bytecode format version 3"),
             BytecodePackageHeaderCodec.decode(bytes),
         )
     }
@@ -217,10 +217,10 @@ class BytecodePackageTest {
     @Test
     fun `encode rejects unsupported header values`() {
         val exception = assertFailsWith<IllegalArgumentException> {
-            BytecodePackageHeaderCodec.encode(BytecodePackageHeader(formatVersion = 2))
+            BytecodePackageHeaderCodec.encode(BytecodePackageHeader(formatVersion = 3))
         }
 
-        assertEquals("unsupported KLua bytecode format version 2", exception.message)
+        assertEquals("unsupported KLua bytecode format version 3", exception.message)
     }
 
     @Test

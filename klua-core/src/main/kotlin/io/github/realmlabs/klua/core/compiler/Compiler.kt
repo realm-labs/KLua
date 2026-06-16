@@ -41,6 +41,7 @@ import io.github.realmlabs.klua.core.ast.VarargExpression
 import io.github.realmlabs.klua.core.ast.VariableExpression
 import io.github.realmlabs.klua.core.ast.WhileStatement
 import io.github.realmlabs.klua.core.bytecode.BytecodeWriter
+import io.github.realmlabs.klua.core.bytecode.CallSiteInfo
 import io.github.realmlabs.klua.core.bytecode.Instruction
 import io.github.realmlabs.klua.core.bytecode.LocalVarInfo
 import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
@@ -68,6 +69,7 @@ internal class Compiler private constructor(
     private val upvalues = mutableListOf<UpvalueDescriptor>()
     private val upvalueIndexes = linkedMapOf<String, Int>()
     private val localVars = mutableListOf<LocalVarBuilder>()
+    private val callSiteInfo = mutableListOf<CallSiteInfo>()
     private val loopBreaks = mutableListOf<MutableList<BreakJump>>()
     private val activeLabels = mutableListOf<LabelTarget>()
     private val pendingGotos = mutableListOf<PendingGoto>()
@@ -96,6 +98,7 @@ internal class Compiler private constructor(
             upvalues = upvalues.toTypedArray(),
             localVars = localVarInfo(writer.size),
             lineInfo = writer.lineInfo(),
+            callSiteInfo = callSiteInfo.toTypedArray(),
             maxStackSize = maxRegister.coerceAtLeast(1),
             isVararg = isVarargFunction,
         )
@@ -752,7 +755,7 @@ internal class Compiler private constructor(
         }
         val minimumResultSlots = if (resultCount == OPEN_RESULT_COUNT) 1 else resultCount
         maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 1, minimumResultSlots))
-        writer.emit(Instruction.abc(Opcode.CALL, register, argumentCount, resultCount), expression.range.start.line)
+        emitCall(register, argumentCount, resultCount, expression.range.start.line, callSiteInfo(expression.callee))
     }
 
     private fun compileMethodCallExpression(expression: MethodCallExpression, register: Int, resultCount: Int = 1) {
@@ -781,7 +784,42 @@ internal class Compiler private constructor(
         }
         val minimumResultSlots = if (resultCount == OPEN_RESULT_COUNT) 1 else resultCount
         maxRegister = maxRegister.coerceAtLeast(register + maxOf(expression.arguments.size + 2, minimumResultSlots))
-        writer.emit(Instruction.abc(Opcode.CALL, register, argumentCount, resultCount), expression.range.start.line)
+        emitCall(
+            register,
+            argumentCount,
+            resultCount,
+            expression.range.start.line,
+            CallSiteInfo(writer.size, expression.methodName, "method"),
+        )
+    }
+
+    private fun emitCall(register: Int, argumentCount: Int, resultCount: Int, line: Int, info: CallSiteInfo?) {
+        val pc = writer.size
+        writer.emit(Instruction.abc(Opcode.CALL, register, argumentCount, resultCount), line)
+        if (info != null) {
+            callSiteInfo += info.copy(pc = pc)
+        }
+    }
+
+    private fun callSiteInfo(callee: Expression): CallSiteInfo? {
+        return when (callee) {
+            is VariableExpression -> CallSiteInfo(0, callee.name, callSiteNameWhat(callee.name))
+            is IndexExpression -> {
+                val key = callee.key as? StringExpression ?: return null
+                CallSiteInfo(0, key.value, "field")
+            }
+            else -> null
+        }
+    }
+
+    private fun callSiteNameWhat(name: String): String {
+        if (locals.containsKey(name)) {
+            return "local"
+        }
+        if (resolveUpvalue(name) != null) {
+            return "upvalue"
+        }
+        return "global"
     }
 
     private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {
@@ -826,6 +864,7 @@ internal class Compiler private constructor(
             upvalues = compiler.upvalues.toTypedArray(),
             localVars = compiler.localVarInfo(compiler.writer.size),
             lineInfo = compiler.writer.lineInfo(),
+            callSiteInfo = compiler.callSiteInfo.toTypedArray(),
             maxStackSize = compiler.maxRegister.coerceAtLeast(1),
             numParams = expression.parameters.size,
             isVararg = expression.isVararg,

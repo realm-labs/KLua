@@ -11,6 +11,7 @@ internal data class Prototype(
     val upvalueNames: Array<String> = upvalueNames(upvalues),
     val localVars: Array<LocalVarInfo> = emptyArray(),
     val lineInfo: IntArray = IntArray(code.size),
+    val callSiteInfo: Array<CallSiteInfo> = emptyArray(),
     val maxStackSize: Int,
     val numParams: Int = 0,
     val isVararg: Boolean = false,
@@ -27,6 +28,7 @@ internal data class Prototype(
             columnByPc = null,
             localVars = localVars,
             upvalueNames = upvalueNames,
+            callSiteInfo = callSiteInfo,
             validBreakpointLines = validBreakpointLines,
             lineDefined = lineDefined,
             lastLineDefined = lastLineDefined,
@@ -45,6 +47,7 @@ internal data class Prototype(
             upvalueNames.contentEquals(other.upvalueNames) &&
             localVars.contentEquals(other.localVars) &&
             lineInfo.contentEquals(other.lineInfo) &&
+            callSiteInfo.contentEquals(other.callSiteInfo) &&
             lineDefined == other.lineDefined &&
             lastLineDefined == other.lastLineDefined &&
             validBreakpointLines.contentEquals(other.validBreakpointLines) &&
@@ -63,6 +66,7 @@ internal data class Prototype(
         result = 31 * result + upvalueNames.contentHashCode()
         result = 31 * result + localVars.contentHashCode()
         result = 31 * result + lineInfo.contentHashCode()
+        result = 31 * result + callSiteInfo.contentHashCode()
         result = 31 * result + lineDefined
         result = 31 * result + lastLineDefined
         result = 31 * result + validBreakpointLines.contentHashCode()
@@ -80,6 +84,7 @@ internal class DebugInfo(
     val columnByPc: IntArray?,
     val localVars: Array<LocalVarInfo>,
     val upvalueNames: Array<String>,
+    val callSiteInfo: Array<CallSiteInfo>,
     val validBreakpointLines: IntArray,
     val lineDefined: Int,
     val lastLineDefined: Int,
@@ -99,6 +104,13 @@ internal class DebugInfo(
                 )
             },
             upvalueNames = upvalueNames.toList(),
+            callSiteInfo = callSiteInfo.map { callSite ->
+                CallSiteInfoSnapshot(
+                    pc = callSite.pc,
+                    name = callSite.name,
+                    nameWhat = callSite.nameWhat,
+                )
+            },
             validBreakpointLines = validBreakpointLines.toList(),
             lineDefined = lineDefined,
             lastLineDefined = lastLineDefined,
@@ -113,6 +125,7 @@ internal data class DebugInfoSnapshot(
     val columnByPc: List<Int>?,
     val localVars: List<LocalVarInfoSnapshot>,
     val upvalueNames: List<String>,
+    val callSiteInfo: List<CallSiteInfoSnapshot>,
     val validBreakpointLines: List<Int>,
     val lineDefined: Int,
     val lastLineDefined: Int,
@@ -123,6 +136,12 @@ internal data class LocalVarInfoSnapshot(
     val slot: Int,
     val startPc: Int,
     val endPc: Int,
+)
+
+internal data class CallSiteInfoSnapshot(
+    val pc: Int,
+    val name: String,
+    val nameWhat: String,
 )
 
 private fun upvalueNames(upvalues: Array<UpvalueDescriptor>): Array<String> {
@@ -150,6 +169,12 @@ internal data class LocalVarInfo(
     val slot: Int,
     val startPc: Int,
     val endPc: Int,
+)
+
+internal data class CallSiteInfo(
+    val pc: Int,
+    val name: String,
+    val nameWhat: String,
 )
 
 internal enum class UpvalueSource {
