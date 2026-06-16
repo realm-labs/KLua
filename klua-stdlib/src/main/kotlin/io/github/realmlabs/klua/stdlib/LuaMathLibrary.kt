@@ -157,6 +157,9 @@ internal object LuaMathLibrary {
             return LuaReturn.of(ln(number))
         }
         val base = requiredNumber(context, 2, "log")
+        if (base == 2.0) {
+            return LuaReturn.of(java.lang.Math.log(number) / java.lang.Math.log(2.0))
+        }
         if (base == 10.0) {
             return LuaReturn.of(java.lang.Math.log10(number))
         }
