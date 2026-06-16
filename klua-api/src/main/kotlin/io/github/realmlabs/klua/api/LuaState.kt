@@ -9,6 +9,7 @@ import io.github.realmlabs.klua.core.KLuaCoreCoroutine
 import io.github.realmlabs.klua.core.KLuaCoreCoroutineExecution
 import io.github.realmlabs.klua.core.KLuaCoreDebugHook
 import io.github.realmlabs.klua.core.KLuaCoreExecution
+import io.github.realmlabs.klua.core.KLuaCoreExecutionLimits
 import io.github.realmlabs.klua.core.KLuaCoreGlobals
 import io.github.realmlabs.klua.core.KLuaCoreLoad
 import io.github.realmlabs.klua.core.KLuaCoreRuntime
@@ -196,7 +197,8 @@ class LuaState private constructor(
     ): LuaStatus {
         val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
         val arguments = stack.subList(functionIndex + 1, stack.size).map { it.toCoreValue(tableCache) }
-        return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments, coreGlobals)) {
+        val limits = KLuaCoreExecutionLimits(instructionLimit = config.instructionLimit)
+        return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments, coreGlobals, limits)) {
             is KLuaCoreExecution.Success -> {
                 lastError = null
                 removeCallFrame(functionIndex)

@@ -32,10 +32,16 @@ internal class LuaVm(
     private val isStringMetatableConfigured: (() -> Boolean)? = null,
     private val currentRawTypeMetatable: ((String) -> LuaTable?)? = null,
     private val currentUserDataMetatable: ((Any) -> LuaTable?)? = null,
+    private val instructionLimit: Long = 0,
 ) {
     private val thread = LuaThread()
     private var debugHook: DebugHookState? = null
     private var runningDebugHook = false
+    private var remainingInstructions = instructionLimit
+
+    init {
+        require(instructionLimit >= 0) { "instructionLimit must be non-negative" }
+    }
 
     fun execute(prototype: Prototype): List<LuaValue> {
         return executeReturned(prototype, emptyList(), emptyList())
@@ -175,6 +181,7 @@ internal class LuaVm(
                 val pc = frame.pc
                 val instruction = frame.prototype.code[frame.pc++]
                 try {
+                    consumeInstructionBudget()
                     dispatchDebugHooks(frame, pc)
                     when (Instruction.opcode(instruction)) {
                         Opcode.LOAD_NIL -> stack.set(register(frame, Instruction.a(instruction)), LuaNil)
@@ -277,6 +284,16 @@ internal class LuaVm(
                 thread.popFrame(frame)
             }
         }
+    }
+
+    private fun consumeInstructionBudget() {
+        if (instructionLimit <= 0) {
+            return
+        }
+        if (remainingInstructions <= 0) {
+            throw LuaVmException("instruction limit exceeded")
+        }
+        remainingInstructions--
     }
 
     private fun register(frame: CallFrame, offset: Int): Int = frame.base + offset

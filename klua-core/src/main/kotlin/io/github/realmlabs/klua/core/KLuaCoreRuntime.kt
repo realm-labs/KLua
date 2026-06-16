@@ -76,6 +76,7 @@ public object KLuaCoreRuntime {
         chunk: KLuaCoreChunk,
         arguments: List<KLuaCoreValue>,
         globals: KLuaCoreGlobals,
+        limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
     ): KLuaCoreExecution {
         val vmArguments = arguments.map { value ->
             value.toLuaValueOrNull(globals)
@@ -92,6 +93,7 @@ public object KLuaCoreRuntime {
                     isStringMetatableConfigured = { globals.stringMetatableConfigured },
                     currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
                     currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
+                    instructionLimit = limits.instructionLimit,
                 ).execute(chunk.prototype, vmArguments).map { value ->
                     toPublicValue(value, globals)
                 },
@@ -411,6 +413,14 @@ public object KLuaCoreRuntime {
 public class KLuaCoreChunk internal constructor(
     internal val prototype: Prototype,
 )
+
+public data class KLuaCoreExecutionLimits(
+    public val instructionLimit: Long = 0,
+) {
+    init {
+        require(instructionLimit >= 0) { "instructionLimit must be non-negative" }
+    }
+}
 
 public class KLuaCoreGlobals internal constructor(
     internal val table: LuaTable = LuaTable(),

@@ -106,4 +106,23 @@ class KLuaCoreRuntimeErrorTest {
         assertEquals(true, inner.isVararg)
         assertEquals(listOf(3, 4), inner.activeLines)
     }
+
+    @Test
+    fun `runtime errors when instruction limit is exceeded`() {
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile("while true do end", "core-budget.lua"),
+        ).chunk
+
+        val result = KLuaCoreRuntime.execute(
+            chunk,
+            emptyList(),
+            KLuaCoreGlobals.create(),
+            KLuaCoreExecutionLimits(instructionLimit = 10),
+        )
+
+        val error = assertIs<KLuaCoreExecution.RuntimeError>(result)
+        assertEquals("instruction limit exceeded", error.message)
+        assertEquals("core-budget.lua", error.sourceName)
+        assertEquals(1, error.line)
+    }
 }

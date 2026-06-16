@@ -315,6 +315,19 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade enforces configured instruction limits`() {
+        val lua = Lua.create(LuaConfig(instructionLimit = 10))
+
+        val error = assertFailsWith<LuaRuntimeException> {
+            lua.load("while true do end", "api-budget.lua").exec()
+        }
+
+        assertEquals("instruction limit exceeded", error.message)
+        assertEquals("api-budget.lua", error.sourceName)
+        assertEquals(1, error.line)
+    }
+
+    @Test
     fun `state runtime errors expose host call frames`() {
         val state = LuaState.create()
         state.register("explode") {
