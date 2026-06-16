@@ -211,12 +211,13 @@ class DapSessionTest {
                 locals = listOf(DebugVariable("answer", 42L, "number", "42")),
             ),
             DebugFrameView(level = 1, sourceName = "scripts/lib.lua", line = 4),
+            DebugFrameView(level = 2, sourceName = "C:\\workspace\\main.lua", line = 7),
         )
 
         val stackTrace = session.stackTrace(frames)
         val scopes = session.scopes(stackTrace.stackFrames[0].id)
 
-        assertEquals(2, stackTrace.totalFrames)
+        assertEquals(3, stackTrace.totalFrames)
         assertEquals(
             DapStackFrame(
                 id = stackTrace.stackFrames[0].id,
@@ -227,6 +228,10 @@ class DapSessionTest {
             stackTrace.stackFrames[0],
         )
         assertNotEquals(stackTrace.stackFrames[0].id, stackTrace.stackFrames[1].id)
+        assertEquals(
+            DapSource(path = "C:\\workspace\\main.lua", name = "main.lua"),
+            stackTrace.stackFrames[2].source,
+        )
         assertEquals(1, scopes.scopes.size)
         assertEquals("Locals", scopes.scopes[0].name)
         assertTrue(scopes.scopes[0].variablesReference > 0)

@@ -320,7 +320,7 @@ public class DapSession(
             DapStackFrame(
                 id = id,
                 name = frame.sourceName,
-                source = DapSource(path = frame.sourceName, name = frame.sourceName.substringAfterLast('/')),
+                source = DapSource(path = frame.sourceName, name = sourceDisplayName(frame.sourceName)),
                 line = frame.line,
             )
         }
@@ -456,6 +456,10 @@ private fun DapAttachRequest.targetDescription(): String {
     if (processId != null) return "process:$processId"
     if (!host.isNullOrBlank() && port != null) return "$host:$port"
     return ""
+}
+
+private fun sourceDisplayName(path: String): String {
+    return path.substringAfterLast('/').substringAfterLast('\\')
 }
 
 private sealed class VariableReference {
