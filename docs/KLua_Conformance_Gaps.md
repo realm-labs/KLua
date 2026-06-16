@@ -10,6 +10,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 ## Debug Library
 
 - Optional thread arguments for `debug.traceback`, `debug.getinfo`, `debug.getlocal`, `debug.setlocal`, `debug.sethook`, and `debug.gethook` are implemented for suspended KLua coroutine threads. Broader cross-thread debug behavior beyond suspended KLua coroutine threads is not implemented yet.
+- `debug.getinfo(..., "n")` does not yet resolve call-site names. Lua 5.5 reports both `name` and `namewhat` when the VM can infer how a function was called; KLua currently reports only a conservative empty `namewhat`.
 
 ## Package Library
 
