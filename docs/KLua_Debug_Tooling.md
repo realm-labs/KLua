@@ -22,7 +22,7 @@ Current behavior:
 
 - the input script is parsed and compiled through the public `Lua` facade;
 - syntax errors are reported without writing a package;
-- successful compilation writes a bytecode package that can be passed to `Lua.loadBytecode`, `LuaState.loadBytecode`, or the CLI debugger runner when the program path ends in `.kluac`.
+- successful compilation writes a bytecode package that can be passed to `Lua.loadBytecode`, `LuaState.loadBytecode`, `Lua.loadBytecodeResource`, `LuaState.loadBytecodeResource`, or the CLI debugger runner when the program path ends in `.kluac`.
 
 ## CLI Debugger
 
