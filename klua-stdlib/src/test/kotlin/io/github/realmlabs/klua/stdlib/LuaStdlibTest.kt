@@ -7110,6 +7110,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table index and newindex support native metamethod functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.register("nativeIndex") { context ->
+            LuaReturn.of("native-index-${context.toString(2)}")
+        }
+        state.register("nativeNewIndex") { context ->
+            context.setTableField(context.getTable(1), context.getLuaValue(2), context.getLuaValue(3))
+            LuaReturn.none()
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local indexed = setmetatable({}, {
+                    __index = nativeIndex,
+                })
+                local assigned = setmetatable({}, {
+                    __newindex = nativeNewIndex,
+                })
+
+                local indexedValue = indexed.answer
+                assigned.name = "stored"
+
+                return indexedValue, assigned.name
+                """.trimIndent(),
+                "table-native-index-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("native-index-answer", state.toString(1))
+        assertEquals("stored", state.toString(2))
+    }
+
+    @Test
     fun `debug metatable functions can replace string metatable`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
