@@ -4387,6 +4387,73 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pcall invokes non-table call metamethods`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val hostUserData = Any()
+        state.register("hostUserData") { LuaReturn.of(hostUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local primitiveCalls = {}
+                debug.setmetatable(false, {
+                    __call = function(self, value)
+                        primitiveCalls[#primitiveCalls + 1] = { self, value }
+                        return "boolean-call"
+                    end,
+                })
+
+                local userdataCalls = {}
+                local userdata = hostUserData()
+                debug.setmetatable(userdata, {
+                    __call = function(self, value)
+                        userdataCalls[#userdataCalls + 1] = { self == userdata, value }
+                        return "userdata-call"
+                    end,
+                })
+
+                local directPrimitive = false("x")
+                local protectedPrimitiveOk, protectedPrimitive = pcall(false, "y")
+                local directUserdata = userdata("z")
+                local protectedUserdataOk, protectedUserdata = pcall(userdata, "w")
+
+                debug.setmetatable(false, nil)
+                debug.setmetatable(userdata, nil)
+
+                local missingOk, missingMessage = pcall(false, "again")
+
+                return directPrimitive, primitiveCalls[1][1], primitiveCalls[1][2],
+                    protectedPrimitiveOk, protectedPrimitive, primitiveCalls[2][1], primitiveCalls[2][2],
+                    directUserdata, userdataCalls[1][1], userdataCalls[1][2],
+                    protectedUserdataOk, protectedUserdata, userdataCalls[2][1], userdataCalls[2][2],
+                    missingOk, missingMessage
+                """.trimIndent(),
+                "pcall-non-table-call-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("boolean-call", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("x", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("boolean-call", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("y", state.toString(7))
+        assertEquals("userdata-call", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("z", state.toString(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals("userdata-call", state.toString(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("w", state.toString(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("attempt to call a boolean value", state.toString(16))
+    }
+
+    @Test
     fun `state pcall invokes callable table values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
