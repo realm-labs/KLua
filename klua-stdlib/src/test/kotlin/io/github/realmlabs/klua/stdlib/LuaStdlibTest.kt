@@ -7327,6 +7327,60 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `non-table arithmetic metamethods handle source operators`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local booleanArgs = {}
+                debug.setmetatable(false, {
+                    __add = function(left, right)
+                        booleanArgs[#booleanArgs + 1] = { left, right }
+                        return "boolean-add"
+                    end,
+                })
+
+                local leftResult = false + 5
+                local rightResult = 5 + false
+
+                debug.setmetatable(1, {
+                    __add = function()
+                        return "number-add"
+                    end,
+                })
+                local primitiveNumberResult = 4 + 5
+                local missingOk, missingMessage = pcall(function()
+                    return "x" - true
+                end)
+
+                debug.setmetatable(false, nil)
+                debug.setmetatable(1, nil)
+
+                return leftResult, booleanArgs[1][1], booleanArgs[1][2],
+                    rightResult, booleanArgs[2][1], booleanArgs[2][2],
+                    primitiveNumberResult,
+                    missingOk, missingMessage
+                """.trimIndent(),
+                "non-table-arithmetic-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("boolean-add", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals(5L, state.toInteger(3))
+        assertEquals("boolean-add", state.toString(4))
+        assertEquals(5L, state.toInteger(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals(9L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertTrue(state.toString(9)?.endsWith("attempt to perform arithmetic on string") == true, state.toString(9))
+    }
+
+    @Test
     fun `debug metatable functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
