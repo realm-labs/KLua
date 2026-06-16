@@ -14,6 +14,8 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.time.format.DateTimeFormatter
+import java.time.temporal.WeekFields
 import java.util.Locale
 
 internal object LuaOsLibrary {
@@ -118,17 +120,17 @@ internal object LuaOsLibrary {
 
         val utc = format.startsWith('!')
         val body = if (utc) format.substring(1) else format
-        if (body != "*t") {
-            throw LuaRuntimeException("bad argument #1 to 'os.date' (unsupported date format)")
-        }
-
         val zone = if (utc) ZoneOffset.UTC else ZoneId.systemDefault()
         val dateTime = try {
             Instant.ofEpochSecond(time).atZone(zone)
         } catch (_: DateTimeException) {
             throw LuaRuntimeException("date result cannot be represented in this installation")
         }
-        return LuaReturn.of(dateTimeFields(dateTime))
+        return if (body == "*t") {
+            LuaReturn.of(dateTimeFields(dateTime))
+        } else {
+            LuaReturn.of(formatDate(body, dateTime))
+        }
     }
 
     private fun fileResult(filename: String, action: () -> Unit): LuaReturn {
@@ -196,6 +198,135 @@ internal object LuaOsLibrary {
             "yday" to dateTime.dayOfYear.toLong(),
             "isdst" to dateTime.zone.rules.isDaylightSavings(dateTime.toInstant()),
         )
+    }
+
+    private fun formatDate(format: String, dateTime: ZonedDateTime): String {
+        val result = StringBuilder()
+        var index = 0
+        while (index < format.length) {
+            val char = format[index]
+            if (char != '%') {
+                result.append(char)
+                index++
+                continue
+            }
+            if (index + 1 >= format.length) {
+                throw invalidDateFormat("")
+            }
+            index++
+            val modifier = if (format[index] == 'E' || format[index] == 'O') {
+                val value = format[index]
+                index++
+                value
+            } else {
+                null
+            }
+            if (index >= format.length) {
+                throw invalidDateFormat(modifier?.toString() ?: "")
+            }
+            val conversion = format[index]
+            result.append(formatDateConversion(dateTime, modifier, conversion))
+            index++
+        }
+        return result.toString()
+    }
+
+    private fun formatDateConversion(dateTime: ZonedDateTime, modifier: Char?, conversion: Char): String {
+        if (!isValidDateAlternateConversion(modifier, conversion)) {
+            throw invalidDateFormat("$modifier$conversion")
+        }
+        return when (conversion) {
+            'a' -> dateTime.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault()))
+            'A' -> dateTime.format(DateTimeFormatter.ofPattern("EEEE", Locale.getDefault()))
+            'b',
+            'h',
+            -> dateTime.format(DateTimeFormatter.ofPattern("MMM", Locale.getDefault()))
+            'B' -> dateTime.format(DateTimeFormatter.ofPattern("MMMM", Locale.getDefault()))
+            'c' -> formatDate("%a %b %d %H:%M:%S %Y", dateTime)
+            'C' -> twoDigits(java.lang.Math.floorDiv(dateTime.year, 100))
+            'd' -> twoDigits(dateTime.dayOfMonth)
+            'D' -> formatDate("%m/%d/%y", dateTime)
+            'e' -> dateTime.dayOfMonth.toString().padStart(2, ' ')
+            'F' -> formatDate("%Y-%m-%d", dateTime)
+            'g' -> twoDigits(java.lang.Math.floorMod(isoWeekYear(dateTime), 100))
+            'G' -> fourDigits(isoWeekYear(dateTime))
+            'H' -> twoDigits(dateTime.hour)
+            'I' -> twoDigits(hour12(dateTime.hour))
+            'j' -> dateTime.dayOfYear.toString().padStart(3, '0')
+            'm' -> twoDigits(dateTime.monthValue)
+            'M' -> twoDigits(dateTime.minute)
+            'n' -> "\n"
+            'p' -> if (dateTime.hour < 12) "AM" else "PM"
+            'r' -> formatDate("%I:%M:%S %p", dateTime)
+            'R' -> formatDate("%H:%M", dateTime)
+            'S' -> twoDigits(dateTime.second)
+            't' -> "\t"
+            'T' -> formatDate("%H:%M:%S", dateTime)
+            'u' -> dateTime.dayOfWeek.value.toString()
+            'U' -> twoDigits(weekOfYear(dateTime, firstDay = 7))
+            'V' -> twoDigits(dateTime.get(WeekFields.ISO.weekOfWeekBasedYear()))
+            'w' -> (dateTime.dayOfWeek.value % 7).toString()
+            'W' -> twoDigits(weekOfYear(dateTime, firstDay = 1))
+            'x' -> formatDate("%m/%d/%y", dateTime)
+            'X' -> formatDate("%H:%M:%S", dateTime)
+            'y' -> twoDigits(java.lang.Math.floorMod(dateTime.year, 100))
+            'Y' -> fourDigits(dateTime.year)
+            'z' -> zoneOffset(dateTime)
+            'Z' -> dateTime.zone.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault())
+            '%' -> "%"
+            else -> throw invalidDateFormat((modifier?.toString() ?: "") + conversion)
+        }
+    }
+
+    private fun invalidDateFormat(conversion: String): LuaRuntimeException {
+        return LuaRuntimeException("bad argument #1 to 'os.date' (invalid conversion specifier '%$conversion')")
+    }
+
+    private fun isValidDateAlternateConversion(modifier: Char?, conversion: Char): Boolean {
+        return when (modifier) {
+            null -> true
+            'E' -> conversion in "cCxXyY"
+            'O' -> conversion in "deHImMSuUVwWy"
+            else -> false
+        }
+    }
+
+    private fun weekOfYear(dateTime: ZonedDateTime, firstDay: Int): Int {
+        val yearDay = dateTime.dayOfYear
+        val janFirst = dateTime.withDayOfYear(1)
+        val janFirstDay = janFirst.dayOfWeek.value % 7
+        val first = firstDay % 7
+        val daysBeforeFirstWeek = (first - janFirstDay + 7) % 7
+        if (yearDay <= daysBeforeFirstWeek) {
+            return 0
+        }
+        return (yearDay - daysBeforeFirstWeek + 6) / 7
+    }
+
+    private fun isoWeekYear(dateTime: ZonedDateTime): Int {
+        return dateTime.get(WeekFields.ISO.weekBasedYear())
+    }
+
+    private fun hour12(hour: Int): Int {
+        val value = hour % 12
+        return if (value == 0) 12 else value
+    }
+
+    private fun zoneOffset(dateTime: ZonedDateTime): String {
+        val offset = dateTime.offset.totalSeconds
+        val sign = if (offset < 0) "-" else "+"
+        val absolute = kotlin.math.abs(offset)
+        val hours = absolute / 3600
+        val minutes = (absolute % 3600) / 60
+        return "$sign${twoDigits(hours)}${twoDigits(minutes)}"
+    }
+
+    private fun twoDigits(value: Int): String {
+        return value.toString().padStart(2, '0')
+    }
+
+    private fun fourDigits(value: Int): String {
+        return value.toString().padStart(4, '0')
     }
 
     private fun requiredTime(context: LuaCallContext, index: Int, functionName: String): Long {

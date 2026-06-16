@@ -9673,6 +9673,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os date formats utc time strings with strftime directives`() {
+        val state = LuaState.create()
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return os.date("!%Y-%m-%dT%H:%M:%S %w %u %j %U %W %%", 0),
+                    os.date("!%F|%D|%R|%T", 0),
+                    os.date("!%I:%M:%S %p", 47105),
+                    os.date("!%EY|%Od", 0)
+                """.trimIndent(),
+                "os-date-format.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1970-01-01T00:00:00 4 4 001 00 00 %", state.toString(1))
+        assertEquals("1970-01-01|01/01/70|00:00|00:00:00", state.toString(2))
+        assertEquals("01:05:05 PM", state.toString(3))
+        assertEquals("1970|01", state.toString(4))
+    }
+
+    @Test
     fun `os date local table results roundtrip through os time`() {
         val state = LuaState.create()
         LuaStdlib.openOs(state)
@@ -9827,7 +9852,7 @@ class LuaStdlibTest {
                 local rightOk, rightMessage = pcall(os.difftime, 1, 1.5)
                 local missingEnv = os.getenv("KLUA_ENV_DOES_NOT_EXIST_0123456789")
                 local envOk, envMessage = pcall(os.getenv, {})
-                local dateFormatOk, dateFormatMessage = pcall(os.date, "%Y", 0)
+                local dateFormatOk, dateFormatMessage = pcall(os.date, "%Q", 0)
                 local dateTimeOk, dateTimeMessage = pcall(os.date, "!*t", "bad")
                 local missingRemove, missingRemoveMessage = os.remove("KLUA_OS_MISSING_FILE_0123456789")
                 local removeOk, removeMessage = pcall(os.remove, {})
@@ -9870,7 +9895,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(12))
         assertEquals("bad argument #1 to 'os.getenv' (string expected)", state.toString(13))
         assertFalse(state.toBoolean(14))
-        assertEquals("bad argument #1 to 'os.date' (unsupported date format)", state.toString(15))
+        assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%Q')", state.toString(15))
         assertFalse(state.toBoolean(16))
         assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(17))
         assertTrue(state.isNil(18))
