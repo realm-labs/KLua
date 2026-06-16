@@ -5174,9 +5174,10 @@ class LuaStdlibTest {
             state.load(
                 """
                 local count = select("#", "a", "b", "c")
+                local prefixedCount = select("#extra", "a", "b")
                 local second, third = select(2, "a", "b", "c")
                 local last = select(-1, "a", "b", "c")
-                return count, second, third, last
+                return count, prefixedCount, second, third, last
                 """.trimIndent(),
                 "select.lua",
             ),
@@ -5184,9 +5185,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(3L, state.toInteger(1))
-        assertEquals("b", state.toString(2))
-        assertEquals("c", state.toString(3))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("b", state.toString(3))
         assertEquals("c", state.toString(4))
+        assertEquals("c", state.toString(5))
     }
 
     @Test
@@ -5278,8 +5280,8 @@ class LuaStdlibTest {
             state.load(
                 """
                 local emptyOk, emptyMessage = pcall(select, "", "a")
-                local prefixedOk, prefixedMessage = pcall(select, "#extra", "a")
-                return emptyOk, emptyMessage, prefixedOk, prefixedMessage
+                local plainOk, plainMessage = pcall(select, "extra", "a")
+                return emptyOk, emptyMessage, plainOk, plainMessage
                 """.trimIndent(),
                 "select-string-index.lua",
             ),
