@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.api
 
+import java.util.Collections
+
 enum class LuaStandardLibrary {
     BASE,
     MATH,
@@ -14,6 +16,6 @@ enum class LuaStandardLibrary {
 
     companion object {
         @JvmStatic
-        fun all(): Set<LuaStandardLibrary> = entries.toSet()
+        fun all(): Set<LuaStandardLibrary> = Collections.unmodifiableSet(entries.toSet())
     }
 }
