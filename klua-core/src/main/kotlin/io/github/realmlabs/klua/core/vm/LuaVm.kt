@@ -964,24 +964,6 @@ internal class LuaVm(
         return returnedValues(callValue(metamethod, arguments)).firstOrNull() ?: LuaNil
     }
 
-    private fun canUseEqualityMetamethod(left: LuaValue, right: LuaValue): Boolean {
-        return (left is LuaTable && right is LuaTable) || (left is LuaUserData && right is LuaUserData)
-    }
-
-    private fun equalityMetamethod(value: LuaValue): LuaValue? {
-        val metamethod = when (value) {
-            is LuaTable -> value.metatableRawGet(EQ_KEY)
-            is LuaUserData -> userDataMetatables[value.value]?.rawGet(EQ_KEY) ?: LuaNil
-            else -> LuaNil
-        }
-        return when (metamethod) {
-            is LuaClosure,
-            is LuaNativeFunction,
-            -> metamethod
-            else -> null
-        }
-    }
-
     private fun unaryMinus(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val value = stack.get(register(frame, Instruction.b(instruction)))
         val result = when (value) {

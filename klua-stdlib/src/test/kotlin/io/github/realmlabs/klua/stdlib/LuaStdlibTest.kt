@@ -7285,6 +7285,65 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `userdata index metamethods handle source reads`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val tableBackedUserData = Any()
+        val functionBackedUserData = Any()
+        state.register("tableBackedUserData") { LuaReturn.of(tableBackedUserData) }
+        state.register("functionBackedUserData") { LuaReturn.of(functionBackedUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tableBacked = tableBackedUserData()
+                debug.setmetatable(tableBacked, {
+                    __index = {
+                        name = "from-table",
+                    },
+                })
+
+                local functionBacked = functionBackedUserData()
+                local functionCalls = {}
+                debug.setmetatable(functionBacked, {
+                    __index = function(self, key)
+                        functionCalls[#functionCalls + 1] = { self == functionBacked, key }
+                        return "from-function-" .. key
+                    end,
+                })
+
+                local tableName = tableBacked.name
+                local missingTableName = tableBacked.missing
+                local functionName = functionBacked.name
+                local functionOther = functionBacked.other
+
+                debug.setmetatable(tableBacked, nil)
+                debug.setmetatable(functionBacked, nil)
+
+                return tableName, missingTableName,
+                    functionName, functionCalls[1][1], functionCalls[1][2],
+                    functionOther, functionCalls[2][1], functionCalls[2][2],
+                    tableBacked.name, functionBacked.name
+                """.trimIndent(),
+                "userdata-index-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("from-table", state.toString(1))
+        assertTrue(state.isNil(2))
+        assertEquals("from-function-name", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("name", state.toString(5))
+        assertEquals("from-function-other", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("other", state.toString(8))
+        assertTrue(state.isNil(9))
+        assertTrue(state.isNil(10))
+    }
+
+    @Test
     fun `non-table newindex metamethods handle source assignments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
