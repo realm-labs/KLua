@@ -14,8 +14,11 @@ import java.time.LocalDateTime
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.ZonedDateTime
+import java.util.Locale
 
 internal object LuaOsLibrary {
+    private val startupLocale: Locale = Locale.getDefault()
+
     fun open(state: LuaState): LuaState {
         val startNanos = System.nanoTime()
         state.newTable()
@@ -25,6 +28,7 @@ internal object LuaOsLibrary {
         setFunctionField(state, "getenv", ::getenv)
         setFunctionField(state, "remove", ::remove)
         setFunctionField(state, "rename", ::rename)
+        setFunctionField(state, "setlocale", ::setlocale)
         setFunctionField(state, "time", ::time)
         setFunctionField(state, "tmpname", ::tmpname)
         state.setGlobal("os")
@@ -70,6 +74,34 @@ internal object LuaOsLibrary {
         } catch (_: SecurityException) {
             throw LuaRuntimeException("unable to generate a unique filename")
         }
+    }
+
+    @Synchronized
+    private fun setlocale(context: LuaCallContext): LuaReturn {
+        val localeName = if (context.isNone(1) || context.isNil(1)) {
+            null
+        } else {
+            requiredString(context, 1, "os.setlocale")
+        }
+        val category = if (context.isNone(2) || context.isNil(2)) {
+            "all"
+        } else {
+            requiredString(context, 2, "os.setlocale")
+        }
+        if (category !in LOCALE_CATEGORIES) {
+            throw LuaRuntimeException("bad argument #2 to 'os.setlocale' (invalid option '$category')")
+        }
+        if (localeName == null) {
+            return LuaReturn.of(localeName(Locale.getDefault()))
+        }
+
+        val locale = when (localeName) {
+            "C" -> Locale.ROOT
+            "" -> startupLocale
+            else -> parseLocale(localeName) ?: return LuaReturn.of(null)
+        }
+        Locale.setDefault(locale)
+        return LuaReturn.of(localeName(locale))
     }
 
     private fun date(context: LuaCallContext): LuaReturn {
@@ -232,6 +264,19 @@ internal object LuaOsLibrary {
         }
     }
 
+    private fun parseLocale(value: String): Locale? {
+        val normalized = value.substringBefore('.').replace('_', '-')
+        if (!LOCALE_TAG_PATTERN.matches(normalized)) {
+            return null
+        }
+        val locale = Locale.forLanguageTag(normalized)
+        return locale.takeIf { it.language.isNotEmpty() && it.language != "und" }
+    }
+
+    private fun localeName(locale: Locale): String {
+        return if (locale == Locale.ROOT) "C" else locale.toString()
+    }
+
     private fun Double.luaInteger(): Long? {
         if (!isFinite()) {
             return null
@@ -246,4 +291,6 @@ internal object LuaOsLibrary {
     }
 
     private const val NANOS_PER_SECOND = 1_000_000_000.0
+    private val LOCALE_CATEGORIES = setOf("all", "collate", "ctype", "monetary", "numeric", "time")
+    private val LOCALE_TAG_PATTERN = Regex("[A-Za-z]{2,3}(-([A-Za-z]{2}|[0-9]{3}))?(-[A-Za-z0-9]+)*")
 }

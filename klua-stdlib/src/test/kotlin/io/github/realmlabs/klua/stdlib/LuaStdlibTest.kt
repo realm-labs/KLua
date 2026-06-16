@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.api.withContinuation
 import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
 import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 import java.util.function.Supplier
@@ -9427,7 +9428,7 @@ class LuaStdlibTest {
                 """
                 local now = os.time()
                 return type(os), type(os.clock), type(os.date), type(os.difftime), type(os.getenv),
-                    type(os.remove), type(os.rename), type(os.time), type(os.tmpname),
+                    type(os.remove), type(os.rename), type(os.setlocale), type(os.time), type(os.tmpname),
                     type(now), os.difftime(now, now)
                 """.trimIndent(),
                 "open-libs-os.lua",
@@ -9444,8 +9445,9 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(7))
         assertEquals("function", state.toString(8))
         assertEquals("function", state.toString(9))
-        assertEquals("number", state.toString(10))
-        assertEquals(0.0, state.toNumber(11) ?: error("missing difftime result"), 0.0)
+        assertEquals("function", state.toString(10))
+        assertEquals("number", state.toString(11))
+        assertEquals(0.0, state.toNumber(12) ?: error("missing difftime result"), 0.0)
     }
 
     @Test
@@ -9693,6 +9695,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os setlocale queries and changes process locale`() {
+        val originalLocale = Locale.getDefault()
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local before = os.setlocale(nil)
+                    local timeCategory = os.setlocale(nil, "time")
+                    local cLocale = os.setlocale("C", "all")
+                    local afterC = os.setlocale(nil)
+                    local rejected = os.setlocale("1-not-locale")
+                    local restored = os.setlocale("")
+                    return type(before), type(timeCategory), cLocale, afterC, rejected, type(restored)
+                    """.trimIndent(),
+                    "os-setlocale.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("string", state.toString(1))
+            assertEquals("string", state.toString(2))
+            assertEquals("C", state.toString(3))
+            assertEquals("C", state.toString(4))
+            assertTrue(state.isNil(5))
+            assertEquals("string", state.toString(6))
+        } finally {
+            Locale.setDefault(originalLocale)
+        }
+    }
+
+    @Test
     fun `os time and difftime report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -9714,6 +9752,9 @@ class LuaStdlibTest {
                 local missingRemove, missingRemoveMessage = os.remove("KLUA_OS_MISSING_FILE_0123456789")
                 local removeOk, removeMessage = pcall(os.remove, {})
                 local renameOk, renameMessage = pcall(os.rename, "from")
+                local localeArgOk, localeArgMessage = pcall(os.setlocale, false)
+                local localeCategoryTypeOk, localeCategoryTypeMessage = pcall(os.setlocale, nil, false)
+                local localeCategoryOk, localeCategoryMessage = pcall(os.setlocale, nil, "bad")
                 return tableOk, tableMessage,
                     missingOk, missingMessage,
                     fieldOk, fieldMessage,
@@ -9725,7 +9766,10 @@ class LuaStdlibTest {
                     dateTimeOk, dateTimeMessage,
                     missingRemove, missingRemoveMessage,
                     removeOk, removeMessage,
-                    renameOk, renameMessage
+                    renameOk, renameMessage,
+                    localeArgOk, localeArgMessage,
+                    localeCategoryTypeOk, localeCategoryTypeMessage,
+                    localeCategoryOk, localeCategoryMessage
                 """.trimIndent(),
                 "os-time-errors.lua",
             ),
@@ -9755,6 +9799,12 @@ class LuaStdlibTest {
         assertEquals("bad argument #1 to 'os.remove' (string expected)", state.toString(21))
         assertFalse(state.toBoolean(22))
         assertEquals("bad argument #2 to 'os.rename' (string expected)", state.toString(23))
+        assertFalse(state.toBoolean(24))
+        assertEquals("bad argument #1 to 'os.setlocale' (string expected)", state.toString(25))
+        assertFalse(state.toBoolean(26))
+        assertEquals("bad argument #2 to 'os.setlocale' (string expected)", state.toString(27))
+        assertFalse(state.toBoolean(28))
+        assertEquals("bad argument #2 to 'os.setlocale' (invalid option 'bad')", state.toString(29))
     }
 
     @Test
