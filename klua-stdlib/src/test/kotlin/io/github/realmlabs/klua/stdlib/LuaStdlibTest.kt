@@ -7206,6 +7206,62 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `non-table length metamethods handle source length operator`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numberArgs
+                debug.setmetatable(42, {
+                    __len = function(left, right)
+                        numberArgs = { left, right, left == right }
+                        return "number-len"
+                    end,
+                })
+                debug.setmetatable(false, {
+                    __len = function(value)
+                        return value == false and 17 or 0
+                    end,
+                })
+                debug.setmetatable("abc", {
+                    __len = function()
+                        return 99
+                    end,
+                })
+
+                local numberLength = #42
+                local booleanLength = #false
+                local stringLength = #"abc"
+                local missingOk, missingMessage = pcall(function()
+                    return #(function() end)
+                end)
+
+                debug.setmetatable(42, nil)
+                debug.setmetatable(false, nil)
+                debug.setmetatable("abc", nil)
+
+                return numberLength, numberArgs[1], numberArgs[2], numberArgs[3],
+                    booleanLength, stringLength, missingOk, missingMessage
+                """.trimIndent(),
+                "non-table-len.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("number-len", state.toString(1))
+        assertEquals(42L, state.toInteger(2))
+        assertEquals(42L, state.toInteger(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals(17L, state.toInteger(5))
+        assertEquals(3L, state.toInteger(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toString(8)?.endsWith("attempt to get length of function") == true, state.toString(8))
+    }
+
+    @Test
     fun `debug metatable functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
