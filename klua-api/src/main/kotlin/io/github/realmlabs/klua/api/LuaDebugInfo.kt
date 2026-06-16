@@ -9,4 +9,5 @@ data class LuaFunctionDebugInfo(
     val isVararg: Boolean,
     val activeLines: List<Int>,
     val parameterNames: List<String>,
+    val localNames: List<String> = parameterNames,
 )

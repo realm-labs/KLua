@@ -280,6 +280,9 @@ public object KLuaCoreRuntime {
             parameterNames = closure.prototype.localVars
                 .take(closure.prototype.numParams)
                 .map { local -> local.name },
+            localNames = closure.prototype.localVars
+                .filter { local -> local.startPc <= 0 && 0 < local.endPc }
+                .map { local -> local.name },
         )
     }
 
@@ -718,6 +721,7 @@ public data class KLuaCoreFunctionDebugInfo(
     public val isVararg: Boolean,
     public val activeLines: List<Int>,
     public val parameterNames: List<String>,
+    public val localNames: List<String> = parameterNames,
 )
 
 public data class KLuaCoreDebugHook(

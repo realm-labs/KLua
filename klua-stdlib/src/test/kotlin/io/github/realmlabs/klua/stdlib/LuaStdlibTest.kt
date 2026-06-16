@@ -1517,6 +1517,11 @@ class LuaStdlibTest {
                 local function vararg(head, ...)
                     return head, ...
                 end
+                local function withLocals(first)
+                    local inner = first
+                    local second = inner
+                    return second
+                end
 
                 local fixedFirst = debug.getlocal(fixed, 1)
                 local fixedSecond = debug.getlocal(fixed, 2)
@@ -1524,9 +1529,12 @@ class LuaStdlibTest {
                 local fixedInvalid = debug.getlocal(fixed, 0)
                 local varargFirst = debug.getlocal(vararg, 1)
                 local varargSecond = debug.getlocal(vararg, 2)
+                local localFirst = debug.getlocal(withLocals, 1)
+                local localInner = debug.getlocal(withLocals, 2)
                 local hostMissing = debug.getlocal(print, 1)
                 return fixedFirst, fixedSecond, fixedMissing, fixedInvalid,
-                    varargFirst, varargSecond, hostMissing
+                    varargFirst, varargSecond, localFirst, localInner,
+                    hostMissing
                 """.trimIndent(),
                 "debug-getlocal-function.lua",
             ),
@@ -1539,7 +1547,9 @@ class LuaStdlibTest {
         assertTrue(state.isNil(4))
         assertEquals("head", state.toString(5))
         assertTrue(state.isNil(6))
-        assertTrue(state.isNil(7))
+        assertEquals("first", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertTrue(state.isNil(9))
     }
 
     @Test

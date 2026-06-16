@@ -221,7 +221,7 @@ internal object LuaDebugLibrary {
                 return LuaReturn.of(null)
             }
             val info = context.getFunctionDebugInfo(subjectIndex) ?: return LuaReturn.of(null)
-            return LuaReturn.of(info.parameterNames.getOrNull(index - 1))
+            return LuaReturn.of(info.localNames.getOrNull(index - 1))
         }
         val level = requiredStackLevel(context, subjectIndex, "getlocal")
         if (index == 0) {
