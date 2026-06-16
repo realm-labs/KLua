@@ -7381,6 +7381,63 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `non-table bitwise metamethods handle source operators`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local booleanArgs = {}
+                debug.setmetatable(false, {
+                    __band = function(left, right)
+                        booleanArgs[#booleanArgs + 1] = { left, right }
+                        return "boolean-band"
+                    end,
+                })
+
+                local leftResult = false & 3
+                local rightResult = 3 & false
+
+                debug.setmetatable(1, {
+                    __band = function()
+                        return "number-band"
+                    end,
+                })
+                local primitiveIntegerResult = 6 & 3
+                local missingOk, missingMessage = pcall(function()
+                    return true | "x"
+                end)
+
+                debug.setmetatable(false, nil)
+                debug.setmetatable(1, nil)
+
+                return leftResult, booleanArgs[1][1], booleanArgs[1][2],
+                    rightResult, booleanArgs[2][1], booleanArgs[2][2],
+                    primitiveIntegerResult,
+                    missingOk, missingMessage
+                """.trimIndent(),
+                "non-table-bitwise-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("boolean-band", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals(3L, state.toInteger(3))
+        assertEquals("boolean-band", state.toString(4))
+        assertEquals(3L, state.toInteger(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals(2L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertTrue(
+            state.toString(9)?.endsWith("attempt to perform bitwise operation on boolean") == true,
+            state.toString(9),
+        )
+    }
+
+    @Test
     fun `debug metatable functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
