@@ -129,6 +129,25 @@ val lua = Lua.create(LuaConfig(instructionLimit = 100_000))
 lua.load(script, "sandboxed.lua").exec()
 ```
 
+### Standard Library Selection
+
+`LuaConfig.standardLibraries` can whitelist which standard libraries `LuaStdlib.openLibs` installs. The default installs every available library, while `debugEnabled = false` still suppresses the debug library even when it is listed.
+
+```kotlin
+val state = LuaState.create(
+    LuaConfig(
+        instructionLimit = 100_000,
+        standardLibraries = setOf(
+            LuaStandardLibrary.BASE,
+            LuaStandardLibrary.MATH,
+            LuaStandardLibrary.STRING,
+            LuaStandardLibrary.TABLE,
+        ),
+    ),
+)
+LuaStdlib.openLibs(state)
+```
+
 ## Architecture
 
 KLua is designed as a Lua-compatible runtime on the JVM, not as a direct port of PUC Lua internals. The intended runtime path is:
