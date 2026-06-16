@@ -1571,6 +1571,54 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug thread arguments handle dead coroutine stacks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    return "done"
+                end)
+                local resumeOk, value = coroutine.resume(co)
+                local info = debug.getinfo(co, 0)
+                local trace = debug.traceback(co, "dead")
+                local localOk, localMessage = pcall(debug.getlocal, co, 0, 1)
+                local setOk, setMessage = pcall(debug.setlocal, co, 0, 1, "replacement")
+                local beforeHook = debug.gethook(co)
+                local function hook() end
+                debug.sethook(co, hook, "cr", 4)
+                local installed, mask, count = debug.gethook(co)
+                debug.sethook(co)
+                local afterHook = debug.gethook(co)
+                return resumeOk, value, coroutine.status(co), info, trace,
+                    localOk, localMessage, setOk, setMessage,
+                    beforeHook, installed == hook, mask, count, afterHook
+                """.trimIndent(),
+                "debug-dead-thread.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("done", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals("dead\nstack traceback:", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("bad argument #2 to 'debug.getlocal' (level out of range)", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #2 to 'debug.setlocal' (level out of range)", state.toString(9))
+        assertTrue(state.isNil(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals("cr", state.toString(12))
+        assertEquals(4L, state.toInteger(13))
+        assertTrue(state.isNil(14))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
