@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaExitException
 import io.github.realmlabs.klua.api.LuaException
 import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
@@ -628,6 +629,8 @@ public object LuaStdlib {
             throw yield.withContinuation { arguments ->
                 protectedCallResume(context, yield, handlerIndex, arguments)
             }
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             protectedCallError(context, errorObject(exception), handlerIndex)
         } catch (exception: RuntimeException) {
@@ -648,6 +651,8 @@ public object LuaStdlib {
             throw nextYield.withContinuation { nextArguments ->
                 protectedCallResume(context, nextYield, handlerIndex, nextArguments)
             }
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             protectedCallError(context, errorObject(exception), handlerIndex)
         } catch (exception: RuntimeException) {
@@ -666,6 +671,8 @@ public object LuaStdlib {
             throw yield.withContinuation { arguments ->
                 protectedCallErrorResume(yield, arguments)
             }
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (_: LuaException) {
             LuaReturn.of(false, "error in error handling")
         } catch (_: RuntimeException) {
@@ -681,6 +688,8 @@ public object LuaStdlib {
             throw nextYield.withContinuation { nextArguments ->
                 protectedCallErrorResume(nextYield, nextArguments)
             }
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (_: LuaException) {
             LuaReturn.of(false, "error in error handling")
         } catch (_: RuntimeException) {

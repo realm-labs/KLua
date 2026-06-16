@@ -1276,6 +1276,8 @@ private fun callCoreFunction(
                 cause = result.cause,
             )
         }
+    } catch (control: KLuaCoreControlException) {
+        throw control
     } catch (error: LuaVmException) {
         throw error
     } catch (yield: LuaYieldSignal) {

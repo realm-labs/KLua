@@ -1,6 +1,8 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaExitException
+import io.github.realmlabs.klua.api.LuaExitHandler
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -29,6 +31,7 @@ internal object LuaOsLibrary {
         setFunctionField(state, "date", ::date)
         setFunctionField(state, "difftime", ::difftime)
         setFunctionField(state, "execute", ::execute)
+        setFunctionField(state, "exit") { context -> exit(context, state.config.exitHandler) }
         setFunctionField(state, "getenv", ::getenv)
         setFunctionField(state, "remove", ::remove)
         setFunctionField(state, "rename", ::rename)
@@ -68,6 +71,23 @@ internal object LuaOsLibrary {
             throw LuaRuntimeException("interrupted while executing command")
         }
         return executeResult(exitCode)
+    }
+
+    private fun exit(context: LuaCallContext, exitHandler: LuaExitHandler): LuaReturn {
+        val status = exitStatus(context)
+        val closeState = !context.isNone(2) && context.toBoolean(2)
+        exitHandler.exit(status, closeState)
+        throw LuaExitException(status, closeState)
+    }
+
+    private fun exitStatus(context: LuaCallContext): Int {
+        if (context.typeName(1) == "boolean") {
+            return if (context.toBoolean(1)) EXIT_SUCCESS else EXIT_FAILURE
+        }
+        if (context.isNone(1) || context.isNil(1)) {
+            return EXIT_SUCCESS
+        }
+        return requiredTime(context, 1, "os.exit").toInt()
     }
 
     private fun getenv(context: LuaCallContext): LuaReturn {
@@ -497,6 +517,8 @@ internal object LuaOsLibrary {
         state.setField(-2, name)
     }
 
+    private const val EXIT_SUCCESS = 0
+    private const val EXIT_FAILURE = 1
     private const val NANOS_PER_SECOND = 1_000_000_000.0
     private val LOCALE_CATEGORIES = setOf("all", "collate", "ctype", "monetary", "numeric", "time")
     private val LOCALE_TAG_PATTERN = Regex("[A-Za-z]{2,3}(-([A-Za-z]{2}|[0-9]{3}))?(-[A-Za-z0-9]+)*")

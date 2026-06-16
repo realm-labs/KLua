@@ -1,6 +1,8 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaConfig
+import io.github.realmlabs.klua.api.LuaExitException
+import io.github.realmlabs.klua.api.LuaExitHandler
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -19,6 +21,7 @@ import java.util.function.Consumer
 import java.util.function.Supplier
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -10029,6 +10032,90 @@ class LuaStdlibTest {
         assertEquals(7L, state.toInteger(7))
         assertFalse(state.toBoolean(8))
         assertEquals("bad argument #1 to 'os.execute' (string expected)", state.toString(9))
+    }
+
+    @Test
+    fun `os exit signals configured process exit without returning`() {
+        val exits = mutableListOf<Pair<Int, Boolean>>()
+        val state = LuaState.create(
+            LuaConfig(
+                exitHandler = LuaExitHandler { status, closeState ->
+                    exits += status to closeState
+                },
+            ),
+        )
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local caught = pcall(os.exit, false, true)
+                return caught
+                """.trimIndent(),
+                "os-exit.lua",
+            ),
+        )
+        val exit = assertFailsWith<LuaExitException> {
+            state.pcall(0, -1)
+        }
+
+        assertEquals(1, exit.status)
+        assertTrue(exit.closeState)
+        assertEquals(listOf(1 to true), exits)
+    }
+
+    @Test
+    fun `os exit maps integer status`() {
+        val exits = mutableListOf<Pair<Int, Boolean>>()
+        val state = LuaState.create(
+            LuaConfig(
+                exitHandler = LuaExitHandler { status, closeState ->
+                    exits += status to closeState
+                },
+            ),
+        )
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                os.exit(7)
+                """.trimIndent(),
+                "os-exit-status.lua",
+            ),
+        )
+        val exit = assertFailsWith<LuaExitException> {
+            state.pcall(0, -1)
+        }
+
+        assertEquals(7, exit.status)
+        assertFalse(exit.closeState)
+        assertEquals(listOf(7 to false), exits)
+    }
+
+    @Test
+    fun `os exit reports invalid status arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return pcall(os.exit, {})
+                """.trimIndent(),
+                "os-exit-invalid.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'os.exit' (number expected)", state.toString(2))
     }
 
     @Test

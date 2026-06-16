@@ -240,6 +240,8 @@ class LuaState private constructor(
             removeCallFrame(functionIndex)
             pushHostResults(result.values, resultCount)
             LuaStatus.OK
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             val runtimeException = exception as? LuaRuntimeException
             val hasErrorObject = runtimeException?.hasErrorObject == true
@@ -606,6 +608,8 @@ class LuaState private constructor(
             )
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult(stackArguments, arguments)
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             val errorObject = if (exception is LuaRuntimeException && exception.hasErrorObject) {
                 exception.errorObject.toCoreReturnValue(stackArguments, arguments)
@@ -637,6 +641,8 @@ class LuaState private constructor(
             KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult()
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(
                 exception.message ?: exception::class.java.simpleName,
@@ -661,6 +667,8 @@ class LuaState private constructor(
             KLuaCoreCallResult.Success(result.values.map { it.toCoreReturnValue() })
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult()
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(
                 exception.message ?: exception::class.java.simpleName,
@@ -686,6 +694,8 @@ class LuaState private constructor(
             KLuaCoreCallResult.Success(emptyList())
         } catch (yield: LuaYieldException) {
             yield.toCoreYieldResult()
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(
                 exception.message ?: exception::class.java.simpleName,
@@ -937,6 +947,8 @@ class LuaState private constructor(
             } else {
                 yield.toCoreYieldResult()
             }
+        } catch (exit: LuaExitException) {
+            throw exit
         } catch (exception: LuaException) {
             KLuaCoreCallResult.RuntimeError(exception.message ?: exception::class.java.simpleName)
         } catch (exception: RuntimeException) {

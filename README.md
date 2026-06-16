@@ -129,6 +129,20 @@ val lua = Lua.create(LuaConfig(instructionLimit = 100_000))
 lua.load(script, "sandboxed.lua").exec()
 ```
 
+### Process Exit Handling
+
+`os.exit` never calls `System.exit` directly. It maps Lua's boolean or integer status argument to a JVM integer status, invokes `LuaConfig.exitHandler`, then throws `LuaExitException` so embedders can decide how to terminate or report the script.
+
+```kotlin
+val state = LuaState.create(
+    LuaConfig(
+        exitHandler = LuaExitHandler { status, closeState ->
+            println("Lua requested exit $status")
+        },
+    ),
+)
+```
+
 ### Standard Library Selection
 
 `LuaConfig.standardLibraries` can whitelist which standard libraries `LuaStdlib.openLibs` installs. The default installs every available library, while `debugEnabled = false` still suppresses the debug library even when it is listed.
