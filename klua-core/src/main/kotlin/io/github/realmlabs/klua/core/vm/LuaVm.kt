@@ -393,7 +393,7 @@ internal class LuaVm(
             is LuaClosure -> executeFrame(callee, arguments, callSiteInfo)
             is LuaNativeFunction -> callNativeResult(callee, arguments)
             is LuaTable -> {
-                callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callMetamethodDepth)
+                callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callSiteInfo, callMetamethodDepth)
             }
             is LuaUserData -> {
                 val metatable = currentUserDataMetatable?.invoke(callee.value)
@@ -402,16 +402,23 @@ internal class LuaVm(
                         callee,
                         arguments,
                         metatable.rawGet(CALL_KEY),
+                        callSiteInfo,
                         callMetamethodDepth,
                         "a ${userDataObjectTypeName(metatable)} value",
                     )
                 } else {
-                    callMetamethod(callee, arguments, LuaNil, callMetamethodDepth)
+                    callMetamethod(callee, arguments, LuaNil, callSiteInfo, callMetamethodDepth)
                 }
             }
             else -> {
                 val metatable = rawTypeMetatable(callee)
-                callMetamethod(callee, arguments, metatable?.rawGet(CALL_KEY) ?: LuaNil, callMetamethodDepth)
+                callMetamethod(
+                    callee,
+                    arguments,
+                    metatable?.rawGet(CALL_KEY) ?: LuaNil,
+                    callSiteInfo,
+                    callMetamethodDepth,
+                )
             }
         }
     }
@@ -420,6 +427,7 @@ internal class LuaVm(
         callee: LuaValue,
         arguments: List<LuaValue>,
         call: LuaValue,
+        callSiteInfo: CallSiteInfo?,
         callMetamethodDepth: Int,
         callErrorTypeName: String = typeName(callee),
     ): LuaExecutionResult {
@@ -428,10 +436,10 @@ internal class LuaVm(
         }
         val metamethodArguments = listOf(callee) + arguments
         return when (call) {
-            is LuaClosure -> executeFrame(call, metamethodArguments)
+            is LuaClosure -> executeFrame(call, metamethodArguments, callSiteInfo)
             is LuaNativeFunction -> callNativeResult(call, metamethodArguments)
             LuaNil -> throw LuaVmException("attempt to call $callErrorTypeName")
-            else -> callValue(call, metamethodArguments, callMetamethodDepth = callMetamethodDepth + 1)
+            else -> callValue(call, metamethodArguments, callSiteInfo, callMetamethodDepth + 1)
         }
     }
 

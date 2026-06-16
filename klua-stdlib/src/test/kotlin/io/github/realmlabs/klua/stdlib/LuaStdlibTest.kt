@@ -857,6 +857,13 @@ class LuaStdlibTest {
                 end
                 object.field = record
                 object[1] = record
+                local callable = setmetatable({}, {
+                    __call = function()
+                        local info = debug.getinfo(1, "n")
+                        seen[#seen + 1] = info.name
+                        seen[#seen + 1] = info.namewhat
+                    end,
+                })
 
                 do
                     local function localProbe()
@@ -879,13 +886,15 @@ class LuaStdlibTest {
                     seen[#seen + 1] = info.namewhat
                 end
 
+                callable()
                 globalProbe()
                 object.field()
                 object[1]()
                 object:method()
 
                 return seen[1], seen[2], seen[3], seen[4], seen[5], seen[6],
-                    seen[7], seen[8], seen[9], seen[10], seen[11], seen[12]
+                    seen[7], seen[8], seen[9], seen[10], seen[11], seen[12],
+                    seen[13], seen[14]
                 """.trimIndent(),
                 "debug-getinfo-names.lua",
             ),
@@ -896,14 +905,16 @@ class LuaStdlibTest {
         assertEquals("local", state.toString(2))
         assertEquals("upvalueProbe", state.toString(3))
         assertEquals("upvalue", state.toString(4))
-        assertEquals("globalProbe", state.toString(5))
-        assertEquals("global", state.toString(6))
-        assertEquals("field", state.toString(7))
-        assertEquals("field", state.toString(8))
-        assertEquals("integer index", state.toString(9))
+        assertEquals("callable", state.toString(5))
+        assertEquals("local", state.toString(6))
+        assertEquals("globalProbe", state.toString(7))
+        assertEquals("global", state.toString(8))
+        assertEquals("field", state.toString(9))
         assertEquals("field", state.toString(10))
-        assertEquals("method", state.toString(11))
-        assertEquals("method", state.toString(12))
+        assertEquals("integer index", state.toString(11))
+        assertEquals("field", state.toString(12))
+        assertEquals("method", state.toString(13))
+        assertEquals("method", state.toString(14))
     }
 
     @Test
