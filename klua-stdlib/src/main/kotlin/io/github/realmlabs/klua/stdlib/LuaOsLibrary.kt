@@ -4,6 +4,10 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import java.io.IOException
+import java.nio.file.Files
+import java.nio.file.Path
+import java.nio.file.StandardCopyOption
 import java.time.DateTimeException
 import java.time.Instant
 import java.time.LocalDateTime
@@ -19,6 +23,8 @@ internal object LuaOsLibrary {
         setFunctionField(state, "date", ::date)
         setFunctionField(state, "difftime", ::difftime)
         setFunctionField(state, "getenv", ::getenv)
+        setFunctionField(state, "remove", ::remove)
+        setFunctionField(state, "rename", ::rename)
         setFunctionField(state, "time", ::time)
         state.setGlobal("os")
         return state
@@ -36,6 +42,21 @@ internal object LuaOsLibrary {
 
     private fun getenv(context: LuaCallContext): LuaReturn {
         return LuaReturn.of(System.getenv(requiredString(context, 1, "os.getenv")))
+    }
+
+    private fun remove(context: LuaCallContext): LuaReturn {
+        val filename = requiredString(context, 1, "os.remove")
+        return fileResult(filename) {
+            Files.delete(Path.of(filename))
+        }
+    }
+
+    private fun rename(context: LuaCallContext): LuaReturn {
+        val source = requiredString(context, 1, "os.rename")
+        val target = requiredString(context, 2, "os.rename")
+        return fileResult(source) {
+            Files.move(Path.of(source), Path.of(target), StandardCopyOption.REPLACE_EXISTING)
+        }
     }
 
     private fun date(context: LuaCallContext): LuaReturn {
@@ -63,6 +84,17 @@ internal object LuaOsLibrary {
             throw LuaRuntimeException("date result cannot be represented in this installation")
         }
         return LuaReturn.of(dateTimeFields(dateTime))
+    }
+
+    private fun fileResult(filename: String, action: () -> Unit): LuaReturn {
+        return try {
+            action()
+            LuaReturn.of(true)
+        } catch (error: IOException) {
+            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}")
+        } catch (error: SecurityException) {
+            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}")
+        }
     }
 
     private fun time(context: LuaCallContext): LuaReturn {

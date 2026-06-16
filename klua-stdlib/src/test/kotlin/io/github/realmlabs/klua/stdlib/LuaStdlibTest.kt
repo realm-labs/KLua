@@ -9426,7 +9426,8 @@ class LuaStdlibTest {
             state.load(
                 """
                 local now = os.time()
-                return type(os), type(os.clock), type(os.date), type(os.difftime), type(os.getenv), type(os.time),
+                return type(os), type(os.clock), type(os.date), type(os.difftime), type(os.getenv),
+                    type(os.remove), type(os.rename), type(os.time),
                     type(now), os.difftime(now, now)
                 """.trimIndent(),
                 "open-libs-os.lua",
@@ -9440,8 +9441,10 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
         assertEquals("function", state.toString(6))
-        assertEquals("number", state.toString(7))
-        assertEquals(0.0, state.toNumber(8) ?: error("missing difftime result"), 0.0)
+        assertEquals("function", state.toString(7))
+        assertEquals("function", state.toString(8))
+        assertEquals("number", state.toString(9))
+        assertEquals(0.0, state.toNumber(10) ?: error("missing difftime result"), 0.0)
     }
 
     @Test
@@ -9620,6 +9623,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os rename and remove operate on files`() {
+        val root = Files.createTempDirectory("klua-os-files")
+        val source = root.resolve("source.txt")
+        val target = root.resolve("target.txt")
+        Files.writeString(source, "payload")
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local renamed = os.rename("${source.luaPath()}", "${target.luaPath()}")
+                    local removed = os.remove("${target.luaPath()}")
+                    return renamed, removed
+                    """.trimIndent(),
+                    "os-rename-remove.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertTrue(state.toBoolean(2))
+            assertFalse(Files.exists(source))
+            assertFalse(Files.exists(target))
+        } finally {
+            Files.deleteIfExists(source)
+            Files.deleteIfExists(target)
+            Files.deleteIfExists(root)
+        }
+    }
+
+    @Test
     fun `os time and difftime report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -9638,6 +9675,9 @@ class LuaStdlibTest {
                 local envOk, envMessage = pcall(os.getenv, {})
                 local dateFormatOk, dateFormatMessage = pcall(os.date, "%Y", 0)
                 local dateTimeOk, dateTimeMessage = pcall(os.date, "!*t", "bad")
+                local missingRemove, missingRemoveMessage = os.remove("KLUA_OS_MISSING_FILE_0123456789")
+                local removeOk, removeMessage = pcall(os.remove, {})
+                local renameOk, renameMessage = pcall(os.rename, "from")
                 return tableOk, tableMessage,
                     missingOk, missingMessage,
                     fieldOk, fieldMessage,
@@ -9646,7 +9686,10 @@ class LuaStdlibTest {
                     missingEnv,
                     envOk, envMessage,
                     dateFormatOk, dateFormatMessage,
-                    dateTimeOk, dateTimeMessage
+                    dateTimeOk, dateTimeMessage,
+                    missingRemove, missingRemoveMessage,
+                    removeOk, removeMessage,
+                    renameOk, renameMessage
                 """.trimIndent(),
                 "os-time-errors.lua",
             ),
@@ -9670,6 +9713,12 @@ class LuaStdlibTest {
         assertEquals("bad argument #1 to 'os.date' (unsupported date format)", state.toString(15))
         assertFalse(state.toBoolean(16))
         assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(17))
+        assertTrue(state.isNil(18))
+        assertTrue(state.toString(19)?.contains("KLUA_OS_MISSING_FILE_0123456789") == true, state.toString(19))
+        assertFalse(state.toBoolean(20))
+        assertEquals("bad argument #1 to 'os.remove' (string expected)", state.toString(21))
+        assertFalse(state.toBoolean(22))
+        assertEquals("bad argument #2 to 'os.rename' (string expected)", state.toString(23))
     }
 
     @Test
