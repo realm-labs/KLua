@@ -69,6 +69,7 @@ public object DebugCliMain {
         writeLine: (String) -> Unit,
         luaFactory: () -> Lua = { Lua.create() },
         readSource: (String) -> String,
+        readBytes: (String) -> ByteArray = defaultReadBytes,
         writeBytes: (String, ByteArray) -> Unit = defaultWriteBytes,
     ): Int {
         val invocation = try {
@@ -85,6 +86,7 @@ public object DebugCliMain {
             session = debugInvocation.session,
             luaFactory = luaFactory,
             readSource = readSource,
+            readBytecode = readBytes,
         )
         writeLine("debugging ${debugInvocation.session.program}")
 
@@ -111,6 +113,7 @@ public object DebugCliMain {
             readLine = ::readlnOrNull,
             writeLine = ::println,
             readSource = defaultReadSource,
+            readBytes = defaultReadBytes,
             writeBytes = defaultWriteBytes,
         )
         if (exitCode != 0) {
@@ -143,6 +146,10 @@ public object DebugCliMain {
 
 private val defaultReadSource: (String) -> String = { program ->
     Files.readString(Path.of(program))
+}
+
+private val defaultReadBytes: (String) -> ByteArray = { program ->
+    Files.readAllBytes(Path.of(program))
 }
 
 private val defaultWriteBytes: (String, ByteArray) -> Unit = { output, bytes ->

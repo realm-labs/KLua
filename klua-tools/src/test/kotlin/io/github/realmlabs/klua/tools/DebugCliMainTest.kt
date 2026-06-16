@@ -64,6 +64,34 @@ class DebugCliMainTest {
     }
 
     @Test
+    fun `main command loop runs bytecode packages`() {
+        val input = ArrayDeque(listOf("run", "quit"))
+        val output = mutableListOf<String>()
+        val bytecode = Lua.create().compileBytecode("return ...", "main.lua")
+
+        val exitCode = DebugCliMain.run(
+            args = arrayOf("--debug", "main.kluac", "left"),
+            readLine = { input.removeFirstOrNull() },
+            writeLine = { line -> output += line },
+            readSource = { error("source should not be read") },
+            readBytes = { path ->
+                assertEquals("main.kluac", path)
+                bytecode
+            },
+        )
+
+        assertEquals(0, exitCode)
+        assertEquals(
+            listOf(
+                "debugging main.kluac",
+                "ok: completed left",
+                "ok: quit",
+            ),
+            output,
+        )
+    }
+
+    @Test
     fun `main command loop reports bad commands and continues`() {
         val input = ArrayDeque(listOf("bad", "quit"))
         val output = mutableListOf<String>()

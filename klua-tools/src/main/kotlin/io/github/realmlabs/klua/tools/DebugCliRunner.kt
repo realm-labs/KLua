@@ -81,6 +81,7 @@ public class DebugCliRunner(
     private val debugController: DebugController = DebugController(breakpointManager),
     private val luaFactory: () -> Lua = { Lua.create() },
     private val readSource: (String) -> String = { program -> Files.readString(Path.of(program)) },
+    private val readBytecode: (String) -> ByteArray = { program -> Files.readAllBytes(Path.of(program)) },
 ) {
     public fun execute(input: String): DebugCliResult {
         return execute(DebugCliCommandParser.parse(input))
@@ -127,8 +128,13 @@ public class DebugCliRunner(
 
     private fun runProgram(): DebugCliResult {
         return try {
-            val source = readSource(session.program)
-            val result = luaFactory().load(source, session.program).call(*session.args.toTypedArray())
+            val lua = luaFactory()
+            val chunk = if (session.program.endsWith(".kluac", ignoreCase = true)) {
+                lua.loadBytecode(readBytecode(session.program))
+            } else {
+                lua.load(readSource(session.program), session.program)
+            }
+            val result = chunk.call(*session.args.toTypedArray())
             DebugCliResult(success = true, message = "completed", values = result.values)
         } catch (error: LuaException) {
             DebugCliResult(success = false, message = error.message ?: error::class.java.simpleName)
