@@ -6390,6 +6390,52 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string dump strip removes debug metadata from dumped chunks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function sample(value)
+                    local localValue = value .. "-done"
+                    return localValue
+                end
+
+                local loaded = load(string.dump(sample, true), "stripped-sample", "b")
+                local info = debug.getinfo(loaded, "SLu")
+                local localName = debug.getlocal(loaded, 1)
+                local outer = "upvalue"
+                local function withUpvalue()
+                    return outer
+                end
+                local loadedWithUpvalue = load(string.dump(withUpvalue, true), "stripped-upvalue", "b")
+                local upvalueInfo = debug.getinfo(loadedWithUpvalue, "u")
+                local upvalueName, upvalueValue = debug.getupvalue(loadedWithUpvalue, 1)
+                return loaded("ok-"), info.source, info.short_src, info.activelines,
+                    info.nups, info.nparams, info.isvararg, localName,
+                    upvalueInfo.nups, upvalueName, upvalueValue
+                """.trimIndent(),
+                "string-dump-strip.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("ok--done", state.toString(1))
+        assertEquals("", state.toString(2))
+        assertEquals("", state.toString(3))
+        assertEquals("table", state.typeName(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.isNil(8))
+        assertEquals(1L, state.toInteger(9))
+        assertTrue(state.isNil(10))
+        assertTrue(state.isNil(11))
+    }
+
+    @Test
     fun `binary load applies supplied environments to dumped chunks`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

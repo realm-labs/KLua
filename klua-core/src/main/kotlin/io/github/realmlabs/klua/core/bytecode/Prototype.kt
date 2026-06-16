@@ -34,6 +34,22 @@ internal data class Prototype(
             lastLineDefined = lastLineDefined,
         )
 
+    fun strippedForDump(): Prototype {
+        return copy(
+            sourceName = "",
+            sourceId = "",
+            nested = nested.map { nestedPrototype -> nestedPrototype.strippedForDump() }.toTypedArray(),
+            upvalues = upvalues
+                .map { upvalue -> upvalue.copy(name = "") }
+                .toTypedArray(),
+            upvalueNames = emptyArray(),
+            localVars = emptyArray(),
+            lineInfo = IntArray(code.size),
+            callSiteInfo = emptyArray(),
+            validBreakpointLines = intArrayOf(),
+        )
+    }
+
     override fun equals(other: Any?): Boolean {
         if (this === other) return true
         if (other !is Prototype) return false

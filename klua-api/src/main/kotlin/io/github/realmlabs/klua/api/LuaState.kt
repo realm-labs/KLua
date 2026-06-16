@@ -1648,7 +1648,7 @@ class LuaState private constructor(
         override fun dumpFunctionBytecode(index: Int, strip: Boolean): ByteArray? {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
             val coreFunction = function.coreFunction ?: return null
-            return KLuaCoreRuntime.dumpFunctionBytecode(coreFunction)
+            return KLuaCoreRuntime.dumpFunctionBytecode(coreFunction, strip)
         }
 
         override fun getUpvalue(index: Int, upvalueIndex: Int): LuaReturn? {

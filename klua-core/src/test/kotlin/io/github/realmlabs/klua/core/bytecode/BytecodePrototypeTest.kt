@@ -82,6 +82,55 @@ class BytecodePrototypeTest {
     }
 
     @Test
+    fun `strips debug metadata for dumped prototypes recursively`() {
+        val nested = Prototype(
+            sourceName = "debug.lua",
+            sourceId = "src:debug",
+            code = intArrayOf(Instruction.abc(Opcode.GET_UPVALUE, a = 0, b = 0)),
+            constants = arrayOf(LuaString("nested")),
+            upvalues = arrayOf(UpvalueDescriptor("outer", UpvalueSource.LOCAL, 0)),
+            upvalueNames = arrayOf("outer"),
+            localVars = arrayOf(LocalVarInfo("inner", slot = 0, startPc = 0, endPc = 1)),
+            lineInfo = intArrayOf(2),
+            callSiteInfo = arrayOf(CallSiteInfo(pc = 0, name = "outer", nameWhat = "upvalue")),
+            validBreakpointLines = intArrayOf(2),
+            maxStackSize = 1,
+        )
+        val prototype = Prototype(
+            sourceName = "debug.lua",
+            sourceId = "src:debug",
+            code = intArrayOf(Instruction.abc(Opcode.CLOSURE, a = 0, b = 0)),
+            constants = arrayOf(LuaInteger(1)),
+            nested = arrayOf(nested),
+            upvalues = arrayOf(UpvalueDescriptor("_ENV", UpvalueSource.UPVALUE, 0)),
+            upvalueNames = arrayOf("_ENV"),
+            localVars = arrayOf(LocalVarInfo("local", slot = 0, startPc = 0, endPc = 1)),
+            lineInfo = intArrayOf(1),
+            callSiteInfo = arrayOf(CallSiteInfo(pc = 0, name = "local", nameWhat = "local")),
+            validBreakpointLines = intArrayOf(1),
+            maxStackSize = 1,
+        )
+
+        val stripped = prototype.strippedForDump()
+
+        assertEquals("", stripped.sourceName)
+        assertEquals("", stripped.sourceId)
+        assertContentEquals(prototype.code, stripped.code)
+        assertEquals(prototype.constants.toList(), stripped.constants.toList())
+        assertEquals(1, stripped.upvalues.size)
+        assertEquals("", stripped.upvalues.single().name)
+        assertEquals(UpvalueSource.UPVALUE, stripped.upvalues.single().source)
+        assertEquals(0, stripped.upvalueNames.size)
+        assertEquals(0, stripped.localVars.size)
+        assertContentEquals(intArrayOf(0), stripped.lineInfo)
+        assertEquals(0, stripped.callSiteInfo.size)
+        assertContentEquals(intArrayOf(), stripped.validBreakpointLines)
+        assertEquals("", stripped.nested.single().sourceName)
+        assertEquals("", stripped.nested.single().upvalues.single().name)
+        assertContentEquals(intArrayOf(0), stripped.nested.single().lineInfo)
+    }
+
+    @Test
     fun `rejects invalid prototype offsets`() {
         assertEquals(
             BytecodePrototypeDecode.Invalid("invalid KLua prototype offset -1"),

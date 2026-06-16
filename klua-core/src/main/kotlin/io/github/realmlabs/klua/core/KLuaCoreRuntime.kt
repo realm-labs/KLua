@@ -57,9 +57,10 @@ public object KLuaCoreRuntime {
         }
     }
 
-    public fun dumpFunctionBytecode(function: KLuaCoreValue.FunctionValue): ByteArray? {
+    public fun dumpFunctionBytecode(function: KLuaCoreValue.FunctionValue, strip: Boolean = false): ByteArray? {
         val closure = function.sourceFunction as? LuaClosure ?: return null
-        return BytecodePackageCodec.encode(closure.prototype)
+        val prototype = if (strip) closure.prototype.strippedForDump() else closure.prototype
+        return BytecodePackageCodec.encode(prototype)
     }
 
     public fun execute(source: String, chunkName: String): KLuaCoreExecution {
