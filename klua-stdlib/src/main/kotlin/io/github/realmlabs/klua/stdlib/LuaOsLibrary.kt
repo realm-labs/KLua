@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.io.IOException
+import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
@@ -83,7 +84,7 @@ internal object LuaOsLibrary {
     private fun rename(context: LuaCallContext): LuaReturn {
         val source = requiredString(context, 1, "os.rename")
         val target = requiredString(context, 2, "os.rename")
-        return fileResult(source) {
+        return fileResult(null) {
             Files.move(Path.of(source), Path.of(target), StandardCopyOption.REPLACE_EXISTING)
         }
     }
@@ -155,15 +156,29 @@ internal object LuaOsLibrary {
         }
     }
 
-    private fun fileResult(filename: String, action: () -> Unit): LuaReturn {
+    private fun fileResult(filename: String?, action: () -> Unit): LuaReturn {
         return try {
             action()
             LuaReturn.of(true)
         } catch (error: IOException) {
-            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}", 1L)
+            LuaReturn.of(null, fileErrorMessage(filename, error), 1L)
         } catch (error: SecurityException) {
-            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}", 1L)
+            LuaReturn.of(null, fileErrorMessage(filename, error), 1L)
         }
+    }
+
+    private fun fileErrorMessage(filename: String?, error: IOException): String {
+        val reason = if (filename == null) {
+            (error as? FileSystemException)?.reason ?: error::class.java.simpleName
+        } else {
+            (error as? FileSystemException)?.reason ?: error.message ?: error::class.java.simpleName
+        }
+        return if (filename == null) reason else "$filename: $reason"
+    }
+
+    private fun fileErrorMessage(filename: String?, error: SecurityException): String {
+        val reason = error.message ?: error::class.java.simpleName
+        return if (filename == null) reason else "$filename: $reason"
     }
 
     private fun executeResult(exitCode: Int): LuaReturn {
