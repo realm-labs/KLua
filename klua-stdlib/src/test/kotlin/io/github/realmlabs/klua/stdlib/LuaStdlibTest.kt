@@ -7157,6 +7157,55 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `non-table newindex metamethods handle source assignments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local calls = {}
+                debug.setmetatable(42, {
+                    __newindex = function(value, key, assigned)
+                        calls[#calls + 1] = { value, key, assigned }
+                    end,
+                })
+                local numberValue = 42
+                numberValue.answer = "set"
+
+                local target = {}
+                debug.setmetatable(false, {
+                    __newindex = target,
+                })
+                local booleanValue = false
+                booleanValue.flag = "stored"
+
+                local missingOk, missingMessage = pcall(function()
+                    local text = "plain"
+                    text.value = "missing"
+                end)
+
+                debug.setmetatable(42, nil)
+                debug.setmetatable(false, nil)
+
+                return calls[1][1], calls[1][2], calls[1][3],
+                    target.flag, missingOk, missingMessage
+                """.trimIndent(),
+                "non-table-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals("answer", state.toString(2))
+        assertEquals("set", state.toString(3))
+        assertEquals("stored", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertTrue(state.toString(6)?.endsWith("attempt to index string") == true, state.toString(6))
+    }
+
+    @Test
     fun `debug metatable functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
