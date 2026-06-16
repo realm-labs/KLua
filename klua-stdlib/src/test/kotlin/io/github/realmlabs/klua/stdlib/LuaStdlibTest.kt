@@ -860,6 +860,7 @@ class LuaStdlibTest {
                 end
                 object.field = record
                 object[1] = record
+                local computedKey = "field"
                 local callable = setmetatable({}, {
                     __call = function()
                         local info = debug.getinfo(1, "n")
@@ -907,11 +908,13 @@ class LuaStdlibTest {
                 globalProbe()
                 object.field()
                 object[1]()
+                object[computedKey]()
                 object:method()
 
                 return seen[1], seen[2], seen[3], seen[4], seen[5], seen[6],
                     seen[7], seen[8], seen[9], seen[10], seen[11], seen[12],
-                    seen[13], seen[14], seen[15], seen[16], seen[17], seen[18]
+                    seen[13], seen[14], seen[15], seen[16], seen[17], seen[18],
+                    seen[19], seen[20]
                 """.trimIndent(),
                 "debug-getinfo-names.lua",
             ),
@@ -934,8 +937,10 @@ class LuaStdlibTest {
         assertEquals("field", state.toString(14))
         assertEquals("integer index", state.toString(15))
         assertEquals("field", state.toString(16))
-        assertEquals("method", state.toString(17))
-        assertEquals("method", state.toString(18))
+        assertEquals("?", state.toString(17))
+        assertEquals("field", state.toString(18))
+        assertEquals("method", state.toString(19))
+        assertEquals("method", state.toString(20))
     }
 
     @Test

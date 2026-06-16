@@ -814,7 +814,7 @@ internal class Compiler private constructor(
                 val name = when (val key = callee.key) {
                     is StringExpression -> key.value
                     is IntegerExpression -> "integer index"
-                    else -> return null
+                    else -> "?"
                 }
                 CallSiteInfo(0, name, "field")
             }
