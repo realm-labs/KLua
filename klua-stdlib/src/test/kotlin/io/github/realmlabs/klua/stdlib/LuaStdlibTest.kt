@@ -7403,6 +7403,57 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `userdata length metamethods handle source length operator`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val hostUserData = Any()
+        val otherUserData = Any()
+        state.register("hostUserData") { LuaReturn.of(hostUserData) }
+        state.register("otherUserData") { LuaReturn.of(otherUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local userdata = hostUserData()
+                local args
+                debug.setmetatable(userdata, {
+                    __len = function(left, right)
+                        args = { left == userdata, right == userdata, left == right }
+                        return "userdata-len"
+                    end,
+                })
+
+                local length = #userdata
+                local missingOk, missingMessage = pcall(function()
+                    return #otherUserData()
+                end)
+
+                debug.setmetatable(userdata, nil)
+                local clearedOk, clearedMessage = pcall(function()
+                    return #userdata
+                end)
+
+                return length, args[1], args[2], args[3],
+                    missingOk, missingMessage,
+                    clearedOk, clearedMessage
+                """.trimIndent(),
+                "userdata-length-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("userdata-len", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertTrue(state.toString(6)?.endsWith("attempt to get length of userdata") == true, state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toString(8)?.endsWith("attempt to get length of userdata") == true, state.toString(8))
+    }
+
+    @Test
     fun `non-table newindex metamethods handle source assignments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
