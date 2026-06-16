@@ -7409,6 +7409,59 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `userdata equality supports native metamethod functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val leftUserData = Any()
+        val rightUserData = Any()
+        val calls = AtomicInteger()
+        state.register("leftUserData") { LuaReturn.of(leftUserData) }
+        state.register("rightUserData") { LuaReturn.of(rightUserData) }
+        state.register("nativeEq") {
+            calls.incrementAndGet()
+            LuaReturn.of(true)
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local left = leftUserData()
+                local right = rightUserData()
+                debug.setmetatable(left, {
+                    __eq = nativeEq,
+                })
+
+                local sameIdentity = left == left
+                local leftResult = left == right
+                local crossTypeResult = left == {}
+
+                debug.setmetatable(left, nil)
+                debug.setmetatable(right, {
+                    __eq = nativeEq,
+                })
+                local rightResult = left == right
+
+                return sameIdentity,
+                    leftResult,
+                    crossTypeResult,
+                    rightResult,
+                    rawequal(left, right)
+                """.trimIndent(),
+                "userdata-native-equality.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals(2, calls.get())
+    }
+
+    @Test
     fun `userdata index metamethods handle source reads`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
