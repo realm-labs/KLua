@@ -6,7 +6,7 @@ KLua is a work-in-progress pure Kotlin Lua runtime for JVM 17+. It aims to provi
 
 KLua is pre-1.0 and not production-ready. Public APIs may change while the runtime moves toward a complete Lua implementation.
 
-The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, KLua bytecode package compile/load APIs including packaged resource loading, a single Lua 5.5 runtime target, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string/table standard library support, initial debug/DAP/tooling foundations, tests, and a JMH benchmark module. Broader standard libraries, debug tooling integration, sandboxing, Lua 5.5 conformance hardening, and performance work are still roadmap items.
+The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, KLua bytecode package compile/load APIs including packaged resource loading, a single Lua 5.5 runtime target, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string/table standard library support, initial debug/DAP/tooling foundations, initial instruction-limit enforcement, tests, and a JMH benchmark module. Broader standard libraries, debug tooling integration, sandboxing, Lua 5.5 conformance hardening, and performance work are still roadmap items.
 
 ## Goals
 
@@ -118,6 +118,15 @@ Packaged bytecode can be loaded from bytes or classpath resources through the pu
 val result = Lua.create()
     .loadBytecodeResource("scripts/main.kluac")
     .call("arg")
+```
+
+### Instruction Limits
+
+`LuaConfig.instructionLimit` can cap VM bytecode instructions for chunk execution. A value of `0` keeps execution unlimited.
+
+```kotlin
+val lua = Lua.create(LuaConfig(instructionLimit = 100_000))
+lua.load(script, "sandboxed.lua").exec()
 ```
 
 ## Architecture
