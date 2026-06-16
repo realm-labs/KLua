@@ -7344,6 +7344,65 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `userdata newindex metamethods handle source assignments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val tableBackedUserData = Any()
+        val functionBackedUserData = Any()
+        state.register("tableBackedUserData") { LuaReturn.of(tableBackedUserData) }
+        state.register("functionBackedUserData") { LuaReturn.of(functionBackedUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tableBacked = tableBackedUserData()
+                local target = {}
+                debug.setmetatable(tableBacked, {
+                    __newindex = target,
+                })
+                tableBacked.name = "from-table"
+                tableBacked[2] = "numeric-key"
+
+                local functionBacked = functionBackedUserData()
+                local functionCalls = {}
+                debug.setmetatable(functionBacked, {
+                    __newindex = function(self, key, value)
+                        functionCalls[#functionCalls + 1] = { self == functionBacked, key, value }
+                    end,
+                })
+                functionBacked.name = "from-function"
+                functionBacked[3] = "numeric-function"
+
+                debug.setmetatable(tableBacked, nil)
+                debug.setmetatable(functionBacked, nil)
+                local missingOk, missingMessage = pcall(function()
+                    tableBacked.name = "after-clear"
+                end)
+
+                return target.name, target[2],
+                    functionCalls[1][1], functionCalls[1][2], functionCalls[1][3],
+                    functionCalls[2][1], functionCalls[2][2], functionCalls[2][3],
+                    missingOk, missingMessage
+                """.trimIndent(),
+                "userdata-newindex-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("from-table", state.toString(1))
+        assertEquals("numeric-key", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("name", state.toString(4))
+        assertEquals("from-function", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals(3L, state.toInteger(7))
+        assertEquals("numeric-function", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertTrue(state.toString(10)?.endsWith("attempt to set userdata field 'name'") == true, state.toString(10))
+    }
+
+    @Test
     fun `non-table newindex metamethods handle source assignments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
