@@ -6,7 +6,7 @@ KLua is a work-in-progress pure Kotlin Lua runtime for JVM 17+. It aims to provi
 
 KLua is pre-1.0 and not production-ready. Public APIs may change while the runtime moves toward a complete Lua implementation.
 
-The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, KLua bytecode package compile/load APIs including packaged resource loading, a single Lua 5.5 runtime target, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string/table standard library support, initial debug/DAP/tooling foundations, initial instruction-limit enforcement, tests, and a JMH benchmark module. Broader standard libraries, debug tooling integration, sandboxing, Lua 5.5 conformance hardening, and performance work are still roadmap items.
+The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, KLua bytecode package compile/load APIs including packaged resource loading, a single Lua 5.5 runtime target, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string/table/utf8/package/coroutine/os/debug standard library support, initial debug/DAP/tooling foundations, instruction-limit enforcement, standard-library whitelisting, tests, and a JMH benchmark module. Broader standard library conformance, debug tooling integration, sandboxing, Lua 5.5 conformance hardening, and performance work are still roadmap items.
 
 ## Goals
 
@@ -23,10 +23,10 @@ The repository currently includes a multi-module Gradle project, lexer/parser/co
 - `klua-core`: internal lexer, parser, AST, compiler, bytecode, value model, and VM runtime.
 - `klua-api`: stable Java-friendly public API surface, including `LuaState`, `Lua`, `LuaChunk`, and host function types.
 - `klua-kotlin`: Kotlin extension helpers for the public API.
-- `klua-stdlib`: partial standard library integration, currently focused on base, math, string, and table functions.
-- `klua-debug`: planned runtime debugging internals.
-- `klua-dap`: planned Debug Adapter Protocol integration.
-- `klua-tools`: planned command-line tools.
+- `klua-stdlib`: partial standard library integration, currently covering base, math, string, table, utf8, package, coroutine, os, and debug functions.
+- `klua-debug`: initial runtime debugging internals.
+- `klua-dap`: initial Debug Adapter Protocol integration.
+- `klua-tools`: initial command-line tools.
 - `klua-jmh`: JMH benchmarks.
 - `klua-tests`: cross-module foundation, integration, and conformance tests.
 
