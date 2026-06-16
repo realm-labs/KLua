@@ -18111,6 +18111,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table move uses equality metamethod for overlap direction`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local storage = {"a", "b", "c"}
+                local metatable = {
+                    __len = function()
+                        return 3
+                    end,
+                    __index = function(_, key)
+                        return storage[key]
+                    end,
+                    __newindex = function(_, key, value)
+                        storage[key] = value
+                    end,
+                    __eq = function()
+                        return true
+                    end,
+                }
+                local source = setmetatable({}, metatable)
+                local destination = setmetatable({}, metatable)
+                table.move(source, 1, 3, 2, destination)
+                return storage[1], storage[2], storage[3], storage[4]
+                """.trimIndent(),
+                "table-move-eq-overlap.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("a", state.toString(2))
+        assertEquals("b", state.toString(3))
+        assertEquals("c", state.toString(4))
+    }
+
+    @Test
     fun `table move follows table newindex metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

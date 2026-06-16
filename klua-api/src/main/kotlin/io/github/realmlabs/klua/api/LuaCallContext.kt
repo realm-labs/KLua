@@ -48,6 +48,8 @@ interface LuaCallContext {
 
     fun luaEquals(leftIndex: Int, rightIndex: Int): Boolean? = rawEquals(leftIndex, rightIndex)
 
+    fun equal(leftIndex: Int, rightIndex: Int): Boolean? = null
+
     fun lessThan(leftIndex: Int, rightIndex: Int): Boolean? = null
 
     fun lessThanValues(left: Any?, right: Any?): Boolean? = null

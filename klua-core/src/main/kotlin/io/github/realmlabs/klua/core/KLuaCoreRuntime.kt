@@ -163,6 +163,16 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun equal(
+        left: KLuaCoreValue,
+        right: KLuaCoreValue,
+        globals: KLuaCoreGlobals,
+    ): KLuaCoreComparison {
+        return compareValues(left, right, globals) { vm, luaLeft, luaRight ->
+            vm.equal(luaLeft, luaRight)
+        }
+    }
+
     public fun canCreateCoroutine(function: KLuaCoreValue.FunctionValue): Boolean {
         return function.sourceFunction != null
     }
