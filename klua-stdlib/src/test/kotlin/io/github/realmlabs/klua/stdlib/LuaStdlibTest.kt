@@ -10987,7 +10987,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `coroutine isyieldable reports dead coroutines as not yieldable`() {
+    fun `coroutine isyieldable reports explicit dead coroutines as yieldable`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
 
@@ -11004,7 +11004,9 @@ class LuaStdlibTest {
                 local suspended = coroutine.isyieldable(co)
                 local secondOk, returned = coroutine.resume(co)
                 local dead = coroutine.isyieldable(co)
-                return before, firstOk, yielded, suspended, secondOk, returned, dead
+                local closed = coroutine.close(co)
+                local closedDead = coroutine.isyieldable(co)
+                return before, firstOk, yielded, suspended, secondOk, returned, dead, closed, closedDead
                 """.trimIndent(),
                 "coroutine-isyieldable-dead.lua",
             ),
@@ -11017,7 +11019,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
         assertEquals("done", state.toString(6))
-        assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.toBoolean(9))
     }
 
     @Test
@@ -11684,7 +11688,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
         assertFalse(state.toBoolean(6))
-        assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(7))
         assertEquals("dead", state.toString(8))
     }
 
@@ -11738,14 +11742,16 @@ class LuaStdlibTest {
             state.load(
                 """
                 local co = coroutine.create(function()
+                    local running = coroutine.running()
                     local direct = coroutine.isyieldable()
-                    local plain = callPlain(function()
-                        return coroutine.isyieldable()
+                    local directExplicit = coroutine.isyieldable(running)
+                    local plain, plainExplicit = callPlain(function()
+                        return coroutine.isyieldable(), coroutine.isyieldable(running)
                     end)
-                    local yieldable = callYieldable(function()
-                        return coroutine.isyieldable()
+                    local yieldable, yieldableExplicit = callYieldable(function()
+                        return coroutine.isyieldable(), coroutine.isyieldable(running)
                     end)
-                    return direct, plain, yieldable
+                    return direct, directExplicit, plain, plainExplicit, yieldable, yieldableExplicit
                 end)
                 return coroutine.resume(co)
                 """.trimIndent(),
@@ -11756,8 +11762,11 @@ class LuaStdlibTest {
 
         assertTrue(state.toBoolean(1), state.toString(2))
         assertTrue(state.toBoolean(2), state.toString(2))
-        assertFalse(state.toBoolean(3), state.toString(3))
-        assertTrue(state.toBoolean(4), state.toString(4))
+        assertTrue(state.toBoolean(3), state.toString(3))
+        assertFalse(state.toBoolean(4), state.toString(4))
+        assertFalse(state.toBoolean(5), state.toString(5))
+        assertTrue(state.toBoolean(6), state.toString(6))
+        assertTrue(state.toBoolean(7), state.toString(7))
     }
 
     @Test
