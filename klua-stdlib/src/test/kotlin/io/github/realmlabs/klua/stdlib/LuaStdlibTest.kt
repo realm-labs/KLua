@@ -5174,10 +5174,9 @@ class LuaStdlibTest {
             state.load(
                 """
                 local count = select("#", "a", "b", "c")
-                local prefixedCount = select("#extra", "a", "b", "c")
                 local second, third = select(2, "a", "b", "c")
                 local last = select(-1, "a", "b", "c")
-                return count, prefixedCount, second, third, last
+                return count, second, third, last
                 """.trimIndent(),
                 "select.lua",
             ),
@@ -5185,10 +5184,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(3L, state.toInteger(1))
-        assertEquals(3L, state.toInteger(2))
-        assertEquals("b", state.toString(3))
+        assertEquals("b", state.toString(2))
+        assertEquals("c", state.toString(3))
         assertEquals("c", state.toString(4))
-        assertEquals("c", state.toString(5))
     }
 
     @Test
@@ -5275,11 +5273,23 @@ class LuaStdlibTest {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return select("", "a")""", "select-string-index.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local emptyOk, emptyMessage = pcall(select, "", "a")
+                local prefixedOk, prefixedMessage = pcall(select, "#extra", "a")
+                return emptyOk, emptyMessage, prefixedOk, prefixedMessage
+                """.trimIndent(),
+                "select-string-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'select' (number expected)", state.toString(-1))
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'select' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'select' (number expected)", state.toString(4))
     }
 
     @Test

@@ -526,7 +526,7 @@ public object LuaStdlib {
     }
 
     private fun select(context: LuaCallContext): LuaReturn {
-        if (context.typeName(1) == "string" && context.toString(1)?.startsWith("#") == true) {
+        if (context.toString(1) == "#") {
             return LuaReturn.of((context.argumentCount - 1).toLong())
         }
 
