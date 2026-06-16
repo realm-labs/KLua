@@ -12083,6 +12083,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math random matches Lua xoshiro seeded sequence`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                math.randomseed(123)
+                return math.random(),
+                    math.random(10),
+                    math.random(5, 7),
+                    math.random(0)
+                """.trimIndent(),
+                "math-random-xoshiro-sequence.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0.21405899041481313, state.toNumber(1) ?: error("missing random float"), 0.0)
+        assertEquals(9L, state.toInteger(2))
+        assertEquals(5L, state.toInteger(3))
+        assertEquals(-5391743551570447441L, state.toInteger(4))
+    }
+
+    @Test
     fun `math randomseed returns effective seeds and supports two seed values`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
