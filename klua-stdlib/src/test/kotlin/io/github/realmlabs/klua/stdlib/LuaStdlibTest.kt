@@ -7493,6 +7493,97 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `non-table order metamethods handle source operators`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local booleanArgs = {}
+                debug.setmetatable(false, {
+                    __lt = function(left, right)
+                        booleanArgs[#booleanArgs + 1] = { "__lt", left, right }
+                        return true
+                    end,
+                    __le = function(left, right)
+                        booleanArgs[#booleanArgs + 1] = { "__le", left, right }
+                        return false
+                    end,
+                })
+
+                local ltLeft = false < 7
+                local ltRight = 7 < false
+                local leLeft = false <= 7
+                local leRight = 7 <= false
+
+                debug.setmetatable(1, {
+                    __lt = function()
+                        return false
+                    end,
+                    __le = function()
+                        return false
+                    end,
+                })
+                debug.setmetatable("", {
+                    __lt = function()
+                        return false
+                    end,
+                    __le = function()
+                        return false
+                    end,
+                })
+                local primitiveNumberLt = 2 < 3
+                local primitiveNumberLe = 2 <= 2
+                local primitiveStringLt = "a" < "b"
+                local primitiveStringLe = "a" <= "a"
+
+                debug.setmetatable(false, nil)
+                debug.setmetatable(1, nil)
+                debug.setmetatable("", nil)
+
+                local missingOk, missingMessage = pcall(function()
+                    return true < {}
+                end)
+
+                return ltLeft, booleanArgs[1][1], booleanArgs[1][2], booleanArgs[1][3],
+                    ltRight, booleanArgs[2][1], booleanArgs[2][2], booleanArgs[2][3],
+                    leLeft, booleanArgs[3][1], booleanArgs[3][2], booleanArgs[3][3],
+                    leRight, booleanArgs[4][1], booleanArgs[4][2], booleanArgs[4][3],
+                    primitiveNumberLt, primitiveNumberLe, primitiveStringLt, primitiveStringLe,
+                    missingOk, missingMessage
+                """.trimIndent(),
+                "non-table-order-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("__lt", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals(7L, state.toInteger(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("__lt", state.toString(6))
+        assertEquals(7L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("__le", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals(7L, state.toInteger(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("__le", state.toString(14))
+        assertEquals(7L, state.toInteger(15))
+        assertFalse(state.toBoolean(16))
+        assertTrue(state.toBoolean(17))
+        assertTrue(state.toBoolean(18))
+        assertTrue(state.toBoolean(19))
+        assertTrue(state.toBoolean(20))
+        assertFalse(state.toBoolean(21))
+        assertTrue(state.toString(22)?.endsWith("attempt to compare boolean with table") == true, state.toString(22))
+    }
+
+    @Test
     fun `debug metatable functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

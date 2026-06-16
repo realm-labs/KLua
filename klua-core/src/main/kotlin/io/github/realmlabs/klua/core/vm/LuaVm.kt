@@ -1226,6 +1226,19 @@ internal class LuaVm(
             }
         }
 
+        fun tryApply(left: LuaValue, right: LuaValue): Boolean? {
+            if (this == EQ) {
+                return luaEquals(left, right)
+            }
+            return primitiveOrderedCompare(left, right)?.let { comparison ->
+                when (this) {
+                    LT -> comparison < 0
+                    LE -> comparison <= 0
+                    EQ -> false
+                }
+            }
+        }
+
         private fun luaEquals(left: LuaValue, right: LuaValue): Boolean {
             val leftNumber = numberValue(left)
             val rightNumber = numberValue(right)
@@ -1239,6 +1252,14 @@ internal class LuaVm(
         }
 
         private fun orderedCompare(left: LuaValue, right: LuaValue): Int {
+            primitiveOrderedCompare(left, right)?.let { return it }
+            if (typeName(left) == typeName(right)) {
+                throw LuaVmException("attempt to compare two ${typeName(left)} values")
+            }
+            throw LuaVmException("attempt to compare ${typeName(left)} with ${typeName(right)}")
+        }
+
+        private fun primitiveOrderedCompare(left: LuaValue, right: LuaValue): Int? {
             val leftNumber = numberValue(left)
             val rightNumber = numberValue(right)
             if (leftNumber != null && rightNumber != null) {
@@ -1247,10 +1268,7 @@ internal class LuaVm(
             if (left is LuaString && right is LuaString) {
                 return left.value.compareTo(right.value)
             }
-            if (typeName(left) == typeName(right)) {
-                throw LuaVmException("attempt to compare two ${typeName(left)} values")
-            }
-            throw LuaVmException("attempt to compare ${typeName(left)} with ${typeName(right)}")
+            return null
         }
     }
 
