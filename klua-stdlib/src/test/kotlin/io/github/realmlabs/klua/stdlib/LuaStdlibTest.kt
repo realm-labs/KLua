@@ -9417,6 +9417,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openLibs installs os library`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local now = os.time()
+                return type(os), type(os.clock), type(os.difftime), type(os.time),
+                    type(now), os.difftime(now, now)
+                """.trimIndent(),
+                "open-libs-os.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals("function", state.toString(2))
+        assertEquals("function", state.toString(3))
+        assertEquals("function", state.toString(4))
+        assertEquals("number", state.toString(5))
+        assertEquals(0.0, state.toNumber(6) ?: error("missing difftime result"), 0.0)
+    }
+
+    @Test
     fun `openLibs installs coroutine library`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -9444,6 +9470,84 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(7))
         assertEquals("function", state.toString(8))
         assertEquals("function", state.toString(9))
+    }
+
+    @Test
+    fun `os time converts and normalizes date tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = {year = 2020, month = 1, day = 1}
+                local second = {year = 2020, month = 1, day = 2}
+                local normalized = {year = 2020, month = 13, day = 32, hour = -1, min = 61, sec = 61}
+                local firstTime = os.time(first)
+                local secondTime = os.time(second)
+                os.time(normalized)
+                return os.difftime(secondTime, firstTime),
+                    first.hour, first.min, first.sec,
+                    first.wday ~= nil, first.yday,
+                    normalized.year, normalized.month, normalized.day,
+                    normalized.hour, normalized.min, normalized.sec
+                """.trimIndent(),
+                "os-time-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(86400.0, state.toNumber(1) ?: error("missing difftime result"), 0.0)
+        assertEquals(12L, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals(0L, state.toInteger(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(2021L, state.toInteger(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(0L, state.toInteger(10))
+        assertEquals(2L, state.toInteger(11))
+        assertEquals(1L, state.toInteger(12))
+    }
+
+    @Test
+    fun `os time and difftime report argument errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tableOk, tableMessage = pcall(os.time, "not-table")
+                local missingOk, missingMessage = pcall(os.time, {month = 1, day = 1})
+                local fieldOk, fieldMessage = pcall(os.time, {year = 2020, month = "jan", day = 1})
+                local leftOk, leftMessage = pcall(os.difftime, "bad", 1)
+                local rightOk, rightMessage = pcall(os.difftime, 1, 1.5)
+                return tableOk, tableMessage,
+                    missingOk, missingMessage,
+                    fieldOk, fieldMessage,
+                    leftOk, leftMessage,
+                    rightOk, rightMessage
+                """.trimIndent(),
+                "os-time-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'os.time' (table expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("field 'year' missing in date table", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("field 'month' is not an integer", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'os.difftime' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #2 to 'os.difftime' (number has no integer representation)", state.toString(10))
     }
 
     @Test

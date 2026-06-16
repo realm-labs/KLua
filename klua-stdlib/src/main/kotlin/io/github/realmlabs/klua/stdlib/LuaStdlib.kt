@@ -33,6 +33,7 @@ public object LuaStdlib {
         openUtf8(state)
         openCoroutine(state)
         openPackage(state)
+        openOs(state)
         if (state.config.debugEnabled) {
             openDebug(state)
         }
@@ -135,6 +136,11 @@ public object LuaStdlib {
     @JvmStatic
     public fun openPackage(state: LuaState): LuaState {
         return LuaPackageLibrary.open(state)
+    }
+
+    @JvmStatic
+    public fun openOs(state: LuaState): LuaState {
+        return LuaOsLibrary.open(state)
     }
 
     @JvmStatic
