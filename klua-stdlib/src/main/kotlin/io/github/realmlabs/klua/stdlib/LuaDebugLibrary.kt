@@ -261,7 +261,7 @@ internal object LuaDebugLibrary {
         if (index == 0) {
             return LuaReturn.of(null)
         }
-        return LuaReturn.of(target.setLocal(context, level, index, context.get(target.argumentOffset + 3)))
+        return LuaReturn.of(target.setLocal(context, level, index, context.getLuaValue(target.argumentOffset + 3)))
     }
 
     private fun getUpvalue(context: LuaCallContext): LuaReturn {

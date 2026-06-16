@@ -1655,6 +1655,54 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setlocal preserves table values in active and suspended lua locals`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function active()
+                    local value = {name = "old"}
+                    local replacement = {name = "active"}
+                    local changedName = debug.setlocal(1, 1, replacement)
+                    return changedName, value == replacement, value.name
+                end
+
+                local co = coroutine.create(function()
+                    local value = {name = "old"}
+                    coroutine.yield(value)
+                    return value.name
+                end)
+
+                local firstOk, yielded = coroutine.resume(co)
+                local replacement = {name = "suspended"}
+                local changedName = debug.setlocal(co, 0, 1, replacement)
+                local readName, readValue = debug.getlocal(co, 0, 1)
+                local secondOk, result = coroutine.resume(co)
+                local activeName, activeSame, activeValue = active()
+                return firstOk, yielded.name, changedName, readName, readValue == replacement,
+                    secondOk, result, activeName, activeSame, activeValue
+                """.trimIndent(),
+                "debug-setlocal-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("old", state.toString(2))
+        assertEquals("value", state.toString(3))
+        assertEquals("value", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("suspended", state.toString(7))
+        assertEquals("value", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("active", state.toString(10))
+    }
+
+    @Test
     fun `debug setlocal mutates active lua locals`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
