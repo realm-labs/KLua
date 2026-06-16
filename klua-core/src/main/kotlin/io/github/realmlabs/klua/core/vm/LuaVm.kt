@@ -994,7 +994,7 @@ internal class LuaVm(
         }
         val metamethod = binaryMetamethod(left, right, operation.metamethodKey)
         if (metamethod != null) {
-            return callOperatorMetamethod(metamethod, listOf(left, right))
+            return callOperatorMetamethod(metamethod, listOf(left, right), operation.metamethodKey)
         }
         throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(arithmeticErrorOperand(left, right))}")
     }
@@ -1020,8 +1020,12 @@ internal class LuaVm(
         }
     }
 
-    private fun callOperatorMetamethod(metamethod: LuaValue, arguments: List<LuaValue>): LuaValue {
-        return returnedValues(callValue(metamethod, arguments)).firstOrNull() ?: LuaNil
+    private fun callOperatorMetamethod(metamethod: LuaValue, arguments: List<LuaValue>, key: LuaString): LuaValue {
+        return when (metamethod) {
+            is LuaClosure -> executeMetamethod(metamethod, arguments, key).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callNative(metamethod, arguments).firstOrNull() ?: LuaNil
+            else -> returnedValues(callValue(metamethod, arguments, metamethodCallSiteInfo(key))).firstOrNull() ?: LuaNil
+        }
     }
 
     private fun unaryMinus(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -1032,7 +1036,7 @@ internal class LuaVm(
             else -> {
                 val metamethod = rawMetamethod(value, UNM_KEY)
                 if (metamethod != LuaNil) {
-                    callOperatorMetamethod(metamethod, listOf(value, value))
+                    callOperatorMetamethod(metamethod, listOf(value, value), UNM_KEY)
                 } else {
                     throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(value)}")
                 }
@@ -1086,9 +1090,9 @@ internal class LuaVm(
 
     private fun callLengthMetamethod(value: LuaValue, length: LuaValue): LuaValue {
         return when (length) {
-            is LuaClosure -> executeReturned(length.prototype, listOf(value), length.upvalues).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(length, listOf(value), LEN_KEY).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(length, listOf(value)).firstOrNull() ?: LuaNil
-            else -> returnedValues(callValue(length, listOf(value))).firstOrNull() ?: LuaNil
+            else -> returnedValues(callValue(length, listOf(value), metamethodCallSiteInfo(LEN_KEY))).firstOrNull() ?: LuaNil
         }
     }
 
@@ -1110,7 +1114,7 @@ internal class LuaVm(
             }
             val metamethod = binaryMetamethod(left, right, EQ_KEY)
             if (metamethod != null) {
-                val result = callOperatorMetamethod(metamethod, listOf(left, right))
+                val result = callOperatorMetamethod(metamethod, listOf(left, right), EQ_KEY)
                 return isTruthy(result)
             }
             return false
@@ -1122,7 +1126,7 @@ internal class LuaVm(
             if (metamethod == null) {
                 throw comparisonError(left, right)
             }
-            return isTruthy(callOperatorMetamethod(metamethod, listOf(left, right)))
+            return isTruthy(callOperatorMetamethod(metamethod, listOf(left, right), comparison.metamethodKey))
         }
     }
 
@@ -1144,7 +1148,10 @@ internal class LuaVm(
         if (left == null || right == null) {
             val metamethod = binaryMetamethod(leftValue, rightValue, CONCAT_KEY)
             if (metamethod != null) {
-                stack.set(register(frame, Instruction.a(instruction)), callOperatorMetamethod(metamethod, listOf(leftValue, rightValue)))
+                stack.set(
+                    register(frame, Instruction.a(instruction)),
+                    callOperatorMetamethod(metamethod, listOf(leftValue, rightValue), CONCAT_KEY),
+                )
                 return
             }
             val failedValue = if (left == null) leftValue else rightValue
@@ -1161,7 +1168,10 @@ internal class LuaVm(
         if (left == null || right == null) {
             val metamethod = binaryMetamethod(leftValue, rightValue, operation.metamethodKey)
             if (metamethod != null) {
-                stack.set(register(frame, Instruction.a(instruction)), callOperatorMetamethod(metamethod, listOf(leftValue, rightValue)))
+                stack.set(
+                    register(frame, Instruction.a(instruction)),
+                    callOperatorMetamethod(metamethod, listOf(leftValue, rightValue), operation.metamethodKey),
+                )
                 return
             }
             val failedValue = if (left == null) leftValue else rightValue
@@ -1176,7 +1186,10 @@ internal class LuaVm(
         if (integer == null) {
             val metamethod = rawMetamethod(value, BNOT_KEY)
             if (metamethod != LuaNil) {
-                stack.set(register(frame, Instruction.a(instruction)), callOperatorMetamethod(metamethod, listOf(value, value)))
+                stack.set(
+                    register(frame, Instruction.a(instruction)),
+                    callOperatorMetamethod(metamethod, listOf(value, value), BNOT_KEY),
+                )
                 return
             }
             throw LuaVmException("attempt to perform bitwise operation on ${operationTypeName(value)}")

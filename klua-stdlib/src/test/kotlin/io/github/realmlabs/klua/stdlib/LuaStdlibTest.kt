@@ -939,6 +939,73 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports operator metamethod call site names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local seen = {}
+                local function capture(result)
+                    local info = debug.getinfo(2, "n")
+                    seen[#seen + 1] = info.name
+                    seen[#seen + 1] = info.namewhat
+                    return result
+                end
+                local mt = {
+                    __add = function() return capture({}) end,
+                    __unm = function() return capture({}) end,
+                    __len = function() return capture(0) end,
+                    __concat = function() return capture("") end,
+                    __eq = function() return capture(true) end,
+                    __lt = function() return capture(true) end,
+                    __le = function() return capture(true) end,
+                    __band = function() return capture(0) end,
+                    __bnot = function() return capture(0) end,
+                }
+                local left = setmetatable({}, mt)
+                local right = setmetatable({}, mt)
+                local _ = left + right
+                _ = -left
+                _ = #left
+                _ = left .. right
+                _ = left == right
+                _ = left < right
+                _ = left <= right
+                _ = left & right
+                _ = ~left
+                return seen[1], seen[2], seen[3], seen[4], seen[5], seen[6],
+                    seen[7], seen[8], seen[9], seen[10], seen[11], seen[12],
+                    seen[13], seen[14], seen[15], seen[16], seen[17], seen[18]
+                """.trimIndent(),
+                "debug-getinfo-operator-metamethod-names.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("add", state.toString(1))
+        assertEquals("metamethod", state.toString(2))
+        assertEquals("unm", state.toString(3))
+        assertEquals("metamethod", state.toString(4))
+        assertEquals("len", state.toString(5))
+        assertEquals("metamethod", state.toString(6))
+        assertEquals("concat", state.toString(7))
+        assertEquals("metamethod", state.toString(8))
+        assertEquals("eq", state.toString(9))
+        assertEquals("metamethod", state.toString(10))
+        assertEquals("lt", state.toString(11))
+        assertEquals("metamethod", state.toString(12))
+        assertEquals("le", state.toString(13))
+        assertEquals("metamethod", state.toString(14))
+        assertEquals("band", state.toString(15))
+        assertEquals("metamethod", state.toString(16))
+        assertEquals("bnot", state.toString(17))
+        assertEquals("metamethod", state.toString(18))
+    }
+
+    @Test
     fun `debug getinfo reports main chunk source metadata`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
