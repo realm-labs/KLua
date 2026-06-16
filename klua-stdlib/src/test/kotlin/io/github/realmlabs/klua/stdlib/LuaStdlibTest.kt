@@ -9427,7 +9427,7 @@ class LuaStdlibTest {
                 """
                 local now = os.time()
                 return type(os), type(os.clock), type(os.date), type(os.difftime), type(os.getenv),
-                    type(os.remove), type(os.rename), type(os.time),
+                    type(os.remove), type(os.rename), type(os.time), type(os.tmpname),
                     type(now), os.difftime(now, now)
                 """.trimIndent(),
                 "open-libs-os.lua",
@@ -9443,8 +9443,9 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(6))
         assertEquals("function", state.toString(7))
         assertEquals("function", state.toString(8))
-        assertEquals("number", state.toString(9))
-        assertEquals(0.0, state.toNumber(10) ?: error("missing difftime result"), 0.0)
+        assertEquals("function", state.toString(9))
+        assertEquals("number", state.toString(10))
+        assertEquals(0.0, state.toNumber(11) ?: error("missing difftime result"), 0.0)
     }
 
     @Test
@@ -9653,6 +9654,41 @@ class LuaStdlibTest {
             Files.deleteIfExists(source)
             Files.deleteIfExists(target)
             Files.deleteIfExists(root)
+        }
+    }
+
+    @Test
+    fun `os tmpname returns unique writable file names`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = os.tmpname()
+                local second = os.tmpname()
+                return type(first), type(second), first ~= second, first, second
+                """.trimIndent(),
+                "os-tmpname.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val first = Path.of(state.toString(4) ?: error("missing first tmpname"))
+        val second = Path.of(state.toString(5) ?: error("missing second tmpname"))
+        try {
+            assertEquals("string", state.toString(1))
+            assertEquals("string", state.toString(2))
+            assertTrue(state.toBoolean(3))
+            assertFalse(Files.exists(first))
+            assertFalse(Files.exists(second))
+            Files.writeString(first, "payload")
+            assertTrue(Files.exists(first))
+        } finally {
+            Files.deleteIfExists(first)
+            Files.deleteIfExists(second)
         }
     }
 

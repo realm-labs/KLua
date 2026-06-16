@@ -26,6 +26,7 @@ internal object LuaOsLibrary {
         setFunctionField(state, "remove", ::remove)
         setFunctionField(state, "rename", ::rename)
         setFunctionField(state, "time", ::time)
+        setFunctionField(state, "tmpname", ::tmpname)
         state.setGlobal("os")
         return state
     }
@@ -56,6 +57,18 @@ internal object LuaOsLibrary {
         val target = requiredString(context, 2, "os.rename")
         return fileResult(source) {
             Files.move(Path.of(source), Path.of(target), StandardCopyOption.REPLACE_EXISTING)
+        }
+    }
+
+    private fun tmpname(context: LuaCallContext): LuaReturn {
+        return try {
+            val path = Files.createTempFile("klua-", ".tmp")
+            Files.deleteIfExists(path)
+            LuaReturn.of(path.toString())
+        } catch (_: IOException) {
+            throw LuaRuntimeException("unable to generate a unique filename")
+        } catch (_: SecurityException) {
+            throw LuaRuntimeException("unable to generate a unique filename")
         }
     }
 
