@@ -763,7 +763,15 @@ class LuaState private constructor(
         context: LuaCallContext,
     ): LuaReturn {
         val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
-        return when (val result = KLuaCoreRuntime.callFunction(functionValue, arguments, coreGlobals, context.isYieldable)) {
+        return when (
+            val result = KLuaCoreRuntime.callFunction(
+                functionValue,
+                arguments,
+                coreGlobals,
+                context.isYieldable,
+                KLuaCoreExecutionLimits(config.instructionLimit),
+            )
+        ) {
             is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
                 result.values.map { it.toStackValue().toPublicCallReturnValue() },
             )

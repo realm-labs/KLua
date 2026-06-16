@@ -274,10 +274,11 @@ public object KLuaCoreRuntime {
         arguments: List<KLuaCoreValue>,
         globals: KLuaCoreGlobals,
         isYieldable: Boolean = true,
+        limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
     ): KLuaCoreCallResult {
         val sourceFunction = function.sourceFunction
         if (sourceFunction != null) {
-            return callPublicLuaFunction(sourceFunction, arguments, function.sourceGlobals ?: globals, isYieldable)
+            return callPublicLuaFunction(sourceFunction, arguments, function.sourceGlobals ?: globals, isYieldable, limits)
         }
         val contextFunction = function.contextFunction
         if (contextFunction != null) {
@@ -1491,6 +1492,7 @@ private fun callPublicLuaFunction(
     arguments: List<KLuaCoreValue>,
     globals: KLuaCoreGlobals,
     isYieldable: Boolean = true,
+    limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
 ): KLuaCoreCallResult {
     val luaArguments = arguments.map { value ->
         value.toLuaValueOrNull(globals)
@@ -1504,6 +1506,7 @@ private fun callPublicLuaFunction(
             isStringMetatableConfigured = { globals.stringMetatableConfigured },
             currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
             currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
+            instructionLimit = limits.instructionLimit,
         )
         vm.callWithYieldability(function, luaArguments, isYieldable).toCoreCallResult(vm, globals)
     } catch (error: LuaVmException) {

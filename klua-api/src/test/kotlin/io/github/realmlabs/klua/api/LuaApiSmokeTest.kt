@@ -328,6 +328,21 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade function calls enforce configured instruction limits`() {
+        val lua = Lua.create(LuaConfig(instructionLimit = 10))
+        val function = lua.load(
+            "return function() while true do end end",
+            "api-function-budget.lua",
+        ).eval().get(1) as LuaFunction
+
+        val error = assertFailsWith<LuaRuntimeException> {
+            function.call(EmptyLuaCallContext)
+        }
+
+        assertEquals("instruction limit exceeded", error.message)
+    }
+
+    @Test
     fun `state runtime errors expose host call frames`() {
         val state = LuaState.create()
         state.register("explode") {
@@ -468,6 +483,60 @@ class LuaApiSmokeTest {
     private data class OtherObject(
         val name: String,
     )
+
+    private object EmptyLuaCallContext : LuaCallContext {
+        override val argumentCount: Int = 0
+
+        override fun isNil(index: Int): Boolean = false
+
+        override fun isNone(index: Int): Boolean = true
+
+        override fun isTable(index: Int): Boolean = false
+
+        override fun typeName(index: Int): String = "none"
+
+        override fun get(index: Int): Any? = null
+
+        override fun call(index: Int, arguments: List<Any?>): LuaReturn = error("no callable value")
+
+        override fun call(function: Any?, arguments: List<Any?>): LuaReturn = error("no callable value")
+
+        override fun yield(values: List<Any?>): Nothing = error("not yieldable")
+
+        override fun load(source: String, chunkName: String): LuaReturn = error("loading not supported")
+
+        override fun getTable(index: Int): Any? = null
+
+        override fun getTableValue(index: Int, key: Any?): Any? = null
+
+        override fun getTableField(table: Any?, key: Any?): Any? = null
+
+        override fun setTableValue(index: Int, key: Any?, value: Any?) {
+            error("no table value")
+        }
+
+        override fun getMetatable(index: Int): Any? = null
+
+        override fun setMetatable(index: Int, metatable: Any?) {
+            error("no metatable")
+        }
+
+        override fun nextTableEntry(index: Int, key: Any?): List<Any?>? = null
+
+        override fun tableLength(index: Int): Long? = null
+
+        override fun toBoolean(index: Int): Boolean = false
+
+        override fun toInteger(index: Int): Long? = null
+
+        override fun toNumber(index: Int): Double? = null
+
+        override fun toString(index: Int): String? = null
+
+        override fun toUserData(index: Int): Any? = null
+
+        override fun <T : Any> toUserData(index: Int, type: Class<T>): T? = null
+    }
 
     private fun bytecodeResources(vararg resources: Pair<String, ByteArray>): ClassLoader {
         val byName = resources.associate { (name, bytes) -> name to bytes.copyOf() }
