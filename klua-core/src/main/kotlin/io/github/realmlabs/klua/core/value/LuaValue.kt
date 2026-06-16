@@ -103,6 +103,8 @@ internal data class LuaNativeStackFrame(
     val locals: List<LuaNativeLocalVariable> = emptyList(),
     val callSiteName: String? = null,
     val callSiteNameWhat: String = "",
+    val transferStart: Int = 0,
+    val transferCount: Int = 0,
 )
 
 internal data class LuaNativeLocalVariable(

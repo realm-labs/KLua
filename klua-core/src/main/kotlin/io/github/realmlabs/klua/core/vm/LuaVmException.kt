@@ -48,4 +48,6 @@ internal data class LuaVmStackFrame(
     val activeLines: List<Int> = emptyList(),
     val callSiteName: String? = null,
     val callSiteNameWhat: String = "",
+    val transferStart: Int = 0,
+    val transferCount: Int = 0,
 )

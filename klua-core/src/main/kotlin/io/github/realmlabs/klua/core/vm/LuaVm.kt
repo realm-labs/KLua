@@ -192,7 +192,7 @@ internal class LuaVm(
         val stack = frame.stack
         var yielded = false
         try {
-            dispatchDebugCall()
+            dispatchDebugCall(frame)
             while (frame.pc < frame.prototype.code.size) {
                 val pc = frame.pc
                 val instruction = frame.prototype.code[frame.pc++]
@@ -285,7 +285,7 @@ internal class LuaVm(
                             val base = register(frame, Instruction.a(instruction))
                             val count = returnCount(frame, base, Instruction.b(instruction))
                             val values = stack.slice(base, count)
-                            dispatchDebugReturn()
+                            dispatchDebugReturn(frame, base - frame.base + 1, count)
                             return LuaExecutionResult.Returned(values)
                         }
                     }
@@ -516,6 +516,8 @@ internal class LuaVm(
                     locals = activeLocals(frame, pc),
                     callSiteName = frame.callSiteName,
                     callSiteNameWhat = frame.callSiteNameWhat,
+                    transferStart = frame.hookTransferStart,
+                    transferCount = frame.hookTransferCount,
                 )
             }
         }
@@ -562,20 +564,27 @@ internal class LuaVm(
         return setDebugHook(function, mask, count)
     }
 
-    private fun dispatchDebugCall() {
+    private fun dispatchDebugCall(frame: CallFrame) {
         val hook = debugHook ?: return
         if (!hook.hasCallHook || runningDebugHook) {
             return
         }
-        callDebugHook(hook.function, "call", LuaNil)
+        callDebugHook(
+            hook.function,
+            "call",
+            LuaNil,
+            frame,
+            transferStart = 1,
+            transferCount = frame.prototype.numParams,
+        )
     }
 
-    private fun dispatchDebugReturn() {
+    private fun dispatchDebugReturn(frame: CallFrame, transferStart: Int, transferCount: Int) {
         val hook = debugHook ?: return
         if (!hook.hasReturnHook || runningDebugHook) {
             return
         }
-        callDebugHook(hook.function, "return", LuaNil)
+        callDebugHook(hook.function, "return", LuaNil, frame, transferStart, transferCount)
     }
 
     private fun dispatchDebugHooks(frame: CallFrame, pc: Int) {
@@ -586,25 +595,36 @@ internal class LuaVm(
         val line = frame.lineForPc(pc)
         if (hook.hasLineHook && line > 0 && line != frame.lastDebugHookLine) {
             frame.lastDebugHookLine = line
-            callDebugHook(hook.function, "line", LuaInteger(line.toLong()))
+            callDebugHook(hook.function, "line", LuaInteger(line.toLong()), frame)
         }
         if (hook.count > 0) {
             hook.remainingCount -= 1
             if (hook.remainingCount <= 0) {
                 hook.remainingCount = hook.count
-                callDebugHook(hook.function, "count", LuaNil)
+                callDebugHook(hook.function, "count", LuaNil, frame)
             }
         }
     }
 
-    private fun callDebugHook(function: LuaValue, event: String, line: LuaValue) {
+    private fun callDebugHook(
+        function: LuaValue,
+        event: String,
+        line: LuaValue,
+        frame: CallFrame,
+        transferStart: Int = 0,
+        transferCount: Int = 0,
+    ) {
         runningDebugHook = true
+        frame.hookTransferStart = transferStart
+        frame.hookTransferCount = transferCount
         try {
             when (callValue(function, listOf(LuaString(event), line))) {
                 is LuaExecutionResult.Returned -> Unit
                 is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield from debug hook")
             }
         } finally {
+            frame.hookTransferStart = 0
+            frame.hookTransferCount = 0
             runningDebugHook = false
         }
     }

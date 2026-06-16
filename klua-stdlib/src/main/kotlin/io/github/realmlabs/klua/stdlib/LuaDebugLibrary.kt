@@ -119,7 +119,7 @@ internal object LuaDebugLibrary {
                     table["isvararg"] = frame.isVararg
                 }
                 'f' -> table["func"] = frame.function
-                'r' -> addTransferInfo(table)
+                'r' -> addTransferInfo(table, frame.transferStart, frame.transferCount)
                 't' -> addTailCallInfo(table)
                 'L' -> table["activelines"] = activeLinesTable(frame.activeLines)
             }
@@ -205,9 +205,9 @@ internal object LuaDebugLibrary {
         }
     }
 
-    private fun addTransferInfo(table: MutableMap<String, Any?>) {
-        table["ftransfer"] = 0L
-        table["ntransfer"] = 0L
+    private fun addTransferInfo(table: MutableMap<String, Any?>, transferStart: Int = 0, transferCount: Int = 0) {
+        table["ftransfer"] = transferStart.toLong()
+        table["ntransfer"] = transferCount.toLong()
     }
 
     private fun addTailCallInfo(table: MutableMap<String, Any?>) {

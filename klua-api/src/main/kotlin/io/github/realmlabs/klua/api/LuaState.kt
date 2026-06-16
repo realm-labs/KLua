@@ -1351,6 +1351,8 @@ class LuaState private constructor(
                 },
                 callSiteName = frame.callSiteName,
                 callSiteNameWhat = frame.callSiteNameWhat,
+                transferStart = frame.transferStart,
+                transferCount = frame.transferCount,
             )
         }
     }

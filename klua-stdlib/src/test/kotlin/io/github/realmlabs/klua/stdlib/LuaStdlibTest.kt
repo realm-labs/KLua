@@ -3067,6 +3067,54 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports transfer metadata inside call and return hooks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local function hook(event, line)
+                    if event == "call" or event == "return" then
+                        local info = debug.getinfo(2, "nr")
+                        if info.name == "leaf" then
+                            records[#records + 1] = event
+                            records[#records + 1] = info.ftransfer
+                            records[#records + 1] = info.ntransfer
+                        end
+                    end
+                end
+
+                local function leaf(a, b)
+                    return a + b, a - b
+                end
+
+                debug.sethook(hook, "cr", 0)
+                local sum, diff = leaf(5, 3)
+                debug.sethook()
+
+                return sum, diff,
+                    records[1], records[2], records[3],
+                    records[4], records[5], records[6]
+                """.trimIndent(),
+                "debug-getinfo-hook-transfer.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(8L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("call", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals("return", state.toString(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(2L, state.toInteger(8))
+    }
+
+    @Test
     fun `debug sethook ignores unknown mask characters`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
