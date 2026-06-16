@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.withContinuation
 import java.io.ByteArrayInputStream
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
@@ -6579,6 +6580,53 @@ class LuaStdlibTest {
             assertEquals("bad argument #2 to 'loadfile' (invalid mode)", state.toString(7))
             assertFalse(state.toBoolean(8))
             assertEquals("bad argument #2 to 'loadfile' (invalid mode)", state.toString(9))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
+    fun `loadfile loads KLua bytecode files in binary mode`() {
+        val file = Files.createTempFile("klua-loadfile-bytecode", ".kluac")
+        try {
+            val dumpState = LuaState.create()
+            LuaStdlib.openLibs(dumpState)
+            assertEquals(
+                LuaStatus.OK,
+                dumpState.load(
+                    """
+                    local chunk = load("return marker", "loadfile-bytecode-source.lua")
+                    return string.dump(chunk)
+                    """.trimIndent(),
+                    "loadfile-bytecode-dump.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, dumpState.pcall(0, -1), dumpState.toString(-1))
+            val dumped = dumpState.toString(1) ?: error("missing dumped bytecode")
+            Files.write(file, dumped.toByteArray(StandardCharsets.ISO_8859_1))
+
+            val state = LuaState.create()
+            LuaStdlib.openLibs(state)
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    marker = "global"
+                    local env = {marker = "env"}
+                    local binaryChunk = loadfile("${file.luaPath()}", "b", env)
+                    local defaultChunk = loadfile("${file.luaPath()}")
+                    local textOnly, textMessage = loadfile("${file.luaPath()}", "t")
+                    return binaryChunk(), defaultChunk(), textOnly, textMessage
+                    """.trimIndent(),
+                    "loadfile-bytecode.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("env", state.toString(1))
+            assertEquals("global", state.toString(2))
+            assertTrue(state.isNil(3))
+            assertEquals("attempt to load a binary chunk (mode is 't')", state.toString(4))
         } finally {
             Files.deleteIfExists(file)
         }

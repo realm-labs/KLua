@@ -120,6 +120,7 @@ public object LuaStdlib {
     private data class LoadFileSource(
         val source: String,
         val chunkName: String,
+        val bytes: ByteArray? = null,
     )
 
     private data class LoadFileRead(
@@ -326,12 +327,23 @@ public object LuaStdlib {
         } else {
             requiredString(context, 1, functionName)
         }
-        if ('t' !in mode) {
-            return LuaReturn.of(null, textChunkModeError(mode))
-        }
         val read = readLoadFileSource(filename, state)
         val source = read.source
             ?: return LuaReturn.of(null, read.error ?: "cannot read file '$filename'")
+        val bytes = source.bytes ?: source.source.toByteArray(StandardCharsets.ISO_8859_1)
+        if (isKLuaBinaryChunk(bytes)) {
+            if ('b' !in mode) {
+                return LuaReturn.of(null, binaryChunkModeError(mode))
+            }
+            return if (context.isNone(3)) {
+                context.loadBytecode(bytes, source.chunkName)
+            } else {
+                context.loadBytecode(bytes, source.chunkName, argumentValue(context, 3))
+            }
+        }
+        if ('t' !in mode) {
+            return LuaReturn.of(null, textChunkModeError(mode))
+        }
         val environment = if (environmentIndex == null) {
             LoadEnvironment(null, provided = false)
         } else {
@@ -356,16 +368,16 @@ public object LuaStdlib {
     }
 
     private fun readLoadFileSource(filename: String?, state: LuaState): LoadFileRead {
-        val source = try {
+        try {
             if (filename == null) {
-                state.config.standardInput.get()
+                return LoadFileRead(source = LoadFileSource(state.config.standardInput.get(), "=stdin"))
             } else {
-                Files.readString(Path.of(filename))
+                val bytes = Files.readAllBytes(Path.of(filename))
+                return LoadFileRead(source = LoadFileSource(bytes.decodeToString(), filename, bytes))
             }
         } catch (error: IOException) {
             return LoadFileRead(error = error.message ?: "cannot read file '$filename'")
         }
-        return LoadFileRead(source = LoadFileSource(source, filename ?: "=stdin"))
     }
 
     private fun optionalLoadEnvironment(context: LuaCallContext, index: Int): LoadEnvironment {
@@ -794,6 +806,14 @@ public object LuaStdlib {
 
     private fun isKLuaBinaryChunk(source: String): Boolean {
         return source.length >= 4 && source.substring(0, 4) == "KLua"
+    }
+
+    private fun isKLuaBinaryChunk(bytes: ByteArray): Boolean {
+        return bytes.size >= 4 &&
+            bytes[0] == 'K'.code.toByte() &&
+            bytes[1] == 'L'.code.toByte() &&
+            bytes[2] == 'u'.code.toByte() &&
+            bytes[3] == 'a'.code.toByte()
     }
 
     private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {
