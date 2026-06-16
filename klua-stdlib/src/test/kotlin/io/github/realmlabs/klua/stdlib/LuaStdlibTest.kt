@@ -11176,7 +11176,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(2))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
         assertEquals("dead", state.toString(3))
     }
 
@@ -11814,7 +11814,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(2))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
         assertEquals("dead", state.toString(3))
         assertTrue(state.toBoolean(4))
         assertEquals("allowed", state.toString(5))

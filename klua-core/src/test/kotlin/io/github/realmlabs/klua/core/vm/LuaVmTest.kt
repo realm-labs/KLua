@@ -495,7 +495,7 @@ class LuaVmTest {
             )
         }
 
-        assertEquals("attempt to yield across a non-yieldable boundary", error.message)
+        assertEquals("attempt to yield across a C-call boundary", error.message)
     }
 
     @Test

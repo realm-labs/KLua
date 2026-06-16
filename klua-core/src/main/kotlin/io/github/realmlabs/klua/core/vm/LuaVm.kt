@@ -122,7 +122,7 @@ internal class LuaVm(
         return thread.runNonYieldableCall {
             when (val result = callYieldable(callee, arguments)) {
                 is LuaExecutionResult.Returned -> result
-                is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a non-yieldable boundary")
+                is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a C-call boundary")
             }
         }
     }
@@ -468,7 +468,7 @@ internal class LuaVm(
             )
         } catch (yield: LuaYieldSignal) {
             if (!function.yieldable) {
-                throw LuaVmException("attempt to yield across a non-yieldable boundary")
+                throw LuaVmException("attempt to yield across a C-call boundary")
             }
             nativeYieldResult(function, yield)
         }
@@ -642,7 +642,7 @@ internal class LuaVm(
             )
         } catch (yield: LuaYieldSignal) {
             if (!function.yieldable) {
-                throw LuaVmException("attempt to yield across a non-yieldable boundary")
+                throw LuaVmException("attempt to yield across a C-call boundary")
             }
             nativeYieldResult(function, yield)
         }

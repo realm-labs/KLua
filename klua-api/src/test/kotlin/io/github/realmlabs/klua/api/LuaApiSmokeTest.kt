@@ -221,7 +221,7 @@ class LuaApiSmokeTest {
         assertEquals(LuaStatus.OK, state.load("return yield(42)", "api-yield.lua"))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
-        assertEquals("attempt to yield across a non-yieldable boundary", state.toString(-1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(-1))
     }
 
     @Test

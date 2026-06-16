@@ -101,7 +101,7 @@ internal object LuaCoroutineLibrary {
                 } catch (yield: LuaYieldException) {
                     if (coroutine.function !is LuaYieldableFunction) {
                         coroutine.status = CoroutineStatus.DEAD
-                        val errorValue = "attempt to yield across a non-yieldable boundary"
+                        val errorValue = "attempt to yield across a C-call boundary"
                         coroutine.rememberCloseError(errorValue)
                         return LuaReturn.of(false, errorValue)
                     }
