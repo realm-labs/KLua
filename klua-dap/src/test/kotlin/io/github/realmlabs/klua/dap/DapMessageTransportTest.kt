@@ -105,7 +105,7 @@ class DapMessageTransportTest {
 
         assertEquals(
             listOf(
-                """{"seq":1,"type":"response","request_seq":1,"success":true,"command":"initialize","body":{"capabilities":{"supportsConfigurationDoneRequest":true,"supportsConditionalBreakpoints":true,"supportsHitConditionalBreakpoints":false,"supportsEvaluateForHovers":false,"supportsStepBack":false,"supportsSetVariable":false}}}""",
+                """{"seq":1,"type":"response","request_seq":1,"success":true,"command":"initialize","body":{"capabilities":{"supportsConfigurationDoneRequest":true,"supportsConditionalBreakpoints":true,"supportsHitConditionalBreakpoints":false,"supportsEvaluateForHovers":true,"supportsStepBack":false,"supportsSetVariable":false}}}""",
                 """{"seq":2,"type":"event","event":"initialized"}""",
             ),
             messages,

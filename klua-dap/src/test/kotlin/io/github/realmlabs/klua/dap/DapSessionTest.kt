@@ -30,7 +30,7 @@ class DapSessionTest {
                 supportsConfigurationDoneRequest = true,
                 supportsConditionalBreakpoints = true,
                 supportsHitConditionalBreakpoints = false,
-                supportsEvaluateForHovers = false,
+                supportsEvaluateForHovers = true,
                 supportsStepBack = false,
                 supportsSetVariable = false,
             ),
