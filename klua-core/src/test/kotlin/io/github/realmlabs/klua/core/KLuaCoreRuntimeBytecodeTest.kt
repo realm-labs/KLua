@@ -68,11 +68,31 @@ class KLuaCoreRuntimeBytecodeTest {
     }
 
     @Test
+    fun `bytecode load rejects unsupported package versions`() {
+        val bytecode = assertIs<KLuaCoreBytecodeLoad.Success>(
+            KLuaCoreRuntime.compileBytecode("return 1", "versioned.lua"),
+        ).bytes
+        val unsupported = bytecode.copyOf()
+        writeInt(unsupported, "KLua".length, 2)
+
+        val error = assertIs<KLuaCoreLoad.SyntaxError>(KLuaCoreRuntime.loadBytecode(unsupported))
+
+        assertEquals("unsupported KLua bytecode format version 2", error.message)
+    }
+
+    @Test
     fun `bytecode compile returns source syntax errors`() {
         val error = assertIs<KLuaCoreBytecodeLoad.SyntaxError>(
             KLuaCoreRuntime.compileBytecode("return function(", "bad-bytecode-source.lua"),
         )
 
         assertTrue(error.message.isNotBlank())
+    }
+
+    private fun writeInt(bytes: ByteArray, offset: Int, value: Int) {
+        bytes[offset] = (value ushr 24).toByte()
+        bytes[offset + 1] = (value ushr 16).toByte()
+        bytes[offset + 2] = (value ushr 8).toByte()
+        bytes[offset + 3] = value.toByte()
     }
 }
