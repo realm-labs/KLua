@@ -10,6 +10,7 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.api.LuaStackFrame
 import io.github.realmlabs.klua.api.LuaTypedValue
 import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
@@ -250,6 +251,7 @@ internal object LuaCoroutineLibrary {
 
     private fun coroutineWrap(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
         val created = coroutineCreate(context, "wrap").getUserData(1, LuaCoroutine::class.java)
+        val creationFrames = context.luaFrames
         val wrapper = LuaFunction { wrapperContext ->
             val result = resumeCoroutine(
                 wrapperContext,
@@ -260,7 +262,7 @@ internal object LuaCoroutineLibrary {
                 },
             )
             if (result.get(1) != true) {
-                throwCoroutineWrapError(wrapperContext, result.get(2))
+                throwCoroutineWrapError(wrapperContext, result.get(2), creationFrames)
             }
             LuaReturn.ofValues(result.values.drop(1))
         }
@@ -279,10 +281,14 @@ internal object LuaCoroutineLibrary {
         }
     }
 
-    private fun throwCoroutineWrapError(context: LuaCallContext, errorValue: Any?): Nothing {
+    private fun throwCoroutineWrapError(
+        context: LuaCallContext,
+        errorValue: Any?,
+        fallbackFrames: List<LuaStackFrame>,
+    ): Nothing {
         val message = errorValue?.toString() ?: "cannot resume coroutine"
         if (errorValue is CharSequence) {
-            throw LuaRuntimeException(locationPrefixedWrapError(context, message))
+            throw LuaRuntimeException(locationPrefixedWrapError(context, message, fallbackFrames))
         }
         throw LuaRuntimeException(
             context.valueTypeName(errorValue),
@@ -291,8 +297,16 @@ internal object LuaCoroutineLibrary {
         )
     }
 
-    private fun locationPrefixedWrapError(context: LuaCallContext, message: String): String {
-        val frame = context.luaFrames.firstOrNull() ?: return message
+    private fun locationPrefixedWrapError(
+        context: LuaCallContext,
+        message: String,
+        fallbackFrames: List<LuaStackFrame>,
+    ): String {
+        val frame = context.luaFrames.firstOrNull { it.line > 0 }
+            ?: fallbackFrames.firstOrNull { it.line > 0 }
+            ?: context.luaFrames.firstOrNull()
+            ?: fallbackFrames.firstOrNull()
+            ?: return message
         return buildString {
             append(luaShortSourceName(frame.sourceName))
             if (frame.line > 0) {
