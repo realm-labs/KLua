@@ -805,8 +805,12 @@ internal class Compiler private constructor(
         return when (callee) {
             is VariableExpression -> CallSiteInfo(0, callee.name, callSiteNameWhat(callee.name))
             is IndexExpression -> {
-                val key = callee.key as? StringExpression ?: return null
-                CallSiteInfo(0, key.value, "field")
+                val name = when (val key = callee.key) {
+                    is StringExpression -> key.value
+                    is IntegerExpression -> "integer index"
+                    else -> return null
+                }
+                CallSiteInfo(0, name, "field")
             }
             else -> null
         }
