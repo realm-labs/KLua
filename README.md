@@ -122,7 +122,7 @@ val result = Lua.create()
 
 ### Instruction Limits
 
-`LuaConfig.instructionLimit` can cap VM bytecode instructions for chunk execution. A value of `0` keeps execution unlimited.
+`LuaConfig.instructionLimit` can cap VM bytecode instructions for chunk execution and coroutine resumes. A value of `0` keeps execution unlimited.
 
 ```kotlin
 val lua = Lua.create(LuaConfig(instructionLimit = 100_000))
