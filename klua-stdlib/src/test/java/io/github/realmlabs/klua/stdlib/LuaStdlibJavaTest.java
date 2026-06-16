@@ -13,14 +13,18 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class LuaStdlibJavaTest {
     @Test
     void opensWhitelistedLibrariesFromJavaConfig() {
+        EnumSet<LuaStandardLibrary> libraries = EnumSet.of(LuaStandardLibrary.BASE, LuaStandardLibrary.MATH);
         LuaState state = LuaState.create(
                 new LuaConfig(
                         true,
                         () -> "",
                         0,
-                        EnumSet.of(LuaStandardLibrary.BASE, LuaStandardLibrary.MATH)
+                        libraries
                 )
         );
+        libraries.remove(LuaStandardLibrary.MATH);
+        libraries.add(LuaStandardLibrary.STRING);
+
         LuaStdlib.openLibs(state);
 
         assertEquals(

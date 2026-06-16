@@ -14,4 +14,8 @@ data class LuaConfig @JvmOverloads constructor(
     init {
         require(instructionLimit >= 0) { "instructionLimit must be non-negative" }
     }
+
+    internal fun snapshot(): LuaConfig {
+        return copy(standardLibraries = standardLibraries.toSet())
+    }
 }

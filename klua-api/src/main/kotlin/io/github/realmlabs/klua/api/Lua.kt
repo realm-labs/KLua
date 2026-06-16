@@ -11,7 +11,10 @@ class Lua private constructor(
     companion object {
         @JvmStatic
         @JvmOverloads
-        fun create(config: LuaConfig = LuaConfig()): Lua = Lua(config, LuaState.create(config))
+        fun create(config: LuaConfig = LuaConfig()): Lua {
+            val state = LuaState.create(config)
+            return Lua(state.config, state)
+        }
     }
 
     @JvmOverloads

@@ -4,6 +4,8 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.EnumSet;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -38,6 +40,17 @@ class LuaFacadeJavaTest {
 
         assertEquals(42L, lua.load("return answer + 1").evalLong());
         assertEquals(41L, lua.globals().get("answer"));
+    }
+
+    @Test
+    void snapshotsMutableConfigLibrarySets() {
+        EnumSet<LuaStandardLibrary> libraries = EnumSet.of(LuaStandardLibrary.BASE);
+        LuaConfig config = new LuaConfig(true, () -> "", 0, libraries);
+
+        Lua lua = Lua.create(config);
+        libraries.add(LuaStandardLibrary.MATH);
+
+        assertEquals(Set.of(LuaStandardLibrary.BASE), lua.getConfig().getStandardLibraries());
     }
 
     @Test

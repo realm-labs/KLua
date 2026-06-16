@@ -39,7 +39,7 @@ class LuaState private constructor(
     companion object {
         @JvmStatic
         @JvmOverloads
-        fun create(config: LuaConfig = LuaConfig()): LuaState = LuaState(config)
+        fun create(config: LuaConfig = LuaConfig()): LuaState = LuaState(config.snapshot())
     }
 
     fun getTop(): Int = stack.size
