@@ -18003,6 +18003,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table unpack indexes strings through string metatable`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local count = select("#", table.unpack("abc"))
+                local first, second, third = table.unpack("abc")
+                return count, first, second, third
+                """.trimIndent(),
+                "table-unpack-string-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+    }
+
+    @Test
     fun `table unpack reports non integer length metamethod results`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

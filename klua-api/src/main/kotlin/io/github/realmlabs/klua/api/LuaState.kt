@@ -325,6 +325,13 @@ class LuaState private constructor(
         }
     }
 
+    fun setMetatable(index: Int) {
+        val target = requireResolvedIndex(index)
+        val metatable = requireValue(-1)
+        stack.removeAt(stack.lastIndex)
+        setStackMetatableAt(target, metatable.toMetatableValue(), index)
+    }
+
     fun getGlobal(name: String) {
         val key = LuaStackValue.StringValue(name)
         if (name in coreBackedNativeGlobals) {
@@ -1153,6 +1160,58 @@ class LuaState private constructor(
         }
     }
 
+    private fun LuaStackValue.toMetatableValue(): LuaStackValue.TableValue? {
+        return when (this) {
+            LuaStackValue.Nil -> null
+            is LuaStackValue.TableValue -> this
+            else -> throw IllegalArgumentException("metatable is ${stackTypeName(this)}")
+        }
+    }
+
+    private fun setStackMetatableAt(
+        target: Int,
+        newMetatable: LuaStackValue.TableValue?,
+        originalIndex: Int,
+    ) {
+        setValueMetatable(stack.getOrNull(target), newMetatable, originalIndex)
+    }
+
+    private fun setValueMetatable(
+        value: LuaStackValue?,
+        newMetatable: LuaStackValue.TableValue?,
+        originalIndex: Int,
+    ) {
+        if (value == null) {
+            throw IllegalArgumentException("argument $originalIndex is none")
+        }
+        when (value) {
+            is LuaStackValue.TableValue -> value.metatable = newMetatable
+            is LuaStackValue.UserDataValue -> {
+                if (newMetatable == null) {
+                    userMetatables.remove(value.value)
+                } else {
+                    userMetatables[value.value] = newMetatable
+                }
+                KLuaCoreRuntime.setUserDataMetatable(
+                    coreGlobals,
+                    value.value,
+                    newMetatable?.toCoreTableValue(IdentityHashMap()),
+                )
+            }
+            else -> {
+                val typeName = stackTypeName(value)
+                if (typeName !in RAW_TYPE_METATABLE_TYPES) {
+                    throw IllegalArgumentException("argument $originalIndex is $typeName")
+                }
+                KLuaCoreRuntime.setRawTypeMetatable(
+                    coreGlobals,
+                    typeName,
+                    newMetatable?.toCoreTableValue(IdentityHashMap()),
+                )
+            }
+        }
+    }
+
     private fun rawEqualStackValues(left: LuaStackValue?, right: LuaStackValue?): Boolean {
         if (stackTypeName(left) != stackTypeName(right)) {
             return false
@@ -1633,30 +1692,7 @@ class LuaState private constructor(
         }
 
         override fun setMetatable(index: Int, metatable: Any?) {
-            val value = valueAt(index)
-                ?: throw IllegalArgumentException("argument $index is none")
-            val newMetatable = when (val stackMetatable = metatable.toStackValue()) {
-                LuaStackValue.Nil -> null
-                is LuaStackValue.TableValue -> stackMetatable
-                else -> throw IllegalArgumentException("metatable is ${stackTypeName(stackMetatable)}")
-            }
-            when (value) {
-                is LuaStackValue.TableValue -> value.metatable = newMetatable
-                is LuaStackValue.UserDataValue -> {
-                    if (newMetatable == null) {
-                        userMetatables.remove(value.value)
-                    } else {
-                        userMetatables[value.value] = newMetatable
-                    }
-                }
-                else -> {
-                    val typeName = stackTypeName(value)
-                    if (typeName !in RAW_TYPE_METATABLE_TYPES) {
-                        throw IllegalArgumentException("argument $index is $typeName")
-                    }
-                    KLuaCoreRuntime.setRawTypeMetatable(coreGlobals, typeName, metatable.toCoreMetatable())
-                }
-            }
+            setValueMetatable(valueAt(index), metatable.toStackValue().toMetatableValue(), index)
         }
 
         override fun setRawMetatable(index: Int, metatable: Any?) {

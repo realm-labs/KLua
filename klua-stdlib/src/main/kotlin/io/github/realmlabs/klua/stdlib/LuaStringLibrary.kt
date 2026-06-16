@@ -39,8 +39,19 @@ internal object LuaStringLibrary {
         setFunctionField(state, "sub", ::stringSub)
         setFunctionField(state, "unpack", ::stringUnpack)
         setFunctionField(state, "upper", ::stringUpper)
+        createStringMetatable(state)
         state.setGlobal("string")
         return state
+    }
+
+    private fun createStringMetatable(state: LuaState) {
+        state.newTable()
+        state.pushValue(-2)
+        state.setField(-2, "__index")
+        state.pushString("")
+        state.pushValue(-2)
+        state.setMetatable(-2)
+        state.setTop(-3)
     }
 
     private fun stringByte(context: LuaCallContext): LuaReturn {
