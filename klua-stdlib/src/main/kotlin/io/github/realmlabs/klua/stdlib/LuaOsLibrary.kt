@@ -160,9 +160,9 @@ internal object LuaOsLibrary {
             action()
             LuaReturn.of(true)
         } catch (error: IOException) {
-            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}")
+            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}", 1L)
         } catch (error: SecurityException) {
-            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}")
+            LuaReturn.of(null, "$filename: ${error.message ?: error::class.java.simpleName}", 1L)
         }
     }
 
