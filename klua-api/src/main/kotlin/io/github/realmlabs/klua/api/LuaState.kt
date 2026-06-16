@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.api
 
 import io.github.realmlabs.klua.core.KLuaCoreChunk
 import io.github.realmlabs.klua.core.KLuaCoreCallResult
+import io.github.realmlabs.klua.core.KLuaCoreBytecodeLoad
 import io.github.realmlabs.klua.core.KLuaCoreComparison
 import io.github.realmlabs.klua.core.KLuaCoreContinuation
 import io.github.realmlabs.klua.core.KLuaCoreCoroutine
@@ -57,6 +58,29 @@ class LuaState private constructor(
                 stack += LuaStackValue.StringValue(result.message)
                 LuaStatus.SYNTAX_ERROR
             }
+        }
+    }
+
+    fun loadBytecode(bytes: ByteArray): LuaStatus {
+        return when (val result = KLuaCoreRuntime.loadBytecode(bytes)) {
+            is KLuaCoreLoad.Success -> {
+                lastError = null
+                stack += LuaStackValue.ChunkValue(result.chunk)
+                LuaStatus.OK
+            }
+            is KLuaCoreLoad.SyntaxError -> {
+                lastError = LuaSyntaxException(result.message)
+                stack += LuaStackValue.StringValue(result.message)
+                LuaStatus.SYNTAX_ERROR
+            }
+        }
+    }
+
+    @JvmOverloads
+    fun compileBytecode(source: String, chunkName: String = "chunk"): ByteArray {
+        return when (val result = KLuaCoreRuntime.compileBytecode(source, chunkName)) {
+            is KLuaCoreBytecodeLoad.Success -> result.bytes.copyOf()
+            is KLuaCoreBytecodeLoad.SyntaxError -> throw LuaSyntaxException(result.message)
         }
     }
 

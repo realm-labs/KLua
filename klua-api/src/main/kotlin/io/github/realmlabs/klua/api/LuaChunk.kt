@@ -4,7 +4,14 @@ class LuaChunk internal constructor(
     private val state: LuaState,
     val source: String,
     val chunkName: String,
+    private val bytecode: ByteArray? = null,
 ) {
+    internal companion object {
+        fun bytecode(state: LuaState, bytes: ByteArray): LuaChunk {
+            return LuaChunk(state, source = "", chunkName = "bytecode", bytecode = bytes.copyOf())
+        }
+    }
+
     fun eval(): LuaReturn {
         return call()
     }
@@ -12,7 +19,12 @@ class LuaChunk internal constructor(
     fun call(vararg arguments: Any?): LuaReturn {
         val base = state.getTop()
         try {
-            checkStatus(state.load(source, chunkName))
+            val status = if (bytecode == null) {
+                state.load(source, chunkName)
+            } else {
+                state.loadBytecode(bytecode.copyOf())
+            }
+            checkStatus(status)
             for (argument in arguments) {
                 pushValue(argument)
             }

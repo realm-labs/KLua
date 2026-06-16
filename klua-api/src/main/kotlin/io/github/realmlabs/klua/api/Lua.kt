@@ -17,6 +17,11 @@ class Lua private constructor(
     @JvmOverloads
     fun load(source: String, chunkName: String = "chunk"): LuaChunk = LuaChunk(state, source, chunkName)
 
+    @JvmOverloads
+    fun compileBytecode(source: String, chunkName: String = "chunk"): ByteArray = state.compileBytecode(source, chunkName)
+
+    fun loadBytecode(bytes: ByteArray): LuaChunk = LuaChunk.bytecode(state, bytes)
+
     fun globals(): LuaGlobals = globals
 
     fun <T : Any> registerType(type: Class<T>, configure: Consumer<LuaUserDataType<T>>) {

@@ -31,6 +31,35 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade compiles and evaluates bytecode chunks`() {
+        val lua = Lua.create()
+        val bytecode = lua.compileBytecode("return ... + 1", "api-bytecode.lua")
+
+        assertEquals(42L, lua.loadBytecode(bytecode).call(41L).getLong(1))
+    }
+
+    @Test
+    fun `state loads bytecode chunks`() {
+        val state = LuaState.create()
+        val bytecode = state.compileBytecode("return 21 * 2", "api-state-bytecode.lua")
+
+        assertEquals(LuaStatus.OK, state.loadBytecode(bytecode))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+        assertEquals(42L, state.toInteger(-1))
+    }
+
+    @Test
+    fun `state rejects corrupted bytecode chunks`() {
+        val state = LuaState.create()
+        val bytecode = state.compileBytecode("return 1", "api-corrupt-bytecode.lua")
+        bytecode[bytecode.lastIndex] = (bytecode.last().toInt() xor 1).toByte()
+
+        assertEquals(LuaStatus.SYNTAX_ERROR, state.loadBytecode(bytecode))
+        assertIs<LuaSyntaxException>(state.getLastError())
+        assertTrue(state.toString(-1)?.startsWith("KLua bytecode payload checksum mismatch") == true)
+    }
+
+    @Test
     fun `facade calls chunks with host arguments`() {
         val lua = Lua.create()
 
