@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.api.withContinuation
 import java.io.ByteArrayInputStream
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.concurrent.atomic.AtomicInteger
 import java.util.function.Consumer
 import java.util.function.Supplier
 import kotlin.test.Test
@@ -7144,6 +7145,53 @@ class LuaStdlibTest {
 
         assertEquals("native-index-answer", state.toString(1))
         assertEquals("stored", state.toString(2))
+    }
+
+    @Test
+    fun `table equality supports native metamethod functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val calls = AtomicInteger()
+        state.register("nativeEq") {
+            calls.incrementAndGet()
+            LuaReturn.of(true)
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local left = setmetatable({}, {
+                    __eq = nativeEq,
+                })
+                local right = {}
+                local sameIdentity = left == left
+                local leftResult = left == right
+                local crossTypeResult = left == 1
+
+                local rightOnly = {}
+                local rightMeta = setmetatable({}, {
+                    __eq = nativeEq,
+                })
+                local rightResult = rightOnly == rightMeta
+
+                return sameIdentity,
+                    leftResult,
+                    crossTypeResult,
+                    rightResult,
+                    rawequal(left, right)
+                """.trimIndent(),
+                "table-native-equality.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals(2, calls.get())
     }
 
     @Test
