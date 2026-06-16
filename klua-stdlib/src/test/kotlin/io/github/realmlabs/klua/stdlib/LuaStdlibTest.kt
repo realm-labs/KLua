@@ -7438,6 +7438,61 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `non-table concat metamethods handle source operators`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local booleanArgs = {}
+                debug.setmetatable(false, {
+                    __concat = function(left, right)
+                        booleanArgs[#booleanArgs + 1] = { left, right }
+                        return "boolean-concat"
+                    end,
+                })
+
+                local leftResult = false .. "x"
+                local rightResult = "x" .. false
+
+                debug.setmetatable("", {
+                    __concat = function()
+                        return "string-concat"
+                    end,
+                })
+                local primitiveStringResult = "x" .. 5
+
+                debug.setmetatable(false, nil)
+                debug.setmetatable("", nil)
+
+                local missingOk, missingMessage = pcall(function()
+                    return "x" .. true
+                end)
+
+                return leftResult, booleanArgs[1][1], booleanArgs[1][2],
+                    rightResult, booleanArgs[2][1], booleanArgs[2][2],
+                    primitiveStringResult,
+                    missingOk, missingMessage
+                """.trimIndent(),
+                "non-table-concat-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("boolean-concat", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("x", state.toString(3))
+        assertEquals("boolean-concat", state.toString(4))
+        assertEquals("x", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("x5", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertTrue(state.toString(9)?.endsWith("attempt to concatenate boolean") == true, state.toString(9))
+    }
+
+    @Test
     fun `debug metatable functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
