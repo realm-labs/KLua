@@ -1,8 +1,11 @@
 package io.github.realmlabs.klua.tools
 
+import io.github.realmlabs.klua.api.Lua
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class DebugCliMainTest {
     @Test
@@ -10,6 +13,16 @@ class DebugCliMainTest {
         val invocation = DebugCliInvocationParser.parse(arrayOf("--debug", "main.lua", "left", "right"))
 
         assertEquals(DebugCliInvocation(DebugCliSession("main.lua", listOf("left", "right"))), invocation)
+    }
+
+    @Test
+    fun `tools invocation parser accepts bytecode compile command`() {
+        val invocation = ToolsCliInvocationParser.parse(arrayOf("--compile", "main.lua", "main.kluac"))
+
+        assertEquals(
+            ToolsCliInvocation.Compile(BytecodeCompileInvocation("main.lua", "main.kluac")),
+            invocation,
+        )
     }
 
     @Test
@@ -85,6 +98,46 @@ class DebugCliMainTest {
         )
 
         assertEquals(2, exitCode)
-        assertEquals(listOf("usage: klua --debug <script.lua> [args...]"), output)
+        assertEquals(
+            listOf("usage: klua --debug <script.lua> [args...] | klua --compile <script.lua> <output.kluac>"),
+            output,
+        )
+    }
+
+    @Test
+    fun `main compile command writes loadable bytecode package`() {
+        val output = mutableListOf<String>()
+        val writes = linkedMapOf<String, ByteArray>()
+
+        val exitCode = DebugCliMain.run(
+            args = arrayOf("--compile", "main.lua", "main.kluac"),
+            readLine = { null },
+            writeLine = { line -> output += line },
+            readSource = { "return 40 + 2" },
+            writeBytes = { path, bytes -> writes[path] = bytes },
+        )
+
+        assertEquals(0, exitCode)
+        assertEquals(listOf("compiled main.lua -> main.kluac"), output)
+        val bytecode = assertIs<ByteArray>(writes["main.kluac"])
+        assertEquals(42L, Lua.create().loadBytecode(bytecode).evalLong())
+    }
+
+    @Test
+    fun `main compile command reports syntax errors`() {
+        val output = mutableListOf<String>()
+        val writes = linkedMapOf<String, ByteArray>()
+
+        val exitCode = DebugCliMain.run(
+            args = arrayOf("--compile", "bad.lua", "bad.kluac"),
+            readLine = { null },
+            writeLine = { line -> output += line },
+            readSource = { "return function(" },
+            writeBytes = { path, bytes -> writes[path] = bytes },
+        )
+
+        assertEquals(1, exitCode)
+        assertTrue(output.single().startsWith("error:"))
+        assertEquals(emptyMap(), writes)
     }
 }
