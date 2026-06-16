@@ -66,7 +66,18 @@ interface LuaCallContext {
 
     fun load(source: String, chunkName: String, environment: Any?, environmentProvided: Boolean): LuaReturn
 
+    fun loadBytecode(bytes: ByteArray, chunkName: String): LuaReturn = LuaReturn.of(null, "binary chunks are not supported")
+
+    fun loadBytecode(bytes: ByteArray, chunkName: String, environment: Any?): LuaReturn {
+        if (environment != null) {
+            throw IllegalArgumentException("environment is not supported")
+        }
+        return loadBytecode(bytes, chunkName)
+    }
+
     fun getFunctionDebugInfo(index: Int): LuaFunctionDebugInfo? = null
+
+    fun dumpFunctionBytecode(index: Int, strip: Boolean = false): ByteArray? = null
 
     fun getUpvalue(index: Int, upvalueIndex: Int): LuaReturn? = null
 

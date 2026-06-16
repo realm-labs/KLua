@@ -57,6 +57,11 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun dumpFunctionBytecode(function: KLuaCoreValue.FunctionValue): ByteArray? {
+        val closure = function.sourceFunction as? LuaClosure ?: return null
+        return BytecodePackageCodec.encode(closure.prototype)
+    }
+
     public fun execute(source: String, chunkName: String): KLuaCoreExecution {
         return when (val load = compile(source, chunkName)) {
             is KLuaCoreLoad.Success -> execute(load.chunk)

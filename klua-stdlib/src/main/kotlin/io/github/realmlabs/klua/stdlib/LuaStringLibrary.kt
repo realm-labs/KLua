@@ -25,6 +25,7 @@ internal object LuaStringLibrary {
         state.newTable()
         setFunctionField(state, "byte", ::stringByte)
         setFunctionField(state, "char", ::stringChar)
+        setFunctionField(state, "dump", ::stringDump)
         setFunctionField(state, "find", ::stringFind)
         setFunctionField(state, "format", ::stringFormat)
         setFunctionField(state, "gmatch", ::stringGmatch)
@@ -84,6 +85,15 @@ internal object LuaStringLibrary {
             bytes[index - 1] = code.toByte()
         }
         return LuaReturn.of(String(bytes, StandardCharsets.UTF_8))
+    }
+
+    private fun stringDump(context: LuaCallContext): LuaReturn {
+        if (context.typeName(1) != "function") {
+            throw LuaRuntimeException("bad argument #1 to 'string.dump' (Lua function expected)")
+        }
+        val bytes = context.dumpFunctionBytecode(1, strip = context.toBoolean(2))
+            ?: throw LuaRuntimeException("bad argument #1 to 'string.dump' (Lua function expected)")
+        return LuaReturn.of(String(bytes, StandardCharsets.ISO_8859_1))
     }
 
     private fun stringLen(context: LuaCallContext): LuaReturn {

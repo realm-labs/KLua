@@ -303,6 +303,21 @@ class LuaState private constructor(
         return coreGlobals.withEnvironment(environment.toCoreReturnValue()) ?: coreGlobals
     }
 
+    private fun loadBytecodeFunction(bytes: ByteArray, environment: KLuaCoreValue?): LuaReturn {
+        return when (val load = KLuaCoreRuntime.loadBytecode(bytes)) {
+            is KLuaCoreLoad.Success -> {
+                val functionValue = if (environment == null) {
+                    KLuaCoreRuntime.createChunkFunctionValue(load.chunk, coreGlobals)
+                } else {
+                    KLuaCoreRuntime.createChunkFunctionValue(load.chunk, coreGlobals, environment)
+                        ?: return LuaReturn.of(null, "unsupported chunk environment")
+                }
+                LuaReturn.of(LuaStackValue.NativeFunctionValue(toLuaFunctionValue(functionValue), functionValue))
+            }
+            is KLuaCoreLoad.SyntaxError -> LuaReturn.of(null, load.message)
+        }
+    }
+
     fun absIndex(index: Int): Int {
         return when {
             index > 0 -> index
@@ -1603,6 +1618,16 @@ class LuaState private constructor(
             return loadLuaFunction(source, chunkName, environment, environmentProvided)
         }
 
+        override fun loadBytecode(bytes: ByteArray, chunkName: String): LuaReturn {
+            return loadBytecodeFunction(bytes, environment = null)
+        }
+
+        override fun loadBytecode(bytes: ByteArray, chunkName: String, environment: Any?): LuaReturn {
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            val environmentValue = environment.toStackValue().toCoreValue(tableCache)
+            return loadBytecodeFunction(bytes, environmentValue)
+        }
+
         override fun getFunctionDebugInfo(index: Int): LuaFunctionDebugInfo? {
             val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
             val coreFunction = function.coreFunction ?: return null
@@ -1618,6 +1643,12 @@ class LuaState private constructor(
                 parameterNames = info.parameterNames,
                 localNames = info.localNames,
             )
+        }
+
+        override fun dumpFunctionBytecode(index: Int, strip: Boolean): ByteArray? {
+            val function = valueAt(index) as? LuaStackValue.NativeFunctionValue ?: return null
+            val coreFunction = function.coreFunction ?: return null
+            return KLuaCoreRuntime.dumpFunctionBytecode(coreFunction)
         }
 
         override fun getUpvalue(index: Int, upvalueIndex: Int): LuaReturn? {

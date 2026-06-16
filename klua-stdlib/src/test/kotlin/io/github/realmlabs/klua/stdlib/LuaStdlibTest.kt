@@ -6359,6 +6359,83 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string dump round trips KLua bytecode through binary load`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function add(left, right)
+                    return left + right
+                end
+
+                local dumped = string.dump(add)
+                local loaded = load(dumped, "dumped-add", "b")
+                local defaultLoaded = load(dumped, "dumped-add-default")
+                local textOnly, textMessage = load(dumped, "dumped-add-text", "t")
+                return type(dumped), loaded(19, 23), defaultLoaded(2, 5), textOnly, textMessage
+                """.trimIndent(),
+                "string-dump-roundtrip.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("string", state.toString(1))
+        assertEquals(42L, state.toInteger(2))
+        assertEquals(7L, state.toInteger(3))
+        assertTrue(state.isNil(4))
+        assertEquals("attempt to load a binary chunk (mode is 't')", state.toString(5))
+    }
+
+    @Test
+    fun `binary load applies supplied environments to dumped chunks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                marker = "global"
+                local chunk = load("return marker", "dump-source.lua")
+                local dumped = string.dump(chunk)
+                local env = {marker = "env"}
+                local loaded = load(dumped, "dumped-env", "b", env)
+                return loaded(), marker
+                """.trimIndent(),
+                "string-dump-env.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("env", state.toString(1))
+        assertEquals("global", state.toString(2))
+    }
+
+    @Test
+    fun `string dump rejects host functions`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(string.dump, print)
+                return ok, message
+                """.trimIndent(),
+                "string-dump-host-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'string.dump' (Lua function expected)", state.toString(2))
+    }
+
+    @Test
     fun `loadfile compiles chunks from configured standard input`() {
         val state = LuaState.create(
             LuaConfig(

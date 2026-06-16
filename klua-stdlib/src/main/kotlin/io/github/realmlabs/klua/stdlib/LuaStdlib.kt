@@ -250,9 +250,6 @@ public object LuaStdlib {
         } else {
             requiredString(context, 2, "load")
         }
-        if ('t' !in mode) {
-            return LuaReturn.of(null, textChunkModeError(mode))
-        }
         val source = if (sourceString != null) {
             sourceString
         } else {
@@ -268,6 +265,19 @@ public object LuaStdlib {
             } catch (exception: RuntimeException) {
                 return LuaReturn.of(null, exception.message ?: exception::class.java.simpleName)
             }
+        }
+        if (isKLuaBinaryChunk(source)) {
+            if ('b' !in mode) {
+                return LuaReturn.of(null, binaryChunkModeError(mode))
+            }
+            return if (context.isNone(4)) {
+                context.loadBytecode(source.toByteArray(StandardCharsets.ISO_8859_1), chunkName)
+            } else {
+                context.loadBytecode(source.toByteArray(StandardCharsets.ISO_8859_1), chunkName, argumentValue(context, 4))
+            }
+        }
+        if ('t' !in mode) {
+            return LuaReturn.of(null, textChunkModeError(mode))
         }
         val environment = optionalLoadEnvironment(context, 4)
         return context.load(source, chunkName, environment.value, environment.provided)
@@ -776,6 +786,14 @@ public object LuaStdlib {
 
     private fun textChunkModeError(mode: String): String {
         return "attempt to load a text chunk (mode is '$mode')"
+    }
+
+    private fun binaryChunkModeError(mode: String): String {
+        return "attempt to load a binary chunk (mode is '$mode')"
+    }
+
+    private fun isKLuaBinaryChunk(source: String): Boolean {
+        return source.length >= 4 && source.substring(0, 4) == "KLua"
     }
 
     private fun requiredNumber(context: LuaCallContext, index: Int, functionName: String): Double {
