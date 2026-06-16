@@ -777,7 +777,8 @@ internal class LuaVm(
             is LuaTable -> tableGet(index, key, visited)
             is LuaClosure -> executeReturned(index.prototype, listOf(table, key), index.upvalues).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
-            else -> LuaNil
+            LuaNil -> LuaNil
+            else -> indexGet(index, key)
         }
     }
 

@@ -7147,6 +7147,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table scalar index and newindex metamethods are retried as receivers`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local indexed = setmetatable({}, {
+                    __index = 42,
+                })
+                local indexOk, indexMessage = pcall(function()
+                    return indexed.missing
+                end)
+
+                local assigned = setmetatable({}, {
+                    __newindex = 42,
+                })
+                local newIndexOk, newIndexMessage = pcall(function()
+                    assigned.name = "stored"
+                end)
+
+                return indexOk, indexMessage,
+                    newIndexOk, newIndexMessage,
+                    rawget(assigned, "name")
+                """.trimIndent(),
+                "table-scalar-index-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toString(2)?.endsWith("attempt to index number") == true, state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toString(4)?.endsWith("attempt to index number") == true, state.toString(4))
+        assertTrue(state.isNil(5))
+    }
+
+    @Test
     fun `debug metatable functions can replace string metatable`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
