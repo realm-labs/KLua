@@ -2,6 +2,9 @@ package io.github.realmlabs.klua.api;
 
 import org.junit.jupiter.api.Test;
 
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -12,6 +15,19 @@ class LuaFacadeJavaTest {
 
         assertEquals(42L, lua.load("return 40 + 2").evalLong());
         assertEquals("ok", lua.load("return \"ok\"").evalString());
+    }
+
+    @Test
+    void loadsBytecodeResources() {
+        Lua lua = Lua.create();
+        byte[] bytecode = lua.compileBytecode("return ... + 1", "java-resource-bytecode.lua");
+
+        assertEquals(
+                42L,
+                lua.loadBytecodeResource("scripts/main.kluac", bytecodeResource("scripts/main.kluac", bytecode))
+                        .call(41L)
+                        .getLong(1)
+        );
     }
 
     @Test
@@ -149,5 +165,18 @@ class LuaFacadeJavaTest {
         private void setName(String name) {
             this.name = name;
         }
+    }
+
+    private static ClassLoader bytecodeResource(String resourceName, byte[] bytecode) {
+        byte[] copy = bytecode.clone();
+        return new ClassLoader(null) {
+            @Override
+            public InputStream getResourceAsStream(String name) {
+                if (!resourceName.equals(name)) {
+                    return null;
+                }
+                return new ByteArrayInputStream(copy);
+            }
+        };
     }
 }

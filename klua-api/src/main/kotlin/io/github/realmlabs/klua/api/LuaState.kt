@@ -77,6 +77,21 @@ class LuaState private constructor(
     }
 
     @JvmOverloads
+    fun loadBytecodeResource(
+        resourceName: String,
+        classLoader: ClassLoader = defaultBytecodeResourceClassLoader(),
+    ): LuaStatus {
+        val bytes = try {
+            readBytecodeResource(resourceName, classLoader)
+        } catch (error: LuaSyntaxException) {
+            lastError = error
+            stack += LuaStackValue.StringValue(error.message ?: "failed to load KLua bytecode resource")
+            return LuaStatus.SYNTAX_ERROR
+        }
+        return loadBytecode(bytes)
+    }
+
+    @JvmOverloads
     fun compileBytecode(source: String, chunkName: String = "chunk"): ByteArray {
         return when (val result = KLuaCoreRuntime.compileBytecode(source, chunkName)) {
             is KLuaCoreBytecodeLoad.Success -> result.bytes.copyOf()

@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.api
 
+import java.io.ByteArrayInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -39,6 +40,26 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `facade loads bytecode resources`() {
+        val lua = Lua.create()
+        val bytecode = lua.compileBytecode("return ... + 1", "api-resource-bytecode.lua")
+        val resources = bytecodeResources("scripts/main.kluac" to bytecode)
+
+        assertEquals(42L, lua.loadBytecodeResource("scripts/main.kluac", resources).call(41L).getLong(1))
+    }
+
+    @Test
+    fun `facade reports missing bytecode resources`() {
+        val lua = Lua.create()
+
+        val error = assertFailsWith<LuaSyntaxException> {
+            lua.loadBytecodeResource("missing.kluac", bytecodeResources())
+        }
+
+        assertEquals("KLua bytecode resource not found: missing.kluac", error.message)
+    }
+
+    @Test
     fun `state loads bytecode chunks`() {
         val state = LuaState.create()
         val bytecode = state.compileBytecode("return 21 * 2", "api-state-bytecode.lua")
@@ -46,6 +67,26 @@ class LuaApiSmokeTest {
         assertEquals(LuaStatus.OK, state.loadBytecode(bytecode))
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
         assertEquals(42L, state.toInteger(-1))
+    }
+
+    @Test
+    fun `state loads bytecode resources`() {
+        val state = LuaState.create()
+        val bytecode = state.compileBytecode("return 21 * 2", "api-state-resource-bytecode.lua")
+        val resources = bytecodeResources("scripts/main.kluac" to bytecode)
+
+        assertEquals(LuaStatus.OK, state.loadBytecodeResource("/scripts/main.kluac", resources))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+        assertEquals(42L, state.toInteger(-1))
+    }
+
+    @Test
+    fun `state reports missing bytecode resources`() {
+        val state = LuaState.create()
+
+        assertEquals(LuaStatus.SYNTAX_ERROR, state.loadBytecodeResource("missing.kluac", bytecodeResources()))
+        assertIs<LuaSyntaxException>(state.getLastError())
+        assertEquals("KLua bytecode resource not found: missing.kluac", state.toString(-1))
     }
 
     @Test
@@ -399,4 +440,13 @@ class LuaApiSmokeTest {
     private data class OtherObject(
         val name: String,
     )
+
+    private fun bytecodeResources(vararg resources: Pair<String, ByteArray>): ClassLoader {
+        val byName = resources.associate { (name, bytes) -> name to bytes.copyOf() }
+        return object : ClassLoader(null) {
+            override fun getResourceAsStream(name: String): ByteArrayInputStream? {
+                return byName[name]?.let { bytes -> ByteArrayInputStream(bytes) }
+            }
+        }
+    }
 }
