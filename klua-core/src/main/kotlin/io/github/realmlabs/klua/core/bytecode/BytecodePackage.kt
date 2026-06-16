@@ -48,6 +48,15 @@ internal sealed interface BytecodePackageHeaderDecode {
     data class Invalid(val reason: String) : BytecodePackageHeaderDecode
 }
 
+internal sealed interface BytecodePackageDecode {
+    data class Decoded(
+        val header: BytecodePackageHeader,
+        val prototype: Prototype,
+    ) : BytecodePackageDecode
+
+    data class Invalid(val reason: String) : BytecodePackageDecode
+}
+
 internal object BytecodePackageValidator {
     fun validate(header: BytecodePackageHeader): BytecodePackageValidation {
         if (header.magic != KLUA_BYTECODE_MAGIC) {
@@ -84,6 +93,44 @@ internal object BytecodePackageValidator {
         }
 
         return BytecodePackageValidation.Valid
+    }
+}
+
+internal object BytecodePackageCodec {
+    fun encode(
+        prototype: Prototype,
+        flags: Int = KLUA_BYTECODE_FLAG_DEBUG_INFO,
+    ): ByteArray {
+        val payload = BytecodePrototypeCodec.encode(prototype)
+        val header = BytecodePackageHeader.forPayload(payload, flags)
+        return BytecodePackageHeaderCodec.encode(header) + payload
+    }
+
+    fun decode(bytes: ByteArray): BytecodePackageDecode {
+        val headerDecode = when (val decoded = BytecodePackageHeaderCodec.decode(bytes)) {
+            is BytecodePackageHeaderDecode.Decoded -> decoded
+            is BytecodePackageHeaderDecode.Invalid -> return BytecodePackageDecode.Invalid(decoded.reason)
+        }
+
+        when (val validation = BytecodePackagePayloadValidator.validate(headerDecode.header, bytes, headerDecode.nextOffset)) {
+            BytecodePackageValidation.Valid -> Unit
+            is BytecodePackageValidation.Invalid -> return BytecodePackageDecode.Invalid(validation.reason)
+        }
+
+        val payloadEnd = headerDecode.nextOffset + headerDecode.header.payloadSize
+        val payload = bytes.copyOfRange(headerDecode.nextOffset, payloadEnd)
+        val prototypeDecode = when (val decoded = BytecodePrototypeCodec.decode(payload)) {
+            is BytecodePrototypeDecode.Decoded -> decoded
+            is BytecodePrototypeDecode.Invalid -> return BytecodePackageDecode.Invalid(decoded.reason)
+        }
+        if (prototypeDecode.nextOffset != payload.size) {
+            return BytecodePackageDecode.Invalid("trailing KLua bytecode payload bytes")
+        }
+        if (payloadEnd != bytes.size) {
+            return BytecodePackageDecode.Invalid("trailing KLua bytecode package bytes")
+        }
+
+        return BytecodePackageDecode.Decoded(headerDecode.header, prototypeDecode.prototype)
     }
 }
 

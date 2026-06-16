@@ -1,10 +1,12 @@
 package io.github.realmlabs.klua.core.bytecode
 
+import io.github.realmlabs.klua.core.value.LuaString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 
 class BytecodePackageTest {
     @Test
@@ -219,5 +221,61 @@ class BytecodePackageTest {
         }
 
         assertEquals("unsupported KLua bytecode format version 2", exception.message)
+    }
+
+    @Test
+    fun `encodes and decodes bytecode packages with prototype payloads`() {
+        val prototype = Prototype(
+            sourceName = "package.lua",
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_K, a = 0, b = 0),
+                Instruction.abc(Opcode.RETURN, a = 0, b = 1),
+            ),
+            constants = arrayOf(LuaString("ok")),
+            lineInfo = intArrayOf(1, 1),
+            maxStackSize = 1,
+        )
+
+        val bytes = BytecodePackageCodec.encode(prototype, flags = 0)
+        val decoded = assertIs<BytecodePackageDecode.Decoded>(BytecodePackageCodec.decode(bytes))
+
+        assertEquals(prototype, decoded.prototype)
+        assertEquals(0, decoded.header.flags)
+        assertEquals(bytes.size - BytecodePackageHeaderCodec.encode(decoded.header).size, decoded.header.payloadSize)
+    }
+
+    @Test
+    fun `package decode rejects checksum mismatches`() {
+        val bytes = BytecodePackageCodec.encode(
+            Prototype(
+                sourceName = "checksum.lua",
+                code = intArrayOf(Instruction.abc(Opcode.RETURN, a = 0, b = 0)),
+                constants = emptyArray(),
+                maxStackSize = 1,
+            ),
+        )
+        val corrupted = bytes.copyOf()
+        corrupted[corrupted.lastIndex] = (corrupted.last().toInt() xor 1).toByte()
+
+        assertIs<BytecodePackageDecode.Invalid>(BytecodePackageCodec.decode(corrupted)).also { invalid ->
+            assertTrue(invalid.reason.startsWith("KLua bytecode payload checksum mismatch"))
+        }
+    }
+
+    @Test
+    fun `package decode rejects trailing bytes`() {
+        val bytes = BytecodePackageCodec.encode(
+            Prototype(
+                sourceName = "trailing.lua",
+                code = intArrayOf(Instruction.abc(Opcode.RETURN, a = 0, b = 0)),
+                constants = emptyArray(),
+                maxStackSize = 1,
+            ),
+        )
+
+        assertEquals(
+            BytecodePackageDecode.Invalid("trailing KLua bytecode package bytes"),
+            BytecodePackageCodec.decode(bytes + byteArrayOf(0x00)),
+        )
     }
 }
