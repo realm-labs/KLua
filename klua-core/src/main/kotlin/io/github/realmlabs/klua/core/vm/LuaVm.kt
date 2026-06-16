@@ -153,6 +153,14 @@ internal class LuaVm(
         return returnedValues(executeFrame(LuaClosure(prototype, upvalues.toMutableList()), arguments))
     }
 
+    private fun executeReturned(
+        closure: LuaClosure,
+        arguments: List<LuaValue>,
+        callSiteInfo: CallSiteInfo? = null,
+    ): List<LuaValue> {
+        return returnedValues(executeFrame(closure, arguments, callSiteInfo))
+    }
+
     private fun returnedValues(result: LuaExecutionResult): List<LuaValue> {
         return when (result) {
             is LuaExecutionResult.Returned -> result.values
@@ -762,7 +770,7 @@ internal class LuaVm(
     private fun metamethodIndexGet(receiver: LuaValue, key: LuaValue, index: LuaValue): LuaValue {
         return when (index) {
             is LuaTable -> tableGet(index, key)
-            is LuaClosure -> executeReturned(index.prototype, listOf(receiver, key), index.upvalues).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(index, listOf(receiver, key), INDEX_KEY).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(index, listOf(receiver, key)).firstOrNull() ?: LuaNil
             else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
         }
@@ -819,7 +827,7 @@ internal class LuaVm(
 
         return when (val index = table.metatableRawGet(INDEX_KEY)) {
             is LuaTable -> tableGet(index, key, visited)
-            is LuaClosure -> executeReturned(index.prototype, listOf(table, key), index.upvalues).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(index, listOf(table, key), INDEX_KEY).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
             LuaNil -> LuaNil
             else -> indexGet(index, key)
@@ -851,9 +859,8 @@ internal class LuaVm(
                     primitiveSet(receiver, key, value, mutableSetOf(), 0)
                 } catch (error: LuaTableKeyException) {
                     throw LuaVmException(error.message ?: "invalid table key")
-                } catch (error: LuaMetatableException) {
-                    throw LuaVmException(error.message ?: "invalid metatable operation")
-                }
+            } catch (error: LuaMetatableException) {
+                throw LuaVmException(error.message ?: "invalid metatable operation")
             }
         }
     }
@@ -929,10 +936,18 @@ internal class LuaVm(
     ) {
         when (newIndex) {
             is LuaTable -> tableSet(newIndex, key, value, visited, depth)
-            is LuaClosure -> executeReturned(newIndex.prototype, listOf(receiver, key, value), newIndex.upvalues)
+            is LuaClosure -> executeMetamethod(newIndex, listOf(receiver, key, value), NEW_INDEX_KEY)
             is LuaNativeFunction -> callNative(newIndex, listOf(receiver, key, value))
             else -> primitiveSet(newIndex, key, value, visited, depth)
         }
+    }
+
+    private fun executeMetamethod(closure: LuaClosure, arguments: List<LuaValue>, metamethod: LuaString): List<LuaValue> {
+        return executeReturned(closure, arguments, metamethodCallSiteInfo(metamethod))
+    }
+
+    private fun metamethodCallSiteInfo(metamethod: LuaString): CallSiteInfo {
+        return CallSiteInfo(0, metamethod.value.removePrefix("__"), "metamethod")
     }
 
     private fun setOpenResults(stack: LuaStack, frame: CallFrame, base: Int, results: List<LuaValue>) {

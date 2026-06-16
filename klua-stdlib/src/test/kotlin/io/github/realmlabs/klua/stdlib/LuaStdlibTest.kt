@@ -867,6 +867,18 @@ class LuaStdlibTest {
                         seen[#seen + 1] = info.namewhat
                     end,
                 })
+                local indexed = setmetatable({}, {
+                    __index = function()
+                        local info = debug.getinfo(1, "n")
+                        seen[#seen + 1] = info.name
+                        seen[#seen + 1] = info.namewhat
+                    end,
+                    __newindex = function()
+                        local info = debug.getinfo(1, "n")
+                        seen[#seen + 1] = info.name
+                        seen[#seen + 1] = info.namewhat
+                    end,
+                })
 
                 do
                     local function localProbe()
@@ -890,6 +902,8 @@ class LuaStdlibTest {
                 end
 
                 callable()
+                local _ = indexed.missing
+                indexed.written = true
                 globalProbe()
                 object.field()
                 object[1]()
@@ -897,7 +911,7 @@ class LuaStdlibTest {
 
                 return seen[1], seen[2], seen[3], seen[4], seen[5], seen[6],
                     seen[7], seen[8], seen[9], seen[10], seen[11], seen[12],
-                    seen[13], seen[14]
+                    seen[13], seen[14], seen[15], seen[16], seen[17], seen[18]
                 """.trimIndent(),
                 "debug-getinfo-names.lua",
             ),
@@ -910,14 +924,18 @@ class LuaStdlibTest {
         assertEquals("upvalue", state.toString(4))
         assertEquals("callable", state.toString(5))
         assertEquals("local", state.toString(6))
-        assertEquals("globalProbe", state.toString(7))
-        assertEquals("global", state.toString(8))
-        assertEquals("field", state.toString(9))
-        assertEquals("field", state.toString(10))
-        assertEquals("integer index", state.toString(11))
-        assertEquals("field", state.toString(12))
-        assertEquals("method", state.toString(13))
-        assertEquals("method", state.toString(14))
+        assertEquals("index", state.toString(7))
+        assertEquals("metamethod", state.toString(8))
+        assertEquals("newindex", state.toString(9))
+        assertEquals("metamethod", state.toString(10))
+        assertEquals("globalProbe", state.toString(11))
+        assertEquals("global", state.toString(12))
+        assertEquals("field", state.toString(13))
+        assertEquals("field", state.toString(14))
+        assertEquals("integer index", state.toString(15))
+        assertEquals("field", state.toString(16))
+        assertEquals("method", state.toString(17))
+        assertEquals("method", state.toString(18))
     }
 
     @Test
