@@ -1006,6 +1006,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports generic for iterator call site name`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local seen = {}
+                local function iterator(_, control)
+                    local info = debug.getinfo(1, "n")
+                    seen[#seen + 1] = info.name
+                    seen[#seen + 1] = info.namewhat
+                    if control == nil then
+                        return 1
+                    end
+                    return nil
+                end
+                for value in iterator, nil, nil do
+                end
+                return seen[1], seen[2]
+                """.trimIndent(),
+                "debug-getinfo-for-iterator-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("for iterator", state.toString(1))
+        assertEquals("for iterator", state.toString(2))
+    }
+
+    @Test
     fun `debug getinfo reports main chunk source metadata`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

@@ -214,7 +214,13 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.MOVE, valueBase, iteratorBase), statement.range.start.line)
         writer.emit(Instruction.abc(Opcode.MOVE, valueBase + 1, iteratorBase + 1), statement.range.start.line)
         writer.emit(Instruction.abc(Opcode.MOVE, valueBase + 2, iteratorBase + 2), statement.range.start.line)
-        writer.emit(Instruction.abc(Opcode.CALL, valueBase, 2, statement.names.size), statement.range.start.line)
+        emitCall(
+            valueBase,
+            2,
+            statement.names.size,
+            statement.range.start.line,
+            CallSiteInfo(writer.size, "for iterator", "for iterator"),
+        )
         writer.emit(Instruction.abc(Opcode.MOVE, iteratorBase + 2, valueBase), statement.range.start.line)
 
         val testIndex = writer.size
