@@ -18083,7 +18083,15 @@ class LuaStdlibTest {
                         return ({ "a", "b" })[index]
                     end,
                 })
-                return table.concat(values, ",", 1, 2)
+                local nested = setmetatable({}, {
+                    __index = setmetatable({}, {
+                        __index = {
+                            [1] = "x",
+                            [2] = "y",
+                        },
+                    }),
+                })
+                return table.concat(values, ",", 1, 2), table.concat(nested, "-", 1, 2)
                 """.trimIndent(),
                 "table-concat-index-metamethod.lua",
             ),
@@ -18091,6 +18099,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("a,b", state.toString(1))
+        assertEquals("x-y", state.toString(2))
     }
 
     @Test
