@@ -1048,11 +1048,12 @@ internal object LuaStringLibrary {
         return if ('-' in parsed.flags) value + padding else padding + value
     }
 
-    private fun validateStringFormatSpecifier(specifier: String) {
+    private fun validateStringFormatSpecifier(specifier: String): FormatSpecifier {
         val parsed = parseFormatSpecifier(specifier)
         if (parsed.flags.any { flag -> flag != '-' }) {
             throw invalidConversionSpecification(specifier)
         }
+        return parsed
     }
 
     private fun formatStringValue(
@@ -1060,15 +1061,30 @@ internal object LuaStringLibrary {
         index: Int,
         specifier: String,
     ): String {
-        validateStringFormatSpecifier(specifier)
+        val parsed = validateStringFormatSpecifier(specifier)
         val value = toLuaString(context, index)
         if (specifier == "%s") {
             return value
         }
-        if ('\u0000' in value) {
+        val bytes = value.luaRawBytes()
+        if (bytes.any { byte -> byte == 0.toByte() }) {
             throw LuaRuntimeException("bad argument #$index to 'format' (string contains zeros)")
         }
-        return parseFormatSpecifier(specifier).toJavaSpecifier('s').formatWith(value)
+        return formatStringBytes(bytes, parsed)
+    }
+
+    private fun formatStringBytes(bytes: ByteArray, parsed: FormatSpecifier): String {
+        val selected = parsed.precision
+            ?.let { precision -> bytes.copyOfRange(0, precision.coerceAtMost(bytes.size)) }
+            ?: bytes
+        val value = selected.toLuaByteString()
+        val width = parsed.width ?: return value
+        val paddingSize = width - selected.size
+        if (paddingSize <= 0) {
+            return value
+        }
+        val padding = " ".repeat(paddingSize)
+        return if ('-' in parsed.flags) value + padding else padding + value
     }
 
     private fun formatDecimalFloatValue(

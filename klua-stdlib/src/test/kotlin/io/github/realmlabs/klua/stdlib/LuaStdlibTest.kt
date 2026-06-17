@@ -15410,13 +15410,48 @@ class LuaStdlibTest {
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return string.format("%5s|%-5s|%.2s|%5.2s", "ab", "ab", "abcd", "abcd")""",
+                """
+                local basic = string.format("%5s|%-5s|%.2s|%5.2s", "ab", "ab", "abcd", "abcd")
+                local firstUtf8Byte = string.format("%.1s", "é")
+                local wideUtf8 = string.format("%5s", "é")
+                local paddedFirstUtf8Byte = string.format("%3.1s", "é")
+                local high = string.format("%.1s", string.char(255, 65))
+                local leftHigh = string.format("%-3.1s", string.char(255))
+                local w1, w2, w3, w4, w5 = string.byte(wideUtf8, 1, -1)
+                local p1, p2, p3 = string.byte(paddedFirstUtf8Byte, 1, -1)
+                local l1, l2, l3 = string.byte(leftHigh, 1, -1)
+                return basic,
+                    string.len(firstUtf8Byte), string.byte(firstUtf8Byte), string.format("%.2s", "é") == "é",
+                    string.len(wideUtf8), w1, w2, w3, w4, w5,
+                    string.len(paddedFirstUtf8Byte), p1, p2, p3,
+                    string.len(high), string.byte(high),
+                    string.len(leftHigh), l1, l2, l3
+                """.trimIndent(),
                 "string-format-string-modifiers.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals("   ab|ab   |ab|   ab", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(195L, state.toInteger(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals(5L, state.toInteger(5))
+        assertEquals(32L, state.toInteger(6))
+        assertEquals(32L, state.toInteger(7))
+        assertEquals(32L, state.toInteger(8))
+        assertEquals(195L, state.toInteger(9))
+        assertEquals(169L, state.toInteger(10))
+        assertEquals(3L, state.toInteger(11))
+        assertEquals(32L, state.toInteger(12))
+        assertEquals(32L, state.toInteger(13))
+        assertEquals(195L, state.toInteger(14))
+        assertEquals(1L, state.toInteger(15))
+        assertEquals(255L, state.toInteger(16))
+        assertEquals(3L, state.toInteger(17))
+        assertEquals(255L, state.toInteger(18))
+        assertEquals(32L, state.toInteger(19))
+        assertEquals(32L, state.toInteger(20))
     }
 
     @Test
