@@ -568,9 +568,6 @@ internal object LuaDebugLibrary {
         end
 
         function debug.gethook(thread)
-            if thread ~= nil and type(thread) ~= "thread" then
-                error("bad argument #1 to 'debug.gethook' (thread expected)", 2)
-            end
             return klua_debug_gethook(thread)
         end
     """

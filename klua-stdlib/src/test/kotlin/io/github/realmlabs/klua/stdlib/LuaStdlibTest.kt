@@ -3308,7 +3308,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `debug gethook reports non thread argument errors`() {
+    fun `debug gethook ignores non thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -3316,16 +3316,20 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local ok, message = pcall(debug.gethook, "not-thread")
-                return ok, message
+                local function hook() end
+                debug.sethook(hook, "l", 0)
+                local installed, mask, count = debug.gethook("not-thread")
+                debug.sethook()
+                return installed == hook, mask, count
                 """.trimIndent(),
-                "debug-gethook-thread-error.lua",
+                "debug-gethook-non-thread.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.gethook' (thread expected)", state.toString(2))
+        assertTrue(state.toBoolean(1))
+        assertEquals("l", state.toString(2))
+        assertEquals(0L, state.toInteger(3))
     }
 
     @Test
