@@ -14310,6 +14310,71 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string searches map utf8 byte init positions to character boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "A" .. utf8.char(128512) .. "Z"
+                local foundStart, foundEnd = string.find(text, "Z", 6, true)
+                local negativeStart, negativeEnd = string.find(text, "Z", -1, true)
+                local matched = string.match(text, "Z", 6)
+                local iterator = string.gmatch(text, "Z", 6)
+                local iterated = iterator()
+                return foundStart, foundEnd, negativeStart, negativeEnd, matched, iterated
+                """.trimIndent(),
+                "string-search-utf8-byte-init.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(6L, state.toInteger(1))
+        assertEquals(6L, state.toInteger(2))
+        assertEquals(6L, state.toInteger(3))
+        assertEquals(6L, state.toInteger(4))
+        assertEquals("Z", state.toString(5))
+        assertEquals("Z", state.toString(6))
+    }
+
+    @Test
+    fun `string find treats standalone magic suffix characters as literals`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local bracketStart, bracketEnd = string.find("a] * + - ?", "a]")
+                local starStart, starEnd = string.find("*", "*")
+                local plusStart, plusEnd = string.find("+", "+")
+                local minusStart, minusEnd = string.find("-", "-")
+                local questionStart, questionEnd = string.find("?", "?")
+                return bracketStart, bracketEnd, starStart, starEnd, plusStart, plusEnd,
+                    minusStart, minusEnd, questionStart, questionEnd
+                """.trimIndent(),
+                "string-find-standalone-magic.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(1L, state.toInteger(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(1L, state.toInteger(10))
+    }
+
+    @Test
     fun `string search functions clamp zero and far negative init positions`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

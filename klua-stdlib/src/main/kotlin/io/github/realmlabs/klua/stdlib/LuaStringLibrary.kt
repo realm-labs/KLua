@@ -1569,14 +1569,29 @@ internal object LuaStringLibrary {
         }
 
         var bytePosition = 1L
-        for (charIndex in indices) {
-            val charBytes = this[charIndex].toString().luaRawBytes().size.toLong()
+        var charIndex = 0
+        while (charIndex < length) {
+            val nextCharIndex = nextLuaByteSegmentEnd(charIndex)
+            val charBytes = substring(charIndex, nextCharIndex).luaRawBytes().size.toLong()
             if (bytePosition >= normalized) {
                 return LuaByteSearchStart(charIndex, normalized)
             }
             bytePosition += charBytes
+            charIndex = nextCharIndex
         }
         return LuaByteSearchStart(length, normalized)
+    }
+
+    private fun String.nextLuaByteSegmentEnd(charIndex: Int): Int {
+        return if (
+            this[charIndex].isHighSurrogate() &&
+            charIndex + 1 < length &&
+            this[charIndex + 1].isLowSurrogate()
+        ) {
+            charIndex + 2
+        } else {
+            charIndex + 1
+        }
     }
 
     private fun String.luaByteStartPosition(
