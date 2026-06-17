@@ -6514,6 +6514,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load stops reading after empty reader chunks`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local index = 0
+                local parts = {
+                    "return 42",
+                    "",
+                    "return 99",
+                }
+                local chunk = load(function()
+                    index = index + 1
+                    return parts[index]
+                end, "reader-empty.lua")
+                return chunk(), index
+                """.trimIndent(),
+                "load-reader-empty.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(42L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+    }
+
+    @Test
     fun `load reports reader function syntax errors with default chunk name`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
