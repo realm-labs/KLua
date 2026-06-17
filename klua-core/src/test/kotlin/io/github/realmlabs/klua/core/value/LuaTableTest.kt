@@ -36,6 +36,19 @@ class LuaTableTest {
     }
 
     @Test
+    fun `keeps out of range integral float raw keys distinct`() {
+        val table = LuaTable()
+
+        table.rawSet(LuaFloat(9223372036854775808.0), LuaString("float upper"))
+        table.rawSet(LuaInteger(Long.MAX_VALUE), LuaString("integer max"))
+        table.rawSet(LuaFloat(Long.MIN_VALUE.toDouble()), LuaString("integer min"))
+
+        assertEquals(LuaString("float upper"), table.rawGet(LuaFloat(9223372036854775808.0)))
+        assertEquals(LuaString("integer max"), table.rawGet(LuaInteger(Long.MAX_VALUE)))
+        assertEquals(LuaString("integer min"), table.rawGet(LuaInteger(Long.MIN_VALUE)))
+    }
+
+    @Test
     fun `rejects invalid raw keys`() {
         val table = LuaTable()
 

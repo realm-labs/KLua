@@ -224,6 +224,23 @@ class LuaVmTableTest {
     }
 
     @Test
+    fun `keeps out of range integral float table keys distinct`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {}
+                table[0x1p63] = 10
+                table[0x7fffffffffffffff] = 20
+                table[-0x1p63] = 30
+                return table[0x1p63], table[0x7fffffffffffffff], table[0x8000000000000000]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(10), LuaInteger(20), LuaInteger(30)), result)
+    }
+
+    @Test
     fun `removes normalized numeric table keys`() {
         val result = LuaVm().execute(
             Compiler.compile(
