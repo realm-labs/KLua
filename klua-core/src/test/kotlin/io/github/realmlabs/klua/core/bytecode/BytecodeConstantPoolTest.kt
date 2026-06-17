@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -64,6 +65,18 @@ class BytecodeConstantPoolTest {
             decoded.constants,
         )
         assertEquals(1 + encoded.size, decoded.nextOffset)
+    }
+
+    @Test
+    fun `encodes string constants as lua raw bytes`() {
+        val rawString = byteArrayOf(0, 255.toByte(), 195.toByte(), 169.toByte()).toLuaByteString()
+        val encoded = BytecodeConstantPoolCodec.encode(arrayOf(LuaString(rawString)))
+
+        val decoded = assertIs<BytecodeConstantPoolDecode.Decoded>(
+            BytecodeConstantPoolCodec.decode(encoded),
+        )
+
+        assertContentEquals(arrayOf(LuaString(rawString)), decoded.constants)
     }
 
     @Test

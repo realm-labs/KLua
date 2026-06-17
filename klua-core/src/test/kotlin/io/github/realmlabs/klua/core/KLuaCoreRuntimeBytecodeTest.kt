@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.core
 
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -54,6 +55,21 @@ class KLuaCoreRuntimeBytecodeTest {
         assertEquals(listOf(2, 4), error.luaFrames.map { frame -> frame.line })
         assertEquals(listOf("fail", null), error.luaFrames.map { frame -> frame.callSiteName })
         assertEquals(listOf("local", ""), error.luaFrames.map { frame -> frame.callSiteNameWhat })
+    }
+
+    @Test
+    fun `bytecode execution preserves raw byte string constants`() {
+        val bytecode = assertIs<KLuaCoreBytecodeLoad.Success>(
+            KLuaCoreRuntime.compileBytecode("""return "\255\195\169" """, "bytecode-raw-string.lua"),
+        ).bytes
+        val chunk = assertIs<KLuaCoreLoad.Success>(KLuaCoreRuntime.loadBytecode(bytecode)).chunk
+
+        val result = assertIs<KLuaCoreExecution.Success>(KLuaCoreRuntime.execute(chunk))
+
+        assertEquals(
+            listOf(KLuaCoreValue.StringValue(byteArrayOf(255.toByte(), 195.toByte(), 169.toByte()).toLuaByteString())),
+            result.values,
+        )
     }
 
     @Test
