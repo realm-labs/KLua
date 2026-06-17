@@ -1320,7 +1320,7 @@ internal object LuaStringLibrary {
                 in '\u0000'..'\u001F',
                 '\u007F',
                 -> {
-                    val nextIsDigit = value.getOrNull(index + 1)?.isDigit() == true
+                    val nextIsDigit = value.getOrNull(index + 1) in '0'..'9'
                     val escaped = char.code.toString().let { digits ->
                         if (nextIsDigit) digits.padStart(3, '0') else digits
                     }
