@@ -18348,6 +18348,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string comparisons order raw bytes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local raw = string.char(128)
+                local utf8 = "é"
+                local extended = raw .. "x"
+                return raw < utf8,
+                    utf8 < raw,
+                    raw <= utf8,
+                    raw < extended
+                """.trimIndent(),
+                "string-raw-byte-comparison.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertFalse(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+    }
+
+    @Test
     fun `string functions report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -20556,6 +20584,7 @@ class LuaStdlibTest {
     fun `table sort orders numeric and string lists`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openTable(state)
 
         assertEquals(
@@ -20564,6 +20593,9 @@ class LuaStdlibTest {
                 """
                 local numbers = {3, 1, 2}
                 local names = {"beta", "alpha", "gamma"}
+                local raw = string.char(128)
+                local utf8 = "é"
+                local rawNames = {utf8, raw}
                 local fallback = setmetatable({}, {
                     __len = function() return 3 end,
                     __index = function(_, index)
@@ -20572,9 +20604,11 @@ class LuaStdlibTest {
                 })
                 table.sort(numbers)
                 table.sort(names)
+                table.sort(rawNames)
                 table.sort(fallback)
                 return numbers[1], numbers[2], numbers[3], names[1], names[2], names[3],
-                    rawget(fallback, 1), rawget(fallback, 2), rawget(fallback, 3)
+                    rawget(fallback, 1), rawget(fallback, 2), rawget(fallback, 3),
+                    string.byte(rawNames[1]), rawNames[2] == utf8
                 """.trimIndent(),
                 "table-sort.lua",
             ),
@@ -20590,6 +20624,8 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(7))
         assertEquals(2L, state.toInteger(8))
         assertEquals(3L, state.toInteger(9))
+        assertEquals(128L, state.toInteger(10))
+        assertTrue(state.toBoolean(11))
     }
 
     @Test

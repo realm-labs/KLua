@@ -1359,9 +1359,42 @@ internal class LuaVm(
                 return leftNumber.compareTo(rightNumber)
             }
             if (left is LuaString && right is LuaString) {
-                return left.value.compareTo(right.value)
+                return luaByteCompare(left.value, right.value)
             }
             return null
+        }
+
+        private fun luaByteCompare(left: String, right: String): Int {
+            val leftBytes = left.luaRawBytes()
+            val rightBytes = right.luaRawBytes()
+            val limit = minOf(leftBytes.size, rightBytes.size)
+            for (index in 0 until limit) {
+                val comparison = (leftBytes[index].toInt() and 0xff) - (rightBytes[index].toInt() and 0xff)
+                if (comparison != 0) {
+                    return comparison
+                }
+            }
+            return leftBytes.size - rightBytes.size
+        }
+
+        private fun String.luaRawBytes(): ByteArray {
+            val output = java.io.ByteArrayOutputStream()
+            var index = 0
+            while (index < length) {
+                val char = this[index]
+                val code = char.code
+                if (code in RAW_BYTE_MARKER_START..RAW_BYTE_MARKER_END) {
+                    output.write(code - RAW_BYTE_MARKER_START)
+                    index++
+                } else if (char.isHighSurrogate() && index + 1 < length && this[index + 1].isLowSurrogate()) {
+                    output.write(substring(index, index + 2).toByteArray(Charsets.UTF_8))
+                    index += 2
+                } else {
+                    output.write(char.toString().toByteArray(Charsets.UTF_8))
+                    index++
+                }
+            }
+            return output.toByteArray()
         }
     }
 
@@ -1429,6 +1462,8 @@ private fun numberValue(value: LuaValue): Double? {
 
 private const val LONG_BITS = 64L
 private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
+private const val RAW_BYTE_MARKER_START = 0xDC00
+private const val RAW_BYTE_MARKER_END = RAW_BYTE_MARKER_START + 0xFF
 
 private fun integerValue(value: LuaValue): Long? {
     return when (value) {
