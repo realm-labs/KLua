@@ -1700,6 +1700,58 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal and setlocal accept explicit current thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainThread = coroutine.running()
+                local function mainProbe()
+                    local text = "main-old"
+                    local name, value = debug.getlocal(mainThread, 1, 1)
+                    local changedName = debug.setlocal(mainThread, 1, 1, "main-new")
+                    local readName, readValue = debug.getlocal(mainThread, 1, 1)
+                    return name, value, changedName, readName, readValue, text
+                end
+
+                local co = coroutine.create(function()
+                    local text = "co-old"
+                    local running = coroutine.running()
+                    local name, value = debug.getlocal(running, 1, 1)
+                    local changedName = debug.setlocal(running, 1, 1, "co-new")
+                    local readName, readValue = debug.getlocal(running, 1, 1)
+                    return name, value, changedName, readName, readValue, text
+                end)
+
+                local mainName, mainValue, mainChanged, mainReadName, mainReadValue, mainText = mainProbe()
+                local ok, coName, coValue, coChanged, coReadName, coReadValue, coText = coroutine.resume(co)
+                return mainName, mainValue, mainChanged, mainReadName, mainReadValue, mainText,
+                    ok, coName, coValue, coChanged, coReadName, coReadValue, coText
+                """.trimIndent(),
+                "debug-current-thread-local.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("text", state.toString(1))
+        assertEquals("main-old", state.toString(2))
+        assertEquals("text", state.toString(3))
+        assertEquals("text", state.toString(4))
+        assertEquals("main-new", state.toString(5))
+        assertEquals("main-new", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("text", state.toString(8))
+        assertEquals("co-old", state.toString(9))
+        assertEquals("text", state.toString(10))
+        assertEquals("text", state.toString(11))
+        assertEquals("co-new", state.toString(12))
+        assertEquals("co-new", state.toString(13))
+    }
+
+    @Test
     fun `debug getlocal returns active varargs by negative index`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -2995,6 +3047,52 @@ class LuaStdlibTest {
         assertEquals("number", state.toString(5))
         assertTrue((state.toInteger(6) ?: 0L) >= 2L)
         assertEquals(3L, state.toInteger(7))
+    }
+
+    @Test
+    fun `debug sethook and gethook accept explicit current thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainThread = coroutine.running()
+                local function hook() end
+                debug.sethook(mainThread, hook, "cr", 3)
+                local mainInstalled, mainMask, mainCount = debug.gethook(mainThread)
+                debug.sethook(mainThread)
+                local mainCleared = debug.gethook(mainThread)
+
+                local co = coroutine.create(function()
+                    local running = coroutine.running()
+                    local function coHook() end
+                    debug.sethook(running, coHook, "l", 0)
+                    local installed, mask, count = debug.gethook(running)
+                    debug.sethook(running)
+                    local cleared = debug.gethook(running)
+                    return installed == coHook, mask, count, cleared
+                end)
+
+                local ok, coInstalled, coMask, coCount, coCleared = coroutine.resume(co)
+                return mainInstalled == hook, mainMask, mainCount, mainCleared,
+                    ok, coInstalled, coMask, coCount, coCleared
+                """.trimIndent(),
+                "debug-current-thread-hook.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("cr", state.toString(2))
+        assertEquals(3L, state.toInteger(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("l", state.toString(7))
+        assertEquals(0L, state.toInteger(8))
+        assertTrue(state.isNil(9))
     }
 
     @Test
