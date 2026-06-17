@@ -17,6 +17,17 @@ class LuaTableTest {
     }
 
     @Test
+    fun `matches string keys by raw bytes`() {
+        val table = LuaTable()
+        val rawUtf8Key = byteArrayOf(195.toByte(), 169.toByte()).toLuaByteString()
+
+        table.rawSet(LuaString(rawUtf8Key), LuaInteger(42))
+
+        assertEquals(LuaInteger(42), table.rawGet(LuaString("é")))
+        assertEquals(LuaInteger(42), table.get(LuaString("é")))
+    }
+
+    @Test
     fun `setting raw nil removes values`() {
         val table = LuaTable()
 

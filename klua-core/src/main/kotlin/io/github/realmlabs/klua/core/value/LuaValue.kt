@@ -20,7 +20,15 @@ internal data class LuaFloat(
 
 internal data class LuaString(
     val value: String,
-) : LuaValue
+) : LuaValue {
+    override fun equals(other: Any?): Boolean {
+        return other is LuaString && value.luaRawBytes().contentEquals(other.value.luaRawBytes())
+    }
+
+    override fun hashCode(): Int {
+        return value.luaRawBytes().contentHashCode()
+    }
+}
 
 internal class LuaUserData(
     val value: Any,
