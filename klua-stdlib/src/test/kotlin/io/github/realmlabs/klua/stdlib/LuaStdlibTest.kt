@@ -17989,6 +17989,61 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 char accepts max utf code point as lax utf8`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local max = utf8.char(0x7fffffff)
+                local b1, b2, b3, b4, b5, b6 = string.byte(max, 1, -1)
+                local strictLength, strictPosition = utf8.len(max)
+                local laxLength = utf8.len(max, 1, -1, true)
+                local strictOk, strictMessage = pcall(utf8.codepoint, max)
+                local laxCodepoint = utf8.codepoint(max, 1, -1, true)
+                local offsetStart, offsetEnd = utf8.offset(max, 1)
+                return rawlen(max), b1, b2, b3, b4, b5, b6,
+                    strictLength, strictPosition, laxLength,
+                    strictOk, strictMessage, laxCodepoint,
+                    offsetStart, offsetEnd
+                """.trimIndent(),
+                "utf8-char-maxutf.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(6L, state.toInteger(1))
+        assertEquals(0xFDL, state.toInteger(2))
+        assertEquals(0xBFL, state.toInteger(3))
+        assertEquals(0xBFL, state.toInteger(4))
+        assertEquals(0xBFL, state.toInteger(5))
+        assertEquals(0xBFL, state.toInteger(6))
+        assertEquals(0xBFL, state.toInteger(7))
+        assertTrue(state.isNil(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(1L, state.toInteger(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("invalid UTF-8 code", state.toString(12))
+        assertEquals(0x7fffffffL, state.toInteger(13))
+        assertEquals(1L, state.toInteger(14))
+        assertEquals(6L, state.toInteger(15))
+    }
+
+    @Test
+    fun `utf8 char rejects values above max utf`() {
+        val state = LuaState.create()
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(LuaStatus.OK, state.load("""return utf8.char(0x80000000)""", "utf8-char-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(state.getLastError())
+        assertEquals("bad argument #1 to 'utf8.char' (value out of range)", state.toString(-1))
+    }
+
+    @Test
     fun `utf8 char reports code point argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
