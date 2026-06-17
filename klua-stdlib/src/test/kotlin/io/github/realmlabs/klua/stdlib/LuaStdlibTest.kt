@@ -18125,8 +18125,10 @@ class LuaStdlibTest {
                         return ({ "wrapped-a", "wrapped-b" })[index]
                     end,
                 })
+                local first, second = table.unpack(hex)
                 local ok, message = pcall(table.concat, unicode, ",")
-                return table.concat(ascii, ","), table.concat(hex, ","), table.concat(wrapped, ","), ok, message
+                return table.concat(ascii, ","), table.concat(hex, ","), table.concat(wrapped, ","), ok, message,
+                    select("#", table.unpack(hex)), first, second
                 """.trimIndent(),
                 "table-concat-length-ascii-whitespace.lua",
             ),
@@ -18138,6 +18140,9 @@ class LuaStdlibTest {
         assertEquals("", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertEquals("object length is not an integer", state.toString(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals("hex-a", state.toString(7))
+        assertEquals("hex-b", state.toString(8))
     }
 
     @Test
