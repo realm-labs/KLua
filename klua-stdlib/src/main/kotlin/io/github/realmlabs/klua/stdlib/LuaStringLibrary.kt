@@ -131,10 +131,11 @@ internal object LuaStringLibrary {
                 replacementForMatch(context, replacementType, wholeMatch, text.luaByteCaptures(match.captures)),
             )
             cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
-                result.append(text[match.endIndex])
-                match.endIndex + 1
+                val nextCursor = text.nextLuaByteSegmentEnd(match.endIndex)
+                result.append(text, match.endIndex, nextCursor)
+                nextCursor
             } else if (match.startIndex == match.endIndex) {
-                match.endIndex + 1
+                text.length + 1
             } else {
                 match.endIndex
             }
@@ -327,8 +328,10 @@ internal object LuaStringLibrary {
                 } else {
                     val initialEmptyMatch = firstSearch && match.isEmptyAt(searchStart.charIndex)
                     firstSearch = false
-                    cursor = if (match.startIndex == match.endIndex) {
-                        match.endIndex + 1
+                    cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
+                        text.nextLuaByteSegmentEnd(match.endIndex)
+                    } else if (match.startIndex == match.endIndex) {
+                        text.length + 1
                     } else {
                         match.endIndex
                     }

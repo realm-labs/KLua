@@ -16728,6 +16728,7 @@ class LuaStdlibTest {
     fun `string gsub supports empty patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
+        LuaStdlib.openUtf8(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -16736,12 +16737,15 @@ class LuaStdlibTest {
                 local replaced, count = string.gsub("abc", "", "-")
                 local empty, emptyCount = string.gsub("", "", "-")
                 local limited, limitedCount = string.gsub("abc", "", "-", 2)
-                return replaced, count, empty, emptyCount, limited, limitedCount
+                local wide = utf8.char(128512)
+                local wideReplaced, wideCount = string.gsub(wide, "", "-")
+                return replaced, count, empty, emptyCount, limited, limitedCount,
+                    wideReplaced, wideCount, string.len(wideReplaced)
                 """.trimIndent(),
                 "string-gsub-empty-pattern.lua",
             ),
         )
-        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("-a-b-c-", state.toString(1))
         assertEquals(4L, state.toInteger(2))
@@ -16749,6 +16753,9 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(4))
         assertEquals("-a-bc", state.toString(5))
         assertEquals(2L, state.toInteger(6))
+        assertEquals("-😀-", state.toString(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals(6L, state.toInteger(9))
     }
 
     @Test
@@ -17290,6 +17297,7 @@ class LuaStdlibTest {
     fun `string gmatch supports empty patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
+        LuaStdlib.openUtf8(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -17297,13 +17305,14 @@ class LuaStdlibTest {
                 """
                 local iterator = string.gmatch("ab", "")
                 local empty = string.gmatch("", "")
+                local wide = string.gmatch(utf8.char(128512), "")
                 return iterator(), iterator(), iterator(), iterator(),
-                    empty(), empty()
+                    empty(), empty(), wide(), wide(), wide()
                 """.trimIndent(),
                 "string-gmatch-empty-pattern.lua",
             ),
         )
-        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("", state.toString(1))
         assertEquals("", state.toString(2))
@@ -17311,6 +17320,9 @@ class LuaStdlibTest {
         assertTrue(state.isNil(4))
         assertEquals("", state.toString(5))
         assertTrue(state.isNil(6))
+        assertEquals("", state.toString(7))
+        assertEquals("", state.toString(8))
+        assertTrue(state.isNil(9))
     }
 
     @Test
