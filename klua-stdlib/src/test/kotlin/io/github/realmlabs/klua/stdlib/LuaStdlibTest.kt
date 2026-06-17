@@ -15643,6 +15643,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pack preserves unpacked raw byte strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local byte = string.unpack("c1", string.pack("B", 255))
+                local fixed = string.pack("c1", byte)
+                local sized = string.pack("s1", byte)
+                local zeroed = string.pack("z", byte)
+                local fixedByte = string.unpack("B", fixed)
+                local lengthByte, sizedByte = string.unpack("B B", sized)
+                local zeroByte, terminator = string.unpack("B B", zeroed)
+                return fixedByte, lengthByte, sizedByte, zeroByte, terminator
+                """.trimIndent(),
+                "string-pack-raw-byte-strings.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(255L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(255L, state.toInteger(3))
+        assertEquals(255L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+    }
+
+    @Test
     fun `string packsize reports source compatible format errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
