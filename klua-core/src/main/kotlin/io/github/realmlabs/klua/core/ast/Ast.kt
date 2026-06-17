@@ -18,6 +18,14 @@ internal data class LocalStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class GlobalStatement(
+    val names: List<String>,
+    val attributes: List<LocalAttribute> = List(names.size) { LocalAttribute.NONE },
+    val values: List<Expression>,
+    val wildcard: Boolean = false,
+    override val range: SourceRange,
+) : Statement
+
 internal enum class LocalAttribute {
     NONE,
     CONST,

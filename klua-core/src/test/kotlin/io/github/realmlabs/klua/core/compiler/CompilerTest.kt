@@ -498,6 +498,15 @@ class CompilerTest {
     }
 
     @Test
+    fun `rejects global declarations until declaration semantics exist`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("""global <const> answer = 42""", "global-declaration.lua")
+        }
+
+        assertEquals("global-declaration.lua:1:1: global declarations are not supported", error.message)
+    }
+
+    @Test
     fun `stages multi assignment before writing targets`() {
         val prototype = Compiler.compile(
             """

@@ -16,6 +16,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GlobalStatement
 import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
@@ -88,6 +89,7 @@ internal class Parser private constructor(
             match(TokenKind.REPEAT) -> repeatStatement(previous())
             match(TokenKind.FOR) -> forStatement(previous())
             match(TokenKind.FUNCTION) -> functionStatement(previous())
+            match(TokenKind.GLOBAL) -> globalStatement(previous())
             check(TokenKind.IDENTIFIER) -> assignmentOrCallStatement()
             check(TokenKind.LEFT_PAREN) -> callStatement()
             else -> throw errorAt(peek(), "expected statement")
@@ -133,6 +135,45 @@ internal class Parser private constructor(
             "close" -> LocalAttribute.CLOSE
             else -> throw errorAt(attribute, "unknown attribute '${attribute.literal}'")
         }
+    }
+
+    private fun globalStatement(start: Token): GlobalStatement {
+        val defaultAttribute = globalAttribute()
+        if (match(TokenKind.STAR)) {
+            return GlobalStatement(
+                names = emptyList(),
+                attributes = emptyList(),
+                values = emptyList(),
+                wildcard = true,
+                range = SourceRange(start.range.start, previous().range.end),
+            )
+        }
+
+        val names = mutableListOf<String>()
+        val attributes = mutableListOf<LocalAttribute>()
+        do {
+            val name = consume(TokenKind.IDENTIFIER, "expected global variable name")
+            names += name.literal as String
+            attributes += globalAttribute().takeUnless { it == LocalAttribute.NONE } ?: defaultAttribute
+        } while (match(TokenKind.COMMA))
+
+        val values = if (match(TokenKind.ASSIGN)) expressionList() else emptyList()
+        val end = values.lastOrNull()?.range?.end ?: previous().range.end
+        return GlobalStatement(
+            names = names,
+            attributes = attributes,
+            values = values,
+            wildcard = false,
+            range = SourceRange(start.range.start, end),
+        )
+    }
+
+    private fun globalAttribute(): LocalAttribute {
+        val attribute = localAttribute()
+        if (attribute == LocalAttribute.CLOSE) {
+            throw errorAt(previous(), "global variables cannot be to-be-closed")
+        }
+        return attribute
     }
 
     private fun localFunctionStatement(localStart: Token, functionStart: Token): LocalFunctionStatement {

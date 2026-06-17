@@ -17,6 +17,7 @@ internal enum class TokenKind {
     FOR,
     FUNCTION,
     GOTO,
+    GLOBAL,
     IF,
     IN,
     LOCAL,

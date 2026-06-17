@@ -527,6 +527,7 @@ internal class Lexer(
             "for" to TokenKind.FOR,
             "function" to TokenKind.FUNCTION,
             "goto" to TokenKind.GOTO,
+            "global" to TokenKind.GLOBAL,
             "if" to TokenKind.IF,
             "in" to TokenKind.IN,
             "local" to TokenKind.LOCAL,

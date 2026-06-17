@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GlobalStatement
 import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
 import io.github.realmlabs.klua.core.ast.IndexExpression
@@ -166,6 +167,37 @@ class ParserTest {
             "prefixed-multiple-close.lua:1:18: multiple to-be-closed variables in local list",
             prefixedError.message,
         )
+    }
+
+    @Test
+    fun `parses global variable declarations`() {
+        val chunk = Parser.parse("global <const> left, right <const> = 1, 2")
+
+        val global = assertIs<GlobalStatement>(chunk.statements.single())
+        assertEquals(listOf("left", "right"), global.names)
+        assertEquals(listOf(LocalAttribute.CONST, LocalAttribute.CONST), global.attributes)
+        assertEquals(false, global.wildcard)
+        assertEquals(2, global.values.size)
+    }
+
+    @Test
+    fun `parses wildcard global declarations`() {
+        val chunk = Parser.parse("global <const> *")
+
+        val global = assertIs<GlobalStatement>(chunk.statements.single())
+        assertEquals(emptyList(), global.names)
+        assertEquals(emptyList(), global.attributes)
+        assertEquals(emptyList(), global.values)
+        assertEquals(true, global.wildcard)
+    }
+
+    @Test
+    fun `rejects to be closed global declarations`() {
+        val error = assertFailsWith<ParserException> {
+            Parser.parse("global <close> resource")
+        }
+
+        assertEquals("chunk:1:14: global variables cannot be to-be-closed", error.message)
     }
 
     @Test

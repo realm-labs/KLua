@@ -27,10 +27,11 @@ class LexerTest {
 
     @Test
     fun `recognizes lua keywords separately from identifiers`() {
-        val tokens = Lexer("local true_value = true and false").tokenize()
+        val tokens = Lexer("global local true_value = true and false").tokenize()
 
         assertEquals(
             listOf(
+                TokenKind.GLOBAL,
                 TokenKind.LOCAL,
                 TokenKind.IDENTIFIER,
                 TokenKind.ASSIGN,
@@ -41,7 +42,7 @@ class LexerTest {
             ),
             tokens.map { it.kind },
         )
-        assertEquals("true_value", tokens[1].literal)
+        assertEquals("true_value", tokens[2].literal)
     }
 
     @Test
