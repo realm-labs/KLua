@@ -16865,6 +16865,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub matches utf8 text by raw bytes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local utf8 = "é"
+                local wildcard, wildcardCount = string.gsub(utf8, ".", "x")
+                local captured, capturedCount = string.gsub(utf8, "(.)", "[%1]")
+                local functionResult, functionCount = string.gsub(utf8, ".", function(byte)
+                    return string.byte(byte) .. ","
+                end)
+                local tableResult, tableCount = string.gsub(utf8, ".", {
+                    [string.char(195)] = "A",
+                    [string.char(169)] = "B",
+                })
+                local c1, c2, c3, c4, c5, c6 = string.byte(captured, 1, -1)
+                return wildcard, wildcardCount, capturedCount, c1, c2, c3, c4, c5, c6,
+                    functionResult, functionCount, tableResult, tableCount
+                """.trimIndent(),
+                "string-gsub-raw-bytes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("xx", state.toString(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(91L, state.toInteger(4))
+        assertEquals(195L, state.toInteger(5))
+        assertEquals(93L, state.toInteger(6))
+        assertEquals(91L, state.toInteger(7))
+        assertEquals(169L, state.toInteger(8))
+        assertEquals(93L, state.toInteger(9))
+        assertEquals("195,169,", state.toString(10))
+        assertEquals(2L, state.toInteger(11))
+        assertEquals("AB", state.toString(12))
+        assertEquals(2L, state.toInteger(13))
+    }
+
+    @Test
     fun `string gsub supports empty patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -16879,8 +16922,10 @@ class LuaStdlibTest {
                 local limited, limitedCount = string.gsub("abc", "", "-", 2)
                 local wide = utf8.char(128512)
                 local wideReplaced, wideCount = string.gsub(wide, "", "-")
+                local w1, w2, w3, w4, w5, w6, w7, w8, w9 = string.byte(wideReplaced, 1, -1)
                 return replaced, count, empty, emptyCount, limited, limitedCount,
-                    wideReplaced, wideCount, string.len(wideReplaced)
+                    wideCount, string.len(wideReplaced),
+                    w1, w2, w3, w4, w5, w6, w7, w8, w9
                 """.trimIndent(),
                 "string-gsub-empty-pattern.lua",
             ),
@@ -16893,9 +16938,17 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(4))
         assertEquals("-a-bc", state.toString(5))
         assertEquals(2L, state.toInteger(6))
-        assertEquals("-😀-", state.toString(7))
-        assertEquals(2L, state.toInteger(8))
-        assertEquals(6L, state.toInteger(9))
+        assertEquals(5L, state.toInteger(7))
+        assertEquals(9L, state.toInteger(8))
+        assertEquals(45L, state.toInteger(9))
+        assertEquals(240L, state.toInteger(10))
+        assertEquals(45L, state.toInteger(11))
+        assertEquals(159L, state.toInteger(12))
+        assertEquals(45L, state.toInteger(13))
+        assertEquals(152L, state.toInteger(14))
+        assertEquals(45L, state.toInteger(15))
+        assertEquals(128L, state.toInteger(16))
+        assertEquals(45L, state.toInteger(17))
     }
 
     @Test

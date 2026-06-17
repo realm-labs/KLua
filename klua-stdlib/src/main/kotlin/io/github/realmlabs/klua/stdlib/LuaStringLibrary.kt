@@ -116,26 +116,33 @@ internal object LuaStringLibrary {
             return LuaReturn.of(text, 0L)
         }
 
+        val subject = text.toLuaPatternSubject()
+        val patternSubject = pattern.toLuaPatternSubject()
         val result = StringBuilder()
         var cursor = 0
         var replacements = 0L
-        val compiledPattern = LuaStringPattern.compile(pattern)
+        val compiledPattern = LuaStringPattern.compile(patternSubject.text)
         while (replacements < limit) {
-            val match = compiledPattern.find(text, cursor)
+            val match = compiledPattern.find(subject.text, cursor)
             if (match == null) {
                 break
             }
-            result.append(text, cursor, match.startIndex)
-            val wholeMatch = text.substring(match.startIndex, match.endIndex)
+            result.append(subject.text, cursor, match.startIndex)
+            val wholeMatch = subject.substring(match.startIndex, match.endIndex)
             result.append(
-                replacementForMatch(context, replacementType, wholeMatch, text.luaByteCaptures(match.captures)),
+                replacementForMatch(
+                    context,
+                    replacementType,
+                    wholeMatch,
+                    subject.luaPatternCaptures(match.captures),
+                ).toLuaPatternReplacement(),
             )
-            cursor = if (match.startIndex == match.endIndex && match.endIndex < text.length) {
-                val nextCursor = text.nextLuaByteSegmentEnd(match.endIndex)
-                result.append(text, match.endIndex, nextCursor)
+            cursor = if (match.startIndex == match.endIndex && match.endIndex < subject.text.length) {
+                val nextCursor = match.endIndex + 1
+                result.append(subject.text, match.endIndex, nextCursor)
                 nextCursor
             } else if (match.startIndex == match.endIndex) {
-                text.length + 1
+                subject.text.length + 1
             } else {
                 match.endIndex
             }
@@ -144,10 +151,10 @@ internal object LuaStringLibrary {
                 break
             }
         }
-        if (cursor <= text.length) {
-            result.append(text, cursor, text.length)
+        if (cursor <= subject.text.length) {
+            result.append(subject.text, cursor, subject.text.length)
         }
-        return LuaReturn.of(result.toString(), replacements)
+        return LuaReturn.of(result.toString().toLuaByteStringFromOneBytePerChar(), replacements)
     }
 
     private fun replacementForMatch(
@@ -1625,14 +1632,6 @@ internal object LuaStringLibrary {
         return LuaPatternSubject(luaRawBytes().toOneBytePerCharString())
     }
 
-    private fun ByteArray.toOneBytePerCharString(): String {
-        return buildString(size) {
-            for (byte in this@toOneBytePerCharString) {
-                append((byte.toInt() and 0xff).toChar())
-            }
-        }
-    }
-
 }
 
 private data class LuaPatternSubject(
@@ -1660,4 +1659,16 @@ private data class LuaByteSearchStart(
 
 private fun String.toLuaByteStringFromOneBytePerChar(): String {
     return ByteArray(length) { index -> this[index].code.toByte() }.toLuaByteString()
+}
+
+private fun String.toLuaPatternReplacement(): String {
+    return luaRawBytes().toOneBytePerCharString()
+}
+
+private fun ByteArray.toOneBytePerCharString(): String {
+    return buildString(size) {
+        for (byte in this@toOneBytePerCharString) {
+            append((byte.toInt() and 0xff).toChar())
+        }
+    }
 }
