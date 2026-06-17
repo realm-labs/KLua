@@ -480,6 +480,43 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `backward goto out of scope closes captured locals before register reuse`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function outer()
+                    local first
+                    local second
+                    local index = 0
+                    ::again::
+                    do
+                        local captured = index
+                        if index == 0 then
+                            first = function()
+                                return captured
+                            end
+                        else
+                            second = function()
+                                return captured
+                            end
+                        end
+                        index = index + 1
+                        if index < 2 then
+                            goto again
+                        end
+                    end
+                    local captured = "shadow"
+                    return first(), second()
+                end
+                return outer()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(0), LuaInteger(1)), result)
+    }
+
+    @Test
     fun `break out of loop closes captured locals before register reuse`() {
         val result = LuaVm().execute(
             Compiler.compile(
