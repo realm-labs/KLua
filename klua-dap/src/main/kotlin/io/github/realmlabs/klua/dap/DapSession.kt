@@ -23,6 +23,7 @@ public data class DapCapabilities(
     public val supportsHitConditionalBreakpoints: Boolean = false,
     public val supportsEvaluateForHovers: Boolean = true,
     public val supportsDelayedStackTraceLoading: Boolean = true,
+    public val supportsVariablePaging: Boolean = true,
     public val supportsStepBack: Boolean = false,
     public val supportsSetVariable: Boolean = false,
 )
