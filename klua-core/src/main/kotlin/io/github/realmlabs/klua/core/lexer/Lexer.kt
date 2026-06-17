@@ -87,6 +87,7 @@ internal class Lexer(
             }
         }
 
+        rejectIdentifierSuffix(start)
         val text = source.substring(start.offset, offset)
         return if (isFloat) {
             token(TokenKind.FLOAT, text, start, text.toDouble())
@@ -119,6 +120,7 @@ internal class Lexer(
             }
         }
 
+        rejectIdentifierSuffix(start)
         val text = source.substring(start.offset, offset)
         return token(TokenKind.FLOAT, text, start, text.toDouble())
     }
@@ -159,6 +161,7 @@ internal class Lexer(
             }
         }
 
+        rejectIdentifierSuffix(start)
         val text = source.substring(start.offset, offset)
         return if (isFloat) {
             token(TokenKind.FLOAT, text, start, parseHexFloat(text))
@@ -182,6 +185,12 @@ internal class Lexer(
             value = value * 16UL + text[index].hexValue().toULong()
         }
         return value.toLong()
+    }
+
+    private fun rejectIdentifierSuffix(start: SourcePosition) {
+        if (peek().isIdentifierStart()) {
+            throw errorAt(start, "malformed number")
+        }
     }
 
     private fun string(start: SourcePosition, quote: Char): Token {

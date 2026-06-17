@@ -89,6 +89,23 @@ class LexerTest {
     }
 
     @Test
+    fun `reports malformed numerals touching identifiers`() {
+        val decimalError = assertFailsWith<LexerException> {
+            Lexer("123abc", "decimal.lua").tokenize()
+        }
+        val hexError = assertFailsWith<LexerException> {
+            Lexer("0x10_bad", "hex.lua").tokenize()
+        }
+        val leadingDotError = assertFailsWith<LexerException> {
+            Lexer(".5abc", "float.lua").tokenize()
+        }
+
+        assertEquals("decimal.lua:1:1: malformed number", decimalError.message)
+        assertEquals("hex.lua:1:1: malformed number", hexError.message)
+        assertEquals("float.lua:1:1: malformed number", leadingDotError.message)
+    }
+
+    @Test
     fun `tokenizes hexadecimal integer and float numbers`() {
         val tokens = Lexer("0xff 0X10 0xffffffffffffffff 0x10000000000000000 0x1.8p1 0x0.1E").tokenize()
 
