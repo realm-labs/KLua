@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.dap
 
+import io.github.realmlabs.klua.debug.DebugFrameView
 import io.github.realmlabs.klua.debug.DebugVariable
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -257,6 +258,31 @@ class DapWireSessionTest {
 
         assertEquals(
             """{"seq":1,"type":"response","request_seq":9,"success":true,"command":"evaluate","body":{"result":"42","type":"number","variablesReference":0}}""",
+            json,
+        )
+    }
+
+    @Test
+    fun `handleJson routes stackTrace thread and paging arguments`() {
+        val requestedThreadIds = mutableListOf<Int>()
+        val wireSession = DapWireSession(
+            stackTraceFrameProvider = DapStackTraceFrameProvider { threadId ->
+                requestedThreadIds += threadId
+                listOf(
+                    DebugFrameView(level = 0, sourceName = "main.lua", line = 1),
+                    DebugFrameView(level = 1, sourceName = "lib.lua", line = 2),
+                    DebugFrameView(level = 2, sourceName = "deep.lua", line = 3),
+                )
+            },
+        )
+
+        val json = wireSession.handleJson(
+            """{"seq":10,"type":"request","command":"stackTrace","arguments":{"threadId":1,"startFrame":1,"levels":1}}""",
+        )
+
+        assertEquals(listOf(1), requestedThreadIds)
+        assertEquals(
+            """{"seq":1,"type":"response","request_seq":10,"success":true,"command":"stackTrace","body":{"stackFrames":[{"id":1,"name":"lib.lua","source":{"path":"lib.lua","name":"lib.lua"},"line":2,"column":1}],"totalFrames":3}}""",
             json,
         )
     }

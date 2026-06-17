@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.dap
 
+import io.github.realmlabs.klua.debug.DebugFrameView
 import io.github.realmlabs.klua.debug.StepMode
 
 public data class DapWireExchange(
@@ -7,8 +8,13 @@ public data class DapWireExchange(
     public val events: List<DapEventMessage> = emptyList(),
 )
 
+public fun interface DapStackTraceFrameProvider {
+    public fun frames(threadId: Int): List<DebugFrameView>
+}
+
 public class DapWireSession(
     private val session: DapSession = DapSession(),
+    private val stackTraceFrameProvider: DapStackTraceFrameProvider = DapStackTraceFrameProvider { emptyList() },
 ) {
     private var nextSeq = 1
 
@@ -66,6 +72,7 @@ public class DapWireSession(
             "setBreakpoints" -> argumentsObject().toSetBreakpointsRequest()
             "configurationDone", "continue", "pause", "stepIn", "threads" -> null
             "next", "stepOut" -> DapStepRequest(argumentsObjectOrNull()?.optionalInt("callDepth") ?: 0)
+            "stackTrace" -> argumentsObject().toStackTraceRequest(stackTraceFrameProvider)
             "scopes" -> DapScopesRequest(argumentsObject().requiredInt("frameId"))
             "variables" -> argumentsObject().toVariablesRequest()
             "evaluate" -> argumentsObject().toEvaluateRequest()
@@ -141,6 +148,17 @@ private fun DapJsonObject.toVariablesRequest(): DapVariablesRequest {
         variablesReference = requiredInt("variablesReference"),
         start = optionalInt("start") ?: 0,
         count = optionalInt("count") ?: 50,
+    )
+}
+
+private fun DapJsonObject.toStackTraceRequest(
+    frameProvider: DapStackTraceFrameProvider,
+): DapStackTraceRequest {
+    val threadId = requiredInt("threadId")
+    return DapStackTraceRequest(
+        frames = frameProvider.frames(threadId),
+        startFrame = optionalInt("startFrame") ?: 0,
+        levels = optionalInt("levels"),
     )
 }
 
