@@ -252,7 +252,7 @@ internal object LuaMathLibrary {
             MathRandomState.makeSeed() to randomState.next()
         } else {
             val first = requiredInteger(context, 1, "randomseed")
-            val second = if (context.argumentCount < 2) {
+            val second = if (context.argumentCount < 2 || context.isNil(2)) {
                 0L
             } else {
                 requiredInteger(context, 2, "randomseed")

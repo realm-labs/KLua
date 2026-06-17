@@ -13091,9 +13091,14 @@ class LuaStdlibTest {
                 math.randomseed(123, 456)
                 local repeated = math.random(100)
                 local singleFirstSeed, singleSecondSeed = math.randomseed(789)
+                local nilSecondFirstSeed, nilSecondSecondSeed = math.randomseed(789, nil)
+                local nilSecondValue = math.random(100)
+                math.randomseed(789)
+                local omittedSecondValue = math.random(100)
                 return firstSeed, secondSeed, first, first == repeated,
                     generatedFirstSeed ~= nil, generatedSecondSeed ~= 0, generated >= 1 and generated <= 100,
-                    singleFirstSeed, singleSecondSeed
+                    singleFirstSeed, singleSecondSeed,
+                    nilSecondFirstSeed, nilSecondSecondSeed, nilSecondValue == omittedSecondValue
                 """.trimIndent(),
                 "math-randomseed.lua",
             ),
@@ -13109,6 +13114,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(7))
         assertEquals(789L, state.toInteger(8))
         assertEquals(0L, state.toInteger(9))
+        assertEquals(789L, state.toInteger(10))
+        assertEquals(0L, state.toInteger(11))
+        assertTrue(state.toBoolean(12))
     }
 
     @Test
