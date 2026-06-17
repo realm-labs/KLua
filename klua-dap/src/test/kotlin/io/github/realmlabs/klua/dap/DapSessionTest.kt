@@ -238,6 +238,36 @@ class DapSessionTest {
     }
 
     @Test
+    fun `stackTrace pages frames and reports total frame count`() {
+        val session = DapSession()
+        val frames = listOf(
+            DebugFrameView(level = 0, sourceName = "main.lua", line = 1),
+            DebugFrameView(level = 1, sourceName = "lib.lua", line = 2),
+            DebugFrameView(level = 2, sourceName = "deep.lua", line = 3),
+        )
+
+        val stackTrace = session.stackTrace(frames, startFrame = 1, levels = 1)
+
+        assertEquals(3, stackTrace.totalFrames)
+        assertEquals(1, stackTrace.stackFrames.size)
+        assertEquals(DapSource(path = "lib.lua", name = "lib.lua"), stackTrace.stackFrames.single().source)
+        assertEquals(2, stackTrace.stackFrames.single().line)
+        assertEquals(DapScopesResponse(emptyList()), session.scopes(frameId = 999))
+    }
+
+    @Test
+    fun `stackTrace validates paging arguments`() {
+        val session = DapSession()
+
+        assertFailsWith<IllegalArgumentException> {
+            session.stackTrace(emptyList(), startFrame = -1)
+        }
+        assertFailsWith<IllegalArgumentException> {
+            session.stackTrace(emptyList(), levels = -1)
+        }
+    }
+
+    @Test
     fun `variables returns scope variables and paged table children`() {
         val session = DapSession()
         val table = linkedMapOf<Any?, Any?>(

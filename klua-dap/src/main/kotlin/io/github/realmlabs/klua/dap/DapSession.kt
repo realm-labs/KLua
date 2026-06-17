@@ -312,9 +312,18 @@ public class DapSession(
         return DapStepResponse(debugController.currentStepMode())
     }
 
-    public fun stackTrace(frames: List<DebugFrameView>): DapStackTraceResponse {
+    public fun stackTrace(
+        frames: List<DebugFrameView>,
+        startFrame: Int = 0,
+        levels: Int? = null,
+    ): DapStackTraceResponse {
+        require(startFrame >= 0) { "startFrame must be non-negative: $startFrame" }
+        require(levels == null || levels >= 0) { "levels must be non-negative: $levels" }
         framesById.clear()
-        val dapFrames = frames.map { frame ->
+        val requestedFrames = frames.drop(startFrame).let { remaining ->
+            if (levels == null) remaining else remaining.take(levels)
+        }
+        val dapFrames = requestedFrames.map { frame ->
             val id = nextFrameId++
             framesById[id] = frame
             DapStackFrame(
@@ -324,7 +333,7 @@ public class DapSession(
                 line = frame.line,
             )
         }
-        return DapStackTraceResponse(dapFrames, dapFrames.size)
+        return DapStackTraceResponse(dapFrames, frames.size)
     }
 
     public fun scopes(frameId: Int): DapScopesResponse {
@@ -379,7 +388,10 @@ public class DapSession(
             "stepIn" -> stepIn()
             "stepOut" -> stepOut(request.argumentsAs<DapStepRequest>().callDepth)
             "threads" -> threads()
-            "stackTrace" -> stackTrace(request.argumentsAs<DapStackTraceRequest>().frames)
+            "stackTrace" -> {
+                val arguments = request.argumentsAs<DapStackTraceRequest>()
+                stackTrace(arguments.frames, arguments.startFrame, arguments.levels)
+            }
             "scopes" -> scopes(request.argumentsAs<DapScopesRequest>().frameId)
             "variables" -> {
                 val arguments = request.argumentsAs<DapVariablesRequest>()
@@ -426,6 +438,8 @@ public data class DapStepRequest(
 
 public data class DapStackTraceRequest(
     public val frames: List<DebugFrameView>,
+    public val startFrame: Int = 0,
+    public val levels: Int? = null,
 )
 
 public data class DapScopesRequest(
