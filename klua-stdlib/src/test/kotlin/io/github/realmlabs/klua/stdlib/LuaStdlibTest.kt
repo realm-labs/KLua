@@ -19858,6 +19858,7 @@ class LuaStdlibTest {
                 local trailing = table.remove(values, #values + 1)
                 local empty = {}
                 local emptyRemoved = table.remove(empty, 0)
+                local defaultEmptyRemoved = table.remove({})
                 local fallback = setmetatable({}, {
                     __len = function() return 2 end,
                     __index = function(_, index)
@@ -19865,7 +19866,8 @@ class LuaStdlibTest {
                     end,
                 })
                 local fallbackRemoved = table.remove(fallback)
-                return middle, last, trailing, emptyRemoved, values[1], values[2], values[3], #values,
+                return middle, last, trailing, emptyRemoved, defaultEmptyRemoved,
+                    values[1], values[2], values[3], #values,
                     fallbackRemoved, rawget(fallback, 1), rawget(fallback, 2)
                 """.trimIndent(),
                 "table-remove.lua",
@@ -19877,13 +19879,14 @@ class LuaStdlibTest {
         assertEquals("d", state.toString(2))
         assertTrue(state.isNil(3))
         assertTrue(state.isNil(4))
-        assertEquals("a", state.toString(5))
-        assertEquals("c", state.toString(6))
-        assertTrue(state.isNil(7))
-        assertEquals(2L, state.toInteger(8))
-        assertEquals("meta-b", state.toString(9))
-        assertTrue(state.isNil(10))
+        assertTrue(state.isNil(5))
+        assertEquals("a", state.toString(6))
+        assertEquals("c", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals(2L, state.toInteger(9))
+        assertEquals("meta-b", state.toString(10))
         assertTrue(state.isNil(11))
+        assertTrue(state.isNil(12))
     }
 
     @Test
