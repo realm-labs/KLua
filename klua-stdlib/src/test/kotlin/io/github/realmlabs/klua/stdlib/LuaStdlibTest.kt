@@ -3254,6 +3254,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports hook call site names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local hookName
+                local hookNameWhat
+                debug.sethook(function()
+                    local info = debug.getinfo(1, "n")
+                    hookName = info.name
+                    hookNameWhat = info.namewhat
+                    debug.sethook()
+                end, "l", 0)
+
+                local value = 1
+                value = value + 1
+
+                return hookName, hookNameWhat, value
+                """.trimIndent(),
+                "debug-getinfo-hook-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("?", state.toString(1))
+        assertEquals("hook", state.toString(2))
+        assertEquals(2L, state.toInteger(3))
+    }
+
+    @Test
     fun `debug sethook ignores unknown mask characters`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

@@ -618,7 +618,7 @@ internal class LuaVm(
         frame.hookTransferStart = transferStart
         frame.hookTransferCount = transferCount
         try {
-            when (callValue(function, listOf(LuaString(event), line))) {
+            when (callValue(function, listOf(LuaString(event), line), CallSiteInfo(0, "?", "hook"))) {
                 is LuaExecutionResult.Returned -> Unit
                 is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield from debug hook")
             }
