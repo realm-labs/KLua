@@ -2998,6 +2998,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug sethook and gethook accept normal coroutine thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outer
+                outer = coroutine.create(function()
+                    local inner = coroutine.create(function()
+                        local before = debug.gethook(outer)
+                        local function hook() end
+                        debug.sethook(outer, hook, "cr", 3)
+                        local installed, mask, count = debug.gethook(outer)
+                        debug.sethook(outer)
+                        local after = debug.gethook(outer)
+                        return coroutine.status(outer), before, installed == hook, mask, count, after
+                    end)
+                    return coroutine.resume(inner)
+                end)
+
+                return coroutine.resume(outer)
+                """.trimIndent(),
+                "debug-normal-thread-hook.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("normal", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("cr", state.toString(6))
+        assertEquals(3L, state.toInteger(7))
+        assertTrue(state.isNil(8))
+    }
+
+    @Test
     fun `debug sethook clears inert suspended thread hooks and preserves negative active counts`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
