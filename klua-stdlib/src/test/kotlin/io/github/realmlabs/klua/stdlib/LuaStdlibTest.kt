@@ -6128,6 +6128,17 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         assertEquals("bad argument #1 to 'warn' (string expected)", state.toString(-1))
+
+        val partialState = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(partialState, Consumer { line -> output += line })
+
+        assertEquals(LuaStatus.OK, partialState.load("""warn("@on"); warn("prefix ", {})""", "warn-partial-error.lua"))
+        assertEquals(LuaStatus.RUNTIME_ERROR, partialState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(partialState.getLastError())
+        assertEquals("bad argument #2 to 'warn' (string expected)", partialState.toString(-1))
+        assertEquals(emptyList(), output)
     }
 
     @Test
