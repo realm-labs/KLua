@@ -14262,6 +14262,52 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns match utf8 text by raw bytes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local utf8 = "é"
+                local firstStart, firstEnd, firstCapture = string.find(utf8, "(.)")
+                local secondStart, secondEnd = string.find(utf8, ".", 2)
+                local first = string.match(utf8, ".")
+                local second = string.match(utf8, ".", 2)
+                local literal = string.match(utf8, "é")
+                local iterator = string.gmatch(utf8, ".")
+                local iterFirst = iterator()
+                local iterSecond = iterator()
+                local iterDone = iterator()
+                return firstStart, firstEnd, string.len(firstCapture), string.byte(firstCapture),
+                    secondStart, secondEnd,
+                    string.len(first), string.byte(first), string.len(second), string.byte(second),
+                    literal == utf8,
+                    string.byte(iterFirst), string.byte(iterSecond), iterDone == nil
+                """.trimIndent(),
+                "string-pattern-raw-bytes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(195L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(195L, state.toInteger(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(169L, state.toInteger(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals(195L, state.toInteger(12))
+        assertEquals(169L, state.toInteger(13))
+        assertTrue(state.toBoolean(14))
+    }
+
+    @Test
     fun `string search functions reject init positions past the end`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -14764,12 +14810,17 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return string.match(letter, "%a"), string.match(letter, "%A"),
-                    string.match(digit, "%d"), string.match(digit, "%D"),
-                    string.match(letter, "%w"), string.match(letter, "%W"),
-                    string.match(letter, "%g"), string.match(letter, "%G"),
+                local nonLetter = string.match(letter, "%A")
+                local nonDigit = string.match(digit, "%D")
+                local nonWord = string.match(letter, "%W")
+                local nonGraph = string.match(letter, "%G")
+                local nonSpace = string.match(space, "%S")
+                return string.match(letter, "%a"), string.len(nonLetter), string.byte(nonLetter),
+                    string.match(digit, "%d"), string.len(nonDigit), string.byte(nonDigit),
+                    string.match(letter, "%w"), string.len(nonWord), string.byte(nonWord),
+                    string.match(letter, "%g"), string.len(nonGraph), string.byte(nonGraph),
                     string.match(letter, "%l"), string.match(letter, "%u"),
-                    string.match(space, "%s"), string.match(space, "%S")
+                    string.match(space, "%s"), string.len(nonSpace), string.byte(nonSpace)
                 """.trimIndent(),
                 "string-pattern-ascii-classes.lua",
             ),
@@ -14777,17 +14828,22 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertTrue(state.isNil(1))
-        assertEquals("é", state.toString(2))
-        assertTrue(state.isNil(3))
-        assertEquals("\u0663", state.toString(4))
-        assertTrue(state.isNil(5))
-        assertEquals("é", state.toString(6))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(195L, state.toInteger(3))
+        assertTrue(state.isNil(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(217L, state.toInteger(6))
         assertTrue(state.isNil(7))
-        assertEquals("é", state.toString(8))
-        assertTrue(state.isNil(9))
+        assertEquals(1L, state.toInteger(8))
+        assertEquals(195L, state.toInteger(9))
         assertTrue(state.isNil(10))
-        assertTrue(state.isNil(11))
-        assertEquals("\u00A0", state.toString(12))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals(195L, state.toInteger(12))
+        assertTrue(state.isNil(13))
+        assertTrue(state.isNil(14))
+        assertTrue(state.isNil(15))
+        assertEquals(1L, state.toInteger(16))
+        assertEquals(194L, state.toInteger(17))
     }
 
     @Test
@@ -17391,7 +17447,7 @@ class LuaStdlibTest {
                 local empty = string.gmatch("", "")
                 local wide = string.gmatch(utf8.char(128512), "")
                 return iterator(), iterator(), iterator(), iterator(),
-                    empty(), empty(), wide(), wide(), wide()
+                    empty(), empty(), wide(), wide(), wide(), wide(), wide(), wide()
                 """.trimIndent(),
                 "string-gmatch-empty-pattern.lua",
             ),
@@ -17406,7 +17462,10 @@ class LuaStdlibTest {
         assertTrue(state.isNil(6))
         assertEquals("", state.toString(7))
         assertEquals("", state.toString(8))
-        assertTrue(state.isNil(9))
+        assertEquals("", state.toString(9))
+        assertEquals("", state.toString(10))
+        assertEquals("", state.toString(11))
+        assertTrue(state.isNil(12))
     }
 
     @Test
