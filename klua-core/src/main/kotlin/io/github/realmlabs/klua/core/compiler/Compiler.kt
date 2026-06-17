@@ -816,7 +816,12 @@ internal class Compiler private constructor(
                     is IntegerExpression -> "integer index"
                     else -> "?"
                 }
-                CallSiteInfo(0, name, "field")
+                val nameWhat = if (callee.receiver is VariableExpression && callee.receiver.name == "_ENV") {
+                    "global"
+                } else {
+                    "field"
+                }
+                CallSiteInfo(0, name, nameWhat)
             }
             else -> null
         }

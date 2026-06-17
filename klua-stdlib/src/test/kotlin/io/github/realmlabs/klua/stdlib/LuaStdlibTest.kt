@@ -1028,6 +1028,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports environment field calls as globals`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                _ENV = _G
+
+                function envProbe()
+                    local info = debug.getinfo(1, "n")
+                    return info.name, info.namewhat
+                end
+
+                return _ENV.envProbe()
+                """.trimIndent(),
+                "debug-getinfo-env-global-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("envProbe", state.toString(1))
+        assertEquals("global", state.toString(2))
+    }
+
+    @Test
     fun `debug getinfo reports operator metamethod call site names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
