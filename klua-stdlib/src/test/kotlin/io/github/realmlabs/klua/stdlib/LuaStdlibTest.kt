@@ -11307,7 +11307,10 @@ class LuaStdlibTest {
                 local marker = {name = "host-marker"}
                 local co = coroutine.create(hostError)
                 local ok, err = coroutine.resume(co, marker)
-                return ok, err == marker, err.name, coroutine.status(co)
+                local closeOk, closeError = coroutine.close(co)
+                local secondCloseOk = coroutine.close(co)
+                return ok, err == marker, err.name, coroutine.status(co),
+                    closeOk, closeError == marker, closeError.name, secondCloseOk
                 """.trimIndent(),
                 "coroutine-host-error-object.lua",
             ),
@@ -11318,6 +11321,10 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("host-marker", state.toString(3))
         assertEquals("dead", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("host-marker", state.toString(7))
+        assertTrue(state.toBoolean(8))
     }
 
     @Test
