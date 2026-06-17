@@ -13817,10 +13817,16 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
+                local reversedUtf8 = string.reverse("é")
+                local reversedUtf8First, reversedUtf8Second = string.byte(reversedUtf8, 1, -1)
+                local reversedInvalid = string.reverse("A" .. string.char(128))
+                local reversedInvalidFirst, reversedInvalidSecond = string.byte(reversedInvalid, 1, -1)
                 return string.len("hello"), string.len("é"), string.lower("HeLLo"), string.upper("HeLLo"),
                     string.reverse("abc"), string.rep("ha", 3), string.sub("abcdef", 2, 4),
                     string.sub("abcdef", -3, -1), string.sub("abcdef", 4, 2),
-                    string.sub("éx", 1, 2), string.sub("éx", 3, 3)
+                    string.sub("éx", 1, 2), string.sub("éx", 3, 3),
+                    reversedUtf8First, reversedUtf8Second, string.len(reversedUtf8),
+                    reversedInvalidFirst, reversedInvalidSecond, string.len(reversedInvalid)
                 """.trimIndent(),
                 "string.lua",
             ),
@@ -13838,6 +13844,12 @@ class LuaStdlibTest {
         assertEquals("", state.toString(9))
         assertEquals("é", state.toString(10))
         assertEquals("x", state.toString(11))
+        assertEquals(169L, state.toInteger(12))
+        assertEquals(195L, state.toInteger(13))
+        assertEquals(2L, state.toInteger(14))
+        assertEquals(128L, state.toInteger(15))
+        assertEquals(65L, state.toInteger(16))
+        assertEquals(2L, state.toInteger(17))
     }
 
     @Test

@@ -779,7 +779,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringReverse(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "reverse").reversed())
+        return LuaReturn.of(requiredString(context, 1, "reverse").luaRawBytes().reversedArray().toLuaByteString())
     }
 
     private fun stringSub(context: LuaCallContext): LuaReturn {
