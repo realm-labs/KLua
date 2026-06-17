@@ -10425,6 +10425,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time accepts lua numeric string date fields`() {
+        val state = LuaState.create()
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local numeric = {year = 2020, month = 1, day = 2, hour = 3, min = 4, sec = 5}
+                local strings = {year = "0x7e4", month = "0x1", day = "0x2", hour = "0x1.8p1", min = "+4", sec = "5.0"}
+                local numericTime = os.time(numeric)
+                local stringTime = os.time(strings)
+                return os.difftime(stringTime, numericTime),
+                    strings.year, strings.month, strings.day, strings.hour, strings.min, strings.sec
+                """.trimIndent(),
+                "os-time-numeric-string-fields.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0.0, state.toNumber(1) ?: error("missing difftime result"), 0.0)
+        assertEquals(2020L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals(3L, state.toInteger(5))
+        assertEquals(4L, state.toInteger(6))
+        assertEquals(5L, state.toInteger(7))
+    }
+
+    @Test
     fun `os time reads date fields through index metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

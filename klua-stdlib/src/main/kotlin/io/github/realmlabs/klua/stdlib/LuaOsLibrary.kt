@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.io.IOException
+import java.math.BigInteger
 import java.nio.file.FileSystemException
 import java.nio.file.Files
 import java.nio.file.Path
@@ -545,10 +546,36 @@ internal object LuaOsLibrary {
             is Long -> value
             is Float -> value.toDouble().luaInteger()
             is Double -> value.luaInteger()
-            is CharSequence -> value.toString().trim().toLongOrNull()
-                ?: value.toString().trim().toDoubleOrNull()?.luaInteger()
+            is CharSequence -> value.toString().trim().let { text ->
+                parseHexInteger(text) ?: text.toLongOrNull() ?: text.toDoubleOrNull()?.luaInteger()
+            }
             else -> null
         }
+    }
+
+    private fun parseHexInteger(text: String): Long? {
+        val sign = when {
+            text.startsWith("-") -> -1
+            text.startsWith("+") -> 1
+            else -> 1
+        }
+        val digitsStart = if (text.startsWith("-") || text.startsWith("+")) 1 else 0
+        if (!text.regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)) {
+            return null
+        }
+        val digits = text.substring(digitsStart + 2)
+        if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
+            return null
+        }
+        var parsed = BigInteger.ZERO
+        val radix = BigInteger.valueOf(16L)
+        for (digit in digits) {
+            parsed = parsed.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
+        }
+        if (sign < 0) {
+            parsed = parsed.negate()
+        }
+        return parsed.mod(UINT64_MODULUS).toLong()
     }
 
     private fun parseLocale(value: String): Locale? {
@@ -584,6 +611,7 @@ internal object LuaOsLibrary {
     private const val EXIT_SUCCESS = 0
     private const val EXIT_FAILURE = 1
     private const val NANOS_PER_SECOND = 1_000_000_000.0
+    private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
     private val LOCALE_CATEGORIES = setOf("all", "collate", "ctype", "monetary", "numeric", "time")
     private val LOCALE_TAG_PATTERN = Regex("[A-Za-z]{2,3}(-([A-Za-z]{2}|[0-9]{3}))?(-[A-Za-z0-9]+)*")
 }
