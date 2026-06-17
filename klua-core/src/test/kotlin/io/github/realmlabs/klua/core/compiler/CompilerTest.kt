@@ -1032,6 +1032,25 @@ class CompilerTest {
     }
 
     @Test
+    fun `allows nested goto to enclosing end label after local declarations`() {
+        val prototype = Compiler.compile(
+            """
+            do
+                do
+                    goto done
+                end
+                local skipped = 1
+                ::done::
+            end
+            return 2
+            """.trimIndent(),
+            "goto-nested-export-end-label.lua",
+        )
+
+        assertEquals("goto-nested-export-end-label.lua", prototype.sourceName)
+    }
+
+    @Test
     fun `rejects exported goto into later outer local scope`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile(

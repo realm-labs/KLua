@@ -1197,6 +1197,28 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes nested goto to enclosing end label after locals`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local value = 0
+                do
+                    do
+                        goto done
+                    end
+                    local skipped = 1
+                    value = skipped
+                    ::done::
+                end
+                return value
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(0)), result)
+    }
+
+    @Test
     fun `rejects goto into nested label before execution`() {
         assertFailsWith<CompilerException> {
             Compiler.compile(
