@@ -653,19 +653,43 @@ internal object LuaTableLibrary {
     }
 
     private fun tableUnpackIndexValue(context: LuaCallContext, sourceType: String, key: Any?): Any? {
-        val rawValue = context.getTableValue(1, key)
+        return tableUnpackIndexValue(
+            context,
+            context.getLuaValue(1),
+            context.getMetatable(1),
+            sourceType,
+            key,
+            identitySet(),
+        )
+    }
+
+    private fun tableUnpackIndexValue(
+        context: LuaCallContext,
+        table: Any?,
+        metatable: Any?,
+        sourceType: String,
+        key: Any?,
+        visited: MutableSet<Any>,
+    ): Any? {
+        if (table != null && !visited.add(table)) {
+            throw LuaRuntimeException("'__index' chain too long; possible loop")
+        }
+        val rawValue = context.getTableField(table, key)
         if (rawValue != null) {
             return rawValue
         }
-        val index = context.getTableField(context.getMetatable(1), "__index")
+        val index = context.getTableField(metatable, "__index")
         if (index == null) {
-            if (context.isTable(1)) {
+            if (context.isTableValue(table)) {
                 return null
             }
             throw LuaRuntimeException("attempt to index a $sourceType value")
         }
+        if (context.isTableValue(index)) {
+            return tableUnpackIndexValue(context, index, context.getTableMetatable(index), sourceType, key, visited)
+        }
         return try {
-            context.call(index, listOf(context.getLuaValue(1), key)).get(1)
+            context.call(index, listOf(table, key)).get(1)
         } catch (_: IllegalArgumentException) {
             context.getTableField(index, key)
         }

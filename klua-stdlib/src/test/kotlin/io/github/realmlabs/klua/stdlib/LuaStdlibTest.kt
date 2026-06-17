@@ -20502,8 +20502,19 @@ class LuaStdlibTest {
                 local metaCount = select("#", table.unpack(fallback, 1, 3))
                 local metaFirst, metaSecond, metaThird = table.unpack(fallback, 1, 3)
                 local defaultMetaCount = select("#", table.unpack(fallback))
+                local nested = setmetatable({}, {
+                    __index = setmetatable({}, {
+                        __index = {
+                            [1] = "nested-first",
+                            [3] = "nested-third",
+                        },
+                    }),
+                })
+                local nestedCount = select("#", table.unpack(nested, 1, 3))
+                local nestedFirst, nestedSecond, nestedThird = table.unpack(nested, 1, 3)
                 return a, b, c, d, e, count, first, second, third,
-                    metaCount, metaFirst, metaSecond, metaThird, defaultMetaCount
+                    metaCount, metaFirst, metaSecond, metaThird, defaultMetaCount,
+                    nestedCount, nestedFirst, nestedSecond, nestedThird
                 """.trimIndent(),
                 "table-unpack.lua",
             ),
@@ -20524,6 +20535,10 @@ class LuaStdlibTest {
         assertTrue(state.isNil(12))
         assertEquals("meta-third", state.toString(13))
         assertEquals(3L, state.toInteger(14))
+        assertEquals(3L, state.toInteger(15))
+        assertEquals("nested-first", state.toString(16))
+        assertTrue(state.isNil(17))
+        assertEquals("nested-third", state.toString(18))
     }
 
     @Test
