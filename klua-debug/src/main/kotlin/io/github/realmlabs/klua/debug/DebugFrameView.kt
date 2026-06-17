@@ -10,9 +10,15 @@ public data class DebugFrameView(
     public val lineDefined: Int = 0,
     public val lastLineDefined: Int = 0,
     public val locals: List<DebugVariable> = emptyList(),
+    public val upvalues: List<DebugVariable> = emptyList(),
+    public val globals: List<DebugVariable> = emptyList(),
 ) {
     public fun scopes(): List<DebugScopeView> {
-        return listOf(DebugScopeView.locals(locals))
+        return buildList {
+            add(DebugScopeView.locals(locals))
+            if (upvalues.isNotEmpty()) add(DebugScopeView.upvalues(upvalues))
+            if (globals.isNotEmpty()) add(DebugScopeView.globals(globals))
+        }
     }
 
     public companion object {
@@ -43,6 +49,14 @@ public data class DebugScopeView(
     public companion object {
         public fun locals(variables: List<DebugVariable>): DebugScopeView {
             return DebugScopeView("Locals", DebugScopeKind.LOCALS, variables)
+        }
+
+        public fun upvalues(variables: List<DebugVariable>): DebugScopeView {
+            return DebugScopeView("Upvalues", DebugScopeKind.UPVALUES, variables)
+        }
+
+        public fun globals(variables: List<DebugVariable>): DebugScopeView {
+            return DebugScopeView("Globals", DebugScopeKind.GLOBALS, variables)
         }
     }
 }

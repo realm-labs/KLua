@@ -71,6 +71,27 @@ class DebugFrameViewTest {
     }
 
     @Test
+    fun `scopes includes supplied upvalue and global scopes`() {
+        val frame = DebugFrameView(
+            level = 0,
+            sourceName = "main.lua",
+            line = 4,
+            locals = listOf(DebugVariable("localValue", 1L, "number", "1")),
+            upvalues = listOf(DebugVariable("upvalueValue", "closed", "string", "closed")),
+            globals = listOf(DebugVariable("_VERSION", "KLua", "string", "KLua")),
+        )
+
+        assertEquals(
+            listOf(
+                DebugScopeView.locals(listOf(DebugVariable("localValue", 1L, "number", "1"))),
+                DebugScopeView.upvalues(listOf(DebugVariable("upvalueValue", "closed", "string", "closed"))),
+                DebugScopeView.globals(listOf(DebugVariable("_VERSION", "KLua", "string", "KLua"))),
+            ),
+            frame.scopes(),
+        )
+    }
+
+    @Test
     fun `toDebugVariable renders supported debugger value summaries`() {
         val hostValue = HostValue()
         val values = listOf(

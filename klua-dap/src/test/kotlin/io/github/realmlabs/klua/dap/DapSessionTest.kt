@@ -238,6 +238,37 @@ class DapSessionTest {
     }
 
     @Test
+    fun `scopes exposes supplied local upvalue and global variables`() {
+        val session = DapSession()
+        val stackTrace = session.stackTrace(
+            listOf(
+                DebugFrameView(
+                    level = 0,
+                    sourceName = "main.lua",
+                    line = 3,
+                    locals = listOf(DebugVariable("localValue", 1L, "number", "1")),
+                    upvalues = listOf(DebugVariable("upvalueValue", "closed", "string", "closed")),
+                    globals = listOf(DebugVariable("_VERSION", "KLua", "string", "KLua")),
+                ),
+            ),
+        )
+
+        val scopes = session.scopes(stackTrace.stackFrames[0].id)
+        val variables = scopes.scopes.map { scope -> session.variables(scope.variablesReference).variables }
+
+        assertEquals(listOf("Locals", "Upvalues", "Globals"), scopes.scopes.map { scope -> scope.name })
+        assertTrue(scopes.scopes.all { scope -> scope.variablesReference > 0 })
+        assertEquals(
+            listOf(
+                listOf(DapVariable("localValue", "1", "number")),
+                listOf(DapVariable("upvalueValue", "closed", "string")),
+                listOf(DapVariable("_VERSION", "KLua", "string")),
+            ),
+            variables,
+        )
+    }
+
+    @Test
     fun `stackTrace pages frames and reports total frame count`() {
         val session = DapSession()
         val frames = listOf(
