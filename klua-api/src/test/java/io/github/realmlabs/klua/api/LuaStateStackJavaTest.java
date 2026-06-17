@@ -84,6 +84,23 @@ class LuaStateStackJavaTest {
     }
 
     @Test
+    void reportsLuaNumericStringsAsNumbers() {
+        LuaState state = LuaState.create();
+
+        state.pushString("3.5");
+        state.pushString("0x10");
+        state.pushString("0x1.8p1");
+        state.pushString("bad");
+        state.pushString("NaN");
+
+        assertTrue(state.isNumber(1));
+        assertTrue(state.isNumber(2));
+        assertTrue(state.isNumber(3));
+        assertFalse(state.isNumber(4));
+        assertFalse(state.isNumber(5));
+    }
+
+    @Test
     void popRemovesValuesFromTheTop() {
         LuaState state = LuaState.create();
         state.pushInteger(1);
