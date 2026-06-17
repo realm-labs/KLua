@@ -11416,13 +11416,23 @@ class LuaStdlibTest {
                 local nilCloseOk, nilCloseError = coroutine.close(nilCo)
                 local nilSecondCloseOk = coroutine.close(nilCo)
 
+                local falseCo = coroutine.create(function()
+                    error(false)
+                end)
+                local falseResumeOk, falseResumeError = coroutine.resume(falseCo)
+                local falseCloseOk, falseCloseError = coroutine.close(falseCo)
+                local falseSecondCloseOk = coroutine.close(falseCo)
+
                 return resumeOk, resumeMessage, closeOk, closeMessage, secondCloseOk,
                     tableResumeOk, tableResumeError == marker, tableResumeError.name,
                     tableCloseOk, tableCloseError == marker, tableCloseError.name,
                     tableSecondCloseOk,
                     nilResumeOk, nilResumeError,
                     nilCloseOk, nilCloseError,
-                    nilSecondCloseOk
+                    nilSecondCloseOk,
+                    falseResumeOk, falseResumeError,
+                    falseCloseOk, falseCloseError,
+                    falseSecondCloseOk
                 """.trimIndent(),
                 "coroutine-close-terminal-error.lua",
             ),
@@ -11447,6 +11457,11 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(15))
         assertTrue(state.isNil(16))
         assertTrue(state.toBoolean(17))
+        assertFalse(state.toBoolean(18))
+        assertFalse(state.toBoolean(19))
+        assertFalse(state.toBoolean(20))
+        assertFalse(state.toBoolean(21))
+        assertTrue(state.toBoolean(22))
     }
 
     @Test
