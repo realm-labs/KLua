@@ -15607,13 +15607,27 @@ class LuaStdlibTest {
         assertEquals(
             LuaStatus.OK,
             state.load(
-                """return string.format("%3c|%-3c|%c|%c", 65, 66, 256, -1)""",
+                """
+                local formatted = string.format("%3c|%-3c|%c", 65, 66, 256)
+                local high = string.format("%c", -1)
+                local paddedHigh = string.format("%3c", 255)
+                local pad1, pad2, highByte = string.byte(paddedHigh, 1, -1)
+                return formatted,
+                    string.len(high), string.byte(high),
+                    string.len(paddedHigh), pad1, pad2, highByte
+                """.trimIndent(),
                 "string-format-char-width.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals("  A|B  |\u0000|\u00FF", state.toString(1))
+        assertEquals("  A|B  |\u0000", state.toString(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(255L, state.toInteger(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals(32L, state.toInteger(5))
+        assertEquals(32L, state.toInteger(6))
+        assertEquals(255L, state.toInteger(7))
     }
 
     @Test

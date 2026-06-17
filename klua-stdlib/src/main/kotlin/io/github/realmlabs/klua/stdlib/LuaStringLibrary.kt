@@ -880,7 +880,7 @@ internal object LuaStringLibrary {
             'c' -> {
                 val parsed = validateCharacterFormatSpecifier(specifier)
                 val code = requiredFormatInteger(context, index)
-                parsed.toJavaSpecifier('c').formatWith(code.toInt() and 0xff)
+                formatCharacterByte(code, parsed)
             }
             'p' -> formatPointerValue(context, index, specifier)
             'q' -> {
@@ -1036,6 +1036,16 @@ internal object LuaStringLibrary {
             throw invalidConversionSpecification(specifier)
         }
         return parsed
+    }
+
+    private fun formatCharacterByte(code: Long, parsed: FormatSpecifier): String {
+        val value = byteArrayOf(code.toByte()).toLuaByteString()
+        val width = parsed.width ?: return value
+        if (width <= 1) {
+            return value
+        }
+        val padding = " ".repeat(width - 1)
+        return if ('-' in parsed.flags) value + padding else padding + value
     }
 
     private fun validateStringFormatSpecifier(specifier: String) {
