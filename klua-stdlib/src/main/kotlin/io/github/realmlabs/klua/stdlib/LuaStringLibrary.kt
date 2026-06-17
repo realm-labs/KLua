@@ -444,7 +444,7 @@ internal object LuaStringLibrary {
                 }
                 LuaStringPackFormat.PackOption.Char -> {
                     val value = requiredString(context, argumentIndex, "pack")
-                    val bytes = value.toByteArray(StandardCharsets.ISO_8859_1)
+                    val bytes = value.luaRawBytes()
                     if (bytes.size.toLong() > details.size) {
                         throw LuaRuntimeException("bad argument #$argumentIndex to 'pack' (string longer than given size)")
                     }
@@ -474,7 +474,7 @@ internal object LuaStringLibrary {
                 }
                 LuaStringPackFormat.PackOption.String -> {
                     val value = requiredString(context, argumentIndex, "pack")
-                    val bytes = value.toByteArray(StandardCharsets.ISO_8859_1)
+                    val bytes = value.luaRawBytes()
                     requireStringLengthPackRange(bytes.size, details.size, argumentIndex)
                     writePackedInteger(output, bytes.size.toLong(), details.size, details.littleEndian, signed = false)
                     output.write(bytes)
@@ -483,7 +483,7 @@ internal object LuaStringLibrary {
                 }
                 LuaStringPackFormat.PackOption.ZeroTerminatedString -> {
                     val value = requiredString(context, argumentIndex, "pack")
-                    val bytes = value.toByteArray(StandardCharsets.ISO_8859_1)
+                    val bytes = value.luaRawBytes()
                     if (bytes.any { it.toInt() == 0 }) {
                         throw LuaRuntimeException("bad argument #$argumentIndex to 'pack' (string contains zeros)")
                     }
@@ -495,12 +495,12 @@ internal object LuaStringLibrary {
             }
             totalSize = checkedPackSize(totalSize, details.size)
         }
-        return LuaReturn.of(String(output.toByteArray(), StandardCharsets.ISO_8859_1))
+        return LuaReturn.of(output.toByteArray().toLuaByteString())
     }
 
     private fun stringUnpack(context: LuaCallContext): LuaReturn {
         val scanner = LuaStringPackFormat.PackFormatScanner(requiredString(context, 1, "unpack"), "unpack")
-        val data = requiredString(context, 2, "unpack").toByteArray(StandardCharsets.ISO_8859_1)
+        val data = requiredString(context, 2, "unpack").luaRawBytes()
         val initialPosition = if (context.isNone(3) || context.isNil(3)) {
             1L
         } else {
@@ -528,7 +528,7 @@ internal object LuaStringLibrary {
                 LuaStringPackFormat.PackOption.Char -> {
                     val start = position.toInt()
                     val end = start + details.size.toInt()
-                    results += String(data.copyOfRange(start, end), StandardCharsets.ISO_8859_1)
+                    results += data.copyOfRange(start, end).toLuaByteString()
                 }
                 LuaStringPackFormat.PackOption.Padding,
                 LuaStringPackFormat.PackOption.AlignPadding,
@@ -556,7 +556,7 @@ internal object LuaStringLibrary {
                     }
                     val start = (position + details.size).toInt()
                     val end = start + length.toInt()
-                    results += String(data.copyOfRange(start, end), StandardCharsets.ISO_8859_1)
+                    results += data.copyOfRange(start, end).toLuaByteString()
                     position += length
                 }
                 LuaStringPackFormat.PackOption.ZeroTerminatedString -> {
@@ -564,7 +564,7 @@ internal object LuaStringLibrary {
                     if (zeroIndex < 0) {
                         throw LuaRuntimeException("bad argument #2 to 'unpack' (unfinished string for format 'z')")
                     }
-                    results += String(data.copyOfRange(position.toInt(), zeroIndex), StandardCharsets.ISO_8859_1)
+                    results += data.copyOfRange(position.toInt(), zeroIndex).toLuaByteString()
                     position += zeroIndex - position.toInt() + 1L
                 }
             }

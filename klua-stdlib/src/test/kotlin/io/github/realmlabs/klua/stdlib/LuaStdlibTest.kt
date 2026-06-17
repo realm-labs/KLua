@@ -16156,7 +16156,20 @@ class LuaStdlibTest {
                 local fixedByte = string.unpack("B", fixed)
                 local lengthByte, sizedByte = string.unpack("B B", sized)
                 local zeroByte, terminator = string.unpack("B B", zeroed)
-                return fixedByte, lengthByte, sizedByte, zeroByte, terminator
+                local utf8Fixed = string.pack("c2", "é")
+                local utf8Sized = string.pack("s1", "é")
+                local utf8Zeroed = string.pack("z", "é")
+                local fixedFirst, fixedSecond = string.unpack("B B", utf8Fixed)
+                local sizedLength, sizedFirst, sizedSecond = string.unpack("B B B", utf8Sized)
+                local zeroedFirst, zeroedSecond, zeroedTerminator = string.unpack("B B B", utf8Zeroed)
+                local unpackedFixed = string.unpack("c2", utf8Fixed)
+                local unpackedFirst, unpackedSecond = string.byte(unpackedFixed, 1, -1)
+                local packedUtf8EqualsLiteral = string.pack("BB", 195, 169) == "é"
+                return fixedByte, lengthByte, sizedByte, zeroByte, terminator,
+                    fixedFirst, fixedSecond,
+                    sizedLength, sizedFirst, sizedSecond,
+                    zeroedFirst, zeroedSecond, zeroedTerminator,
+                    unpackedFirst, unpackedSecond, packedUtf8EqualsLiteral
                 """.trimIndent(),
                 "string-pack-raw-byte-strings.lua",
             ),
@@ -16168,6 +16181,17 @@ class LuaStdlibTest {
         assertEquals(255L, state.toInteger(3))
         assertEquals(255L, state.toInteger(4))
         assertEquals(0L, state.toInteger(5))
+        assertEquals(195L, state.toInteger(6))
+        assertEquals(169L, state.toInteger(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals(195L, state.toInteger(9))
+        assertEquals(169L, state.toInteger(10))
+        assertEquals(195L, state.toInteger(11))
+        assertEquals(169L, state.toInteger(12))
+        assertEquals(0L, state.toInteger(13))
+        assertEquals(195L, state.toInteger(14))
+        assertEquals(169L, state.toInteger(15))
+        assertTrue(state.toBoolean(16))
     }
 
     @Test
