@@ -12186,6 +12186,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine optional thread arguments reject explicit nil`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local closeOk, closeMessage = pcall(coroutine.close, nil)
+                local yieldableOk, yieldableMessage = pcall(coroutine.isyieldable, nil)
+                return closeOk, closeMessage, yieldableOk, yieldableMessage
+                """.trimIndent(),
+                "coroutine-explicit-nil-thread.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'coroutine.close' (thread expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'coroutine.isyieldable' (thread expected)", state.toString(4))
+    }
+
+    @Test
     fun `coroutine functions report argument errors`() {
         val createState = LuaState.create()
         LuaStdlib.openCoroutine(createState)
