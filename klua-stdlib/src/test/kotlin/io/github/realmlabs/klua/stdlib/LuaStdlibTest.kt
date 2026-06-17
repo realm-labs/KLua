@@ -10589,6 +10589,70 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time normalization writes missing fields through newindex`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local writes = {}
+                local date = setmetatable({
+                    year = 2020,
+                    month = 1,
+                    day = 2,
+                }, {
+                    __newindex = function(_, key, value)
+                        writes[key] = value
+                    end,
+                })
+                local timestamp = os.time(date)
+                local tableWrites = {}
+                local tableDate = setmetatable({
+                    year = 2020,
+                    month = 1,
+                    day = 2,
+                }, {
+                    __newindex = tableWrites,
+                })
+                os.time(tableDate)
+                return type(timestamp),
+                    date.year, date.month, date.day,
+                    rawget(date, "hour"),
+                    writes.hour, writes.min, writes.sec,
+                    writes.wday ~= nil, writes.yday ~= nil, writes.isdst ~= nil,
+                    rawget(tableDate, "hour"),
+                    tableWrites.hour, tableWrites.min, tableWrites.sec,
+                    tableWrites.wday ~= nil, tableWrites.yday ~= nil, tableWrites.isdst ~= nil
+                """.trimIndent(),
+                "os-time-newindex-normalization.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("number", state.toString(1))
+        assertEquals(2020L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertTrue(state.isNil(5))
+        assertEquals(12L, state.toInteger(6))
+        assertEquals(0L, state.toInteger(7))
+        assertEquals(0L, state.toInteger(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.toBoolean(11))
+        assertTrue(state.isNil(12))
+        assertEquals(12L, state.toInteger(13))
+        assertEquals(0L, state.toInteger(14))
+        assertEquals(0L, state.toInteger(15))
+        assertTrue(state.toBoolean(16))
+        assertTrue(state.toBoolean(17))
+        assertTrue(state.toBoolean(18))
+    }
+
+    @Test
     fun `os rename and remove operate on files`() {
         val root = Files.createTempDirectory("klua-os-files")
         val source = root.resolve("source.txt")

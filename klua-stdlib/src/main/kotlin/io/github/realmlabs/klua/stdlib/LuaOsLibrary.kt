@@ -247,15 +247,15 @@ internal object LuaOsLibrary {
             throw LuaRuntimeException("time result cannot be represented in this installation")
         }
 
-        context.setTableValue(1, "year", normalized.year.toLong())
-        context.setTableValue(1, "month", normalized.monthValue.toLong())
-        context.setTableValue(1, "day", normalized.dayOfMonth.toLong())
-        context.setTableValue(1, "hour", normalized.hour.toLong())
-        context.setTableValue(1, "min", normalized.minute.toLong())
-        context.setTableValue(1, "sec", normalized.second.toLong())
-        context.setTableValue(1, "wday", normalized.dayOfWeek.value % 7L + 1L)
-        context.setTableValue(1, "yday", normalized.dayOfYear.toLong())
-        context.setTableValue(1, "isdst", normalized.zone.rules.isDaylightSavings(normalized.toInstant()))
+        setDateField(context, "year", normalized.year.toLong())
+        setDateField(context, "month", normalized.monthValue.toLong())
+        setDateField(context, "day", normalized.dayOfMonth.toLong())
+        setDateField(context, "hour", normalized.hour.toLong())
+        setDateField(context, "min", normalized.minute.toLong())
+        setDateField(context, "sec", normalized.second.toLong())
+        setDateField(context, "wday", normalized.dayOfWeek.value % 7L + 1L)
+        setDateField(context, "yday", normalized.dayOfYear.toLong())
+        setDateField(context, "isdst", normalized.zone.rules.isDaylightSavings(normalized.toInstant()))
 
         return LuaReturn.of(normalized.toEpochSecond())
     }
@@ -461,6 +461,27 @@ internal object LuaOsLibrary {
             context.call(index, listOf(context.getLuaValue(1), key)).get(1)
         } catch (_: IllegalArgumentException) {
             context.getTableField(index, key)
+        }
+    }
+
+    private fun setDateField(context: LuaCallContext, key: String, value: Any?) {
+        if (context.getTableValue(1, key) != null) {
+            context.setTableValue(1, key, value)
+            return
+        }
+        val newIndex = context.getTableField(context.getMetatable(1), "__newindex")
+        if (newIndex == null) {
+            context.setTableValue(1, key, value)
+            return
+        }
+        if (context.isTableValue(newIndex)) {
+            context.setTableField(newIndex, key, value)
+            return
+        }
+        try {
+            context.call(newIndex, listOf(context.getLuaValue(1), key, value))
+        } catch (_: IllegalArgumentException) {
+            context.setTableValue(1, key, value)
         }
     }
 
