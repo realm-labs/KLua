@@ -22,7 +22,7 @@ internal object LuaCoroutineLibrary {
         val runtime = CoroutineRuntime()
         state.newTable()
         setYieldableFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
-        setFunctionField(state, "create") { context -> coroutineCreate(context, "create") }
+        setFunctionField(state, "create") { context -> coroutineCreate(context, "create", runtime) }
         setYieldableFunctionField(state, "isyieldable") { context -> coroutineIsYieldable(context, runtime) }
         setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
         setFunctionField(state, "running") { coroutineRunning(runtime) }
@@ -33,13 +33,13 @@ internal object LuaCoroutineLibrary {
         return state
     }
 
-    private fun coroutineCreate(context: LuaCallContext, functionName: String): LuaReturn {
+    private fun coroutineCreate(context: LuaCallContext, functionName: String, runtime: CoroutineRuntime): LuaReturn {
         if (context.typeName(1) != "function") {
             throw LuaRuntimeException("bad argument #1 to '$functionName' (function expected)")
         }
         val function = context.get(1) as? LuaFunction
             ?: throw LuaRuntimeException("bad argument #1 to '$functionName' (function expected)")
-        return LuaReturn.of(LuaCoroutine(function, (function as? LuaCoroutineFunction)?.createCoroutine()))
+        return LuaReturn.of(LuaCoroutine(function, runtime, (function as? LuaCoroutineFunction)?.createCoroutine()))
     }
 
     private fun coroutineResume(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
@@ -252,7 +252,7 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineWrap(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val created = coroutineCreate(context, "wrap").getUserData(1, LuaCoroutine::class.java)
+        val created = coroutineCreate(context, "wrap", runtime).getUserData(1, LuaCoroutine::class.java)
         val creationFrames = context.luaFrames
         val wrapper = LuaFunction { wrapperContext ->
             val result = resumeCoroutine(
@@ -362,6 +362,7 @@ internal object LuaCoroutineLibrary {
     private class CoroutineRuntime {
         val main: LuaCoroutine = LuaCoroutine(
             function = LuaFunction { LuaReturn.of() },
+            runtime = this,
             status = CoroutineStatus.RUNNING,
             isMain = true,
         )
@@ -370,6 +371,7 @@ internal object LuaCoroutineLibrary {
 
     private class LuaCoroutine(
         val function: LuaFunction,
+        val runtime: CoroutineRuntime,
         val handle: LuaCoroutineHandle? = null,
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
         var pendingYield: LuaYieldException? = null,
@@ -381,6 +383,9 @@ internal object LuaCoroutineLibrary {
 
         override val luaFrames: List<io.github.realmlabs.klua.api.LuaStackFrame>
             get() = (handle as? LuaDebuggableCoroutineHandle)?.luaFrames ?: emptyList()
+
+        override val isCurrentDebugThread: Boolean
+            get() = runtime.running == this || (isMain && runtime.running == null)
 
         override fun setLocal(level: Int, index: Int, value: Any?): String? {
             return (handle as? LuaDebuggableCoroutineHandle)?.setLocal(level, index, value)

@@ -371,6 +371,9 @@ internal object LuaDebugLibrary {
     private fun threadTarget(context: LuaCallContext): DebugThreadTarget {
         val coroutine = context.toUserData(1, LuaDebugThread::class.java)
             ?: return DebugThreadTarget.Current(context.luaFrames)
+        if (coroutine.isCurrentDebugThread) {
+            return DebugThreadTarget.Current(context.luaFrames, argumentOffset = 1)
+        }
         return DebugThreadTarget.Coroutine(coroutine)
     }
 
@@ -591,7 +594,10 @@ internal object LuaDebugLibrary {
 
         abstract fun getDebugHook(context: LuaCallContext): LuaReturn
 
-        class Current(frames: List<LuaStackFrame>) : DebugThreadTarget(0, frames) {
+        class Current(
+            frames: List<LuaStackFrame>,
+            argumentOffset: Int = 0,
+        ) : DebugThreadTarget(argumentOffset, frames) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
                 return context.setLocal(level, index, value)
             }

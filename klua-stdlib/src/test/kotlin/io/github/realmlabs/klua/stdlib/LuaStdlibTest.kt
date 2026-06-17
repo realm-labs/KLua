@@ -768,6 +768,54 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug traceback accepts explicit current thread arguments`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainThread = coroutine.running()
+                local function mainProbe()
+                    local info = debug.getinfo(mainThread, 1, "S")
+                    return debug.traceback(mainThread, "main-current"), info.source
+                end
+                local mainTrace, mainSource = mainProbe()
+
+                local co = coroutine.create(function()
+                    local running = coroutine.running()
+                    local function coroutineProbe()
+                        local info = debug.getinfo(running, 1, "S")
+                        return debug.traceback(running, "coroutine-current"), info.source
+                    end
+                    return coroutineProbe()
+                end)
+                local ok, coroutineTrace, coroutineSource = coroutine.resume(co)
+
+                return ok,
+                    string.find(mainTrace, "^main%-current\nstack traceback:") == 1,
+                    string.find(mainTrace, "debug%-current%-thread%-traceback%.lua:") ~= nil,
+                    mainSource,
+                    string.find(coroutineTrace, "^coroutine%-current\nstack traceback:") == 1,
+                    string.find(coroutineTrace, "debug%-current%-thread%-traceback%.lua:") ~= nil,
+                    coroutineSource
+                """.trimIndent(),
+                "debug-current-thread-traceback.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("debug-current-thread-traceback.lua", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("debug-current-thread-traceback.lua", state.toString(7))
+    }
+
+    @Test
     fun `debug getinfo returns lua frame source and current line`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

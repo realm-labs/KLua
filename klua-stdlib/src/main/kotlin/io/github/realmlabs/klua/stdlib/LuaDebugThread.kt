@@ -6,6 +6,9 @@ import io.github.realmlabs.klua.api.LuaStackFrame
 internal interface LuaDebugThread {
     val luaFrames: List<LuaStackFrame>
 
+    val isCurrentDebugThread: Boolean
+        get() = false
+
     fun setLocal(level: Int, index: Int, value: Any?): String?
 
     fun setDebugHook(function: Any?, mask: String, count: Int): Boolean
