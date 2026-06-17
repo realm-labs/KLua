@@ -886,6 +886,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo accepts thread argument for function subjects`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe()
+                    return "ok"
+                end
+                local co = coroutine.create(function()
+                    coroutine.yield("pause")
+                end)
+                coroutine.resume(co)
+                local info = debug.getinfo(co, probe, "Suf")
+                return info.func == probe, info.source, info.what,
+                    info.linedefined, info.lastlinedefined,
+                    info.nparams, info.isvararg
+                """.trimIndent(),
+                "debug-thread-getinfo-function.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("debug-thread-getinfo-function.lua", state.toString(2))
+        assertEquals("Lua", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(3L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(6))
+        assertFalse(state.toBoolean(7))
+    }
+
+    @Test
     fun `debug getinfo reports active frame call site names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
