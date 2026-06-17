@@ -12415,11 +12415,15 @@ class LuaStdlibTest {
                 local floorHuge = math.floor(1e20)
                 local ceilHuge = math.ceil(-1e20)
                 local ceilInfinity = math.ceil(math.huge)
+                local floorUpperBound = math.floor("0x1p63")
+                local ceilLowerBound = math.ceil("-0x1p63")
                 return floorInteger, math.type(floorInteger),
                     ceilInteger, math.type(ceilInteger),
                     floorHuge, math.type(floorHuge),
                     ceilHuge, math.type(ceilHuge),
-                    ceilInfinity, math.type(ceilInfinity)
+                    ceilInfinity, math.type(ceilInfinity),
+                    floorUpperBound, math.type(floorUpperBound),
+                    ceilLowerBound, math.type(ceilLowerBound)
                 """.trimIndent(),
                 "math-floor-ceil-type.lua",
             ),
@@ -12436,6 +12440,10 @@ class LuaStdlibTest {
         assertEquals("float", state.toString(8))
         assertTrue((state.toNumber(9) ?: error("missing ceil infinity result")).isInfinite())
         assertEquals("float", state.toString(10))
+        assertEquals(9223372036854775808.0, state.toNumber(11) ?: error("missing floor upper-bound result"), 0.0)
+        assertEquals("float", state.toString(12))
+        assertEquals(Long.MIN_VALUE, state.toInteger(13))
+        assertEquals("integer", state.toString(14))
     }
 
     @Test

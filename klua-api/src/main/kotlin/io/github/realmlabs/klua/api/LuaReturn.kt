@@ -91,7 +91,7 @@ private fun isUserDataValue(value: Any): Boolean {
 }
 
 private fun integerFromDouble(value: Double, index: Int): Long {
-    if (!value.isFinite()) {
+    if (!value.isFinite() || value < Long.MIN_VALUE.toDouble() || value >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
         throw LuaRuntimeException("return value $index is not an integer")
     }
     val integer = value.toLong()
@@ -100,3 +100,5 @@ private fun integerFromDouble(value: Double, index: Int): Long {
     }
     return integer
 }
+
+private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()

@@ -150,6 +150,14 @@ class LuaFacadeJavaTest {
         assertThrows(LuaRuntimeException.class, () -> result.getLong(2));
     }
 
+    @Test
+    void luaReturnRejectsOutOfRangeIntegralDoubles() {
+        LuaReturn result = LuaReturn.of(0x1.0p63, -0x1.0p63);
+
+        assertThrows(LuaRuntimeException.class, () -> result.getLong(1));
+        assertEquals(Long.MIN_VALUE, result.getLong(2));
+    }
+
     private interface Named {
         String getName();
     }

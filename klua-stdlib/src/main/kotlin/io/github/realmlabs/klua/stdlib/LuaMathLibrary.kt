@@ -349,7 +349,7 @@ internal object LuaMathLibrary {
     }
 
     private fun numberToIntegerSubtype(value: Double): Long? {
-        if (!value.isFinite()) {
+        if (!value.isFinite() || value < Long.MIN_VALUE.toDouble() || value >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
             return null
         }
         val integer = value.toLong()
@@ -435,6 +435,7 @@ internal object LuaMathLibrary {
     }
 
     private const val SUBNORMAL_SCALE_BITS = 54
+    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private const val RANDOM_STATE_SIZE = 4
     private const val RANDOM_SEED_SPREAD_ROUNDS = 16
     private const val RANDOM_DOUBLE_DISCARDED_BITS = 11
