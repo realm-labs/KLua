@@ -11519,10 +11519,27 @@ class LuaStdlibTest {
                     error(marker)
                 end)
                 local objectFailOk, objectError = pcall(failingObject)
+                local nilFailing = coroutine.wrap(function()
+                    error(nil)
+                end)
+                local nilFailOk, nilFailMessage = pcall(nilFailing)
+                local falseFailing = coroutine.wrap(function()
+                    error(false)
+                end)
+                local falseFailOk, falseFailMessage = pcall(falseFailing)
+                local located = coroutine.wrap(function()
+                    error("located")
+                end)
+                local function callLocated()
+                    return located()
+                end
+                local locatedOk, locatedMessage = pcall(callLocated)
                 return sum, samePayload, payloadName, resumeValue,
                     deadOk, deadMessage, nestedDeadOk, nestedDeadMessage,
                     failOk, failMessage, nestedFailOk, nestedFailMessage,
-                    objectFailOk, objectError == marker, objectError.name
+                    objectFailOk, objectError == marker, objectError.name,
+                    nilFailOk, nilFailMessage, falseFailOk, falseFailMessage,
+                    locatedOk, locatedMessage
                 """.trimIndent(),
                 "coroutine-wrap.lua",
             ),
@@ -11545,6 +11562,13 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(13))
         assertTrue(state.toBoolean(14))
         assertEquals("marker", state.toString(15))
+        assertFalse(state.toBoolean(16))
+        assertTrue(state.isNil(17))
+        assertFalse(state.toBoolean(18))
+        assertFalse(state.toBoolean(19))
+        assertFalse(state.toBoolean(20))
+        assertTrue(state.toString(21)?.startsWith("coroutine-wrap.lua:") == true, state.toString(21))
+        assertTrue(state.toString(21)?.endsWith(": located") == true, state.toString(21))
     }
 
     @Test
