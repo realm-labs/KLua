@@ -814,7 +814,6 @@ internal class Compiler private constructor(
                 val name = when (val key = callee.key) {
                     is StringExpression -> key.value
                     is IntegerExpression -> "integer index"
-                    is VariableExpression -> key.name
                     else -> "?"
                 }
                 val nameWhat = if (callee.receiver is VariableExpression && callee.receiver.name == "_ENV") {

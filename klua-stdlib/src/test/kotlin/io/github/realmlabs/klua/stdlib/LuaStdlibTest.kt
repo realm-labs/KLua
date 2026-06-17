@@ -1021,7 +1021,7 @@ class LuaStdlibTest {
         assertEquals("field", state.toString(14))
         assertEquals("integer index", state.toString(15))
         assertEquals("field", state.toString(16))
-        assertEquals("computedKey", state.toString(17))
+        assertEquals("?", state.toString(17))
         assertEquals("field", state.toString(18))
         assertEquals("method", state.toString(19))
         assertEquals("method", state.toString(20))
