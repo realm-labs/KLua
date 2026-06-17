@@ -2,6 +2,9 @@ package io.github.realmlabs.klua.core.lexer
 
 import io.github.realmlabs.klua.core.source.SourcePosition
 import io.github.realmlabs.klua.core.source.SourceRange
+import io.github.realmlabs.klua.core.value.toLuaByteString
+import java.io.ByteArrayOutputStream
+import java.nio.charset.StandardCharsets
 
 internal class Lexer(
     private val source: String,
@@ -194,7 +197,7 @@ internal class Lexer(
     }
 
     private fun string(start: SourcePosition, quote: Char): Token {
-        val builder = StringBuilder()
+        val bytes = ByteArrayOutputStream()
         while (!isAtEnd() && peek() != quote) {
             val char = advance()
             if (char == '\n') {
@@ -202,9 +205,9 @@ internal class Lexer(
             }
 
             if (char == '\\') {
-                builder.append(readEscape(start))
+                bytes.write(readEscape(start))
             } else {
-                builder.append(char)
+                writeSourceChar(bytes, char)
             }
         }
 
@@ -213,7 +216,7 @@ internal class Lexer(
         }
 
         advance()
-        return token(TokenKind.STRING, source.substring(start.offset, offset), start, builder.toString())
+        return token(TokenKind.STRING, source.substring(start.offset, offset), start, bytes.toByteArray().toLuaByteString())
     }
 
     private fun longString(start: SourcePosition, equals: Int): Token {
@@ -222,37 +225,46 @@ internal class Lexer(
         return token(TokenKind.STRING, source.substring(start.offset, offset), start, literal)
     }
 
-    private fun readEscape(start: SourcePosition): String {
+    private fun readEscape(start: SourcePosition): ByteArray {
         if (isAtEnd()) {
             throw errorAt(start, "unterminated escape sequence")
         }
 
         return when (val escaped = advance()) {
-            'a' -> "\u0007"
-            'b' -> "\b"
-            'f' -> "\u000C"
-            'n' -> "\n"
-            'r' -> "\r"
-            't' -> "\t"
-            'v' -> "\u000B"
+            'a' -> byteArrayOf(0x07)
+            'b' -> byteArrayOf(0x08)
+            'f' -> byteArrayOf(0x0C)
+            'n' -> byteArrayOf(0x0A)
+            'r' -> byteArrayOf(0x0D)
+            't' -> byteArrayOf(0x09)
+            'v' -> byteArrayOf(0x0B)
             'x' -> readHexEscape(start)
             'u' -> readUnicodeEscape(start)
             'z' -> {
                 while (peek().isWhitespace()) {
                     advance()
                 }
-                ""
+                ByteArray(0)
             }
-            '\\' -> "\\"
-            '"' -> "\""
-            '\'' -> "'"
-            '\n' -> "\n"
+            '\\' -> byteArrayOf('\\'.code.toByte())
+            '"' -> byteArrayOf('"'.code.toByte())
+            '\'' -> byteArrayOf('\''.code.toByte())
+            '\n' -> byteArrayOf(0x0A)
             in '0'..'9' -> readDecimalEscape(start, escaped)
             else -> throw errorAt(start, "invalid escape sequence")
         }
     }
 
-    private fun readDecimalEscape(start: SourcePosition, firstDigit: Char): String {
+    private fun writeSourceChar(bytes: ByteArrayOutputStream, char: Char) {
+        if (char.isHighSurrogate() && !isAtEnd() && peek().isLowSurrogate()) {
+            val low = advance()
+            bytes.write("$char$low".toByteArray(StandardCharsets.UTF_8))
+        } else {
+            bytes.write(char.toString().toByteArray(StandardCharsets.UTF_8))
+        }
+    }
+
+    private fun readDecimalEscape(start: SourcePosition, firstDigit: Char): ByteArray {
         var value = firstDigit.digitToInt()
         repeat(2) {
             if (!isAtEnd() && peek() in '0'..'9') {
@@ -262,14 +274,14 @@ internal class Lexer(
         if (value > 255) {
             throw errorAt(start, "escape sequence out of range")
         }
-        return value.toChar().toString()
+        return byteArrayOf(value.toByte())
     }
 
-    private fun readHexEscape(start: SourcePosition): String {
+    private fun readHexEscape(start: SourcePosition): ByteArray {
         val high = readRequiredHexDigit(start)
         val low = readRequiredHexDigit(start)
         val value = high * 16 + low
-        return value.toChar().toString()
+        return byteArrayOf(value.toByte())
     }
 
     private fun readRequiredHexDigit(start: SourcePosition): Int {
@@ -279,7 +291,7 @@ internal class Lexer(
         return advance().digitToInt(16)
     }
 
-    private fun readUnicodeEscape(start: SourcePosition): String {
+    private fun readUnicodeEscape(start: SourcePosition): ByteArray {
         if (!match('{')) {
             throw errorAt(start, "expected '{' after unicode escape")
         }
@@ -306,7 +318,7 @@ internal class Lexer(
         if (!Character.isValidCodePoint(codePoint) || codePoint in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code) {
             throw errorAt(start, "unicode escape out of range")
         }
-        return String(Character.toChars(codePoint))
+        return String(Character.toChars(codePoint)).toByteArray(StandardCharsets.UTF_8)
     }
 
     private fun symbol(start: SourcePosition, char: Char): Token {

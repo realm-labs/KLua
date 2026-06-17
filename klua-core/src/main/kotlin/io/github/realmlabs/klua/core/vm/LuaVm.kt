@@ -23,6 +23,7 @@ import io.github.realmlabs.klua.core.value.LuaNativeStackFrame
 import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
+import io.github.realmlabs.klua.core.value.luaRawBytes
 
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
@@ -1377,25 +1378,6 @@ internal class LuaVm(
             return leftBytes.size - rightBytes.size
         }
 
-        private fun String.luaRawBytes(): ByteArray {
-            val output = java.io.ByteArrayOutputStream()
-            var index = 0
-            while (index < length) {
-                val char = this[index]
-                val code = char.code
-                if (code in RAW_BYTE_MARKER_START..RAW_BYTE_MARKER_END) {
-                    output.write(code - RAW_BYTE_MARKER_START)
-                    index++
-                } else if (char.isHighSurrogate() && index + 1 < length && this[index + 1].isLowSurrogate()) {
-                    output.write(substring(index, index + 2).toByteArray(Charsets.UTF_8))
-                    index += 2
-                } else {
-                    output.write(char.toString().toByteArray(Charsets.UTF_8))
-                    index++
-                }
-            }
-            return output.toByteArray()
-        }
     }
 
     private enum class Bitwise {
@@ -1462,8 +1444,6 @@ private fun numberValue(value: LuaValue): Double? {
 
 private const val LONG_BITS = 64L
 private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
-private const val RAW_BYTE_MARKER_START = 0xDC00
-private const val RAW_BYTE_MARKER_END = RAW_BYTE_MARKER_START + 0xFF
 
 private fun integerValue(value: LuaValue): Long? {
     return when (value) {

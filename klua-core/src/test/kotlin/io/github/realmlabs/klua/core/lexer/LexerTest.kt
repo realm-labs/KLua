@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.core.lexer
 
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -137,7 +138,15 @@ class LexerTest {
         assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
         assertEquals("line\none", tokens[0].literal)
         assertEquals("tab\tvalue", tokens[1].literal)
-        assertEquals("\u0000\u0007\u00FF", tokens[2].literal)
+        assertEquals(byteArrayOf(0, 7, 255.toByte()).toLuaByteString(), tokens[2].literal)
+    }
+
+    @Test
+    fun `tokenizes byte string escapes as lua bytes`() {
+        val tokens = Lexer(""" "\255\x80\195\169é" """).tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals(byteArrayOf(255.toByte(), 128.toByte(), 195.toByte(), 169.toByte(), 195.toByte(), 169.toByte()).toLuaByteString(), tokens[0].literal)
     }
 
     @Test

@@ -14087,6 +14087,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string byte observes source byte escapes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local decimal = "\255"
+                local hex = "\xFF"
+                local escapedUtf8 = "\195\169"
+                return string.len(decimal), string.byte(decimal),
+                    string.len(hex), string.byte(hex),
+                    escapedUtf8 == "é", string.len(escapedUtf8),
+                    string.byte(escapedUtf8, 1, -1)
+                """.trimIndent(),
+                "string-source-byte-escapes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(255L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(255L, state.toInteger(4))
+        assertEquals(true, state.toBoolean(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals(195L, state.toInteger(7))
+        assertEquals(169L, state.toInteger(8))
+    }
+
+    @Test
     fun `string positional arguments accept lua numeric strings`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
