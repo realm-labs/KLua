@@ -230,6 +230,7 @@ private fun DapCapabilities.toDapJson(): DapJsonObject {
             "supportsConditionalBreakpoints" to DapJsonBoolean(supportsConditionalBreakpoints),
             "supportsHitConditionalBreakpoints" to DapJsonBoolean(supportsHitConditionalBreakpoints),
             "supportsEvaluateForHovers" to DapJsonBoolean(supportsEvaluateForHovers),
+            "supportsDelayedStackTraceLoading" to DapJsonBoolean(supportsDelayedStackTraceLoading),
             "supportsStepBack" to DapJsonBoolean(supportsStepBack),
             "supportsSetVariable" to DapJsonBoolean(supportsSetVariable),
         ),

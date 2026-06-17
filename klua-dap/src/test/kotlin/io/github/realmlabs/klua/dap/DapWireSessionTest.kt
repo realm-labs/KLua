@@ -38,6 +38,7 @@ class DapWireSessionTest {
                             "supportsConditionalBreakpoints" to DapJsonBoolean(true),
                             "supportsHitConditionalBreakpoints" to DapJsonBoolean(false),
                             "supportsEvaluateForHovers" to DapJsonBoolean(true),
+                            "supportsDelayedStackTraceLoading" to DapJsonBoolean(true),
                             "supportsStepBack" to DapJsonBoolean(false),
                             "supportsSetVariable" to DapJsonBoolean(false),
                         ),
@@ -75,7 +76,7 @@ class DapWireSessionTest {
 
         assertEquals(
             listOf(
-                """{"seq":1,"type":"response","request_seq":9,"success":true,"command":"initialize","body":{"capabilities":{"supportsConfigurationDoneRequest":true,"supportsConditionalBreakpoints":true,"supportsHitConditionalBreakpoints":false,"supportsEvaluateForHovers":true,"supportsStepBack":false,"supportsSetVariable":false}}}""",
+                """{"seq":1,"type":"response","request_seq":9,"success":true,"command":"initialize","body":{"capabilities":{"supportsConfigurationDoneRequest":true,"supportsConditionalBreakpoints":true,"supportsHitConditionalBreakpoints":false,"supportsEvaluateForHovers":true,"supportsDelayedStackTraceLoading":true,"supportsStepBack":false,"supportsSetVariable":false}}}""",
                 """{"seq":2,"type":"event","event":"initialized"}""",
             ),
             messages,
