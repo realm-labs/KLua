@@ -14,7 +14,6 @@ import io.github.realmlabs.klua.api.continueWith
 import io.github.realmlabs.klua.api.withContinuation
 import java.io.IOException
 import java.math.BigInteger
-import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
@@ -271,10 +270,11 @@ public object LuaStdlib {
             if ('b' !in mode) {
                 return LuaReturn.of(null, binaryChunkModeError(mode))
             }
+            val bytes = source.luaRawBytes()
             return if (context.isNone(4)) {
-                context.loadBytecode(source.toByteArray(StandardCharsets.ISO_8859_1), chunkName)
+                context.loadBytecode(bytes, chunkName)
             } else {
-                context.loadBytecode(source.toByteArray(StandardCharsets.ISO_8859_1), chunkName, argumentValue(context, 4))
+                context.loadBytecode(bytes, chunkName, argumentValue(context, 4))
             }
         }
         if ('t' !in mode) {
@@ -330,7 +330,7 @@ public object LuaStdlib {
         val read = readLoadFileSource(filename, state)
         val source = read.source
             ?: return LuaReturn.of(null, read.error ?: "cannot read file '$filename'")
-        val bytes = source.bytes ?: source.source.toByteArray(StandardCharsets.ISO_8859_1)
+        val bytes = source.bytes ?: source.source.luaRawBytes()
         if (isKLuaBinaryChunk(bytes)) {
             if ('b' !in mode) {
                 return LuaReturn.of(null, binaryChunkModeError(mode))

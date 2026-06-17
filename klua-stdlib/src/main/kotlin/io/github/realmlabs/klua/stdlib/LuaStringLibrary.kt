@@ -93,7 +93,7 @@ internal object LuaStringLibrary {
         }
         val bytes = context.dumpFunctionBytecode(1, strip = context.toBoolean(2))
             ?: throw LuaRuntimeException("bad argument #1 to 'string.dump' (Lua function expected)")
-        return LuaReturn.of(String(bytes, StandardCharsets.ISO_8859_1))
+        return LuaReturn.of(bytes.toLuaByteString())
     }
 
     private fun stringLen(context: LuaCallContext): LuaReturn {

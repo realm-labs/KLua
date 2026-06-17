@@ -6817,7 +6817,11 @@ class LuaStdlibTest {
                 local loaded = load(dumped, "dumped-add", "b")
                 local defaultLoaded = load(dumped, "dumped-add-default")
                 local textOnly, textMessage = load(dumped, "dumped-add-text", "t")
-                return type(dumped), loaded(19, 23), defaultLoaded(2, 5), textOnly, textMessage
+                local repacked = string.pack("c" .. rawlen(dumped), dumped)
+                local repackedLoaded = load(repacked, "repacked-add", "b")
+                local magicK, magicL, magicU, magicA = string.byte(dumped, 1, 4)
+                return type(dumped), loaded(19, 23), defaultLoaded(2, 5), textOnly, textMessage,
+                    repackedLoaded(5, 6), magicK, magicL, magicU, magicA
                 """.trimIndent(),
                 "string-dump-roundtrip.lua",
             ),
@@ -6829,6 +6833,11 @@ class LuaStdlibTest {
         assertEquals(7L, state.toInteger(3))
         assertTrue(state.isNil(4))
         assertEquals("attempt to load a binary chunk (mode is 't')", state.toString(5))
+        assertEquals(11L, state.toInteger(6))
+        assertEquals('K'.code.toLong(), state.toInteger(7))
+        assertEquals('L'.code.toLong(), state.toInteger(8))
+        assertEquals('u'.code.toLong(), state.toInteger(9))
+        assertEquals('a'.code.toLong(), state.toInteger(10))
     }
 
     @Test
@@ -7044,7 +7053,7 @@ class LuaStdlibTest {
             )
             assertEquals(LuaStatus.OK, dumpState.pcall(0, -1), dumpState.toString(-1))
             val dumped = dumpState.toString(1) ?: error("missing dumped bytecode")
-            Files.write(file, dumped.toByteArray(StandardCharsets.ISO_8859_1))
+            Files.write(file, dumped.luaRawBytes())
 
             val state = LuaState.create()
             LuaStdlib.openLibs(state)
