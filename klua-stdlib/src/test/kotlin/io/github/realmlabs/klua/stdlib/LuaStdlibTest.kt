@@ -13784,7 +13784,11 @@ class LuaStdlibTest {
                 local patternStart, patternEnd = string.find("abc", "", 5)
                 local matched = string.match("abc", "", 5)
                 local iterator = string.gmatch("abc", "", 5)
-                return plainStart, plainEnd, patternStart, patternEnd, matched, iterator()
+                local invalidFind = string.find("abc", "[", 5)
+                local invalidMatch = string.match("abc", "[", 5)
+                local invalidIterator = string.gmatch("abc", "[", 5)
+                return plainStart, plainEnd, patternStart, patternEnd, matched, iterator(),
+                    invalidFind, invalidMatch, invalidIterator()
                 """.trimIndent(),
                 "string-search-init-past-end.lua",
             ),
@@ -13797,6 +13801,9 @@ class LuaStdlibTest {
         assertTrue(state.isNil(4))
         assertTrue(state.isNil(5))
         assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.isNil(8))
+        assertTrue(state.isNil(9))
     }
 
     @Test

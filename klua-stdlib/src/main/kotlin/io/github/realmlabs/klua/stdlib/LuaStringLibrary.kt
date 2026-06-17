@@ -281,6 +281,9 @@ internal object LuaStringLibrary {
         val plain = context.toBoolean(4)
         val searchStart = text.luaByteSearchStart(start)
         val startIndex = searchStart.charIndex
+        if (startIndex > text.length) {
+            return LuaReturn.of(null)
+        }
         val match = if (plain) {
             LuaStringPattern.literal(pattern).find(text, startIndex)
         } else {
@@ -306,8 +309,12 @@ internal object LuaStringLibrary {
         } else {
             requiredInteger(context, 3, "gmatch")
         }
-        val compiledPattern = LuaStringPattern.compileGmatch(pattern)
         val searchStart = text.luaByteSearchStart(start)
+        if (searchStart.charIndex > text.length) {
+            val emptyIterator = LuaFunction { LuaReturn.of(null) }
+            return LuaReturn.of(emptyIterator)
+        }
+        val compiledPattern = LuaStringPattern.compileGmatch(pattern)
         var cursor = searchStart.charIndex
         var firstSearch = true
         val iterator = LuaFunction { _ ->
@@ -396,6 +403,9 @@ internal object LuaStringLibrary {
         }
         val searchStart = text.luaByteSearchStart(start)
         val startIndex = searchStart.charIndex
+        if (startIndex > text.length) {
+            return LuaReturn.of(null)
+        }
         val match = LuaStringPattern.compile(pattern).find(text, startIndex)
         if (match == null) {
             return LuaReturn.of(null)
