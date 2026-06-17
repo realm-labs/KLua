@@ -24,6 +24,7 @@ import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.value.luaRawBytes
+import io.github.realmlabs.klua.core.value.toLuaByteString
 
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
@@ -1178,7 +1179,8 @@ internal class LuaVm(
             val failedValue = if (left == null) leftValue else rightValue
             throw LuaVmException("attempt to concatenate ${operationTypeName(failedValue)}")
         }
-        stack.set(register(frame, Instruction.a(instruction)), LuaString(left + right))
+        val bytes = left.luaRawBytes() + right.luaRawBytes()
+        stack.set(register(frame, Instruction.a(instruction)), LuaString(bytes.toLuaByteString()))
     }
 
     private fun bitwise(stack: LuaStack, frame: CallFrame, instruction: Int, operation: Bitwise) {
@@ -1338,6 +1340,9 @@ internal class LuaVm(
             val rightNumber = numberValue(right)
             if (leftNumber != null && rightNumber != null) {
                 return leftNumber == rightNumber
+            }
+            if (left is LuaString && right is LuaString) {
+                return luaByteCompare(left.value, right.value) == 0
             }
             if (left is LuaUserData && right is LuaUserData) {
                 return left.value === right.value

@@ -21,6 +21,7 @@ import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUserDataProperty
 import io.github.realmlabs.klua.core.value.LuaUserDataType
 import io.github.realmlabs.klua.core.value.LuaValue
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmException
@@ -253,7 +254,9 @@ public object KLuaCoreRuntime {
             is KLuaCoreValue.BooleanValue -> left.value == (right as KLuaCoreValue.BooleanValue).value
             is KLuaCoreValue.IntegerValue -> left.value.toDouble() == right.coreNumber()
             is KLuaCoreValue.NumberValue -> left.value == right.coreNumber()
-            is KLuaCoreValue.StringValue -> left.value == (right as KLuaCoreValue.StringValue).value
+            is KLuaCoreValue.StringValue -> left.value.luaRawBytes().contentEquals(
+                (right as KLuaCoreValue.StringValue).value.luaRawBytes(),
+            )
             is KLuaCoreValue.FunctionValue -> {
                 val rightFunction = right as KLuaCoreValue.FunctionValue
                 when {

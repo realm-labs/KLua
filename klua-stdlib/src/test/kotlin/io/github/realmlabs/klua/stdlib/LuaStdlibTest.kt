@@ -7807,6 +7807,8 @@ class LuaStdlibTest {
                 return rawequal(nil, nil),
                     rawequal(1, 1.0),
                     rawequal("x", "x"),
+                    rawequal("\195" .. "\169", "é"),
+                    rawequal("\255" .. "", "\255"),
                     rawequal(false, false),
                     rawequal(1, "1"),
                     rawequal(tableValue, tableValue),
@@ -7826,14 +7828,16 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertTrue(state.toBoolean(3))
         assertTrue(state.toBoolean(4))
-        assertFalse(state.toBoolean(5))
+        assertTrue(state.toBoolean(5))
         assertTrue(state.toBoolean(6))
         assertFalse(state.toBoolean(7))
         assertTrue(state.toBoolean(8))
         assertFalse(state.toBoolean(9))
         assertTrue(state.toBoolean(10))
         assertFalse(state.toBoolean(11))
-        assertFalse(state.toBoolean(12))
+        assertTrue(state.toBoolean(12))
+        assertFalse(state.toBoolean(13))
+        assertFalse(state.toBoolean(14))
     }
 
     @Test

@@ -660,6 +660,29 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes string equality over canonical raw bytes`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local splitUtf8 = "\195" .. "\169"
+                local literalUtf8 = "é"
+                local raw = "\255"
+                local rebuiltRaw = "\255" .. ""
+                return splitUtf8 == literalUtf8,
+                    splitUtf8 ~= literalUtf8,
+                    raw == rebuiltRaw,
+                    raw == literalUtf8
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(LuaBoolean(true), LuaBoolean(false), LuaBoolean(true), LuaBoolean(false)),
+            result,
+        )
+    }
+
+    @Test
     fun `executes not with lua truthiness`() {
         val result = LuaVm().execute(
             Compiler.compile("""return not nil, not false, not true, not 0, not "text""""),
