@@ -3,7 +3,7 @@ package io.github.realmlabs.klua.stdlib
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
 
-private const val RAW_BYTE_MARKER_START = 0xE000
+private const val RAW_BYTE_MARKER_START = 0xDC00
 private const val RAW_BYTE_MARKER_END = RAW_BYTE_MARKER_START + 0xFF
 
 internal fun ByteArray.toLuaByteString(): String {

@@ -14000,12 +14000,14 @@ class LuaStdlibTest {
                 local invalidFirst, invalidSecond = string.byte(invalidBytes, 1, -1)
                 local slicedInvalid = string.sub(invalidBytes, 2, 2)
                 local smileFirst, smileSecond, smileThird, smileFourth = string.byte("\u{1F600}", 1, -1)
+                local privateFirst, privateSecond, privateThird = string.byte("\u{E080}", 1, -1)
                 local empty = string.char()
                 return first, second, third, last, utf8First, utf8Second, utf8Last,
                     string.char(65, 66, 67), utf8Char, charFirst, charSecond, empty,
                     invalidFirst, invalidSecond, string.len(invalidBytes), rawlen(invalidBytes),
                     string.byte(slicedInvalid),
-                    smileFirst, smileSecond, smileThird, smileFourth, string.len("\u{1F600}")
+                    smileFirst, smileSecond, smileThird, smileFourth, string.len("\u{1F600}"),
+                    privateFirst, privateSecond, privateThird, string.len("\u{E080}")
                 """.trimIndent(),
                 "string-byte-char.lua",
             ),
@@ -14034,6 +14036,10 @@ class LuaStdlibTest {
         assertEquals(152L, state.toInteger(20))
         assertEquals(128L, state.toInteger(21))
         assertEquals(4L, state.toInteger(22))
+        assertEquals(238L, state.toInteger(23))
+        assertEquals(130L, state.toInteger(24))
+        assertEquals(128L, state.toInteger(25))
+        assertEquals(3L, state.toInteger(26))
     }
 
     @Test
