@@ -26,6 +26,12 @@ internal data class GlobalStatement(
     override val range: SourceRange,
 ) : Statement
 
+internal data class GlobalFunctionStatement(
+    val name: String,
+    val function: FunctionExpression,
+    override val range: SourceRange,
+) : Statement
+
 internal enum class LocalAttribute {
     NONE,
     CONST,

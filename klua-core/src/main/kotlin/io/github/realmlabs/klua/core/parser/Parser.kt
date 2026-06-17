@@ -16,6 +16,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GlobalFunctionStatement
 import io.github.realmlabs.klua.core.ast.GlobalStatement
 import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
@@ -89,7 +90,7 @@ internal class Parser private constructor(
             match(TokenKind.REPEAT) -> repeatStatement(previous())
             match(TokenKind.FOR) -> forStatement(previous())
             match(TokenKind.FUNCTION) -> functionStatement(previous())
-            match(TokenKind.GLOBAL) -> globalStatement(previous())
+            match(TokenKind.GLOBAL) -> globalStatementOrFunction(previous())
             check(TokenKind.IDENTIFIER) -> assignmentOrCallStatement()
             check(TokenKind.LEFT_PAREN) -> callStatement()
             else -> throw errorAt(peek(), "expected statement")
@@ -137,6 +138,13 @@ internal class Parser private constructor(
         }
     }
 
+    private fun globalStatementOrFunction(start: Token): Statement {
+        if (match(TokenKind.FUNCTION)) {
+            return globalFunctionStatement(start, previous())
+        }
+        return globalStatement(start)
+    }
+
     private fun globalStatement(start: Token): GlobalStatement {
         val defaultAttribute = globalAttribute()
         if (match(TokenKind.STAR)) {
@@ -174,6 +182,16 @@ internal class Parser private constructor(
             throw errorAt(previous(), "global variables cannot be to-be-closed")
         }
         return attribute
+    }
+
+    private fun globalFunctionStatement(globalStart: Token, functionStart: Token): GlobalFunctionStatement {
+        val name = consume(TokenKind.IDENTIFIER, "expected global function name")
+        val function = functionBody(functionStart)
+        return GlobalFunctionStatement(
+            name = name.literal as String,
+            function = function,
+            range = SourceRange(globalStart.range.start, function.range.end),
+        )
     }
 
     private fun localFunctionStatement(localStart: Token, functionStart: Token): LocalFunctionStatement {

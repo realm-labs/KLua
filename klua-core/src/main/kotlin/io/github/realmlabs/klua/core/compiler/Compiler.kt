@@ -14,6 +14,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GlobalFunctionStatement
 import io.github.realmlabs.klua.core.ast.GlobalStatement
 import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
@@ -110,6 +111,7 @@ internal class Compiler private constructor(
             when (statement) {
                 is LocalStatement -> compileLocal(statement)
                 is GlobalStatement -> throw unsupported(statement, "global declarations are not supported")
+                is GlobalFunctionStatement -> throw unsupported(statement, "global function declarations are not supported")
                 is AssignmentStatement -> compileAssignment(statement)
                 is CallStatement -> compileCallStatement(statement)
                 is DoStatement -> compileScopedBlock(statement.block)

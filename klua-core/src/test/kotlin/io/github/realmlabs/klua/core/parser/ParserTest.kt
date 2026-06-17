@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.core.ast.FloatExpression
 import io.github.realmlabs.klua.core.ast.FunctionExpression
 import io.github.realmlabs.klua.core.ast.FunctionStatement
 import io.github.realmlabs.klua.core.ast.GenericForStatement
+import io.github.realmlabs.klua.core.ast.GlobalFunctionStatement
 import io.github.realmlabs.klua.core.ast.GlobalStatement
 import io.github.realmlabs.klua.core.ast.GotoStatement
 import io.github.realmlabs.klua.core.ast.IfStatement
@@ -189,6 +190,16 @@ class ParserTest {
         assertEquals(emptyList(), global.attributes)
         assertEquals(emptyList(), global.values)
         assertEquals(true, global.wildcard)
+    }
+
+    @Test
+    fun `parses global function declarations`() {
+        val chunk = Parser.parse("global function answer(left, right) return left + right end")
+
+        val global = assertIs<GlobalFunctionStatement>(chunk.statements.single())
+        assertEquals("answer", global.name)
+        assertEquals(listOf("left", "right"), global.function.parameters)
+        assertEquals(1, global.function.body.size)
     }
 
     @Test
