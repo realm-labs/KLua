@@ -13983,6 +13983,7 @@ class LuaStdlibTest {
     @Test
     fun `string byte and char convert byte values`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
 
         assertEquals(
@@ -13995,9 +13996,16 @@ class LuaStdlibTest {
                 local utf8Last = string.byte("é", -1)
                 local utf8Char = string.char(195, 169)
                 local charFirst, charSecond = string.byte(utf8Char, 1, -1)
+                local invalidBytes = string.char(128, 255)
+                local invalidFirst, invalidSecond = string.byte(invalidBytes, 1, -1)
+                local slicedInvalid = string.sub(invalidBytes, 2, 2)
+                local smileFirst, smileSecond, smileThird, smileFourth = string.byte("\u{1F600}", 1, -1)
                 local empty = string.char()
                 return first, second, third, last, utf8First, utf8Second, utf8Last,
-                    string.char(65, 66, 67), utf8Char, charFirst, charSecond, empty
+                    string.char(65, 66, 67), utf8Char, charFirst, charSecond, empty,
+                    invalidFirst, invalidSecond, string.len(invalidBytes), rawlen(invalidBytes),
+                    string.byte(slicedInvalid),
+                    smileFirst, smileSecond, smileThird, smileFourth, string.len("\u{1F600}")
                 """.trimIndent(),
                 "string-byte-char.lua",
             ),
@@ -14016,6 +14024,16 @@ class LuaStdlibTest {
         assertEquals(195L, state.toInteger(10))
         assertEquals(169L, state.toInteger(11))
         assertEquals("", state.toString(12))
+        assertEquals(128L, state.toInteger(13))
+        assertEquals(255L, state.toInteger(14))
+        assertEquals(2L, state.toInteger(15))
+        assertEquals(2L, state.toInteger(16))
+        assertEquals(255L, state.toInteger(17))
+        assertEquals(240L, state.toInteger(18))
+        assertEquals(159L, state.toInteger(19))
+        assertEquals(152L, state.toInteger(20))
+        assertEquals(128L, state.toInteger(21))
+        assertEquals(4L, state.toInteger(22))
     }
 
     @Test

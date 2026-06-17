@@ -57,7 +57,7 @@ internal object LuaStringLibrary {
 
     private fun stringByte(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "byte")
-        val bytes = text.toByteArray(StandardCharsets.UTF_8)
+        val bytes = text.luaRawBytes()
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
         } else {
@@ -84,7 +84,7 @@ internal object LuaStringLibrary {
             }
             bytes[index - 1] = code.toByte()
         }
-        return LuaReturn.of(String(bytes, StandardCharsets.UTF_8))
+        return LuaReturn.of(bytes.toLuaByteString())
     }
 
     private fun stringDump(context: LuaCallContext): LuaReturn {
@@ -1473,7 +1473,7 @@ internal object LuaStringLibrary {
     }
 
     private fun String.luaByteLength(): Long {
-        return toByteArray(StandardCharsets.UTF_8).size.toLong()
+        return luaRawBytes().size.toLong()
     }
 
     private fun ByteArray.luaIndexRange(start: Long, end: Long): IntRange {
@@ -1505,12 +1505,12 @@ internal object LuaStringLibrary {
     }
 
     private fun String.substringByLuaByteRange(start: Long, end: Long): String {
-        val bytes = toByteArray(StandardCharsets.UTF_8)
+        val bytes = luaRawBytes()
         val range = bytes.luaIndexRange(start, end)
         if (range.isEmpty()) {
             return ""
         }
-        return String(bytes.copyOfRange(range.first - 1, range.last), StandardCharsets.UTF_8)
+        return bytes.copyOfRange(range.first - 1, range.last).toLuaByteString()
     }
 
     private fun String.normalizeSearchStart(index: Long): Int {
@@ -1544,7 +1544,7 @@ internal object LuaStringLibrary {
 
         var bytePosition = 1L
         for (charIndex in indices) {
-            val charBytes = this[charIndex].toString().toByteArray(StandardCharsets.UTF_8).size.toLong()
+            val charBytes = this[charIndex].toString().luaRawBytes().size.toLong()
             if (bytePosition >= normalized) {
                 return LuaByteSearchStart(charIndex, normalized)
             }

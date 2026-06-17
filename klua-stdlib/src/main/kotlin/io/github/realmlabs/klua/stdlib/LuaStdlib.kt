@@ -1052,7 +1052,7 @@ public object LuaStdlib {
     }
 
     private fun String.luaByteLength(): Long {
-        return toByteArray(StandardCharsets.UTF_8).size.toLong()
+        return luaRawBytes().size.toLong()
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
