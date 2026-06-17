@@ -1072,6 +1072,12 @@ class LuaStdlibTest {
                 end
                 local mt = {
                     __add = function() return capture({}) end,
+                    __sub = function() return capture({}) end,
+                    __mul = function() return capture({}) end,
+                    __mod = function() return capture({}) end,
+                    __pow = function() return capture({}) end,
+                    __div = function() return capture({}) end,
+                    __idiv = function() return capture({}) end,
                     __unm = function() return capture({}) end,
                     __len = function() return capture(0) end,
                     __concat = function() return capture("") end,
@@ -1079,11 +1085,21 @@ class LuaStdlibTest {
                     __lt = function() return capture(true) end,
                     __le = function() return capture(true) end,
                     __band = function() return capture(0) end,
+                    __bor = function() return capture(0) end,
+                    __bxor = function() return capture(0) end,
+                    __shl = function() return capture(0) end,
+                    __shr = function() return capture(0) end,
                     __bnot = function() return capture(0) end,
                 }
                 local left = setmetatable({}, mt)
                 local right = setmetatable({}, mt)
                 local _ = left + right
+                _ = left - right
+                _ = left * right
+                _ = left % right
+                _ = left ^ right
+                _ = left / right
+                _ = left // right
                 _ = -left
                 _ = #left
                 _ = left .. right
@@ -1091,10 +1107,18 @@ class LuaStdlibTest {
                 _ = left < right
                 _ = left <= right
                 _ = left & right
+                _ = left | right
+                _ = left ~ right
+                _ = left << right
+                _ = left >> right
                 _ = ~left
                 return seen[1], seen[2], seen[3], seen[4], seen[5], seen[6],
                     seen[7], seen[8], seen[9], seen[10], seen[11], seen[12],
-                    seen[13], seen[14], seen[15], seen[16], seen[17], seen[18]
+                    seen[13], seen[14], seen[15], seen[16], seen[17], seen[18],
+                    seen[19], seen[20], seen[21], seen[22], seen[23], seen[24],
+                    seen[25], seen[26], seen[27], seen[28], seen[29], seen[30],
+                    seen[31], seen[32], seen[33], seen[34], seen[35], seen[36],
+                    seen[37], seen[38]
                 """.trimIndent(),
                 "debug-getinfo-operator-metamethod-names.lua",
             ),
@@ -1103,22 +1127,42 @@ class LuaStdlibTest {
 
         assertEquals("add", state.toString(1))
         assertEquals("metamethod", state.toString(2))
-        assertEquals("unm", state.toString(3))
+        assertEquals("sub", state.toString(3))
         assertEquals("metamethod", state.toString(4))
-        assertEquals("len", state.toString(5))
+        assertEquals("mul", state.toString(5))
         assertEquals("metamethod", state.toString(6))
-        assertEquals("concat", state.toString(7))
+        assertEquals("mod", state.toString(7))
         assertEquals("metamethod", state.toString(8))
-        assertEquals("eq", state.toString(9))
+        assertEquals("pow", state.toString(9))
         assertEquals("metamethod", state.toString(10))
-        assertEquals("lt", state.toString(11))
+        assertEquals("div", state.toString(11))
         assertEquals("metamethod", state.toString(12))
-        assertEquals("le", state.toString(13))
+        assertEquals("idiv", state.toString(13))
         assertEquals("metamethod", state.toString(14))
-        assertEquals("band", state.toString(15))
+        assertEquals("unm", state.toString(15))
         assertEquals("metamethod", state.toString(16))
-        assertEquals("bnot", state.toString(17))
+        assertEquals("len", state.toString(17))
         assertEquals("metamethod", state.toString(18))
+        assertEquals("concat", state.toString(19))
+        assertEquals("metamethod", state.toString(20))
+        assertEquals("eq", state.toString(21))
+        assertEquals("metamethod", state.toString(22))
+        assertEquals("lt", state.toString(23))
+        assertEquals("metamethod", state.toString(24))
+        assertEquals("le", state.toString(25))
+        assertEquals("metamethod", state.toString(26))
+        assertEquals("band", state.toString(27))
+        assertEquals("metamethod", state.toString(28))
+        assertEquals("bor", state.toString(29))
+        assertEquals("metamethod", state.toString(30))
+        assertEquals("bxor", state.toString(31))
+        assertEquals("metamethod", state.toString(32))
+        assertEquals("shl", state.toString(33))
+        assertEquals("metamethod", state.toString(34))
+        assertEquals("shr", state.toString(35))
+        assertEquals("metamethod", state.toString(36))
+        assertEquals("bnot", state.toString(37))
+        assertEquals("metamethod", state.toString(38))
     }
 
     @Test
