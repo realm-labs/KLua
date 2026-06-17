@@ -1960,6 +1960,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug thread arguments inspect normal coroutine stacks`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outer
+                outer = coroutine.create(function()
+                    local text = "old"
+                    local inner = coroutine.create(function()
+                        local info = debug.getinfo(outer, 0, "Sl")
+                        local name, value = debug.getlocal(outer, 0, 1)
+                        local changedName = debug.setlocal(outer, 0, 1, "new")
+                        local readName, changedValue = debug.getlocal(outer, 0, 1)
+                        local trace = debug.traceback(outer, "normal")
+                        return coroutine.status(outer), info.source, info.what, info.currentline > 0,
+                            name, value, changedName, readName, changedValue,
+                            string.find(trace, "debug-normal-thread.lua", 1, true) ~= nil
+                    end)
+                    local innerOk, status, source, what, hasLine, name, value, changedName, readName, changedValue,
+                        traceHasSource = coroutine.resume(inner)
+                    return innerOk, status, source, what, hasLine, name, value, changedName, readName, changedValue,
+                        traceHasSource, text
+                end)
+
+                return coroutine.resume(outer)
+                """.trimIndent(),
+                "debug-normal-thread.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("normal", state.toString(3))
+        assertEquals("debug-normal-thread.lua", state.toString(4))
+        assertEquals("Lua", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("text", state.toString(7))
+        assertEquals("old", state.toString(8))
+        assertEquals("text", state.toString(9))
+        assertEquals("text", state.toString(10))
+        assertEquals("new", state.toString(11))
+        assertTrue(state.toBoolean(12))
+        assertEquals("new", state.toString(13))
+    }
+
+    @Test
     fun `debug setlocal preserves table values in active and suspended lua locals`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
