@@ -189,19 +189,35 @@ internal object LuaMathLibrary {
     }
 
     private fun mathLessThan(context: LuaCallContext, leftIndex: Int, rightIndex: Int): Boolean {
-        context.lessThan(leftIndex, rightIndex)?.let { result -> return result }
         val leftType = context.typeName(leftIndex)
         val rightType = context.typeName(rightIndex)
         if (leftType == "number" && rightType == "number") {
             return requiredNumber(context, leftIndex, "min") < requiredNumber(context, rightIndex, "min")
         }
         if (leftType == "string" && rightType == "string") {
-            return requiredString(context, leftIndex, "min") < requiredString(context, rightIndex, "min")
+            return luaByteCompare(
+                requiredString(context, leftIndex, "min"),
+                requiredString(context, rightIndex, "min"),
+            ) < 0
         }
+        context.lessThan(leftIndex, rightIndex)?.let { result -> return result }
         if (leftType == rightType) {
             throw LuaRuntimeException("attempt to compare two $leftType values")
         }
         throw LuaRuntimeException("attempt to compare $leftType with $rightType")
+    }
+
+    private fun luaByteCompare(left: String, right: String): Int {
+        val leftBytes = left.luaRawBytes()
+        val rightBytes = right.luaRawBytes()
+        val limit = minOf(leftBytes.size, rightBytes.size)
+        for (index in 0 until limit) {
+            val comparison = (leftBytes[index].toInt() and 0xff) - (rightBytes[index].toInt() and 0xff)
+            if (comparison != 0) {
+                return comparison
+            }
+        }
+        return leftBytes.size - rightBytes.size
     }
 
     private fun mathMinMaxValue(context: LuaCallContext, index: Int): Any? {

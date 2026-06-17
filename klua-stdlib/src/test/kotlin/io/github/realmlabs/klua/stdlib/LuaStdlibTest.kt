@@ -13241,6 +13241,7 @@ class LuaStdlibTest {
     fun `math min and max use lua comparison and return selected value`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -13251,10 +13252,15 @@ class LuaStdlibTest {
                 local maxBoolean = math.max(true)
                 local minString = math.min("3", "4")
                 local maxString = math.max("3", "4")
+                local raw = string.char(128)
+                local utf8 = "é"
+                local rawMin = math.min(raw, utf8)
+                local rawMax = math.max(raw, utf8)
                 return minTable == tableValue,
                     maxBoolean,
                     minString, math.type(minString),
-                    maxString, math.type(maxString)
+                    maxString, math.type(maxString),
+                    string.byte(rawMin), rawMax == utf8
                 """.trimIndent(),
                 "math-min-max-comparison.lua",
             ),
@@ -13267,6 +13273,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(4))
         assertEquals("4", state.toString(5))
         assertTrue(state.isNil(6))
+        assertEquals(128L, state.toInteger(7))
+        assertTrue(state.toBoolean(8))
     }
 
     @Test
