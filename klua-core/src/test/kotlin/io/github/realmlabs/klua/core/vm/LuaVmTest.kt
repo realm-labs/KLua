@@ -761,6 +761,15 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes string length over raw byte escapes`() {
+        val result = LuaVm().execute(
+            Compiler.compile("""return #"\255\128", #"\195\169", #"\255é" """),
+        )
+
+        assertEquals(listOf(LuaInteger(2), LuaInteger(2), LuaInteger(3)), result)
+    }
+
+    @Test
     fun `executes true if branch`() {
         val result = LuaVm().execute(
             Compiler.compile(

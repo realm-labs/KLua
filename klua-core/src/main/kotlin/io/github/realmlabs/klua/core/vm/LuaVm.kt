@@ -1074,7 +1074,7 @@ internal class LuaVm(
     private fun length(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val value = stack.get(register(frame, Instruction.b(instruction)))
         val result = when (value) {
-            is LuaString -> LuaInteger(value.value.encodeToByteArray().size.toLong())
+            is LuaString -> LuaInteger(value.value.luaRawBytes().size.toLong())
             is LuaTable -> tableLength(value)
             is LuaUserData -> userDataLength(value)
             else -> primitiveLength(value)
