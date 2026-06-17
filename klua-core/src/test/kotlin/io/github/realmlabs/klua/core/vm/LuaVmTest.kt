@@ -146,6 +146,13 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes out of range decimal integer literals as floats`() {
+        val result = LuaVm().execute(Compiler.compile("return 9223372036854775808"))
+
+        assertEquals(listOf(LuaFloat(9223372036854775808.0)), result)
+    }
+
+    @Test
     fun `executes leading dot numeric literals`() {
         val result = LuaVm().execute(Compiler.compile("return .5, -.25"))
 

@@ -91,7 +91,12 @@ internal class Lexer(
         return if (isFloat) {
             token(TokenKind.FLOAT, text, start, text.toDouble())
         } else {
-            token(TokenKind.INTEGER, text, start, text.toLong())
+            val integer = text.toLongOrNull()
+            if (integer != null) {
+                token(TokenKind.INTEGER, text, start, integer)
+            } else {
+                token(TokenKind.FLOAT, text, start, text.toDouble())
+            }
         }
     }
 

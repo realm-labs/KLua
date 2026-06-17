@@ -65,6 +65,14 @@ class LexerTest {
     }
 
     @Test
+    fun `tokenizes out of range decimal integers as floats`() {
+        val tokens = Lexer("9223372036854775808").tokenize()
+
+        assertEquals(listOf(TokenKind.FLOAT, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals(9223372036854775808.0, tokens[0].literal)
+    }
+
+    @Test
     fun `tokenizes leading dot float numbers`() {
         val tokens = Lexer(".5 .25e2").tokenize()
 
