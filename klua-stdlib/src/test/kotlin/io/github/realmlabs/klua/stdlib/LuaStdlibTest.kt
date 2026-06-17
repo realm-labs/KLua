@@ -10618,6 +10618,20 @@ class LuaStdlibTest {
                     __newindex = tableWrites,
                 })
                 os.time(tableDate)
+                local nestedWrites = {}
+                local proxy = setmetatable({}, {
+                    __newindex = function(_, key, value)
+                        nestedWrites[key] = value
+                    end,
+                })
+                local nestedDate = setmetatable({
+                    year = 2020,
+                    month = 1,
+                    day = 2,
+                }, {
+                    __newindex = proxy,
+                })
+                os.time(nestedDate)
                 return type(timestamp),
                     date.year, date.month, date.day,
                     rawget(date, "hour"),
@@ -10625,7 +10639,10 @@ class LuaStdlibTest {
                     writes.wday ~= nil, writes.yday ~= nil, writes.isdst ~= nil,
                     rawget(tableDate, "hour"),
                     tableWrites.hour, tableWrites.min, tableWrites.sec,
-                    tableWrites.wday ~= nil, tableWrites.yday ~= nil, tableWrites.isdst ~= nil
+                    tableWrites.wday ~= nil, tableWrites.yday ~= nil, tableWrites.isdst ~= nil,
+                    rawget(proxy, "hour"),
+                    nestedWrites.hour, nestedWrites.min, nestedWrites.sec,
+                    nestedWrites.wday ~= nil, nestedWrites.yday ~= nil, nestedWrites.isdst ~= nil
                 """.trimIndent(),
                 "os-time-newindex-normalization.lua",
             ),
@@ -10650,6 +10667,13 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(16))
         assertTrue(state.toBoolean(17))
         assertTrue(state.toBoolean(18))
+        assertTrue(state.isNil(19))
+        assertEquals(12L, state.toInteger(20))
+        assertEquals(0L, state.toInteger(21))
+        assertEquals(0L, state.toInteger(22))
+        assertTrue(state.toBoolean(23))
+        assertTrue(state.toBoolean(24))
+        assertTrue(state.toBoolean(25))
     }
 
     @Test

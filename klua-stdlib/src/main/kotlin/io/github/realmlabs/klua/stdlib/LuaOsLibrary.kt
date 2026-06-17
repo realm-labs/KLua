@@ -465,23 +465,44 @@ internal object LuaOsLibrary {
     }
 
     private fun setDateField(context: LuaCallContext, key: String, value: Any?) {
-        if (context.getTableValue(1, key) != null) {
-            context.setTableValue(1, key, value)
+        setDateField(
+            context,
+            context.getLuaValue(1),
+            context.getMetatable(1),
+            key,
+            value,
+            java.util.Collections.newSetFromMap(java.util.IdentityHashMap()),
+        )
+    }
+
+    private fun setDateField(
+        context: LuaCallContext,
+        table: Any?,
+        metatable: Any?,
+        key: String,
+        value: Any?,
+        visited: MutableSet<Any>,
+    ) {
+        if (table != null && !visited.add(table)) {
+            throw LuaRuntimeException("'__newindex' chain too long; possible loop")
+        }
+        if (context.getTableField(table, key) != null) {
+            context.setTableField(table, key, value)
             return
         }
-        val newIndex = context.getTableField(context.getMetatable(1), "__newindex")
+        val newIndex = context.getTableField(metatable, "__newindex")
         if (newIndex == null) {
-            context.setTableValue(1, key, value)
+            context.setTableField(table, key, value)
             return
         }
         if (context.isTableValue(newIndex)) {
-            context.setTableField(newIndex, key, value)
+            setDateField(context, newIndex, context.getTableMetatable(newIndex), key, value, visited)
             return
         }
         try {
-            context.call(newIndex, listOf(context.getLuaValue(1), key, value))
+            context.call(newIndex, listOf(table, key, value))
         } catch (_: IllegalArgumentException) {
-            context.setTableValue(1, key, value)
+            context.setTableField(table, key, value)
         }
     }
 
