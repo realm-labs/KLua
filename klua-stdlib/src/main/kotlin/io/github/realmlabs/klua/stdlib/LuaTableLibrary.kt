@@ -647,7 +647,7 @@ internal object LuaTableLibrary {
         }
         return when {
             context.isTable(1) -> context.tableLength(1) ?: 0L
-            sourceType == "string" -> context.toString(1)?.toByteArray(Charsets.UTF_8)?.size?.toLong() ?: 0L
+            sourceType == "string" -> context.toString(1)?.luaRawBytes()?.size?.toLong() ?: 0L
             else -> throw LuaRuntimeException("attempt to get length of a $sourceType value")
         }
     }

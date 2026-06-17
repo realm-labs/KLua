@@ -21231,14 +21231,19 @@ class LuaStdlibTest {
         LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
         LuaStdlib.openTable(state)
+        LuaStdlib.openUtf8(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
                 """
+                local raw = string.char(255, 65)
+                local wide = utf8.char(128512)
                 local count = select("#", table.unpack("abc"))
                 local first, second, third = table.unpack("abc")
-                return count, first, second, third
+                local rawCount = select("#", table.unpack(raw))
+                local wideCount = select("#", table.unpack(wide))
+                return count, first, second, third, rawCount, wideCount
                 """.trimIndent(),
                 "table-unpack-string-metatable.lua",
             ),
@@ -21249,6 +21254,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(2))
         assertTrue(state.isNil(3))
         assertTrue(state.isNil(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(4L, state.toInteger(6))
     }
 
     @Test
