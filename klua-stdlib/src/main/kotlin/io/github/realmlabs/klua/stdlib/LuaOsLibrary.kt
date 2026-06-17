@@ -452,13 +452,35 @@ internal object LuaOsLibrary {
     }
 
     private fun dateTableField(context: LuaCallContext, key: String): Any? {
-        val rawValue = context.getTableValue(1, key)
+        return dateTableField(
+            context,
+            context.getLuaValue(1),
+            context.getMetatable(1),
+            key,
+            java.util.Collections.newSetFromMap(java.util.IdentityHashMap()),
+        )
+    }
+
+    private fun dateTableField(
+        context: LuaCallContext,
+        table: Any?,
+        metatable: Any?,
+        key: String,
+        visited: MutableSet<Any>,
+    ): Any? {
+        if (table != null && !visited.add(table)) {
+            throw LuaRuntimeException("'__index' chain too long; possible loop")
+        }
+        val rawValue = context.getTableField(table, key)
         if (rawValue != null) {
             return rawValue
         }
-        val index = context.getTableField(context.getMetatable(1), "__index") ?: return null
+        val index = context.getTableField(metatable, "__index") ?: return null
+        if (context.isTableValue(index)) {
+            return dateTableField(context, index, context.getTableMetatable(index), key, visited)
+        }
         return try {
-            context.call(index, listOf(context.getLuaValue(1), key)).get(1)
+            context.call(index, listOf(table, key)).get(1)
         } catch (_: IllegalArgumentException) {
             context.getTableField(index, key)
         }

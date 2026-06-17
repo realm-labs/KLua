@@ -10436,6 +10436,7 @@ class LuaStdlibTest {
                 """
                 local fallback = {year = 2020, month = 1, day = 1}
                 local tableBacked = setmetatable({}, {__index = fallback})
+                local nestedTableBacked = setmetatable({}, {__index = setmetatable({}, {__index = fallback})})
                 local calls = {}
                 local functionBacked = setmetatable({}, {
                     __index = function(_, key)
@@ -10444,9 +10445,10 @@ class LuaStdlibTest {
                     end,
                 })
                 local first = os.time(tableBacked)
-                local second = os.time(functionBacked)
-                return os.difftime(second, first), calls[1], calls[2], calls[3],
-                    tableBacked.year, functionBacked.year
+                local second = os.time(nestedTableBacked)
+                local third = os.time(functionBacked)
+                return os.difftime(second, first), os.difftime(third, first), calls[1], calls[2], calls[3],
+                    tableBacked.year, nestedTableBacked.year, functionBacked.year
                 """.trimIndent(),
                 "os-time-index-metamethod.lua",
             ),
@@ -10454,11 +10456,13 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals(0.0, state.toNumber(1) ?: error("missing difftime result"), 0.0)
-        assertEquals("year", state.toString(2))
-        assertEquals("month", state.toString(3))
-        assertEquals("day", state.toString(4))
-        assertEquals(2020L, state.toInteger(5))
+        assertEquals(0.0, state.toNumber(2) ?: error("missing nested difftime result"), 0.0)
+        assertEquals("year", state.toString(3))
+        assertEquals("month", state.toString(4))
+        assertEquals("day", state.toString(5))
         assertEquals(2020L, state.toInteger(6))
+        assertEquals(2020L, state.toInteger(7))
+        assertEquals(2020L, state.toInteger(8))
     }
 
     @Test
