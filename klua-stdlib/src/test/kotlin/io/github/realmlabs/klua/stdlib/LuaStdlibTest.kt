@@ -2285,6 +2285,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setlocal validates stack level before replacement argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(debug.setlocal, 99, 1)
+                return ok, message
+                """.trimIndent(),
+                "debug-setlocal-level-before-value.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'debug.setlocal' (level out of range)", state.toString(2))
+    }
+
+    @Test
     fun `debug setlocal reports non numeric stack level errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
