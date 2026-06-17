@@ -163,10 +163,7 @@ internal class Lexer(
         return if (isFloat) {
             token(TokenKind.FLOAT, text, start, parseHexFloat(text))
         } else {
-            val digits = text.substring(2)
-            val integer = digits.toULongOrNull(16)
-                ?: throw errorAt(start, "hexadecimal integer out of range")
-            token(TokenKind.INTEGER, text, start, integer.toLong())
+            token(TokenKind.INTEGER, text, start, parseHexInteger(text))
         }
     }
 
@@ -177,6 +174,14 @@ internal class Lexer(
             text
         }
         return java.lang.Double.parseDouble(parseable)
+    }
+
+    private fun parseHexInteger(text: String): Long {
+        var value = 0UL
+        for (index in 2 until text.length) {
+            value = value * 16UL + text[index].hexValue().toULong()
+        }
+        return value.toLong()
     }
 
     private fun string(start: SourcePosition, quote: Char): Token {
@@ -492,6 +497,14 @@ internal class Lexer(
     private fun Char.isDigit(): Boolean = this in '0'..'9'
 
     private fun Char.isHexDigit(): Boolean = isDigit() || this in 'A'..'F' || this in 'a'..'f'
+
+    private fun Char.hexValue(): Int {
+        return when (this) {
+            in '0'..'9' -> this - '0'
+            in 'A'..'F' -> this - 'A' + 10
+            else -> this - 'a' + 10
+        }
+    }
 
     private companion object {
         val keywords = mapOf(

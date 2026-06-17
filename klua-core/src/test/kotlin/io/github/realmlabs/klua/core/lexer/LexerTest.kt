@@ -90,10 +90,12 @@ class LexerTest {
 
     @Test
     fun `tokenizes hexadecimal integer and float numbers`() {
-        val tokens = Lexer("0xff 0X10 0x1.8p1 0x0.1E").tokenize()
+        val tokens = Lexer("0xff 0X10 0xffffffffffffffff 0x10000000000000000 0x1.8p1 0x0.1E").tokenize()
 
         assertEquals(
             listOf(
+                TokenKind.INTEGER,
+                TokenKind.INTEGER,
                 TokenKind.INTEGER,
                 TokenKind.INTEGER,
                 TokenKind.FLOAT,
@@ -104,8 +106,10 @@ class LexerTest {
         )
         assertEquals(255L, tokens[0].literal)
         assertEquals(16L, tokens[1].literal)
-        assertEquals(3.0, tokens[2].literal)
-        assertEquals(0.1171875, tokens[3].literal)
+        assertEquals(-1L, tokens[2].literal)
+        assertEquals(0L, tokens[3].literal)
+        assertEquals(3.0, tokens[4].literal)
+        assertEquals(0.1171875, tokens[5].literal)
     }
 
     @Test

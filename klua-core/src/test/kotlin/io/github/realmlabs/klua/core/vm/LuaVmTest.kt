@@ -140,9 +140,13 @@ class LuaVmTest {
 
     @Test
     fun `executes hexadecimal numeric literals`() {
-        val result = LuaVm().execute(Compiler.compile("return 0xff, 0x1.8p1, 0x0.1E"))
+        val result = LuaVm().execute(
+            Compiler.compile(
+                "return 0xff, 0xffffffffffffffff, 0x10000000000000000, 0x1.8p1, 0x0.1E",
+            ),
+        )
 
-        assertEquals(listOf(LuaInteger(255), LuaFloat(3.0), LuaFloat(0.1171875)), result)
+        assertEquals(listOf(LuaInteger(255), LuaInteger(-1), LuaInteger(0), LuaFloat(3.0), LuaFloat(0.1171875)), result)
     }
 
     @Test
