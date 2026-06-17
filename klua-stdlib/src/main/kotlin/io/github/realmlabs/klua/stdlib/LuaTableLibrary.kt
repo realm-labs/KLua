@@ -777,7 +777,7 @@ internal object LuaTableLibrary {
     }
 
     private fun Double.luaInteger(): Long? {
-        if (!isFinite()) {
+        if (!isFinite() || this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
             return null
         }
         val integer = toLong()
@@ -797,4 +797,5 @@ internal object LuaTableLibrary {
     }
 
     private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
+    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
 }

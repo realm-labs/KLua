@@ -40,6 +40,9 @@ class LuaStateStackJavaTest {
         state.pushString("0xFFFFFFFFFFFFFFFF");
         state.pushString("0x10000000000000000");
         state.pushString("\u20033");
+        state.pushString("9223372036854775808");
+        state.pushString("0x1p63");
+        state.pushString("-0x1p63");
 
         assertEquals(3L, state.toInteger(1));
         assertEquals(3L, state.toInteger(2));
@@ -49,6 +52,9 @@ class LuaStateStackJavaTest {
         assertEquals(-1L, state.toInteger(6));
         assertEquals(0L, state.toInteger(7));
         assertNull(state.toInteger(8));
+        assertNull(state.toInteger(9));
+        assertNull(state.toInteger(10));
+        assertEquals(Long.MIN_VALUE, state.toInteger(11));
     }
 
     @Test

@@ -10455,6 +10455,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time rejects out of range numeric string date fields`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return pcall(os.time, {year = "0x1p63", month = 1, day = 1})
+                """.trimIndent(),
+                "os-time-out-of-range-numeric-string-field.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("field 'year' is not an integer", state.toString(2))
+    }
+
+    @Test
     fun `os time reads date fields through index metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -12766,6 +12787,8 @@ class LuaStdlibTest {
                     math.tointeger("3.0"),
                     math.tointeger("0x10"),
                     math.tointeger("0x1.8p1"),
+                    math.tointeger("0x1p63"),
+                    math.tointeger("-0x1p63"),
                     math.tointeger("3.5"),
                     math.ult(0, -1),
                     math.ult(-1, 0),
@@ -12783,9 +12806,11 @@ class LuaStdlibTest {
         assertEquals(16L, state.toInteger(5))
         assertEquals(3L, state.toInteger(6))
         assertTrue(state.isNil(7))
-        assertTrue(state.toBoolean(8))
-        assertFalse(state.toBoolean(9))
-        assertFalse(state.toBoolean(10))
+        assertEquals(Long.MIN_VALUE, state.toInteger(8))
+        assertTrue(state.isNil(9))
+        assertTrue(state.toBoolean(10))
+        assertFalse(state.toBoolean(11))
+        assertFalse(state.toBoolean(12))
     }
 
     @Test
@@ -18115,6 +18140,29 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(explicitRangeState.getLastError())
         assertEquals("object length is not an integer", explicitRangeState.toString(-1))
+
+        val outOfRangeState = LuaState.create()
+        LuaStdlib.openBase(outOfRangeState)
+        LuaStdlib.openTable(outOfRangeState)
+
+        assertEquals(
+            LuaStatus.OK,
+            outOfRangeState.load(
+                """
+                local values = setmetatable({}, {
+                    __len = function()
+                        return "0x1p63"
+                    end,
+                })
+                return table.concat(values)
+                """.trimIndent(),
+                "table-concat-out-of-range-length-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.RUNTIME_ERROR, outOfRangeState.pcall(0, -1))
+
+        assertIs<LuaRuntimeException>(outOfRangeState.getLastError())
+        assertEquals("object length is not an integer", outOfRangeState.toString(-1))
     }
 
     @Test

@@ -1165,7 +1165,7 @@ class LuaState private constructor(
     }
 
     private fun integerFromNumber(value: Double): Long? {
-        if (!value.isFinite()) {
+        if (!value.isFinite() || value < Long.MIN_VALUE.toDouble() || value >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
             return null
         }
         val integer = value.toLong()
@@ -2014,6 +2014,7 @@ class LuaState private constructor(
     }
 }
 
+private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
 private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 private val RAW_TYPE_METATABLE_TYPES = setOf("nil", "boolean", "number", "string", "function", "thread")
 

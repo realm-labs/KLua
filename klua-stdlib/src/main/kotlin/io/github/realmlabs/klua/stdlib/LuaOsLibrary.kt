@@ -596,7 +596,7 @@ internal object LuaOsLibrary {
     }
 
     private fun Double.luaInteger(): Long? {
-        if (!isFinite()) {
+        if (!isFinite() || this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
             return null
         }
         val integer = toLong()
@@ -611,6 +611,7 @@ internal object LuaOsLibrary {
     private const val EXIT_SUCCESS = 0
     private const val EXIT_FAILURE = 1
     private const val NANOS_PER_SECOND = 1_000_000_000.0
+    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
     private val LOCALE_CATEGORIES = setOf("all", "collate", "ctype", "monetary", "numeric", "time")
     private val LOCALE_TAG_PATTERN = Regex("[A-Za-z]{2,3}(-([A-Za-z]{2}|[0-9]{3}))?(-[A-Za-z0-9]+)*")
