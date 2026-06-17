@@ -13757,6 +13757,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string positional arguments accept lua numeric strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local byte2, byte3 = string.byte("ABC", "0x2", "0x3")
+                local findStart, findEnd = string.find("banana", "an", "0x3")
+                local iterator = string.gmatch("banana", "an", "0x3")
+                local replaced, count = string.gsub("banana", "an", "ON", "0x1")
+                return string.sub("abcdef", "0x2", "0x4"),
+                    byte2, byte3,
+                    findStart, findEnd,
+                    string.match("banana", "an", "0x3"),
+                    iterator(),
+                    replaced, count
+                """.trimIndent(),
+                "string-numeric-string-positions.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("bcd", state.toString(1))
+        assertEquals(66L, state.toInteger(2))
+        assertEquals(67L, state.toInteger(3))
+        assertEquals(4L, state.toInteger(4))
+        assertEquals(5L, state.toInteger(5))
+        assertEquals("an", state.toString(6))
+        assertEquals("an", state.toString(7))
+        assertEquals("bONana", state.toString(8))
+        assertEquals(1L, state.toInteger(9))
+    }
+
+    @Test
     fun `string find locates literal substrings`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
