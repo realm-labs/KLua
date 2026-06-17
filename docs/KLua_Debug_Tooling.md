@@ -6,7 +6,7 @@ KLua debug tooling is split across three modules:
 - `klua-dap` adapts those debug primitives to Debug Adapter Protocol-shaped requests and `Content-Length` framed JSON messages.
 - `klua-tools` contains the command-line debugger runner core, the `klua --debug <script.lua> [args...]` command-loop wrapper, and the `klua --compile <script.lua> <output.kluac>` bytecode package compiler.
 
-The current implementation is a library-level foundation. It does not yet package a standalone executable DAP adapter process, and live VM stop contexts are still limited. `bt` and `locals` in the CLI runner therefore report that no Lua frame is suspended until VM-level stop-state integration is added.
+The current implementation is a library-level foundation. It does not yet package a standalone executable DAP adapter process, and live VM stop contexts are still limited. The CLI runner can render supplied `DebugFrameView` backtraces and locals, but the default command-line path still reports that no Lua frame is suspended until VM-level stop-state integration is added.
 
 ## Bytecode Compiler
 
@@ -53,7 +53,7 @@ Current behavior:
 - `run` loads and executes the configured script through the public `Lua` API, passing any script arguments. Paths ending in `.kluac` are read as KLua bytecode packages; other paths are read as Lua source.
 - `continue`, `next`, `step`, and `out` update `DebugController` state.
 - `print <expr>` evaluates a top-level expression by loading `return <expr>` through the public `Lua` API.
-- `bt` and `locals` are command-compatible placeholders until suspended-frame integration is available.
+- `bt` and `locals` render supplied suspended-frame views; the default command-line runner still reports that no Lua frame is suspended until VM stop-state integration is connected.
 
 ## DAP Integration
 

@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.api.Lua
 import io.github.realmlabs.klua.api.LuaException
 import io.github.realmlabs.klua.debug.BreakpointManager
 import io.github.realmlabs.klua.debug.DebugController
+import io.github.realmlabs.klua.debug.DebugFrameView
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -17,6 +18,10 @@ public data class DebugCliResult(
     public val message: String,
     public val values: List<Any?> = emptyList(),
 )
+
+public fun interface DebugCliFrameProvider {
+    public fun frames(): List<DebugFrameView>
+}
 
 public sealed interface DebugCliCommand {
     public data class Break(
@@ -82,6 +87,7 @@ public class DebugCliRunner(
     private val luaFactory: () -> Lua = { Lua.create() },
     private val readSource: (String) -> String = { program -> Files.readString(Path.of(program)) },
     private val readBytecode: (String) -> ByteArray = { program -> Files.readAllBytes(Path.of(program)) },
+    private val frameProvider: DebugCliFrameProvider = DebugCliFrameProvider { emptyList() },
 ) {
     public fun execute(input: String): DebugCliResult {
         return execute(DebugCliCommandParser.parse(input))
@@ -107,8 +113,8 @@ public class DebugCliRunner(
                 debugController.stepOut(currentDepth = 1)
                 DebugCliResult(success = true, message = "out")
             }
-            DebugCliCommand.Backtrace -> DebugCliResult(success = false, message = "no suspended Lua frame")
-            DebugCliCommand.Locals -> DebugCliResult(success = false, message = "no suspended Lua frame")
+            DebugCliCommand.Backtrace -> backtrace()
+            DebugCliCommand.Locals -> locals()
             is DebugCliCommand.Print -> evaluateExpression(command.expression)
             DebugCliCommand.Quit -> DebugCliResult(success = true, message = "quit")
         }
@@ -141,6 +147,28 @@ public class DebugCliRunner(
         } catch (error: Exception) {
             DebugCliResult(success = false, message = error.message ?: error::class.java.simpleName)
         }
+    }
+
+    private fun backtrace(): DebugCliResult {
+        val frames = frameProvider.frames()
+        if (frames.isEmpty()) {
+            return DebugCliResult(success = false, message = "no suspended Lua frame")
+        }
+        return DebugCliResult(
+            success = true,
+            message = "backtrace",
+            values = frames.map { frame -> "#${frame.level} ${frame.sourceName}:${frame.line}" },
+        )
+    }
+
+    private fun locals(): DebugCliResult {
+        val frame = frameProvider.frames().firstOrNull()
+            ?: return DebugCliResult(success = false, message = "no suspended Lua frame")
+        return DebugCliResult(
+            success = true,
+            message = "locals",
+            values = frame.locals.map { variable -> "${variable.name} = ${variable.displayValue}" },
+        )
     }
 
     private fun evaluateExpression(expression: String): DebugCliResult {

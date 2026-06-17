@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.tools
 
+import io.github.realmlabs.klua.debug.DebugFrameView
+import io.github.realmlabs.klua.debug.DebugVariable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -96,5 +98,35 @@ class DebugCliRunnerTest {
         assertEquals(DebugCliResult(success = true, message = "out"), runner.execute("out"))
         assertFalse(runner.execute("bt").success)
         assertFalse(runner.execute("locals").success)
+    }
+
+    @Test
+    fun `runner renders supplied backtrace and locals`() {
+        val runner = DebugCliRunner(
+            session = DebugCliSession(program = "main.lua"),
+            frameProvider = DebugCliFrameProvider {
+                listOf(
+                    DebugFrameView(
+                        level = 0,
+                        sourceName = "main.lua",
+                        line = 8,
+                        locals = listOf(
+                            DebugVariable("answer", 42L, "number", "42"),
+                            DebugVariable("name", "KLua", "string", "KLua"),
+                        ),
+                    ),
+                    DebugFrameView(level = 1, sourceName = "lib.lua", line = 3),
+                )
+            },
+        )
+
+        assertEquals(
+            DebugCliResult(success = true, message = "backtrace", values = listOf("#0 main.lua:8", "#1 lib.lua:3")),
+            runner.execute("bt"),
+        )
+        assertEquals(
+            DebugCliResult(success = true, message = "locals", values = listOf("answer = 42", "name = KLua")),
+            runner.execute("locals"),
+        )
     }
 }
