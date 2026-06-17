@@ -817,11 +817,13 @@ public class KLuaCoreCoroutine internal constructor(
     private var started = false
     private var dead = false
     private var pendingContinuation: LuaYieldContinuation? = null
+    private var terminalError: KLuaCoreCoroutineExecution.RuntimeError? = null
 
     public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCoroutineExecution {
         if (dead) {
             return KLuaCoreCoroutineExecution.RuntimeError("cannot resume dead coroutine")
         }
+        terminalError = null
         val luaArguments = arguments.map { value ->
             value.toLuaValueOrNull(globals)
                 ?: return KLuaCoreCoroutineExecution.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
@@ -855,7 +857,7 @@ public class KLuaCoreCoroutine internal constructor(
                 error.rootCause(),
                 error.luaFrames.toCoreStackFrames(),
                 error.errorObject?.let { toPublicValue(it, globals) },
-            )
+            ).also { terminalError = it }
         } finally {
             started = true
         }
@@ -863,7 +865,8 @@ public class KLuaCoreCoroutine internal constructor(
 
     public fun close(): KLuaCoreCoroutineExecution {
         if (dead) {
-            return KLuaCoreCoroutineExecution.Returned(emptyList())
+            return terminalError?.also { terminalError = null }
+                ?: KLuaCoreCoroutineExecution.Returned(emptyList())
         }
         val continuation = pendingContinuation
         pendingContinuation = null

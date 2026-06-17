@@ -122,6 +122,37 @@ class KLuaCoreRuntimeCoroutineTest {
     }
 
     @Test
+    fun `core coroutine close reports terminal runtime errors once`() {
+        val globals = KLuaCoreGlobals.create()
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile(
+                """
+                return function()
+                    local x = 1
+                    return "x" + x
+                end
+                """.trimIndent(),
+                "core-coroutine-close-error.lua",
+            ),
+        ).chunk
+        val function = assertIs<KLuaCoreValue.FunctionValue>(
+            assertIs<KLuaCoreExecution.Success>(
+                KLuaCoreRuntime.execute(chunk, emptyList(), globals),
+            ).values.single(),
+        )
+        val coroutine = assertNotNull(KLuaCoreRuntime.createCoroutine(function, globals))
+
+        val resumeError = assertIs<KLuaCoreCoroutineExecution.RuntimeError>(coroutine.resume(emptyList()))
+        val closeError = assertIs<KLuaCoreCoroutineExecution.RuntimeError>(coroutine.close())
+        val secondClose = assertIs<KLuaCoreCoroutineExecution.Returned>(coroutine.close())
+
+        assertEquals(resumeError.message, closeError.message)
+        assertEquals(resumeError.sourceName, closeError.sourceName)
+        assertEquals(resumeError.line, closeError.line)
+        assertEquals(emptyList(), secondClose.values)
+    }
+
+    @Test
     fun `core coroutine runner resumes top level yieldable native functions`() {
         val globals = KLuaCoreGlobals.create()
         val function = KLuaCoreRuntime.createFunctionValue(

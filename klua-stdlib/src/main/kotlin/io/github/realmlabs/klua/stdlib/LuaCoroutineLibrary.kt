@@ -85,10 +85,9 @@ internal object LuaCoroutineLibrary {
                         LuaReturn.ofValues(listOf(true) + result.values)
                     }
                     is LuaCoroutineResult.RuntimeError -> {
-                        val errorValue = result.errorValue()
                         coroutine.status = CoroutineStatus.DEAD
-                        coroutine.rememberCloseError(errorValue)
-                        LuaReturn.of(false, errorValue)
+                        val errorObject = if (result.hasErrorObject) result.errorObject else result.message
+                        LuaReturn.of(false, errorObject)
                     }
                 }
             } else if (coroutine.pendingYield != null) {
@@ -109,15 +108,15 @@ internal object LuaCoroutineLibrary {
                 }
             }
         } catch (exception: LuaException) {
-            val errorValue = exception.errorValue()
             coroutine.status = CoroutineStatus.DEAD
-            coroutine.rememberCloseError(errorValue)
-            LuaReturn.of(false, errorValue)
+            val errorObject = coroutineErrorObject(exception)
+            coroutine.terminalError = CoroutineTerminalError(errorObject)
+            LuaReturn.of(false, errorObject)
         } catch (exception: RuntimeException) {
-            val errorValue = exception.message ?: exception::class.java.simpleName
             coroutine.status = CoroutineStatus.DEAD
-            coroutine.rememberCloseError(errorValue)
-            LuaReturn.of(false, errorValue)
+            val errorObject = exception.message ?: exception::class.java.simpleName
+            coroutine.terminalError = CoroutineTerminalError(errorObject)
+            LuaReturn.of(false, errorObject)
         } finally {
             runtime.running = previousRunning
         }
@@ -183,6 +182,10 @@ internal object LuaCoroutineLibrary {
             }
             coroutine.status = CoroutineStatus.DEAD
             context.yield(listOf(SelfCloseSignal))
+        }
+        coroutine.terminalError?.let { terminalError ->
+            coroutine.terminalError = null
+            return LuaReturn.of(false, terminalError.errorObject)
         }
         coroutine.handle?.let { handle ->
             return closeCoroutineHandle(coroutine, handle)
@@ -269,18 +272,6 @@ internal object LuaCoroutineLibrary {
             LuaReturn.ofValues(result.values.drop(1))
         }
         return LuaReturn.of(wrapper)
-    }
-
-    private fun LuaCoroutineResult.RuntimeError.errorValue(): Any? {
-        return if (hasErrorObject) errorObject else message
-    }
-
-    private fun LuaException.errorValue(): Any? {
-        return if (this is LuaRuntimeException && hasErrorObject) {
-            errorObject
-        } else {
-            message ?: this::class.java.simpleName
-        }
     }
 
     private fun throwCoroutineWrapError(
@@ -375,6 +366,7 @@ internal object LuaCoroutineLibrary {
         val handle: LuaCoroutineHandle? = null,
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
         var pendingYield: LuaYieldException? = null,
+        var terminalError: CoroutineTerminalError? = null,
         val isMain: Boolean = false,
         var closeError: Any? = null,
         var hasCloseError: Boolean = false,
@@ -417,4 +409,8 @@ internal object LuaCoroutineLibrary {
     }
 
     private object SelfCloseSignal
+
+    private data class CoroutineTerminalError(
+        val errorObject: Any?,
+    )
 }

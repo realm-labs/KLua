@@ -11321,6 +11321,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine close reports terminal resume errors once`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local stringCo = coroutine.create(function()
+                    error("boom")
+                end)
+                local resumeOk, resumeMessage = coroutine.resume(stringCo)
+                local closeOk, closeMessage = coroutine.close(stringCo)
+                local secondCloseOk = coroutine.close(stringCo)
+
+                local marker = {name = "marker"}
+                local tableCo = coroutine.create(function()
+                    error(marker)
+                end)
+                local tableResumeOk, tableResumeError = coroutine.resume(tableCo)
+                local tableCloseOk, tableCloseError = coroutine.close(tableCo)
+                local tableSecondCloseOk = coroutine.close(tableCo)
+
+                return resumeOk, resumeMessage, closeOk, closeMessage, secondCloseOk,
+                    tableResumeOk, tableResumeError == marker, tableResumeError.name,
+                    tableCloseOk, tableCloseError == marker, tableCloseError.name,
+                    tableSecondCloseOk
+                """.trimIndent(),
+                "coroutine-close-terminal-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toString(2)?.startsWith("coroutine-close-terminal-error.lua:") == true, state.toString(2))
+        assertTrue(state.toString(2)?.endsWith(": boom") == true, state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals(state.toString(2), state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertFalse(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("marker", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals("marker", state.toString(11))
+        assertTrue(state.toBoolean(12))
+    }
+
+    @Test
     fun `coroutine resume rejects normal coroutines`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
