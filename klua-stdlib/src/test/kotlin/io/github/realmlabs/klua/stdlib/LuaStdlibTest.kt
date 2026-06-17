@@ -17699,7 +17699,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #3 to 'offset' (initial position is a continuation byte)", state.toString(-1))
+        assertEquals("initial position is a continuation byte", state.toString(-1))
     }
 
     @Test

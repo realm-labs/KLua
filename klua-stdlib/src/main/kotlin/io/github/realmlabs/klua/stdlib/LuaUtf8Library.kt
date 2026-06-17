@@ -127,7 +127,7 @@ internal object LuaUtf8Library {
             return utf8OffsetResult(byteOffsets, codePoints, codePointIndex, byteLength)
         }
         if (codePointIndex < codePoints.size && position != byteOffsets[codePointIndex]) {
-            throw LuaRuntimeException("bad argument #3 to 'offset' (initial position is a continuation byte)")
+            throw LuaRuntimeException("initial position is a continuation byte")
         }
         val targetIndex = when {
             offset > 0L -> codePointIndex + offset - 1L
