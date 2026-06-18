@@ -11,6 +11,7 @@ import io.github.realmlabs.klua.api.LuaStatus
 import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.withContinuation
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -754,7 +755,7 @@ class LuaStdlibTest {
                 local trace = debug.traceback(co, "boom")
                 return ok, value,
                     string.find(trace, "^boom\nstack traceback:") == 1,
-                    string.find(trace, "debug%-thread%-traceback%.lua:") ~= nil
+                    string.find(trace, "%[string \"debug%-thread%-traceback%.lua\"%]:") ~= nil
                 """.trimIndent(),
                 "debug-thread-traceback.lua",
             ),
@@ -795,10 +796,10 @@ class LuaStdlibTest {
 
                 return ok,
                     string.find(mainTrace, "^main%-current\nstack traceback:") == 1,
-                    string.find(mainTrace, "debug%-current%-thread%-traceback%.lua:") ~= nil,
+                    string.find(mainTrace, "%[string \"debug%-current%-thread%-traceback%.lua\"%]:") ~= nil,
                     mainSource,
                     string.find(coroutineTrace, "^coroutine%-current\nstack traceback:") == 1,
-                    string.find(coroutineTrace, "debug%-current%-thread%-traceback%.lua:") ~= nil,
+                    string.find(coroutineTrace, "%[string \"debug%-current%-thread%-traceback%.lua\"%]:") ~= nil,
                     coroutineSource
                 """.trimIndent(),
                 "debug-current-thread-traceback.lua",
@@ -1561,7 +1562,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.getinfo' (invalid option '>')", state.toString(2))
+        assertEquals("bad argument #2 to 'getinfo' (invalid option '>')", state.toString(2))
     }
 
     @Test
@@ -1763,9 +1764,9 @@ class LuaStdlibTest {
         assertTrue(state.isNil(4))
         assertEquals("dead\nstack traceback:", state.toString(5))
         assertFalse(state.toBoolean(6))
-        assertEquals("bad argument #2 to 'debug.getlocal' (level out of range)", state.toString(7))
+        assertEquals("bad argument #2 to 'getlocal' (level out of range)", state.toString(7))
         assertFalse(state.toBoolean(8))
-        assertEquals("bad argument #2 to 'debug.setlocal' (level out of range)", state.toString(9))
+        assertEquals("bad argument #2 to 'setlocal' (level out of range)", state.toString(9))
         assertTrue(state.isNil(10))
         assertTrue(state.toBoolean(11))
         assertEquals("cr", state.toString(12))
@@ -2000,7 +2001,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.getlocal' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'getlocal' (number expected)", state.toString(2))
     }
 
     @Test
@@ -2373,7 +2374,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'debug.setlocal' (level out of range)", state.toString(2))
+        assertEquals("bad argument #1 to 'setlocal' (level out of range)", state.toString(2))
     }
 
     @Test
@@ -3371,11 +3372,11 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'debug.sethook' (function expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'sethook' (function expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #3 to 'debug.sethook' (string expected)", state.toString(4))
+        assertEquals("bad argument #3 to 'sethook' (string expected)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #4 to 'debug.sethook' (number expected)", state.toString(6))
+        assertEquals("bad argument #4 to 'sethook' (number expected)", state.toString(6))
     }
 
     @Test
@@ -4166,7 +4167,7 @@ class LuaStdlibTest {
 
         assertIs<LuaRuntimeException>(state.getLastError())
         val message = state.toString(-1) ?: ""
-        assertTrue(message.startsWith("require-missing.lua:"), message)
+        assertTrue(message.startsWith("""[string "require-missing.lua"]:"""), message)
         assertTrue(message.contains("module 'missing' not found"))
         assertTrue(message.contains("no field package.preload['missing']"))
     }
@@ -4223,8 +4224,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertTrue(state.toString(2)?.startsWith("stdlib-package.lua:") == true, state.toString(2))
-        assertTrue(state.toString(2)?.endsWith(": 'package.path' must be a string") == true, state.toString(2))
+        assertEquals("'package.path' must be a string", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("'package.searchers' must be a table", state.toString(4))
     }
@@ -4281,12 +4281,10 @@ class LuaStdlibTest {
         assertTrue(state.toString(1)?.contains("no file '${root}/missing.dll'") == true)
         assertTrue(state.isNil(2))
         assertFalse(state.toBoolean(3))
-        assertTrue(state.toString(4)?.startsWith("stdlib-package.lua:") == true, state.toString(4))
+        assertTrue(state.toString(4)?.startsWith("""[string "stdlib-package.lua"]:""") == true, state.toString(4))
+        assertTrue(state.toString(4)?.contains("error loading module 'native' from file") == true, state.toString(4))
         assertTrue(
-            state.toString(4)?.endsWith(
-                ": error loading module 'native' from file '${root}/native.dll':\n\t" +
-                    "dynamic libraries not enabled; check your Lua installation",
-            ) == true,
+            state.toString(4)?.endsWith("dynamic libraries not enabled; check your Lua installation") == true,
             state.toString(4),
         )
         assertFalse(state.toBoolean(5))
@@ -4297,8 +4295,7 @@ class LuaStdlibTest {
         assertEquals("hyphen-loaded", state.toString(10))
         assertTrue(state.toString(11)?.endsWith("native.dll") == true, state.toString(11))
         assertFalse(state.toBoolean(12))
-        assertTrue(state.toString(13)?.startsWith("stdlib-package.lua:") == true, state.toString(13))
-        assertTrue(state.toString(13)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(13))
+        assertEquals("'package.cpath' must be a string", state.toString(13))
     }
 
     @Test
@@ -4337,8 +4334,7 @@ class LuaStdlibTest {
         assertEquals("no module 'root.child' in file '${root}/root.dll'", state.toString(6))
         assertTrue(state.isNil(7))
         assertFalse(state.toBoolean(8))
-        assertTrue(state.toString(9)?.startsWith("stdlib-package.lua:") == true, state.toString(9))
-        assertTrue(state.toString(9)?.endsWith(": 'package.cpath' must be a string") == true, state.toString(9))
+        assertEquals("'package.cpath' must be a string", state.toString(9))
         assertTrue(state.isNil(10))
     }
 
@@ -4537,6 +4533,7 @@ class LuaStdlibTest {
 
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openPackage(state)
 
         assertEquals(
@@ -4563,13 +4560,15 @@ class LuaStdlibTest {
         assertTrue(missingMessage.contains("no file '${root}/missing.so'"), missingMessage)
         assertFalse(state.toBoolean(3))
         val rootMessage = state.toString(4) ?: ""
+        val normalizedRootMessage = rootMessage.replace('\\', '/')
+        val normalizedRoot = root.toString().replace('\\', '/')
         assertTrue(rootMessage.contains("module 'native.child' not found"), rootMessage)
-        assertTrue(rootMessage.contains("no file '${root}/native/child.so'"), rootMessage)
-        assertTrue(rootMessage.contains("no module 'native.child' in file '${root}/native.so'"), rootMessage)
+        assertTrue(normalizedRootMessage.contains("no file '$normalizedRoot/native/child.so'"), rootMessage)
+        assertTrue(normalizedRootMessage.contains("no module 'native.child' in file '$normalizedRoot/native.so'"), rootMessage)
         assertFalse(state.toBoolean(5))
-        assertEquals(
-            "error loading module 'native' from file '${root}/native.so':\n\t" +
-                "dynamic libraries not enabled; check your Lua installation",
+        assertTrue(state.toString(6)?.contains("error loading module 'native' from file") == true, state.toString(6))
+        assertTrue(
+            state.toString(6)?.endsWith("dynamic libraries not enabled; check your Lua installation") == true,
             state.toString(6),
         )
         assertFalse(state.toBoolean(7))
@@ -5235,7 +5234,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(1))
         assertEquals("ok!", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertTrue(state.toString(4)?.startsWith("pcall-callable-table.lua:") == true, state.toString(4))
+        assertTrue(state.toString(4)?.startsWith("""[string "pcall-callable-table.lua"]:""") == true, state.toString(4))
         assertTrue(state.toString(4)?.endsWith(": boom") == true, state.toString(4))
     }
 
@@ -5347,7 +5346,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
         assertTrue(
-            state.toString(-1)?.startsWith("state-pcall-callable-table-error.lua:") == true,
+            state.toString(-1)?.startsWith("""[string "state-pcall-callable-table-error.lua"]:""") == true,
             state.toString(-1),
         )
         assertTrue(state.toString(-1)?.endsWith(": boom") == true, state.toString(-1))
@@ -5585,7 +5584,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(1))
         assertEquals("ok!", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertTrue(state.toString(4)?.startsWith("handled:xpcall-callable-table.lua:") == true, state.toString(4))
+        assertTrue(state.toString(4)?.startsWith("""handled:[string "xpcall-callable-table.lua"]:""") == true, state.toString(4))
         assertTrue(state.toString(4)?.endsWith(": boom") == true, state.toString(4))
     }
 
@@ -6875,7 +6874,7 @@ class LuaStdlibTest {
 
         assertEquals("ok--done", state.toString(1))
         assertEquals("", state.toString(2))
-        assertEquals("", state.toString(3))
+        assertEquals("""[string ""]""", state.toString(3))
         assertEquals("table", state.typeName(4))
         assertEquals(0L, state.toInteger(5))
         assertEquals(1L, state.toInteger(6))
@@ -6929,7 +6928,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'string.dump' (Lua function expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'dump' (Lua function expected)", state.toString(2))
     }
 
     @Test
@@ -11440,7 +11439,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertTrue(state.toString(2)?.startsWith("coroutine-close-terminal-error.lua:") == true, state.toString(2))
+        assertTrue(state.toString(2)?.startsWith("""[string "coroutine-close-terminal-error.lua"]:""") == true, state.toString(2))
         assertTrue(state.toString(2)?.endsWith(": boom") == true, state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals(state.toString(2), state.toString(4))
@@ -11570,12 +11569,12 @@ class LuaStdlibTest {
         assertEquals("wrapped", state.toString(3))
         assertEquals("done", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertTrue(state.toString(6)?.startsWith("coroutine-wrap.lua:") == true, state.toString(6))
+        assertTrue(state.toString(6)?.startsWith("""[string "coroutine-wrap.lua"]:""") == true, state.toString(6))
         assertTrue(state.toString(6)?.endsWith(": cannot resume dead coroutine") == true, state.toString(6))
         assertFalse(state.toBoolean(7))
         assertEquals("[string \"coroutine-wrap.lua\"]:10: cannot resume dead coroutine", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertEquals("[string \"coroutine-wrap.lua\"]:15: boom", state.toString(10))
+        assertEquals("[string \"coroutine-wrap.lua\"]:14: [string \"coroutine-wrap.lua\"]:15: boom", state.toString(10))
         assertFalse(state.toBoolean(11))
         assertEquals("[string \"coroutine-wrap.lua\"]:22: [string \"coroutine-wrap.lua\"]:19: boom", state.toString(12))
         assertFalse(state.toBoolean(13))
@@ -11586,7 +11585,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(18))
         assertFalse(state.toBoolean(19))
         assertFalse(state.toBoolean(20))
-        assertTrue(state.toString(21)?.startsWith("coroutine-wrap.lua:") == true, state.toString(21))
+        assertTrue(state.toString(21)?.startsWith("""[string "coroutine-wrap.lua"]:""") == true, state.toString(21))
         assertTrue(state.toString(21)?.endsWith(": located") == true, state.toString(21))
     }
 
@@ -11613,9 +11612,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("<no error object>", state.toString(2))
+        assertTrue(state.isNil(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("<no error object>", state.toString(4))
+        assertTrue(state.isNil(4))
     }
 
     @Test
@@ -12552,9 +12551,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'coroutine.close' (thread expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'close' (thread expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'coroutine.isyieldable' (thread expected)", state.toString(4))
+        assertEquals("bad argument #1 to 'isyieldable' (thread expected)", state.toString(4))
     }
 
     @Test
@@ -14620,7 +14619,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `string pattern classes use lua ascii locale semantics`() {
+    fun `string pattern classes apply ascii predicates to raw bytes`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
 
@@ -14656,8 +14655,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(6))
         assertTrue(state.isNil(7))
         assertTrue(state.isNil(8))
-        assertEquals("é", state.toString(9))
-        assertEquals("é", state.toString(10))
+        assertEquals(listOf(195.toByte()), state.toString(9)?.luaRawBytes()?.toList())
+        assertEquals(listOf(195.toByte()), state.toString(10)?.luaRawBytes()?.toList())
     }
 
     @Test
@@ -16503,14 +16502,14 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'string.packsize' (variable-length format)", state.toString(2))
+        assertEquals("bad argument #1 to 'packsize' (variable-length format)", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("integral size (0) out of limits [1,16]", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("integral size (17) out of limits [1,16]", state.toString(6))
         assertFalse(state.toBoolean(7))
         assertEquals(
-            "bad argument #1 to 'string.packsize' (format asks for alignment not power of 2)",
+            "bad argument #1 to 'packsize' (format asks for alignment not power of 2)",
             state.toString(8),
         )
         assertFalse(state.toBoolean(9))
@@ -16519,7 +16518,7 @@ class LuaStdlibTest {
         assertEquals("missing size for format option 'c'", state.toString(12))
         assertFalse(state.toBoolean(13))
         assertEquals(
-            "bad argument #1 to 'string.packsize' (invalid next option for option 'X')",
+            "bad argument #1 to 'packsize' (invalid next option for option 'X')",
             state.toString(14),
         )
     }
@@ -17825,11 +17824,11 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'utf8.codepoint' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'codepoint' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #2 to 'utf8.codepoint' (number has no integer representation)", state.toString(4))
+        assertEquals("bad argument #2 to 'codepoint' (number has no integer representation)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #3 to 'utf8.codepoint' (number has no integer representation)", state.toString(6))
+        assertEquals("bad argument #3 to 'codepoint' (number has no integer representation)", state.toString(6))
     }
 
     @Test
@@ -18162,11 +18161,11 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'utf8.len' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'len' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #2 to 'utf8.len' (number has no integer representation)", state.toString(4))
+        assertEquals("bad argument #2 to 'len' (number has no integer representation)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #3 to 'utf8.len' (number has no integer representation)", state.toString(6))
+        assertEquals("bad argument #3 to 'len' (number has no integer representation)", state.toString(6))
     }
 
     @Test
@@ -18377,7 +18376,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("bad argument #1 to 'utf8.char' (value out of range)", state.toString(-1))
+        assertEquals("bad argument #1 to 'char' (value out of range)", state.toString(-1))
     }
 
     @Test
@@ -18403,11 +18402,11 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #1 to 'utf8.char' (number expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'char' (number expected)", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'utf8.char' (number has no integer representation)", state.toString(4))
+        assertEquals("bad argument #1 to 'char' (number has no integer representation)", state.toString(4))
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #1 to 'utf8.char' (number has no integer representation)", state.toString(6))
+        assertEquals("bad argument #1 to 'char' (number has no integer representation)", state.toString(6))
     }
 
     @Test

@@ -229,9 +229,6 @@ internal object LuaDebugLibrary {
             return LuaReturn.of(info.localNames.getOrNull(index - 1))
         }
         val level = requiredStackLevel(context, subjectIndex, "getlocal")
-        if (index == 0) {
-            return LuaReturn.of(null)
-        }
         if (level < 0) {
             throw levelOutOfRange(target.argumentOffset + 1, "getlocal")
         }
@@ -303,11 +300,11 @@ internal object LuaDebugLibrary {
     private fun upvalueJoin(context: LuaCallContext): LuaReturn {
         val targetIndex = requiredPositiveUpvalueIndex(context, 2, "upvaluejoin")
         requireFunction(context, 1, "upvaluejoin")
+        val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "upvaluejoin")
+        requireFunction(context, 3, "upvaluejoin")
         if (context.getUpvalueId(1, targetIndex) == null) {
             throw LuaRuntimeException("bad argument #2 to 'upvaluejoin' (invalid upvalue index)")
         }
-        val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "upvaluejoin")
-        requireFunction(context, 3, "upvaluejoin")
         if (context.getUpvalueId(3, sourceIndex) == null) {
             throw LuaRuntimeException("bad argument #4 to 'upvaluejoin' (invalid upvalue index)")
         }

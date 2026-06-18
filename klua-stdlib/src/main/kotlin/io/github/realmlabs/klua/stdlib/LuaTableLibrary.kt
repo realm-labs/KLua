@@ -5,8 +5,8 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.math.BigInteger
-import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 internal object LuaTableLibrary {
@@ -28,7 +28,7 @@ internal object LuaTableLibrary {
         if (!isReadableLengthTableLike(context, 1)) {
             throw LuaRuntimeException("bad argument #1 to 'concat' (table expected)")
         }
-        val length = tableLength(context, 1)
+        val length = tableConcatLength(context, 1)
 
         val separator = if (context.isNone(2) || context.isNil(2)) {
             ""
@@ -99,7 +99,7 @@ internal object LuaTableLibrary {
 
     private fun tableConcatLength(context: LuaCallContext, index: Int): Long {
         if (context.typeName(index) == "string") {
-            return requiredString(context, index, "concat").toByteArray(StandardCharsets.UTF_8).size.toLong()
+            return requiredString(context, index, "concat").luaRawBytes().size.toLong()
         }
         return tableLength(context, index)
     }
@@ -258,7 +258,8 @@ internal object LuaTableLibrary {
         }
         val length = context.getTableField(metatable, "__len")
             ?: return context.tableLength(index) ?: 0L
-        return luaInteger(context.call(length, listOf(context.getLuaValue(index))).get(1))
+        val value = context.getLuaValue(index)
+        return luaInteger(context.call(length, listOf(value, value)).get(1))
             ?: throw LuaRuntimeException("object length is not an integer")
     }
 
@@ -432,8 +433,9 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #2 to 'remove' (position out of bounds)")
         }
         if (position > length || position == 0L) {
+            val removed = tableIndexValue(context, position)
             tableSetValue(context, 1, position, null)
-            return LuaReturn.of(null)
+            return LuaReturn.of(removed)
         }
 
         val removed = tableIndexValue(context, position)
@@ -466,8 +468,30 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #2 to 'sort' (function expected)")
         }
 
-        tableSortRange(context, 1L, length, hasComparator)
+        if (context.isTable(1)) {
+            tableSortRange(context, 1L, length, hasComparator)
+        } else {
+            tableSortTableLikeValue(context, length, hasComparator)
+        }
         return LuaReturn.none()
+    }
+
+    private fun tableSortTableLikeValue(context: LuaCallContext, length: Long, hasComparator: Boolean) {
+        val values = MutableList(length.toInt()) { offset -> tableIndexValue(context, offset.toLong() + 1L) }
+        var index = 1
+        while (index < values.size) {
+            val value = values[index]
+            var previous = index - 1
+            while (previous >= 0 && tableSortBefore(context, value, values[previous], hasComparator)) {
+                values[previous + 1] = values[previous]
+                previous--
+            }
+            values[previous + 1] = value
+            index++
+        }
+        for (offset in values.indices) {
+            tableSetValue(context, 1, offset.toLong() + 1L, values[offset])
+        }
     }
 
     private fun tableSortRange(context: LuaCallContext, lowIndex: Long, highIndex: Long, hasComparator: Boolean) {
@@ -689,6 +713,12 @@ internal object LuaTableLibrary {
             return tableUnpackIndexValue(context, index, context.getTableMetatable(index), sourceType, key, visited)
         }
         return try {
+            if (index is CharSequence) {
+                return null
+            }
+            if (!context.isFunctionValue(index)) {
+                throw LuaRuntimeException("attempt to index a ${context.valueTypeName(index)} value")
+            }
             context.call(index, listOf(table, key)).get(1)
         } catch (_: IllegalArgumentException) {
             context.getTableField(index, key)

@@ -16,18 +16,18 @@ internal object LuaStringPackFormat {
     private const val LUA_NUMBER_SIZE = 8L
 
     fun packSize(format: String): Long {
-        val scanner = PackFormatScanner(format, "string.packsize")
+        val scanner = PackFormatScanner(format, "packsize")
         var totalSize = 0L
         while (!scanner.isDone()) {
             val details = scanner.nextDetails(totalSize)
             if (details.option == PackOption.String || details.option == PackOption.ZeroTerminatedString) {
-                throw LuaRuntimeException("bad argument #1 to 'string.packsize' (variable-length format)")
+                throw LuaRuntimeException("bad argument #1 to 'packsize' (variable-length format)")
             }
             val size = checkedAdd(details.size, details.padding) {
-                "bad argument #1 to 'string.packsize' (format result too large)"
+                "bad argument #1 to 'packsize' (format result too large)"
             }
             totalSize = checkedAdd(totalSize, size) {
-                "bad argument #1 to 'string.packsize' (format result too large)"
+                "bad argument #1 to 'packsize' (format result too large)"
             }
         }
         return totalSize

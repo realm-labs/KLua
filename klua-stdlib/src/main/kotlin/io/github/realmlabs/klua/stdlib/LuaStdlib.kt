@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.continueWith
 import io.github.realmlabs.klua.api.withContinuation
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.io.IOException
 import java.math.BigInteger
 import java.nio.file.Files
@@ -994,7 +995,7 @@ public object LuaStdlib {
         var value = BigInteger.ZERO
         val radix = BigInteger.valueOf(base.toLong())
         for (index in digitsStart until trimmed.length) {
-            val digit = trimmed[index].digitToIntOrNull(base) ?: return null
+            val digit = trimmed[index].asciiDigitToIntOrNull(base) ?: return null
             value = value.multiply(radix).add(BigInteger.valueOf(digit.toLong()))
         }
         if (sign < 0) {
@@ -1010,6 +1011,16 @@ public object LuaStdlib {
 
     private fun String.trimLuaAsciiWhitespace(): String {
         return trim { char -> char == ' ' || char == '\u000C' || char == '\n' || char == '\r' || char == '\t' || char == '\u000B' }
+    }
+
+    private fun Char.asciiDigitToIntOrNull(base: Int): Int? {
+        val value = when (this) {
+            in '0'..'9' -> code - '0'.code
+            in 'a'..'z' -> code - 'a'.code + 10
+            in 'A'..'Z' -> code - 'A'.code + 10
+            else -> return null
+        }
+        return value.takeIf { it < base }
     }
 
     private fun parseHexInteger(text: String): Long? {

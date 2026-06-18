@@ -6,7 +6,7 @@ import java.nio.charset.StandardCharsets
 private const val RAW_BYTE_MARKER_START = 0xDC00
 private const val RAW_BYTE_MARKER_END = RAW_BYTE_MARKER_START + 0xFF
 
-internal fun ByteArray.toLuaByteString(): String {
+public fun ByteArray.toLuaByteString(): String {
     val builder = StringBuilder()
     var index = 0
     while (index < size) {
@@ -22,7 +22,7 @@ internal fun ByteArray.toLuaByteString(): String {
     return builder.toString()
 }
 
-internal fun String.luaRawBytes(): ByteArray {
+public fun String.luaRawBytes(): ByteArray {
     val output = ByteArrayOutputStream()
     var index = 0
     while (index < length) {
@@ -34,12 +34,21 @@ internal fun String.luaRawBytes(): ByteArray {
         } else if (char.isHighSurrogate() && index + 1 < length && this[index + 1].isLowSurrogate()) {
             output.write(substring(index, index + 2).toByteArray(StandardCharsets.UTF_8))
             index += 2
+        } else if (char.code in 0xD800..0xDFFF) {
+            output.writeUtf8CodeUnit(char.code)
+            index++
         } else {
             output.write(char.toString().toByteArray(StandardCharsets.UTF_8))
             index++
         }
     }
     return output.toByteArray()
+}
+
+private fun ByteArrayOutputStream.writeUtf8CodeUnit(code: Int) {
+    write(0xE0 or (code shr 12))
+    write(0x80 or ((code shr 6) and 0x3F))
+    write(0x80 or (code and 0x3F))
 }
 
 private fun ByteArray.decodeUtf8Scalar(index: Int): DecodedUtf8Scalar? {

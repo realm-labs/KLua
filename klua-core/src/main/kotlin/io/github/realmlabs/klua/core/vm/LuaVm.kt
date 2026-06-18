@@ -76,7 +76,7 @@ internal class LuaVm(
         if (function !is LuaClosure && function !is LuaNativeFunction) {
             throw LuaVmException("bad argument #1 to 'debug.sethook' (function expected)")
         }
-        val canonicalMask = canonicalHookMask(mask)
+        val canonicalMask = normalizedDebugHookMask(mask)
         if (canonicalMask.isEmpty() && count <= 0) {
             debugHook = null
             return true
@@ -881,8 +881,9 @@ internal class LuaVm(
                     primitiveSet(receiver, key, value, mutableSetOf(), 0)
                 } catch (error: LuaTableKeyException) {
                     throw LuaVmException(error.message ?: "invalid table key")
-            } catch (error: LuaMetatableException) {
-                throw LuaVmException(error.message ?: "invalid metatable operation")
+                } catch (error: LuaMetatableException) {
+                    throw LuaVmException(error.message ?: "invalid metatable operation")
+                }
             }
         }
     }
@@ -1112,9 +1113,9 @@ internal class LuaVm(
 
     private fun callLengthMetamethod(value: LuaValue, length: LuaValue): LuaValue {
         return when (length) {
-            is LuaClosure -> executeMetamethod(length, listOf(value), LEN_KEY).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callNative(length, listOf(value)).firstOrNull() ?: LuaNil
-            else -> returnedValues(callValue(length, listOf(value), metamethodCallSiteInfo(LEN_KEY))).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(length, listOf(value, value), LEN_KEY).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callNative(length, listOf(value, value)).firstOrNull() ?: LuaNil
+            else -> returnedValues(callValue(length, listOf(value, value), metamethodCallSiteInfo(LEN_KEY))).firstOrNull() ?: LuaNil
         }
     }
 

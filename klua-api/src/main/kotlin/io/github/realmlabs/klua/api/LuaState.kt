@@ -288,19 +288,16 @@ class LuaState private constructor(
     ): LuaReturn {
         return when (val load = KLuaCoreRuntime.compile(source, chunkName)) {
             is KLuaCoreLoad.Success -> {
-                val loadGlobals = loadEnvironmentGlobals(environment, environmentProvided)
-                val function = KLuaCoreRuntime.createChunkFunctionValue(load.chunk, loadGlobals)
+                val function = if (!environmentProvided) {
+                    KLuaCoreRuntime.createChunkFunctionValue(load.chunk, coreGlobals)
+                } else {
+                    KLuaCoreRuntime.createChunkFunctionValue(load.chunk, coreGlobals, environment.toCoreReturnValue())
+                        ?: return LuaReturn.of(null, "unsupported chunk environment")
+                }
                 LuaReturn.of(function.toStackValue().toPublicCallReturnValue())
             }
             is KLuaCoreLoad.SyntaxError -> LuaReturn.of(null, load.message)
         }
-    }
-
-    private fun loadEnvironmentGlobals(environment: Any?, environmentProvided: Boolean): KLuaCoreGlobals {
-        if (!environmentProvided) {
-            return coreGlobals
-        }
-        return coreGlobals.withEnvironment(environment.toCoreReturnValue()) ?: coreGlobals
     }
 
     private fun loadBytecodeFunction(bytes: ByteArray, environment: KLuaCoreValue?): LuaReturn {
@@ -1342,7 +1339,7 @@ class LuaState private constructor(
             null -> null
             else -> KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, stackTypeName(value))?.toStackValue()
         }
-        return metatable?.fields?.get(callMetamethodKey)
+        return (metatable as? LuaStackValue.TableValue)?.fields?.get(callMetamethodKey)
     }
 
     private fun toApiStackFrames(frames: List<KLuaCoreStackFrame>): List<LuaStackFrame> {
@@ -1701,6 +1698,19 @@ class LuaState private constructor(
         }
 
         private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {
+            function.coreFunction?.let { coreFunction ->
+                return callCoreFunctionValue(
+                    coreFunction,
+                    DefaultLuaCallContext(
+                        arguments.map { argument -> argument.toStackValue() },
+                        luaFrames,
+                        setLocalValue,
+                        setDebugHookValue,
+                        getDebugHookValue,
+                        isYieldable,
+                    ),
+                )
+            }
             return function.function.call(
                 DefaultLuaCallContext(
                     arguments.map { argument -> argument.toStackValue() },

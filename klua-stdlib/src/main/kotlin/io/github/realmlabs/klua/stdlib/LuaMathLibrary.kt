@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import kotlin.math.absoluteValue
 import kotlin.math.acos
 import kotlin.math.asin

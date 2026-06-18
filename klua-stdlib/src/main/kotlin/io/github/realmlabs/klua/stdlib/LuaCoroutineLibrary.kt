@@ -225,6 +225,14 @@ internal object LuaCoroutineLibrary {
         }
     }
 
+    private fun coroutineErrorObject(exception: LuaException): Any? {
+        return if (exception is LuaRuntimeException && exception.hasErrorObject) {
+            exception.errorObject
+        } else {
+            exception.message ?: exception::class.java.simpleName
+        }
+    }
+
     private fun coroutineIsYieldable(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
         if (context.isNone(1)) {
             return LuaReturn.of(runtime.running != null && context.isYieldable)

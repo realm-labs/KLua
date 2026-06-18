@@ -177,7 +177,7 @@ internal class Parser private constructor(
     }
 
     private fun globalAttribute(): LocalAttribute {
-        val attribute = localAttribute()
+        val attribute = localAttribute(LocalAttribute.NONE)
         if (attribute == LocalAttribute.CLOSE) {
             throw errorAt(previous(), "global variables cannot be to-be-closed")
         }

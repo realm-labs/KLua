@@ -503,7 +503,12 @@ class LuaApiSmokeTest {
 
         override fun yield(values: List<Any?>): Nothing = error("not yieldable")
 
-        override fun load(source: String, chunkName: String): LuaReturn = error("loading not supported")
+        override fun load(
+            source: String,
+            chunkName: String,
+            environment: Any?,
+            environmentProvided: Boolean,
+        ): LuaReturn = error("loading not supported")
 
         override fun getTable(index: Int): Any? = null
 
