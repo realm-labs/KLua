@@ -3232,6 +3232,103 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io open validates source mode extensions`() {
+        val path = Files.createTempFile("klua-io-mode-", ".txt")
+        Files.writeString(path, "seed")
+        val outputPath = Files.createTempFile("klua-io-mode-output-", ".txt")
+        Files.deleteIfExists(outputPath)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local readUpdate = assert(io.open("${path.luaPath()}", "r+b"))
+                    local writeBinary = assert(io.open("${outputPath.luaPath()}", "wbb"))
+                    local badOneOk, badOneMessage = pcall(io.open, "${path.luaPath()}", "rb+")
+                    local badTwoOk, badTwoMessage = pcall(io.open, "${path.luaPath()}", "rt")
+                    local badThreeOk, badThreeMessage = pcall(io.open, "${path.luaPath()}", "")
+                    local readUpdateType = io.type(readUpdate)
+                    local writeBinaryType = io.type(writeBinary)
+                    readUpdate:close()
+                    writeBinary:close()
+                    return readUpdateType, writeBinaryType,
+                        badOneOk, badOneMessage,
+                        badTwoOk, badTwoMessage,
+                        badThreeOk, badThreeMessage
+                    """.trimIndent(),
+                    "io-open-mode-validation.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("file", state.toString(1))
+            assertEquals("file", state.toString(2))
+            assertFalse(state.toBoolean(3))
+            assertEquals("bad argument #2 to 'io.open' (invalid mode)", state.toString(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #2 to 'io.open' (invalid mode)", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("bad argument #2 to 'io.open' (invalid mode)", state.toString(8))
+        } finally {
+            Files.deleteIfExists(path)
+            Files.deleteIfExists(outputPath)
+        }
+    }
+
+    @Test
+    fun `io regular file modes enforce direction and append writes`() {
+        val path = Files.createTempFile("klua-io-direction-", ".txt")
+        Files.writeString(path, "seed")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local readOnly = assert(io.open("${path.luaPath()}", "r"))
+                    local writeFail, writeMessage, writeCode = readOnly:write("x")
+                    readOnly:close()
+
+                    local writeOnly = assert(io.open("${path.luaPath()}", "w"))
+                    local readFail, readMessage, readCode = writeOnly:read(1)
+                    writeOnly:write("head")
+                    writeOnly:close()
+
+                    local append = assert(io.open("${path.luaPath()}", "a+"))
+                    append:seek("set", 0)
+                    append:write("tail")
+                    append:seek("set", 0)
+                    local text = append:read("a")
+                    append:close()
+
+                    return writeFail, writeMessage, type(writeCode),
+                        readFail, readMessage, type(readCode), text
+                    """.trimIndent(),
+                    "io-open-direction.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals("Bad file descriptor", state.toString(2))
+            assertEquals("number", state.toString(3))
+            assertTrue(state.isNil(4))
+            assertEquals("Bad file descriptor", state.toString(5))
+            assertEquals("number", state.toString(6))
+            assertEquals("headtail", state.toString(7))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io tmpfile returns closeable file handles`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

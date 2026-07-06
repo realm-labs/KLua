@@ -63,7 +63,13 @@ internal object LuaIoLibrary {
         val parsed = parseMode(mode)
             ?: throw LuaRuntimeException("bad argument #2 to 'io.open' (invalid mode)")
         return try {
-            val handle = IoFileHandle(Path.of(filename), RandomAccessFile(filename, parsed.randomAccessMode))
+            val handle = IoFileHandle(
+                Path.of(filename),
+                RandomAccessFile(filename, parsed.randomAccessMode),
+                readable = parsed.readable,
+                writable = parsed.writable,
+                appendWrites = parsed.append,
+            )
             if (parsed.truncate) {
                 handle.file.setLength(0L)
             }
@@ -81,7 +87,15 @@ internal object LuaIoLibrary {
     private fun ioTmpFile(): LuaReturn {
         return try {
             val path = Files.createTempFile("klua-io-", ".tmp")
-            LuaReturn.of(IoFileHandle(path, RandomAccessFile(path.toFile(), "rw"), deleteOnClose = true))
+            LuaReturn.of(
+                IoFileHandle(
+                    path,
+                    RandomAccessFile(path.toFile(), "rw"),
+                    readable = true,
+                    writable = true,
+                    deleteOnClose = true,
+                ),
+            )
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         } catch (error: SecurityException) {
@@ -388,16 +402,33 @@ internal object LuaIoLibrary {
     }
 
     private fun parseMode(mode: String): IoOpenMode? {
-        val normalized = mode.removeSuffix("b")
-        return when (normalized) {
-            "r" -> IoOpenMode("r", append = false, truncate = false)
-            "w" -> IoOpenMode("rw", append = false, truncate = true)
-            "a" -> IoOpenMode("rw", append = true, truncate = false)
-            "r+" -> IoOpenMode("rw", append = false, truncate = false)
-            "w+" -> IoOpenMode("rw", append = false, truncate = true)
-            "a+" -> IoOpenMode("rw", append = true, truncate = false)
-            else -> null
+        if (mode.isEmpty()) {
+            return null
         }
+        val first = mode[0]
+        if (first !in "rwa") {
+            return null
+        }
+        var index = 1
+        val update = index < mode.length && mode[index] == '+'
+        if (update) {
+            index++
+        }
+        while (index < mode.length && mode[index] == 'b') {
+            index++
+        }
+        if (index != mode.length) {
+            return null
+        }
+        val readable = first == 'r' || update
+        val writable = first != 'r' || update
+        return IoOpenMode(
+            randomAccessMode = if (writable) "rw" else "r",
+            readable = readable,
+            writable = writable,
+            append = first == 'a',
+            truncate = first == 'w',
+        )
     }
 
     private fun processCloseResult(exitCode: Int): LuaReturn {
@@ -431,6 +462,8 @@ internal object LuaIoLibrary {
 
     private data class IoOpenMode(
         val randomAccessMode: String,
+        val readable: Boolean,
+        val writable: Boolean,
         val append: Boolean,
         val truncate: Boolean,
     )
@@ -445,6 +478,9 @@ internal object LuaIoLibrary {
         private val randomAccessFile: RandomAccessFile?,
         private val inputStream: PushbackInputStream?,
         private val outputStream: OutputStream?,
+        private val readableMode: Boolean,
+        private val writableMode: Boolean,
+        private val appendWrites: Boolean,
         val deleteOnClose: Boolean = false,
         private val nonClosing: Boolean = false,
         val closeResult: (() -> LuaReturn)? = null,
@@ -452,9 +488,23 @@ internal object LuaIoLibrary {
         constructor(
             path: Path?,
             file: RandomAccessFile,
+            readable: Boolean,
+            writable: Boolean,
+            appendWrites: Boolean = false,
             deleteOnClose: Boolean = false,
             closeResult: (() -> LuaReturn)? = null,
-        ) : this(path, file, null, null, deleteOnClose, nonClosing = false, closeResult)
+        ) : this(
+            path,
+            file,
+            null,
+            null,
+            readable,
+            writable,
+            appendWrites,
+            deleteOnClose,
+            nonClosing = false,
+            closeResult,
+        )
 
         var closed: Boolean = false
 
@@ -465,10 +515,10 @@ internal object LuaIoLibrary {
             get() = randomAccessFile != null
 
         val readable: Boolean
-            get() = randomAccessFile != null || inputStream != null
+            get() = readableMode
 
         val writable: Boolean
-            get() = randomAccessFile != null || outputStream != null
+            get() = writableMode
 
         val flushable: Boolean
             get() = randomAccessFile != null || outputStream != null
@@ -484,6 +534,9 @@ internal object LuaIoLibrary {
                     randomAccessFile = null,
                     inputStream = PushbackInputStream(inputStream, 4),
                     outputStream = null,
+                    readableMode = true,
+                    writableMode = false,
+                    appendWrites = false,
                     nonClosing = nonClosing,
                     closeResult = closeResult,
                 )
@@ -499,6 +552,9 @@ internal object LuaIoLibrary {
                     randomAccessFile = null,
                     inputStream = null,
                     outputStream = outputStream,
+                    readableMode = false,
+                    writableMode = true,
+                    appendWrites = false,
                     nonClosing = nonClosing,
                     closeResult = closeResult,
                 )
@@ -534,6 +590,9 @@ internal object LuaIoLibrary {
             outputStream?.let { output ->
                 output.write(bytes)
                 return
+            }
+            if (appendWrites) {
+                file.seek(file.length())
             }
             file.write(bytes)
         }
