@@ -3851,6 +3851,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io numeric reads wrap hexadecimal integers like lua`() {
+        val path = Files.createTempFile("klua-io-read-hex-wrap-", ".txt")
+        Files.writeString(path, "0xFFFFFFFFFFFFFFFF 0x8000000000000000 0x10000000000000000 -0xFFFFFFFFFFFFFFFF")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local maxUnsigned = handle:read("n")
+                    local minInteger = handle:read("n")
+                    local wrappedZero = handle:read("n")
+                    local wrappedNegative = handle:read("n")
+                    handle:close()
+                    return maxUnsigned, minInteger, wrappedZero, wrappedNegative
+                    """.trimIndent(),
+                    "io-read-hex-wrap.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(-1L, state.toInteger(1))
+            assertEquals(Long.MIN_VALUE, state.toInteger(2))
+            assertEquals(0L, state.toInteger(3))
+            assertEquals(1L, state.toInteger(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read treats numeric strings as formats`() {
         val path = Files.createTempFile("klua-io-read-string-number-", ".txt")
         Files.writeString(path, "abcdef")

@@ -10,12 +10,14 @@ import java.io.IOException
 import java.io.OutputStream
 import java.io.PushbackInputStream
 import java.io.RandomAccessFile
+import java.math.BigInteger
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.Locale
 
 internal object LuaIoLibrary {
     private const val MAX_LINE_FORMAT_ARGUMENTS = 250
+    private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
     fun open(state: LuaState): LuaState {
         val stdin = IoFileHandle.input(System.`in`, nonClosing = true, closeResult = ::standardFileCloseResult)
@@ -1057,13 +1059,15 @@ internal object LuaIoLibrary {
             }
             return parsed.luaInteger() ?: parsed
         }
-        val parsed = body.toULongOrNull(16) ?: return null
-        val signed = if (sign < 0) {
-            if (parsed == Long.MIN_VALUE.toULong()) Long.MIN_VALUE else -(parsed.toLong())
-        } else {
-            parsed.toLong()
+        var parsed = BigInteger.ZERO
+        val radix = BigInteger.valueOf(16L)
+        for (digit in body) {
+            parsed = parsed.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
         }
-        return signed
+        if (sign < 0) {
+            parsed = parsed.negate()
+        }
+        return parsed.mod(UINT64_MODULUS).toLong()
     }
 
     private fun Double.luaInteger(): Long? {
