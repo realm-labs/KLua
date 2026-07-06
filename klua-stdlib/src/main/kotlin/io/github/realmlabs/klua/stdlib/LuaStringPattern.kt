@@ -39,7 +39,15 @@ internal class LuaStringPattern private constructor(
     private fun findPattern(text: String, startIndex: Int, patternTokens: List<Token>): LuaPatternMatch? {
         var index = startIndex
         while (index <= text.length) {
-            val result = matchEnd(text, index, patternTokens, tokenIndex = 0, captureStarts = emptyMap(), captures = emptyMap())
+            val result = matchEnd(
+                text,
+                index,
+                patternTokens,
+                tokenIndex = 0,
+                captureStarts = emptyMap(),
+                captures = emptyMap(),
+                remainingDepth = MAX_MATCH_DEPTH,
+            )
             if (index >= startIndex && result != null) {
                 val captures = result.captures.toSortedMap().values.toList()
                 return LuaPatternMatch(index, result.endIndex, captures)
@@ -59,7 +67,11 @@ internal class LuaStringPattern private constructor(
         tokenIndex: Int,
         captureStarts: Map<Int, Int>,
         captures: Map<Int, Any?>,
+        remainingDepth: Int,
     ): PatternResult? {
+        if (remainingDepth == 0) {
+            throw LuaRuntimeException("pattern too complex")
+        }
         if (tokenIndex >= patternTokens.size) {
             if (endAnchored && textIndex != text.length) {
                 return null
@@ -78,6 +90,7 @@ internal class LuaStringPattern private constructor(
                 tokenIndex + 1,
                 captureStarts + (checkCaptureLimit(token.index) to textIndex),
                 captures,
+                remainingDepth - 1,
             )
             is Token.CaptureEnd -> {
                 val captureIndex = token.index
@@ -91,6 +104,7 @@ internal class LuaStringPattern private constructor(
                     tokenIndex + 1,
                     captureStarts - captureIndex,
                     captures + (captureIndex to text.substring(startIndex, textIndex)),
+                    remainingDepth - 1,
                 )
             }
             is Token.PositionCapture -> matchEnd(
@@ -100,6 +114,7 @@ internal class LuaStringPattern private constructor(
                 tokenIndex + 1,
                 captureStarts,
                 captures + (checkCaptureLimit(token.index) to (textIndex + 1L)),
+                remainingDepth - 1,
             )
             is Token.BackReference -> {
                 if (token.index < 0) {
@@ -113,28 +128,37 @@ internal class LuaStringPattern private constructor(
                 if (!text.startsWith(capture, textIndex)) {
                     null
                 } else {
-                    matchEnd(text, textIndex + capture.length, patternTokens, tokenIndex + 1, captureStarts, captures)
+                    matchEnd(text, textIndex + capture.length, patternTokens, tokenIndex + 1, captureStarts, captures, remainingDepth)
                 }
             }
             is Token.Balanced -> {
                 val endIndex = matchBalanced(text, textIndex, token.open, token.close) ?: return null
-                matchEnd(text, endIndex, patternTokens, tokenIndex + 1, captureStarts, captures)
+                matchEnd(text, endIndex, patternTokens, tokenIndex + 1, captureStarts, captures, remainingDepth)
             }
             is Token.Frontier -> {
                 val previous = if (textIndex > 0) text[textIndex - 1] else '\u0000'
                 val current = if (textIndex < text.length) text[textIndex] else '\u0000'
                 if (!token.set.matches(previous) && token.set.matches(current)) {
-                    matchEnd(text, textIndex, patternTokens, tokenIndex + 1, captureStarts, captures)
+                    matchEnd(text, textIndex, patternTokens, tokenIndex + 1, captureStarts, captures, remainingDepth)
                 } else {
                     null
                 }
             }
-            is Token.Repetition -> matchRepetition(text, textIndex, patternTokens, tokenIndex, token, captureStarts, captures)
+            is Token.Repetition -> matchRepetition(
+                text,
+                textIndex,
+                patternTokens,
+                tokenIndex,
+                token,
+                captureStarts,
+                captures,
+                remainingDepth,
+            )
             else -> {
                 if (textIndex >= text.length || !token.matches(text[textIndex])) {
                     null
                 } else {
-                    matchEnd(text, textIndex + 1, patternTokens, tokenIndex + 1, captureStarts, captures)
+                    matchEnd(text, textIndex + 1, patternTokens, tokenIndex + 1, captureStarts, captures, remainingDepth)
                 }
             }
         }
@@ -148,6 +172,7 @@ internal class LuaStringPattern private constructor(
         repetition: Token.Repetition,
         captureStarts: Map<Int, Int>,
         captures: Map<Int, Any?>,
+        remainingDepth: Int,
     ): PatternResult? {
         var endIndex = textIndex
         while (
@@ -169,7 +194,15 @@ internal class LuaStringPattern private constructor(
             minimumEnd..endIndex
         }
         for (candidateEnd in candidateEnds) {
-            val matchEnd = matchEnd(text, candidateEnd, patternTokens, tokenIndex + 1, captureStarts, captures)
+            val matchEnd = matchEnd(
+                text,
+                candidateEnd,
+                patternTokens,
+                tokenIndex + 1,
+                captureStarts,
+                captures,
+                remainingDepth - 1,
+            )
             if (matchEnd != null) {
                 return matchEnd
             }
@@ -208,6 +241,7 @@ internal class LuaStringPattern private constructor(
 
     internal companion object {
         private const val MAX_CAPTURES = 32
+        private const val MAX_MATCH_DEPTH = 200
 
         fun literal(pattern: String): LuaStringPattern {
             return LuaStringPattern(pattern, tokens = null)

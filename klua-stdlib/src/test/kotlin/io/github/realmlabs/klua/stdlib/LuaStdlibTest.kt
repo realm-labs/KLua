@@ -16867,6 +16867,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string patterns report lua 55 complex pattern errors`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(
+                    string.match,
+                    string.rep("a", 201),
+                    string.rep("a?", 201)
+                )
+                return ok, message
+                """.trimIndent(),
+                "string-pattern-too-complex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("pattern too complex", state.toString(2))
+    }
+
+    @Test
     fun `string patterns support backreferences`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
