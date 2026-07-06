@@ -410,11 +410,10 @@ public object LuaStdlib {
         requireAnyArgument(context, "ipairs")
         val iterator = LuaFunction { iteratorContext ->
             val nextIndex = requiredNumberInteger(iteratorContext, 2, "ipairs iterator") + 1L
-            val indexed = indexValue(iteratorContext, 1, nextIndex)
-            val value = if (indexed.handled) {
-                indexed.value
-            } else {
-                throw LuaRuntimeException("attempt to index a ${iteratorContext.typeName(1)} value")
+            val value = try {
+                iteratorContext.getValueField(argumentValue(iteratorContext, 1), nextIndex)
+            } catch (error: IllegalArgumentException) {
+                throw LuaRuntimeException(error.message ?: "attempt to index a ${iteratorContext.typeName(1)} value")
             }
             if (value == null) {
                 LuaReturn.of(null)
@@ -424,27 +423,6 @@ public object LuaStdlib {
         }
         return LuaReturn.ofValues(listOf(iterator, argumentValue(context, 1), 0L))
     }
-
-    private fun indexValue(context: LuaCallContext, valueIndex: Int, key: Any?): IndexedValue {
-        if (context.isTable(valueIndex)) {
-            val rawValue = context.getTableValue(valueIndex, key)
-            if (rawValue != null) {
-                return IndexedValue(rawValue, handled = true)
-            }
-        }
-        val index = context.getTableField(context.getRawMetatable(valueIndex), "__index")
-            ?: return IndexedValue(null, handled = context.isTable(valueIndex))
-        return try {
-            IndexedValue(context.call(index, listOf(argumentValue(context, valueIndex), key)).get(1), handled = true)
-        } catch (_: IllegalArgumentException) {
-            IndexedValue(context.getTableField(index, key), handled = true)
-        }
-    }
-
-    private data class IndexedValue(
-        val value: Any?,
-        val handled: Boolean,
-    )
 
     private fun next(context: LuaCallContext): LuaReturn {
         if (!context.isTable(1)) {

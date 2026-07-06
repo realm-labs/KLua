@@ -9079,6 +9079,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `ipairs follows primitive index fallback chains`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debug.setmetatable(false, {
+                    __index = function(self, index)
+                        if index <= 2 then
+                            return tostring(self) .. ":" .. index
+                        end
+                        return nil
+                    end,
+                })
+                local originalStringMetatable = debug.getmetatable("")
+                debug.setmetatable("", { __index = false })
+
+                local values = {}
+                for index, value in ipairs("proxy") do
+                    values[#values + 1] = index .. ":" .. value
+                end
+
+                debug.setmetatable("", originalStringMetatable)
+                return table.concat(values, ",")
+                """.trimIndent(),
+                "ipairs-primitive-index-fallback-chain.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1:false:1,2:false:2", state.toString(1))
+    }
+
+    @Test
     fun `pairs and ipairs support non-table metatables`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
