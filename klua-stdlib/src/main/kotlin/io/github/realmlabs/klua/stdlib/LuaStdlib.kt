@@ -362,7 +362,12 @@ public object LuaStdlib {
         val read = readLoadFileSource(filename, state)
         val source = read.source
             ?: throw LuaRuntimeException(read.error ?: "cannot read file '$filename'")
-        val loaded = context.load(source.source, source.chunkName)
+        val bytes = source.bytes ?: source.source.luaRawBytes()
+        val loaded = if (isKLuaBinaryChunk(bytes)) {
+            context.loadBytecode(bytes, source.chunkName)
+        } else {
+            context.load(source.source, source.chunkName)
+        }
         val function = loaded.get(1)
             ?: throw LuaRuntimeException(loaded.get(2)?.toString() ?: "cannot load file")
         return context.call(function, emptyList())

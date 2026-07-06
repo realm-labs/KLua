@@ -7086,6 +7086,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `dofile executes KLua bytecode files`() {
+        val file = Files.createTempFile("klua-dofile-bytecode", ".kluac")
+        try {
+            val dumpState = LuaState.create()
+            LuaStdlib.openLibs(dumpState)
+            assertEquals(
+                LuaStatus.OK,
+                dumpState.load(
+                    """
+                    local chunk = load("return marker", "dofile-bytecode-source.lua")
+                    return string.dump(chunk)
+                    """.trimIndent(),
+                    "dofile-bytecode-dump.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, dumpState.pcall(0, -1), dumpState.toString(-1))
+            val dumped = dumpState.toString(1) ?: error("missing dumped bytecode")
+            Files.write(file, dumped.luaRawBytes())
+
+            val state = LuaState.create()
+            LuaStdlib.openLibs(state)
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    marker = "global"
+                    return dofile("${file.luaPath()}")
+                    """.trimIndent(),
+                    "dofile-bytecode.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("global", state.toString(1))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
     fun `loadfile reads stdin when filename is nil or missing`() {
         withStandardInput("return 41 + 1") {
             val state = LuaState.create()
