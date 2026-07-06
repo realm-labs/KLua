@@ -7,12 +7,10 @@ import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
-import kotlin.math.floor
 
 internal object LuaUtf8Library {
     private const val MAX_UNICODE_CODE_POINT = 0x10FFFFL
     private const val MAX_UTF_CODE_POINT = 0x7FFFFFFFL
-    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private const val HIGH_SURROGATE_START = 0xD800L
     private const val LOW_SURROGATE_END = 0xDFFFL
     private const val CHAR_PATTERN = "[\u0000-\u007F\u00C2-\u00FD][\u0080-\u00BF]*"
@@ -78,7 +76,7 @@ internal object LuaUtf8Library {
             val iteratorText = requiredString(iteratorContext, 1, "codes")
             val bytes = iteratorText.luaRawBytes()
             val byteLength = bytes.size.toLong()
-            val previousPosition = iteratorControlToInteger(iteratorContext, 2)
+            val previousPosition = iteratorContext.toInteger(2) ?: 0L
             if (previousPosition < 0L || previousPosition >= byteLength) {
                 return@LuaFunction LuaReturn.none()
             }
@@ -98,19 +96,6 @@ internal object LuaUtf8Library {
             }
         }
         return LuaReturn.ofValues(listOf(iterator, text, 0L))
-    }
-
-    private fun iteratorControlToInteger(context: LuaCallContext, index: Int): Long {
-        context.toInteger(index)?.let { return it }
-        val number = context.toNumber(index) ?: return 0L
-        if (!number.isFinite()) {
-            return 0L
-        }
-        val floored = floor(number)
-        if (floored < Long.MIN_VALUE.toDouble() || floored >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
-            return 0L
-        }
-        return floored.toLong()
     }
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
