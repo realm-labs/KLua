@@ -761,13 +761,14 @@ internal object LuaStringLibrary {
         if (count <= 0L) {
             return LuaReturn.of("")
         }
-        val resultLength = stringRepResultLength(text, separator, count)
-        if (resultLength == 0) {
+        validateStringRepByteLength(text, separator, count)
+        val charResultLength = stringRepResultLength(text.length.toLong(), separator.length.toLong(), count)
+        if (charResultLength == 0) {
             return LuaReturn.of("")
         }
         return LuaReturn.of(
             buildString {
-                ensureCapacity(resultLength)
+                ensureCapacity(charResultLength)
                 repeat(count.toInt()) { index ->
                     if (index > 0) {
                         append(separator)
@@ -778,14 +779,18 @@ internal object LuaStringLibrary {
         )
     }
 
-    private fun stringRepResultLength(text: String, separator: String, count: Long): Int {
-        val copyLength = text.length.toLong() + separator.length.toLong()
+    private fun validateStringRepByteLength(text: String, separator: String, count: Long) {
+        stringRepResultLength(text.luaRawBytes().size.toLong(), separator.luaRawBytes().size.toLong(), count)
+    }
+
+    private fun stringRepResultLength(textLength: Long, separatorLength: Long, count: Long): Int {
+        val copyLength = textLength + separatorLength
         val repeatedLength = try {
             java.lang.Math.multiplyExact(copyLength, count)
         } catch (_: ArithmeticException) {
             throw LuaRuntimeException("resulting string too large")
         }
-        val resultLength = repeatedLength - separator.length.toLong()
+        val resultLength = repeatedLength - separatorLength
         if (resultLength > Int.MAX_VALUE) {
             throw LuaRuntimeException("resulting string too large")
         }

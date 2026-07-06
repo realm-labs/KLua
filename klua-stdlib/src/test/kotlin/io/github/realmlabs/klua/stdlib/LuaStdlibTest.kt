@@ -14060,14 +14060,19 @@ class LuaStdlibTest {
 
     @Test
     fun `string rep reports large result errors`() {
-        val state = LuaState.create()
-        LuaStdlib.openString(state)
+        for ((source, chunkName) in listOf(
+            """"x", 2147483648""" to "string-rep-large-error.lua",
+            """"é", 1073741824""" to "string-rep-large-multibyte-error.lua",
+        )) {
+            val state = LuaState.create()
+            LuaStdlib.openString(state)
 
-        assertEquals(LuaStatus.OK, state.load("""return string.rep("x", 2147483648)""", "string-rep-large-error.lua"))
-        assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
+            assertEquals(LuaStatus.OK, state.load("""return string.rep($source)""", chunkName))
+            assertEquals(LuaStatus.RUNTIME_ERROR, state.pcall(0, -1))
 
-        assertIs<LuaRuntimeException>(state.getLastError())
-        assertEquals("resulting string too large", state.toString(-1))
+            assertIs<LuaRuntimeException>(state.getLastError())
+            assertEquals("resulting string too large", state.toString(-1))
+        }
     }
 
     @Test
