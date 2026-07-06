@@ -32,6 +32,7 @@ internal object LuaIoLibrary {
         setFunctionField(state, "lines", ::ioLines)
         setFunctionField(state, "open", ::ioOpen)
         setFunctionField(state, "output") { context -> ioOutput(context, defaultFiles) }
+        setFunctionField(state, "popen", ::ioPopen)
         setFunctionField(state, "read") { context -> readHandle(defaultInput(defaultFiles), context) }
         setFunctionField(state, "tmpfile") { _ -> ioTmpFile() }
         setFunctionField(state, "type", ::ioType)
@@ -77,6 +78,41 @@ internal object LuaIoLibrary {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         } catch (error: SecurityException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+        }
+    }
+
+    private fun ioPopen(context: LuaCallContext): LuaReturn {
+        val command = requiredString(context, 1, "io.popen")
+        val mode = if (context.isNone(2) || context.isNil(2)) {
+            "r"
+        } else {
+            requiredString(context, 2, "io.popen")
+        }
+        val normalizedMode = mode.removeSuffix("b")
+        if (normalizedMode != "r") {
+            throw LuaRuntimeException("bad argument #2 to 'io.popen' (write mode is not supported)")
+        }
+        return try {
+            val process = ProcessBuilder(shellCommand(command))
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+            val output = process.inputStream.use { stream -> stream.readBytes() }
+            val exitCode = process.waitFor()
+            val path = Files.createTempFile("klua-popen-", ".tmp")
+            Files.write(path, output)
+            val file = RandomAccessFile(path.toFile(), "r")
+            LuaReturn.of(
+                IoFileHandle(path, file, deleteOnClose = true) {
+                    processCloseResult(exitCode)
+                },
+            )
+        } catch (error: IOException) {
+            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+        } catch (error: SecurityException) {
+            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw LuaRuntimeException("interrupted while opening process")
         }
     }
 
@@ -157,7 +193,7 @@ internal object LuaIoLibrary {
             if (handle.deleteOnClose && handle.path != null) {
                 Files.deleteIfExists(handle.path)
             }
-            LuaReturn.of(true)
+            handle.closeResult?.invoke() ?: LuaReturn.of(true)
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         }
@@ -334,6 +370,22 @@ internal object LuaIoLibrary {
         }
     }
 
+    private fun processCloseResult(exitCode: Int): LuaReturn {
+        return if (exitCode == 0) {
+            LuaReturn.of(true, "exit", 0L)
+        } else {
+            LuaReturn.of(null, "exit", exitCode.toLong())
+        }
+    }
+
+    private fun shellCommand(command: String): List<String> {
+        return if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            listOf("cmd", "/c", command)
+        } else {
+            listOf("sh", "-c", command)
+        }
+    }
+
     private data class IoOpenMode(
         val randomAccessMode: String,
         val append: Boolean,
@@ -349,6 +401,7 @@ internal object LuaIoLibrary {
         val path: Path?,
         val file: RandomAccessFile,
         val deleteOnClose: Boolean = false,
+        val closeResult: (() -> LuaReturn)? = null,
     ) {
         var closed: Boolean = false
 

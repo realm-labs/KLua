@@ -3493,6 +3493,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io popen reads process output`() {
+        val command = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "echo KLua"
+        } else {
+            "printf KLua"
+        }
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local handle = assert(io.popen("$command", "r"))
+                local output = handle:read("*a")
+                local closeOk, kind, code = handle:close()
+                local writeOk, writeMessage = pcall(io.popen, "$command", "w")
+                return output, closeOk, kind, code, writeOk, writeMessage
+                """.trimIndent(),
+                "io-popen-read.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("KLua", state.toString(1)?.trim())
+        assertTrue(state.toBoolean(2))
+        assertEquals("exit", state.toString(3))
+        assertEquals(0L, state.toInteger(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'io.popen' (write mode is not supported)", state.toString(6))
+    }
+
+    @Test
     fun `debug sethook and gethook accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -10904,6 +10938,7 @@ class LuaStdlibTest {
             state.load(
                 """
                 return type(io), type(io.open), type(io.tmpfile), type(io.type), type(io.close), type(io.lines),
+                    type(io.popen),
                     type(io.input), type(io.output), type(io.read), type(io.write), type(io.flush)
                 """.trimIndent(),
                 "open-libs-io.lua",
@@ -10922,6 +10957,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(9))
         assertEquals("function", state.toString(10))
         assertEquals("function", state.toString(11))
+        assertEquals("function", state.toString(12))
     }
 
     @Test
