@@ -81,6 +81,53 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `state raw equals compares numbers without losing integer precision`() {
+        val state = LuaState.create()
+        state.register("probe") { context ->
+            LuaReturn.of(
+                context.rawEquals(1, 2),
+                context.rawEquals(3, 4),
+                context.rawEquals(3, 5),
+                context.rawEquals(1, 6),
+                context.rawEquals(7, 8),
+            )
+        }
+        state.pushInteger(Long.MAX_VALUE)
+        state.setGlobal("max")
+        state.pushInteger(Long.MAX_VALUE - 1L)
+        state.setGlobal("maxMinusOne")
+        state.pushInteger(1L)
+        state.setGlobal("one")
+        state.pushNumber(1.0)
+        state.setGlobal("oneFloat")
+        state.pushNumber(1.5)
+        state.setGlobal("onePointFive")
+        state.pushNumber(Long.MAX_VALUE.toDouble())
+        state.setGlobal("maxFloat")
+        state.pushInteger(Long.MIN_VALUE)
+        state.setGlobal("min")
+        state.pushNumber(Long.MIN_VALUE.toDouble())
+        state.setGlobal("minFloat")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return probe(max, maxMinusOne, one, oneFloat, onePointFive, maxFloat, min, minFloat)
+                """.trimIndent(),
+                "api-raw-equals-large-integers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(false, state.toBoolean(1))
+        assertEquals(true, state.toBoolean(2))
+        assertEquals(false, state.toBoolean(3))
+        assertEquals(false, state.toBoolean(4))
+        assertEquals(true, state.toBoolean(5))
+    }
+
+    @Test
     fun `state reports missing bytecode resources`() {
         val state = LuaState.create()
 

@@ -1301,8 +1301,8 @@ class LuaState private constructor(
         return when (left) {
             LuaStackValue.Nil -> true
             is LuaStackValue.BooleanValue -> left.value == (right as LuaStackValue.BooleanValue).value
-            is LuaStackValue.IntegerValue -> left.value.toDouble() == stackNumber(right)
-            is LuaStackValue.NumberValue -> left.value == stackNumber(right)
+            is LuaStackValue.IntegerValue -> rawNumberEqual(left, right)
+            is LuaStackValue.NumberValue -> rawNumberEqual(left, right)
             is LuaStackValue.StringValue -> left.value == (right as LuaStackValue.StringValue).value
             is LuaStackValue.TableValue -> left === right
             is LuaStackValue.ChunkValue -> left === right
@@ -1320,11 +1320,19 @@ class LuaState private constructor(
         }
     }
 
-    private fun stackNumber(value: LuaStackValue?): Double? {
-        return when (value) {
-            is LuaStackValue.IntegerValue -> value.value.toDouble()
-            is LuaStackValue.NumberValue -> value.value
-            else -> null
+    private fun rawNumberEqual(left: LuaStackValue?, right: LuaStackValue?): Boolean {
+        return when (left) {
+            is LuaStackValue.IntegerValue -> when (right) {
+                is LuaStackValue.IntegerValue -> left.value == right.value
+                is LuaStackValue.NumberValue -> integerFromNumber(right.value)?.let { left.value == it } ?: false
+                else -> false
+            }
+            is LuaStackValue.NumberValue -> when (right) {
+                is LuaStackValue.IntegerValue -> integerFromNumber(left.value)?.let { it == right.value } ?: false
+                is LuaStackValue.NumberValue -> left.value == right.value
+                else -> false
+            }
+            else -> false
         }
     }
 
@@ -1497,7 +1505,7 @@ class LuaState private constructor(
                 return false
             }
             return when {
-                left.isNumberValue() && right.isNumberValue() -> left.toRawNumber() == right.toRawNumber()
+                left.isNumberValue() && right.isNumberValue() -> rawNumberEqual(left, right)
                 left is LuaStackValue.TableValue && right is LuaStackValue.TableValue -> left === right
                 left is LuaStackValue.UserDataValue && right is LuaStackValue.UserDataValue -> left.value === right.value
                 left is LuaStackValue.NativeFunctionValue && right is LuaStackValue.NativeFunctionValue -> {
@@ -1517,14 +1525,6 @@ class LuaState private constructor(
 
         private fun LuaStackValue?.isNumberValue(): Boolean {
             return this is LuaStackValue.IntegerValue || this is LuaStackValue.NumberValue
-        }
-
-        private fun LuaStackValue?.toRawNumber(): Double? {
-            return when (this) {
-                is LuaStackValue.IntegerValue -> value.toDouble()
-                is LuaStackValue.NumberValue -> value
-                else -> null
-            }
         }
 
         override fun equal(leftIndex: Int, rightIndex: Int): Boolean? {

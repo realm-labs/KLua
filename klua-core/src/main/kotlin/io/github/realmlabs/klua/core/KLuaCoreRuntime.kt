@@ -252,8 +252,8 @@ public object KLuaCoreRuntime {
         return when (left) {
             KLuaCoreValue.Nil -> true
             is KLuaCoreValue.BooleanValue -> left.value == (right as KLuaCoreValue.BooleanValue).value
-            is KLuaCoreValue.IntegerValue -> left.value.toDouble() == right.coreNumber()
-            is KLuaCoreValue.NumberValue -> left.value == right.coreNumber()
+            is KLuaCoreValue.IntegerValue -> rawNumberEqual(left, right)
+            is KLuaCoreValue.NumberValue -> rawNumberEqual(left, right)
             is KLuaCoreValue.StringValue -> left.value.luaRawBytes().contentEquals(
                 (right as KLuaCoreValue.StringValue).value.luaRawBytes(),
             )
@@ -995,6 +995,22 @@ public sealed interface KLuaCoreValue {
     ) : KLuaCoreValue
 }
 
+private fun rawNumberEqual(left: KLuaCoreValue, right: KLuaCoreValue): Boolean {
+    return when (left) {
+        is KLuaCoreValue.IntegerValue -> when (right) {
+            is KLuaCoreValue.IntegerValue -> left.value == right.value
+            is KLuaCoreValue.NumberValue -> right.value.luaInteger()?.let { left.value == it } ?: false
+            else -> false
+        }
+        is KLuaCoreValue.NumberValue -> when (right) {
+            is KLuaCoreValue.IntegerValue -> left.value.luaInteger()?.let { it == right.value } ?: false
+            is KLuaCoreValue.NumberValue -> left.value == right.value
+            else -> false
+        }
+        else -> false
+    }
+}
+
 private fun KLuaCoreValue.publicTypeName(): String {
     return when (this) {
         KLuaCoreValue.Nil -> "nil"
@@ -1010,12 +1026,12 @@ private fun KLuaCoreValue.publicTypeName(): String {
     }
 }
 
-private fun KLuaCoreValue.coreNumber(): Double? {
-    return when (this) {
-        is KLuaCoreValue.IntegerValue -> value.toDouble()
-        is KLuaCoreValue.NumberValue -> value
-        else -> null
+private fun Double.luaInteger(): Long? {
+    if (!java.lang.Double.isFinite(this) || this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
+        return null
     }
+    val integer = toLong()
+    return if (integer.toDouble() == this) integer else null
 }
 
 private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? {
@@ -1224,6 +1240,7 @@ private const val LUA_IDSIZE = 60
 private const val LUA_SOURCE_RETS = "..."
 private const val LUA_SOURCE_PREFIX = "[string \""
 private const val LUA_SOURCE_SUFFIX = "\"]"
+private const val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = 9223372036854775808.0
 
 private fun callCoreFunction(
     function: KLuaCoreFunction,
