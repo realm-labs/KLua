@@ -3491,6 +3491,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read uses standard input by default`() {
+        val originalIn = System.`in`
+        System.setIn(ByteArrayInputStream("first\n  0x10 tail".toByteArray(StandardCharsets.UTF_8)))
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local current = io.input()
+                    local first = io.read()
+                    local number = io.read("n")
+                    local rest = io.stdin:read("*a")
+                    local closeOk, closeMessage = io.close(current)
+                    return first, number, rest, closeOk, closeMessage, io.type(current)
+                    """.trimIndent(),
+                    "io-standard-input.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("first", state.toString(1))
+            assertEquals(16L, state.toInteger(2))
+            assertEquals(" tail", state.toString(3))
+            assertTrue(state.isNil(4))
+            assertEquals("cannot close standard file", state.toString(5))
+            assertEquals("file", state.toString(6))
+        } finally {
+            System.setIn(originalIn)
+        }
+    }
+
+    @Test
     fun `io lines uses current default input`() {
         val inputPath = Files.createTempFile("klua-io-default-lines-", ".txt")
         Files.writeString(inputPath, "first\nsecond\n")

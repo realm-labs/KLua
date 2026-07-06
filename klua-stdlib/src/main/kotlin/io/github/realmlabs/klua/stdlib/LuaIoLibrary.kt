@@ -8,6 +8,7 @@ import io.github.realmlabs.klua.api.LuaState
 import java.io.EOFException
 import java.io.IOException
 import java.io.OutputStream
+import java.io.PushbackInputStream
 import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.Path
@@ -15,9 +16,10 @@ import java.util.Locale
 
 internal object LuaIoLibrary {
     fun open(state: LuaState): LuaState {
+        val stdin = IoFileHandle.input(System.`in`, closeResult = ::standardFileCloseResult)
         val stdout = IoFileHandle.output(System.out, closeResult = ::standardFileCloseResult)
         val stderr = IoFileHandle.output(System.err, closeResult = ::standardFileCloseResult)
-        val defaultFiles = IoDefaultFiles(output = stdout)
+        val defaultFiles = IoDefaultFiles(input = stdin, output = stdout)
         state.registerType(IoFileHandle::class.java) { type ->
             type.method("close") { receiver, _ -> closeHandle(receiver) }
             type.method("flush") { receiver, _ -> flushHandle(receiver) }
@@ -40,6 +42,7 @@ internal object LuaIoLibrary {
         setFunctionField(state, "tmpfile") { _ -> ioTmpFile() }
         setFunctionField(state, "type", ::ioType)
         setFunctionField(state, "write") { context -> writeHandle(defaultOutput(defaultFiles), context) }
+        setHandleField(state, "stdin", stdin)
         setHandleField(state, "stdout", stdout)
         setHandleField(state, "stderr", stderr)
         state.setGlobal("io")
@@ -443,6 +446,7 @@ internal object LuaIoLibrary {
     private class IoFileHandle private constructor(
         val path: Path?,
         private val randomAccessFile: RandomAccessFile?,
+        private val inputStream: PushbackInputStream?,
         private val outputStream: OutputStream?,
         val deleteOnClose: Boolean = false,
         private val nonClosing: Boolean = false,
@@ -453,7 +457,7 @@ internal object LuaIoLibrary {
             file: RandomAccessFile,
             deleteOnClose: Boolean = false,
             closeResult: (() -> LuaReturn)? = null,
-        ) : this(path, file, null, deleteOnClose, nonClosing = false, closeResult)
+        ) : this(path, file, null, null, deleteOnClose, nonClosing = false, closeResult)
 
         var closed: Boolean = false
 
@@ -461,10 +465,22 @@ internal object LuaIoLibrary {
             get() = randomAccessFile ?: throw LuaRuntimeException("bad file descriptor")
 
         companion object {
+            fun input(inputStream: java.io.InputStream, closeResult: () -> LuaReturn): IoFileHandle {
+                return IoFileHandle(
+                    path = null,
+                    randomAccessFile = null,
+                    inputStream = PushbackInputStream(inputStream, 4),
+                    outputStream = null,
+                    nonClosing = true,
+                    closeResult = closeResult,
+                )
+            }
+
             fun output(outputStream: OutputStream, closeResult: () -> LuaReturn): IoFileHandle {
                 return IoFileHandle(
                     path = null,
                     randomAccessFile = null,
+                    inputStream = null,
                     outputStream = outputStream,
                     nonClosing = true,
                     closeResult = closeResult,
@@ -484,6 +500,7 @@ internal object LuaIoLibrary {
             }
             closed = true
             randomAccessFile?.close()
+            inputStream?.close()
             outputStream?.close()
             return closeResult?.invoke() ?: LuaReturn.of(true)
         }
@@ -505,6 +522,9 @@ internal object LuaIoLibrary {
         }
 
         fun readAll(): String {
+            inputStream?.let { input ->
+                return input.readAllBytes().toString(Charsets.UTF_8)
+            }
             val remaining = file.length() - file.filePointer
             if (remaining <= 0L) {
                 return ""
@@ -518,6 +538,28 @@ internal object LuaIoLibrary {
         }
 
         fun readChars(count: Int): String? {
+            inputStream?.let { input ->
+                if (count == 0) {
+                    val byte = input.read()
+                    return if (byte < 0) {
+                        null
+                    } else {
+                        input.unread(byte)
+                        ""
+                    }
+                }
+                val bytes = ByteArray(count)
+                var read = 0
+                while (read < count) {
+                    val byte = input.read()
+                    if (byte < 0) {
+                        break
+                    }
+                    bytes[read] = byte.toByte()
+                    read++
+                }
+                return if (read == 0) null else bytes.copyOf(read).toString(Charsets.UTF_8)
+            }
             if (count == 0) {
                 return if (file.filePointer < file.length()) "" else null
             }
@@ -527,6 +569,29 @@ internal object LuaIoLibrary {
         }
 
         fun readLine(chop: Boolean): String? {
+            inputStream?.let { input ->
+                val bytes = mutableListOf<Byte>()
+                var sawLineTerminator = false
+                while (true) {
+                    val value = input.read()
+                    if (value < 0) {
+                        break
+                    }
+                    if (value == '\n'.code) {
+                        sawLineTerminator = true
+                        if (!chop) {
+                            bytes += value.toByte()
+                        }
+                        break
+                    }
+                    bytes += value.toByte()
+                }
+                return if (bytes.isEmpty() && !sawLineTerminator) {
+                    null
+                } else {
+                    bytes.toByteArray().toString(Charsets.UTF_8)
+                }
+            }
             val bytes = mutableListOf<Byte>()
             var sawLineTerminator = false
             while (true) {
@@ -549,12 +614,8 @@ internal object LuaIoLibrary {
 
         fun readNumber(): Any? {
             skipWhitespace()
-            val start = file.filePointer
             val token = scanLuaNumber()
             val number = token.luaNumber()
-            if (number == null && token.isEmpty()) {
-                file.seek(start)
-            }
             return number
         }
 
@@ -588,29 +649,36 @@ internal object LuaIoLibrary {
         }
 
         private fun StringBuilder.appendHexPrefix(): Boolean {
-            val before = file.filePointer
             val beforeLength = length
-            if (!appendChar('0')) {
+            val first = readByte() ?: return false
+            if (first.toChar() != '0') {
+                unreadByte(first)
                 return false
             }
-            if (appendAny('x', 'X')) {
+            val second = readByte()
+            if (second != null && (second.toChar() == 'x' || second.toChar() == 'X')) {
+                append('0')
+                append(second.toChar())
                 return true
             }
-            file.seek(before)
+            if (second != null) {
+                unreadByte(second)
+            }
+            unreadByte(first)
             setLength(beforeLength)
             return false
         }
 
         private fun StringBuilder.appendDigits(hex: Boolean): Int {
             var count = 0
-            while (file.filePointer < file.length()) {
-                val position = file.filePointer
-                val char = file.readUnsignedByte().toChar()
+            while (true) {
+                val value = readByte() ?: break
+                val char = value.toChar()
                 if (if (hex) char.isHexDigit() else char.isDigit()) {
                     append(char)
                     count++
                 } else {
-                    file.seek(position)
+                    unreadByte(value)
                     break
                 }
             }
@@ -618,43 +686,57 @@ internal object LuaIoLibrary {
         }
 
         private fun StringBuilder.appendChar(expected: Char): Boolean {
-            if (file.filePointer >= file.length()) {
-                return false
-            }
-            val position = file.filePointer
-            val char = file.readUnsignedByte().toChar()
+            val value = readByte() ?: return false
+            val char = value.toChar()
             return if (char == expected) {
                 append(char)
                 true
             } else {
-                file.seek(position)
+                unreadByte(value)
                 false
             }
         }
 
         private fun StringBuilder.appendAny(first: Char, second: Char): Boolean {
-            if (file.filePointer >= file.length()) {
-                return false
-            }
-            val position = file.filePointer
-            val char = file.readUnsignedByte().toChar()
+            val value = readByte() ?: return false
+            val char = value.toChar()
             return if (char == first || char == second) {
                 append(char)
                 true
             } else {
-                file.seek(position)
+                unreadByte(value)
                 false
             }
         }
 
         private fun skipWhitespace() {
-            while (file.filePointer < file.length()) {
-                val position = file.filePointer
-                if (!file.readUnsignedByte().toChar().isWhitespace()) {
-                    file.seek(position)
+            while (true) {
+                val value = readByte() ?: return
+                if (!value.toChar().isWhitespace()) {
+                    unreadByte(value)
                     return
                 }
             }
+        }
+
+        private fun readByte(): Int? {
+            inputStream?.let { input ->
+                val value = input.read()
+                return if (value < 0) null else value
+            }
+            return try {
+                file.readUnsignedByte()
+            } catch (_: EOFException) {
+                null
+            }
+        }
+
+        private fun unreadByte(value: Int) {
+            inputStream?.let { input ->
+                input.unread(value)
+                return
+            }
+            file.seek(file.filePointer - 1)
         }
     }
 
