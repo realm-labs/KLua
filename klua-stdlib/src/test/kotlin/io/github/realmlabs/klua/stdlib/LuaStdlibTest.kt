@@ -3450,6 +3450,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io lines uses current default input`() {
+        val inputPath = Files.createTempFile("klua-io-default-lines-", ".txt")
+        Files.writeString(inputPath, "first\nsecond\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local input = io.input("${inputPath.luaPath()}")
+                    local values = {}
+                    for line in io.lines() do
+                        values[#values + 1] = line
+                    end
+                    local stillOpen = io.type(input)
+                    input:close()
+                    return values[1], values[2], values[3], stillOpen
+                    """.trimIndent(),
+                    "io-lines-default-input.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("first", state.toString(1))
+            assertEquals("second", state.toString(2))
+            assertTrue(state.isNil(3))
+            assertEquals("file", state.toString(4))
+        } finally {
+            Files.deleteIfExists(inputPath)
+        }
+    }
+
+    @Test
     fun `io file handles validate buffer modes`() {
         val path = Files.createTempFile("klua-io-buffer-", ".txt")
         val state = LuaState.create()

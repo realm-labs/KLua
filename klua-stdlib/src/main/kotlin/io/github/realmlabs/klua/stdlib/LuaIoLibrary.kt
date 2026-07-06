@@ -29,7 +29,7 @@ internal object LuaIoLibrary {
         setFunctionField(state, "close") { context -> ioClose(context, defaultFiles) }
         setFunctionField(state, "flush") { _ -> flushHandle(defaultOutput(defaultFiles)) }
         setFunctionField(state, "input") { context -> ioInput(context, defaultFiles) }
-        setFunctionField(state, "lines", ::ioLines)
+        setFunctionField(state, "lines") { context -> ioLines(context, defaultFiles) }
         setFunctionField(state, "open", ::ioOpen)
         setFunctionField(state, "output") { context -> ioOutput(context, defaultFiles) }
         setFunctionField(state, "popen", ::ioPopen)
@@ -158,9 +158,10 @@ internal object LuaIoLibrary {
         return handle
     }
 
-    private fun ioLines(context: LuaCallContext): LuaReturn {
+    private fun ioLines(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
         if (context.isNone(1) || context.isNil(1)) {
-            throw LuaRuntimeException("default input is not supported")
+            val formats = readFormatsFromContext(context, 2, "io.lines")
+            return LuaReturn.of(lineIterator(defaultInput(defaultFiles), formats, closeOnEnd = false))
         }
         val filename = requiredString(context, 1, "io.lines")
         val openResult = ioOpenValue(filename, "r")
