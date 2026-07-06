@@ -1044,7 +1044,9 @@ class LuaStdlibTest {
                     return info.name, info.namewhat
                 end
 
-                return _ENV.envProbe()
+                local dotName, dotNameWhat = _ENV.envProbe()
+                local bracketName, bracketNameWhat = _ENV["envProbe"]()
+                return dotName, dotNameWhat, bracketName, bracketNameWhat
                 """.trimIndent(),
                 "debug-getinfo-env-global-name.lua",
             ),
@@ -1053,6 +1055,8 @@ class LuaStdlibTest {
 
         assertEquals("envProbe", state.toString(1))
         assertEquals("global", state.toString(2))
+        assertEquals("envProbe", state.toString(3))
+        assertEquals("global", state.toString(4))
     }
 
     @Test
