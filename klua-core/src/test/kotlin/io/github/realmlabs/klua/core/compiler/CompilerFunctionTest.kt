@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.bytecode.Disassembler
 import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
+import kotlin.test.assertContains
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 
@@ -142,6 +143,46 @@ class CompilerFunctionTest {
         }
 
         assertEquals("const-global-function.lua:2:10: attempt to assign to const variable 'answer'", error.message)
+    }
+
+    @Test
+    fun `function declarations store existing upvalues`() {
+        val prototype = Compiler.compile(
+            """
+            local add
+            local function define()
+                function add(a, b)
+                    return a + b
+                end
+            end
+            define()
+            return add(20, 22)
+            """.trimIndent(),
+        )
+
+        val define = prototype.nested[0]
+        assertEquals("add", define.upvalues.single().name)
+        assertEquals(UpvalueSource.LOCAL, define.upvalues.single().source)
+        assertContains(Disassembler.disassemble(define), "SET_UPVALUE U0 R0")
+    }
+
+    @Test
+    fun `function declarations reject const upvalue stores`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local answer <const> = nil
+                local function define()
+                    function answer()
+                        return 42
+                    end
+                end
+                """.trimIndent(),
+                "const-upvalue-function.lua",
+            )
+        }
+
+        assertEquals("const-upvalue-function.lua:3:14: attempt to assign to const variable 'answer'", error.message)
     }
 
     @Test
