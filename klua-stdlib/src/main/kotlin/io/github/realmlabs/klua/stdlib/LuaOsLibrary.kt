@@ -248,6 +248,7 @@ internal object LuaOsLibrary {
             throw LuaRuntimeException("time result cannot be represented in this installation")
         }
 
+        val epochSecond = normalized.toEpochSecond()
         setDateField(context, "year", normalized.year.toLong())
         setDateField(context, "month", normalized.monthValue.toLong())
         setDateField(context, "day", normalized.dayOfMonth.toLong())
@@ -257,8 +258,11 @@ internal object LuaOsLibrary {
         setDateField(context, "wday", normalized.dayOfWeek.value % 7L + 1L)
         setDateField(context, "yday", normalized.dayOfYear.toLong())
         setDateField(context, "isdst", normalized.zone.rules.isDaylightSavings(normalized.toInstant()))
+        if (epochSecond == -1L) {
+            throw LuaRuntimeException("time result cannot be represented in this installation")
+        }
 
-        return LuaReturn.of(normalized.toEpochSecond())
+        return LuaReturn.of(epochSecond)
     }
 
     private fun LocalDateTime.atSystemZone(requestedIsDst: Boolean?): ZonedDateTime {

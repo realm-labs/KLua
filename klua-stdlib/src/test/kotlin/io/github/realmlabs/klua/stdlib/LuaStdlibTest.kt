@@ -10719,6 +10719,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time rejects source sentinel result`() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local date = {year = 1969, month = 12, day = 31, hour = 23, min = 59, sec = 59}
+                    local ok, message = pcall(os.time, date)
+                    return ok, message
+                    """.trimIndent(),
+                    "os-time-sentinel-result.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertFalse(state.toBoolean(1))
+            assertEquals("time result cannot be represented in this installation", state.toString(2))
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
     fun `os time rejects out of range numeric string date fields`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
