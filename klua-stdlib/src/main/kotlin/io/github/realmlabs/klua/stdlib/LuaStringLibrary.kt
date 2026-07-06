@@ -1298,6 +1298,8 @@ internal object LuaStringLibrary {
     private fun FormatSpecifier.toJavaSpecifier(conversion: Char): String {
         val normalizedFlags = FORMAT_FLAGS.filter { flag ->
             flag in flags && (width != null || flag != '-' && flag != '0')
+        }.filterNot { flag ->
+            flag == '0' && '-' in flags || flag == ' ' && '+' in flags
         }
         val widthText = width?.toString() ?: ""
         val precisionText = precision?.let { precision -> ".$precision" } ?: ""

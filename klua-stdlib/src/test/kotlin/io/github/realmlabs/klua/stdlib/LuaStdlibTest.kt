@@ -15794,6 +15794,23 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format applies printf flag precedence`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """return string.format("%+- 05d|%+ 05d|%- 08.1f|%+ 08.1f", 7, 7, 1.25, 1.25)""",
+                "string-format-flag-precedence.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("+7   |+0007| 1.3    |+00001.3", state.toString(1))
+    }
+
+    @Test
     fun `string format rejects overlong conversion specifications`() {
         val validState = LuaState.create()
         LuaStdlib.openString(validState)
