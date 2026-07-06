@@ -206,6 +206,22 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes false to be closed locals as no-op close values`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local absent <close>
+                local none <close> = nil
+                local disabled <close> = false
+                return absent, none, disabled
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaNil, LuaNil, LuaBoolean(false)), result)
+    }
+
+    @Test
     fun `executes local reassignment`() {
         val result = LuaVm().execute(
             Compiler.compile(

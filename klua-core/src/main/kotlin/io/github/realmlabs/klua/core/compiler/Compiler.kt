@@ -283,9 +283,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileLocal(statement: LocalStatement) {
-        if (statement.attributes.any { attribute -> attribute == LocalAttribute.CLOSE }) {
-            throw unsupported(statement, "to-be-closed local variables are not supported")
-        }
+        validateCloseLocalInitializers(statement)
 
         val slots = statement.names.map { name ->
             val slot = nextLocalRegister++
@@ -295,6 +293,19 @@ internal class Compiler private constructor(
 
         compileAdjustedValues(statement.values, slots.first(), slots.size, statement.range.start.line)
         registerLocalDeclarations(statement, slots)
+    }
+
+    private fun validateCloseLocalInitializers(statement: LocalStatement) {
+        for ((index, attribute) in statement.attributes.withIndex()) {
+            if (attribute == LocalAttribute.CLOSE && !statement.closeInitializerIsFalse(index)) {
+                throw unsupported(statement, "to-be-closed local variables are not supported")
+            }
+        }
+    }
+
+    private fun LocalStatement.closeInitializerIsFalse(index: Int): Boolean {
+        val expression = values.getOrNull(index) ?: return true
+        return expression is NilExpression || expression is BooleanExpression && !expression.value
     }
 
     private fun compileGlobal(statement: GlobalStatement) {

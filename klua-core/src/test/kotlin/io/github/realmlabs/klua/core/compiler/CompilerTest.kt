@@ -480,7 +480,22 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects to be closed locals until close semantics exist`() {
+    fun `compiles false to be closed locals as no-op close values`() {
+        val prototype = Compiler.compile(
+            """
+            local absent <close>
+            local none <close> = nil
+            local disabled <close> = false
+            return absent, none, disabled
+            """.trimIndent(),
+            "close-false-local.lua",
+        )
+
+        assertEquals("close-false-local.lua", prototype.sourceName)
+    }
+
+    @Test
+    fun `rejects non false to be closed locals until close method semantics exist`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("""local resource <close> = {}""", "close-local.lua")
         }
@@ -489,7 +504,7 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects prefixed to be closed locals until close semantics exist`() {
+    fun `rejects prefixed non false to be closed locals until close method semantics exist`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("""local <close> resource = {}""", "prefixed-close-local.lua")
         }
