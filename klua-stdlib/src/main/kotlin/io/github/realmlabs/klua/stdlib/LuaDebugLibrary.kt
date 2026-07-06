@@ -410,6 +410,7 @@ internal object LuaDebugLibrary {
         if (context.isNone(2) || (!context.isNil(2) && !context.isTable(2))) {
             throw LuaRuntimeException("bad argument #2 to 'setmetatable' (nil or table expected)")
         }
+        (context.getLuaValue(1) as? LuaStdlibStringValue)?.disableLuaToStringFallback()
         try {
             context.setRawMetatable(1, context.getTable(2))
         } catch (_: IllegalArgumentException) {

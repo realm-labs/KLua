@@ -670,12 +670,19 @@ internal object LuaIoLibrary {
         val flushable: Boolean
             get() = randomAccessFile != null || outputStream != null
 
+        override var luaToStringFallbackEnabled: Boolean = true
+            private set
+
         override fun luaToString(): String {
             return if (closed) {
                 "file (closed)"
             } else {
                 "file (${System.identityHashCode(this).toString(16)})"
             }
+        }
+
+        override fun disableLuaToStringFallback() {
+            luaToStringFallbackEnabled = false
         }
 
         companion object {
