@@ -16614,6 +16614,11 @@ class LuaStdlibTest {
             "string-pack-padding-target-error.lua",
             "bad argument #1 to 'pack' (invalid next option for option 'X')",
         )
+        assertPackError(
+            """return string.pack("c2147483648", "")""",
+            "string-pack-fixed-string-too-long.lua",
+            "bad argument #1 to 'pack' (result too long)",
+        )
     }
 
     @Test
@@ -16644,6 +16649,36 @@ class LuaStdlibTest {
         assertEquals(4L, state.toInteger(5))
         assertEquals("ab\u0000\u0000", state.toString(6))
         assertEquals(5L, state.toInteger(7))
+    }
+
+    @Test
+    fun `string pack and unpack allow zero length fixed strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local packed = string.pack("c0B", "", 7)
+                local empty, byte, pos = string.unpack("c0B", packed)
+                local skipped, skipPos = string.unpack("c0", "abc")
+                local zero = string.pack("c0", "")
+                return string.packsize("c0"), #packed, #empty, byte, pos, #skipped, skipPos, #zero
+                """.trimIndent(),
+                "string-pack-unpack-zero-fixed-string.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals(7L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(0L, state.toInteger(8))
     }
 
     @Test

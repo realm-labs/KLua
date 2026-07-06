@@ -19,6 +19,7 @@ internal object LuaStringLibrary {
     private const val FORMAT_FLAGS = "-+ #0"
     private const val FORMAT_SPECIFIER_PREFIX = "$FORMAT_FLAGS.123456789"
     private const val MAX_FORMAT_SPECIFIER_LENGTH = 22
+    private const val MAX_PACK_RESULT_SIZE = 2147483647L
     private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
     private const val GSUB_REPLACEMENT_EXPECTED_TYPE = "string/function/table"
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
@@ -441,8 +442,14 @@ internal object LuaStringLibrary {
         var argumentIndex = 2
         while (!scanner.isDone()) {
             val details = scanner.nextDetails(totalSize)
+            val resultLengthArgumentIndex = argumentIndex - 1
+            val fixedSize = checkedPackResultSize(
+                details.padding,
+                details.size,
+                resultLengthArgumentIndex,
+            )
+            totalSize = checkedPackResultSize(totalSize, fixedSize, resultLengthArgumentIndex)
             repeatByte(output, 0, details.padding)
-            totalSize = checkedPackSize(totalSize, details.padding)
             when (details.option) {
                 LuaStringPackFormat.PackOption.Int -> {
                     val value = requiredInteger(context, argumentIndex, "pack")
@@ -491,8 +498,8 @@ internal object LuaStringLibrary {
                     val bytes = value.luaRawBytes()
                     requireStringLengthPackRange(bytes.size, details.size, argumentIndex)
                     writePackedInteger(output, bytes.size.toLong(), details.size, details.littleEndian, signed = false)
+                    totalSize = checkedPackResultSize(totalSize, bytes.size.toLong(), argumentIndex)
                     output.write(bytes)
-                    totalSize = checkedPackSize(totalSize, bytes.size.toLong())
                     argumentIndex++
                 }
                 LuaStringPackFormat.PackOption.ZeroTerminatedString -> {
@@ -501,13 +508,12 @@ internal object LuaStringLibrary {
                     if (bytes.any { it.toInt() == 0 }) {
                         throw LuaRuntimeException("bad argument #$argumentIndex to 'pack' (string contains zeros)")
                     }
+                    totalSize = checkedPackResultSize(totalSize, bytes.size.toLong() + 1L, argumentIndex)
                     output.write(bytes)
                     output.write(0)
-                    totalSize = checkedPackSize(totalSize, bytes.size.toLong() + 1L)
                     argumentIndex++
                 }
             }
-            totalSize = checkedPackSize(totalSize, details.size)
         }
         return LuaReturn.of(output.toByteArray().toLuaByteString())
     }
@@ -594,6 +600,18 @@ internal object LuaStringLibrary {
         } catch (_: ArithmeticException) {
             throw LuaRuntimeException("resulting string too large")
         }
+    }
+
+    private fun checkedPackResultSize(left: Long, right: Long, argumentIndex: Int): Long {
+        val size = try {
+            java.lang.Math.addExact(left, right)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("bad argument #$argumentIndex to 'pack' (result too long)")
+        }
+        if (size > MAX_PACK_RESULT_SIZE) {
+            throw LuaRuntimeException("bad argument #$argumentIndex to 'pack' (result too long)")
+        }
+        return size
     }
 
     private fun repeatByte(output: ByteArrayOutputStream, value: Int, count: Long) {
