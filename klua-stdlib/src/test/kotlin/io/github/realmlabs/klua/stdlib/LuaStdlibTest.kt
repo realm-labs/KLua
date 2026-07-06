@@ -12187,9 +12187,18 @@ class LuaStdlibTest {
                 local deadCloseOk = coroutine.close(dead)
                 local deadAfterClose = coroutine.status(dead)
 
+                local fresh = coroutine.create(function()
+                    return "unreachable"
+                end)
+                local freshBeforeClose = coroutine.status(fresh)
+                local freshCloseOk = coroutine.close(fresh)
+                local freshAfterClose = coroutine.status(fresh)
+                local freshResumeOk, freshResumeMessage = coroutine.resume(fresh)
+
                 return firstOk, yielded, beforeClose, closeOk, afterClose,
                     resumeOk, resumeMessage, deadResumeOk, deadBeforeClose,
-                    deadCloseOk, deadAfterClose
+                    deadCloseOk, deadAfterClose, freshBeforeClose, freshCloseOk,
+                    freshAfterClose, freshResumeOk, freshResumeMessage
                 """.trimIndent(),
                 "coroutine-close.lua",
             ),
@@ -12207,6 +12216,11 @@ class LuaStdlibTest {
         assertEquals("dead", state.toString(9))
         assertTrue(state.toBoolean(10))
         assertEquals("dead", state.toString(11))
+        assertEquals("suspended", state.toString(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("dead", state.toString(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("cannot resume dead coroutine", state.toString(16))
     }
 
     @Test
