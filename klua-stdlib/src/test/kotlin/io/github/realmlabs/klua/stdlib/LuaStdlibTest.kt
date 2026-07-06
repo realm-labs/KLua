@@ -3329,6 +3329,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io file write reports source argument positions`() {
+        val path = Files.createTempFile("klua-io-write-args-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w"))
+                    local ok, message = pcall(function()
+                        return handle:write({})
+                    end)
+                    handle:close()
+                    return ok, message
+                    """.trimIndent(),
+                    "io-write-argument-positions.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertFalse(state.toBoolean(1))
+            assertEquals("bad argument #2 to 'write' (string expected)", state.toString(2))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io tmpfile returns closeable file handles`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -3485,7 +3516,7 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
             assertFalse(state.toBoolean(1))
-            assertEquals("bad argument #251 to 'lines' (too many arguments)", state.toString(2))
+            assertEquals("bad argument #252 to 'lines' (too many arguments)", state.toString(2))
             assertFalse(state.toBoolean(3))
             assertEquals("bad argument #252 to 'io.lines' (too many arguments)", state.toString(4))
         } finally {
@@ -3568,7 +3599,7 @@ class LuaStdlibTest {
             assertTrue(state.toBoolean(1))
             assertEquals("function", state.toString(2))
             assertFalse(state.toBoolean(3))
-            assertEquals("bad argument #1 to 'lines' (invalid format)", state.toString(4))
+            assertEquals("bad argument #2 to 'lines' (invalid format)", state.toString(4))
             assertTrue(state.toBoolean(5))
             assertEquals("function", state.toString(6))
             assertFalse(state.toBoolean(7))
@@ -3658,7 +3689,7 @@ class LuaStdlibTest {
 
             assertEquals("ab", state.toString(1))
             assertFalse(state.toBoolean(2))
-            assertEquals("bad argument #1 to 'read' (invalid format)", state.toString(3))
+            assertEquals("bad argument #2 to 'read' (invalid format)", state.toString(3))
             assertEquals("ab", state.toString(4))
         } finally {
             Files.deleteIfExists(path)
@@ -3741,7 +3772,7 @@ class LuaStdlibTest {
             assertTrue(state.isNil(3))
             assertEquals("alpha", state.toString(4))
             assertFalse(state.toBoolean(5))
-            assertEquals("bad argument #1 to 'read' (invalid format)", state.toString(6))
+            assertEquals("bad argument #2 to 'read' (invalid format)", state.toString(6))
         } finally {
             Files.deleteIfExists(path)
         }

@@ -25,11 +25,13 @@ internal object LuaIoLibrary {
         state.registerType(IoFileHandle::class.java) { type ->
             type.method("close") { receiver, _ -> closeHandle(receiver) }
             type.method("flush") { receiver, _ -> flushHandle(receiver) }
-            type.method("lines") { receiver, context -> linesHandle(receiver, context, closeOnEnd = false) }
-            type.method("read") { receiver, context -> readHandle(receiver, context) }
+            type.method("lines") { receiver, context ->
+                linesHandle(receiver, context, firstArgumentIndex = 2, closeOnEnd = false)
+            }
+            type.method("read") { receiver, context -> readHandle(receiver, context, firstArgumentIndex = 2) }
             type.method("seek") { receiver, context -> seekHandle(receiver, context) }
             type.method("setvbuf") { receiver, context -> setBufferMode(receiver, context) }
-            type.method("write") { receiver, context -> writeHandle(receiver, context) }
+            type.method("write") { receiver, context -> writeHandle(receiver, context, firstArgumentIndex = 2) }
         }
 
         state.newTable()
@@ -284,19 +286,30 @@ internal object LuaIoLibrary {
         }
     }
 
-    private fun readHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
+    private fun readHandle(
+        handle: IoFileHandle,
+        context: LuaCallContext,
+        firstArgumentIndex: Int = 1,
+    ): LuaReturn {
         handle.ensureOpen()
         if (!handle.readable) {
             return LuaReturn.of(null, "Bad file descriptor", 1L)
         }
-        return LuaReturn.ofValues(readFormats(handle, readFormatsFromContext(context, 1, "read")))
+        return LuaReturn.ofValues(
+            readFormats(handle, readFormatsFromContext(context, 1, "read", firstArgumentIndex)),
+        )
     }
 
-    private fun linesHandle(handle: IoFileHandle, context: LuaCallContext, closeOnEnd: Boolean): LuaReturn {
+    private fun linesHandle(
+        handle: IoFileHandle,
+        context: LuaCallContext,
+        firstArgumentIndex: Int = 1,
+        closeOnEnd: Boolean,
+    ): LuaReturn {
         handle.ensureOpen()
-        checkLineFormatCount(context, 1, "lines")
+        checkLineFormatCount(context, 1, "lines", firstArgumentIndex)
         val arguments = readFormatArgumentsFromContext(context, 1)
-        return LuaReturn.of(lineIterator(handle, arguments, firstArgumentIndex = 1, "lines", closeOnEnd))
+        return LuaReturn.of(lineIterator(handle, arguments, firstArgumentIndex, "lines", closeOnEnd))
     }
 
     private fun lineIterator(
@@ -352,13 +365,23 @@ internal object LuaIoLibrary {
         context: LuaCallContext,
         firstIndex: Int,
         functionName: String,
+        firstArgumentIndex: Int = firstIndex,
     ): List<IoReadFormat> {
-        return readFormatsFromArguments(readFormatArgumentsFromContext(context, firstIndex), firstIndex, functionName)
+        return readFormatsFromArguments(
+            readFormatArgumentsFromContext(context, firstIndex),
+            firstArgumentIndex,
+            functionName,
+        )
     }
 
-    private fun checkLineFormatCount(context: LuaCallContext, firstIndex: Int, functionName: String) {
+    private fun checkLineFormatCount(
+        context: LuaCallContext,
+        firstIndex: Int,
+        functionName: String,
+        firstArgumentIndex: Int = firstIndex,
+    ) {
         if (context.argumentCount - firstIndex + 1 > MAX_LINE_FORMAT_ARGUMENTS) {
-            val errorIndex = firstIndex + MAX_LINE_FORMAT_ARGUMENTS
+            val errorIndex = firstArgumentIndex + MAX_LINE_FORMAT_ARGUMENTS
             throw LuaRuntimeException("bad argument #$errorIndex to '$functionName' (too many arguments)")
         }
     }
@@ -417,7 +440,11 @@ internal object LuaIoLibrary {
         }
     }
 
-    private fun writeHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
+    private fun writeHandle(
+        handle: IoFileHandle,
+        context: LuaCallContext,
+        firstArgumentIndex: Int = 1,
+    ): LuaReturn {
         handle.ensureOpen()
         if (!handle.writable) {
             return LuaReturn.of(null, "Bad file descriptor", 1L)
@@ -425,7 +452,9 @@ internal object LuaIoLibrary {
         return try {
             for (index in 1..context.argumentCount) {
                 val value = context.toString(index)
-                    ?: throw LuaRuntimeException("bad argument #$index to 'write' (string expected)")
+                    ?: throw LuaRuntimeException(
+                        "bad argument #${firstArgumentIndex + index - 1} to 'write' (string expected)",
+                    )
                 handle.write(value.toByteArray(Charsets.UTF_8))
             }
             LuaReturn.of(handle)
