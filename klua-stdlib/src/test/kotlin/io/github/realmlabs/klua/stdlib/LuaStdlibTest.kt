@@ -3817,6 +3817,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io numeric reads skip only lua ascii spaces`() {
+        val path = Files.createTempFile("klua-io-read-ascii-space-", ".txt")
+        Files.write(path, byteArrayOf(0x1c, '4'.code.toByte(), '2'.code.toByte()))
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local number = handle:read("n")
+                    local after = handle:read(1)
+                    local nextNumber = handle:read("n")
+                    handle:close()
+                    return number, string.byte(after), nextNumber
+                    """.trimIndent(),
+                    "io-read-ascii-space-number.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals(0x1cL, state.toInteger(2))
+            assertEquals(42L, state.toInteger(3))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read treats numeric strings as formats`() {
         val path = Files.createTempFile("klua-io-read-string-number-", ".txt")
         Files.writeString(path, "abcdef")

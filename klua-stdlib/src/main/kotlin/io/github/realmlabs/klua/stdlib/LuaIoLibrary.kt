@@ -939,7 +939,7 @@ internal object LuaIoLibrary {
             while (true) {
                 val value = readByte() ?: break
                 val char = value.toChar()
-                if (if (hex) char.isHexDigit() else char.isDigit()) {
+                if (if (hex) char.isLuaHexDigit() else char.isLuaDigit()) {
                     append(char)
                     count++
                 } else {
@@ -977,7 +977,7 @@ internal object LuaIoLibrary {
         private fun skipWhitespace() {
             while (true) {
                 val value = readByte() ?: return
-                if (!value.toChar().isWhitespace()) {
+                if (!value.toChar().isLuaNumberWhitespace()) {
                     unreadByte(value)
                     return
                 }
@@ -1013,8 +1013,16 @@ internal object LuaIoLibrary {
         data class Chars(val count: Int) : IoReadFormat
     }
 
-    private fun Char.isHexDigit(): Boolean {
-        return isDigit() || this in 'a'..'f' || this in 'A'..'F'
+    private fun Char.isLuaHexDigit(): Boolean {
+        return isLuaDigit() || this in 'a'..'f' || this in 'A'..'F'
+    }
+
+    private fun Char.isLuaDigit(): Boolean {
+        return this in '0'..'9'
+    }
+
+    private fun Char.isLuaNumberWhitespace(): Boolean {
+        return this == ' ' || this in '\t'..'\r'
     }
 
     private fun String.luaNumber(): Any? {
