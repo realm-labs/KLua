@@ -3182,6 +3182,89 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io file handles write read seek and close`() {
+        val path = Files.createTempFile("klua-io-test-", ".txt")
+        Files.deleteIfExists(path)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    local before = io.type(handle)
+                    local written = handle:write("alpha\n\nbeta")
+                    local position = handle:seek("set", 0)
+                    local line = handle:read("l")
+                    local blank = handle:read("l")
+                    local rest = handle:read("a")
+                    local closed = handle:close()
+                    local after = io.type(handle)
+                    local secondClose, secondMessage = handle:close()
+                    return before, written == handle, position, line, blank, rest, closed,
+                        after, secondClose, secondMessage
+                    """.trimIndent(),
+                    "io-file-handle.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("file", state.toString(1))
+            assertTrue(state.toBoolean(2))
+            assertEquals(0L, state.toInteger(3))
+            assertEquals("alpha", state.toString(4))
+            assertEquals("", state.toString(5))
+            assertEquals("beta", state.toString(6))
+            assertTrue(state.toBoolean(7))
+            assertEquals("closed file", state.toString(8))
+            assertTrue(state.isNil(9))
+            assertEquals("file is already closed", state.toString(10))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun `io tmpfile returns closeable file handles`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local handle = assert(io.tmpfile())
+                local before = io.type(handle)
+                handle:write("scratch")
+                handle:seek("set", 0)
+                local data = handle:read("*a")
+                local closed = io.close(handle)
+                local after = io.type(handle)
+                local nonFile = io.type({})
+                local readOk, readMessage = pcall(function()
+                    return handle:read()
+                end)
+                return before, data, closed, after, nonFile, readOk, readMessage
+                """.trimIndent(),
+                "io-tmpfile.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("file", state.toString(1))
+        assertEquals("scratch", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("closed file", state.toString(4))
+        assertTrue(state.isNil(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("attempt to use a closed file", state.toString(7))
+    }
+
+    @Test
     fun `debug sethook and gethook accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -10581,6 +10664,29 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(4L, state.toInteger(1))
+    }
+
+    @Test
+    fun `openLibs installs io library`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return type(io), type(io.open), type(io.tmpfile), type(io.type), type(io.close)
+                """.trimIndent(),
+                "open-libs-io.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals("function", state.toString(2))
+        assertEquals("function", state.toString(3))
+        assertEquals("function", state.toString(4))
+        assertEquals("function", state.toString(5))
     }
 
     @Test

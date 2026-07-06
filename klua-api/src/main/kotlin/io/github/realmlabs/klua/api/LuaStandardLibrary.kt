@@ -10,6 +10,7 @@ enum class LuaStandardLibrary {
     UTF8,
     COROUTINE,
     PACKAGE,
+    IO,
     OS,
     DEBUG,
     ;

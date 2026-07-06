@@ -50,6 +50,9 @@ public object LuaStdlib {
         if (LuaStandardLibrary.PACKAGE in libraries) {
             openPackage(state)
         }
+        if (LuaStandardLibrary.IO in libraries) {
+            openIo(state)
+        }
         if (LuaStandardLibrary.OS in libraries) {
             openOs(state)
         }
@@ -156,6 +159,11 @@ public object LuaStdlib {
     @JvmStatic
     public fun openPackage(state: LuaState): LuaState {
         return LuaPackageLibrary.open(state)
+    }
+
+    @JvmStatic
+    public fun openIo(state: LuaState): LuaState {
+        return LuaIoLibrary.open(state)
     }
 
     @JvmStatic
