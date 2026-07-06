@@ -3252,7 +3252,8 @@ class LuaStdlibTest {
                 local readOk, readMessage = pcall(function()
                     return handle:read()
                 end)
-                return before, data, closed, after, nonFile, readOk, readMessage
+                local missingOk, missingMessage = pcall(io.type)
+                return before, data, closed, after, nonFile, readOk, readMessage, missingOk, missingMessage
                 """.trimIndent(),
                 "io-tmpfile.lua",
             ),
@@ -3266,6 +3267,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(5))
         assertFalse(state.toBoolean(6))
         assertEquals("attempt to use a closed file", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #1 to 'io.type' (value expected)", state.toString(9))
     }
 
     @Test
