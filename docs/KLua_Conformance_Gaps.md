@@ -5,7 +5,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 ## Language And VM
 
 - Full cross-scope `goto` and label semantics are still being hardened; current support covers AST representation, compilation, VM execution, end-of-block labels, exported pending gotos, and close-aware escaping jumps.
-- Lua 5.5 `global` variable declarations are partially supported for regular and `<const>` named/wildcard scopes, initialized declarations, local-shadowing resolution, plain function declaration binding, and `global function` declarations with Lua-style already-defined checks. Full lexical `_ENV` rebinding semantics are not implemented yet; KLua can read and index the active default environment, but direct `_ENV = ...` assignment does not replace the active environment for later global accesses.
+- Lua 5.5 `global` variable declarations are partially supported for regular and `<const>` named/wildcard scopes, initialized declarations, local-shadowing resolution, plain function declaration binding, and `global function` declarations with Lua-style already-defined checks. Full lexical `_ENV` rebinding semantics are not implemented yet; KLua can read, index, and replace the active default environment within the current frame, but environment rebinding is not yet shared through the same lexical `_ENV` upvalue across already-created closures.
 - `<close>` local declarations are parsed, then rejected by the compiler because to-be-closed variable semantics are not implemented.
 
 ## Debug Library

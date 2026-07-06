@@ -434,6 +434,9 @@ internal class Compiler private constructor(
         if (upvalue != null && upvalue > 255) {
             throw unsupported(statement, "too many upvalues")
         }
+        if (localSlot == null && upvalue == null && name == LUA_ENV_NAME && currentGlobal == null) {
+            return
+        }
         if (localSlot == null && upvalue == null) {
             val global = requireDeclaredGlobal(name, range.start)
             if (global.isConst) {
@@ -480,7 +483,8 @@ internal class Compiler private constructor(
         if (targetSlot != null) {
             writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueRegister), line)
         } else {
-            val upvalue = if (resolveCurrentGlobalDeclaration(name) == null) {
+            val currentGlobal = resolveCurrentGlobalDeclaration(name)
+            val upvalue = if (currentGlobal == null) {
                 resolveUpvalue(name)
             } else {
                 null
@@ -488,6 +492,10 @@ internal class Compiler private constructor(
             if (upvalue != null) {
                 writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueRegister), line)
             } else {
+                if (name == LUA_ENV_NAME && currentGlobal == null) {
+                    writer.emit(Instruction.abc(Opcode.SET_ENV, valueRegister), line)
+                    return
+                }
                 val constant = stringConstantIndex(name)
                 writer.emit(Instruction.abc(Opcode.SET_GLOBAL, constant, valueRegister), line)
             }
@@ -1007,7 +1015,7 @@ internal class Compiler private constructor(
             return
         }
 
-        if (expression.name == LUA_ENV_NAME) {
+        if (expression.name == LUA_ENV_NAME && resolveCurrentGlobalDeclaration(expression.name) == null) {
             writer.emit(Instruction.abc(Opcode.GET_ENV, register), expression.range.start.line)
             return
         }

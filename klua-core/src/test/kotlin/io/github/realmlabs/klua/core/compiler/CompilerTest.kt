@@ -915,6 +915,29 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles implicit environment assignment`() {
+        val prototype = Compiler.compile(
+            """
+            _ENV = { answer = 42 }
+            return answer
+            """.trimIndent(),
+            "environment-assign.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [1]  LOAD_INT R2 42
+            0002  [1]  SET_FIELD R0 K0 R2 ; "answer"
+            0003  [1]  SET_ENV R0
+            0004  [2]  GET_GLOBAL R0 K0 ; "answer"
+            0005  [2]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles global assignments`() {
         val prototype = Compiler.compile(
             """

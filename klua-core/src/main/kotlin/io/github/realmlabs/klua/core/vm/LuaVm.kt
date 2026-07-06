@@ -233,6 +233,7 @@ internal class LuaVm(
                         Opcode.SET_GLOBAL -> setGlobal(stack, frame, instruction)
                         Opcode.CHECK_GLOBAL_NIL -> checkGlobalNil(frame, instruction)
                         Opcode.GET_ENV -> getEnvironment(stack, frame, instruction)
+                        Opcode.SET_ENV -> setEnvironment(stack, frame, instruction)
                         Opcode.CLOSURE -> createClosure(stack, frame, instruction)
                         Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
                         Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
@@ -731,6 +732,10 @@ internal class LuaVm(
 
     private fun getEnvironment(stack: LuaStack, frame: CallFrame, instruction: Int) {
         stack.set(register(frame, Instruction.a(instruction)), frame.globals)
+    }
+
+    private fun setEnvironment(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        frame.globals = stack.get(register(frame, Instruction.a(instruction)))
     }
 
     private fun setGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {

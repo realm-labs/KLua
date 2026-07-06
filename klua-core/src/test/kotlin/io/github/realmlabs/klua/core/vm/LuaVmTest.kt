@@ -282,6 +282,35 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes current frame environment assignment`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                _ENV = { answer = 42 }
+                return answer, _ENV.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42), LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `allows implicit environment assignment in strict global scopes`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                global answer
+                _ENV = { answer = 42 }
+                return answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `stages indexed assignment targets before writes`() {
         val result = LuaVm().execute(
             Compiler.compile(
