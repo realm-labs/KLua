@@ -17,6 +17,7 @@ import java.util.Locale
 
 internal object LuaIoLibrary {
     private const val MAX_LINE_FORMAT_ARGUMENTS = 250
+    private const val MAX_LUA_NUMBER_LENGTH = 200
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
     fun open(state: LuaState): LuaState {
@@ -933,13 +934,102 @@ internal object LuaIoLibrary {
 
         fun readNumber(): Any? {
             skipWhitespace()
-            val token = scanLuaNumber()
-            val number = token.luaNumber()
+            val scan = scanLuaNumber()
+            if (scan.overflow) {
+                return null
+            }
+            val number = scan.token.luaNumber()
             return number
         }
 
-        private fun scanLuaNumber(): String {
-            return buildString {
+        private fun scanLuaNumber(): LuaNumberScan {
+            var overflow = false
+
+            fun StringBuilder.appendScannedByte(value: Int): Boolean {
+                if (length >= MAX_LUA_NUMBER_LENGTH) {
+                    unreadByte(value)
+                    overflow = true
+                    return false
+                }
+                append(value.toChar())
+                return true
+            }
+
+            fun StringBuilder.appendAny(first: Char, second: Char): Boolean {
+                if (overflow) {
+                    return false
+                }
+                val value = readByte() ?: return false
+                val char = value.toChar()
+                return if (char == first || char == second) {
+                    appendScannedByte(value)
+                } else {
+                    unreadByte(value)
+                    false
+                }
+            }
+
+            fun StringBuilder.appendOptionalSign() {
+                appendAny('+', '-')
+            }
+
+            fun StringBuilder.appendHexPrefix(): Boolean {
+                if (overflow) {
+                    return false
+                }
+                val beforeLength = length
+                val first = readByte() ?: return false
+                if (first.toChar() != '0') {
+                    unreadByte(first)
+                    return false
+                }
+                val second = readByte()
+                if (second != null && (second.toChar() == 'x' || second.toChar() == 'X')) {
+                    append(first.toChar())
+                    append(second.toChar())
+                    return true
+                }
+                if (second != null) {
+                    unreadByte(second)
+                }
+                unreadByte(first)
+                setLength(beforeLength)
+                return false
+            }
+
+            fun StringBuilder.appendDigits(hex: Boolean): Int {
+                var count = 0
+                while (!overflow) {
+                    val value = readByte() ?: break
+                    val char = value.toChar()
+                    if (if (hex) char.isLuaHexDigit() else char.isLuaDigit()) {
+                        if (!appendScannedByte(value)) {
+                            break
+                        }
+                        count++
+                    } else {
+                        unreadByte(value)
+                        break
+                    }
+                }
+                return count
+            }
+
+            fun StringBuilder.appendChar(expected: Char): Boolean {
+                if (overflow) {
+                    return false
+                }
+                val value = readByte() ?: return false
+                val char = value.toChar()
+                return if (char == expected) {
+                    appendScannedByte(value)
+                } else {
+                    unreadByte(value)
+                    false
+                }
+            }
+
+            val token = buildString {
                 appendOptionalSign()
                 if (appendHexPrefix()) {
                     var count = appendDigits(hex = true)
@@ -961,71 +1051,7 @@ internal object LuaIoLibrary {
                     }
                 }
             }
-        }
-
-        private fun StringBuilder.appendOptionalSign() {
-            appendAny('+', '-')
-        }
-
-        private fun StringBuilder.appendHexPrefix(): Boolean {
-            val beforeLength = length
-            val first = readByte() ?: return false
-            if (first.toChar() != '0') {
-                unreadByte(first)
-                return false
-            }
-            val second = readByte()
-            if (second != null && (second.toChar() == 'x' || second.toChar() == 'X')) {
-                append('0')
-                append(second.toChar())
-                return true
-            }
-            if (second != null) {
-                unreadByte(second)
-            }
-            unreadByte(first)
-            setLength(beforeLength)
-            return false
-        }
-
-        private fun StringBuilder.appendDigits(hex: Boolean): Int {
-            var count = 0
-            while (true) {
-                val value = readByte() ?: break
-                val char = value.toChar()
-                if (if (hex) char.isLuaHexDigit() else char.isLuaDigit()) {
-                    append(char)
-                    count++
-                } else {
-                    unreadByte(value)
-                    break
-                }
-            }
-            return count
-        }
-
-        private fun StringBuilder.appendChar(expected: Char): Boolean {
-            val value = readByte() ?: return false
-            val char = value.toChar()
-            return if (char == expected) {
-                append(char)
-                true
-            } else {
-                unreadByte(value)
-                false
-            }
-        }
-
-        private fun StringBuilder.appendAny(first: Char, second: Char): Boolean {
-            val value = readByte() ?: return false
-            val char = value.toChar()
-            return if (char == first || char == second) {
-                append(char)
-                true
-            } else {
-                unreadByte(value)
-                false
-            }
+            return LuaNumberScan(token, overflow)
         }
 
         private fun skipWhitespace() {
@@ -1066,6 +1092,8 @@ internal object LuaIoLibrary {
         data object Number : IoReadFormat
         data class Chars(val count: Int) : IoReadFormat
     }
+
+    private data class LuaNumberScan(val token: String, val overflow: Boolean)
 
     private fun Char.isLuaHexDigit(): Boolean {
         return isLuaDigit() || this in 'a'..'f' || this in 'A'..'F'

@@ -3960,6 +3960,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io numeric reads fail after lua maximum numeral length`() {
+        val path = Files.createTempFile("klua-io-read-long-number-", ".txt")
+        Files.writeString(path, "1".repeat(201) + "Z")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local tooLong = handle:read("n")
+                    local after = handle:read(2)
+                    handle:close()
+                    return tooLong, after
+                    """.trimIndent(),
+                    "io-read-long-number.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals("1Z", state.toString(2))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read formats use leading source selector`() {
         val path = Files.createTempFile("klua-io-read-selector-", ".txt")
         Files.writeString(path, "alpha\nbeta")
