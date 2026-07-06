@@ -439,9 +439,13 @@ internal object LuaIoLibrary {
         val whence = if (context.isNone(1) || context.isNil(1)) {
             "cur"
         } else {
-            requiredString(context, 1, "seek")
+            requiredString(context, 1, "seek", argumentIndex = 2)
         }
-        val offset = if (context.isNone(2) || context.isNil(2)) 0L else requiredInteger(context, 2, "seek")
+        val offset = if (context.isNone(2) || context.isNil(2)) {
+            0L
+        } else {
+            requiredInteger(context, 2, "seek", argumentIndex = 3)
+        }
         if (!handle.seekable) {
             return LuaReturn.of(null, "Illegal seek", 1L)
         }
@@ -449,7 +453,7 @@ internal object LuaIoLibrary {
             "set" -> 0L
             "cur" -> handle.file.filePointer
             "end" -> handle.file.length()
-            else -> throw LuaRuntimeException("bad argument #1 to 'seek' (invalid option '$whence')")
+            else -> throw LuaRuntimeException("bad argument #2 to 'seek' (invalid option '$whence')")
         }
         val position = base + offset
         if (position < 0L) {
@@ -465,12 +469,12 @@ internal object LuaIoLibrary {
 
     private fun setBufferMode(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
         handle.ensureOpen()
-        val mode = requiredString(context, 1, "setvbuf")
+        val mode = requiredString(context, 1, "setvbuf", argumentIndex = 2)
         if (mode !in FILE_BUFFER_MODES) {
-            throw LuaRuntimeException("bad argument #1 to 'setvbuf' (invalid option '$mode')")
+            throw LuaRuntimeException("bad argument #2 to 'setvbuf' (invalid option '$mode')")
         }
         if (!context.isNone(2) && !context.isNil(2)) {
-            requiredInteger(context, 2, "setvbuf")
+            requiredInteger(context, 2, "setvbuf", argumentIndex = 3)
         }
         return LuaReturn.of(true)
     }
@@ -485,17 +489,27 @@ internal object LuaIoLibrary {
         state.setField(-2, name)
     }
 
-    private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
+    private fun requiredString(
+        context: LuaCallContext,
+        index: Int,
+        functionName: String,
+        argumentIndex: Int = index,
+    ): String {
         return context.toString(index)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+            ?: throw LuaRuntimeException("bad argument #$argumentIndex to '$functionName' (string expected)")
     }
 
-    private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
+    private fun requiredInteger(
+        context: LuaCallContext,
+        index: Int,
+        functionName: String,
+        argumentIndex: Int = index,
+    ): Long {
         return context.toInteger(index) ?: throw LuaRuntimeException(
             if (context.toNumber(index) != null) {
-                "bad argument #$index to '$functionName' (number has no integer representation)"
+                "bad argument #$argumentIndex to '$functionName' (number has no integer representation)"
             } else {
-                "bad argument #$index to '$functionName' (number expected)"
+                "bad argument #$argumentIndex to '$functionName' (number expected)"
             },
         )
     }

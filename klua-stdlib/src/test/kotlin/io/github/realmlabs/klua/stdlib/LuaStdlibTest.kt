@@ -4033,6 +4033,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io file seek reports source argument positions`() {
+        val path = Files.createTempFile("klua-io-seek-args-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    local badWhenceOk, badWhenceMessage = pcall(function()
+                        return handle:seek("bad")
+                    end)
+                    local badOffsetOk, badOffsetMessage = pcall(function()
+                        return handle:seek("set", 1.5)
+                    end)
+                    handle:close()
+                    return badWhenceOk, badWhenceMessage, badOffsetOk, badOffsetMessage
+                    """.trimIndent(),
+                    "io-seek-argument-positions.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertFalse(state.toBoolean(1))
+            assertEquals("bad argument #2 to 'seek' (invalid option 'bad')", state.toString(2))
+            assertFalse(state.toBoolean(3))
+            assertEquals("bad argument #3 to 'seek' (number has no integer representation)", state.toString(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io lines uses current default input`() {
         val inputPath = Files.createTempFile("klua-io-default-lines-", ".txt")
         Files.writeString(inputPath, "first\nsecond\n")
@@ -4103,9 +4139,9 @@ class LuaStdlibTest {
             assertTrue(state.toBoolean(2))
             assertTrue(state.toBoolean(3))
             assertFalse(state.toBoolean(4))
-            assertEquals("bad argument #1 to 'setvbuf' (invalid option 'bad')", state.toString(5))
+            assertEquals("bad argument #2 to 'setvbuf' (invalid option 'bad')", state.toString(5))
             assertFalse(state.toBoolean(6))
-            assertEquals("bad argument #2 to 'setvbuf' (number has no integer representation)", state.toString(7))
+            assertEquals("bad argument #3 to 'setvbuf' (number has no integer representation)", state.toString(7))
         } finally {
             Files.deleteIfExists(path)
         }
