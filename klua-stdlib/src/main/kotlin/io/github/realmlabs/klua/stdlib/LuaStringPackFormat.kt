@@ -119,7 +119,7 @@ internal object LuaStringPackFormat {
         }
 
         private fun readRequiredSizeForChar(): Long {
-            if (cursor >= format.length || !format[cursor].isDigit()) {
+            if (cursor >= format.length || !format[cursor].isAsciiDigit()) {
                 throw LuaRuntimeException("missing size for format option 'c'")
             }
             return readSize(default = -1L)
@@ -134,11 +134,11 @@ internal object LuaStringPackFormat {
         }
 
         private fun readSize(default: Long): Long {
-            if (cursor >= format.length || !format[cursor].isDigit()) {
+            if (cursor >= format.length || !format[cursor].isAsciiDigit()) {
                 return default
             }
             var value = 0L
-            while (cursor < format.length && format[cursor].isDigit()) {
+            while (cursor < format.length && format[cursor].isAsciiDigit()) {
                 val digit = format[cursor].digitToInt().toLong()
                 value = checkedAdd(checkedMultiply(value, 10L) { "format size too large" }, digit) {
                     "format size too large"
@@ -146,6 +146,10 @@ internal object LuaStringPackFormat {
                 cursor++
             }
             return value
+        }
+
+        private fun Char.isAsciiDigit(): Boolean {
+            return this in '0'..'9'
         }
     }
 

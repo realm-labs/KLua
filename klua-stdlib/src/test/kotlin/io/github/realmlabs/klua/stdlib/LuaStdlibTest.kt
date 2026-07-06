@@ -18133,13 +18133,17 @@ class LuaStdlibTest {
                 local invalidOk, invalidMessage = pcall(string.packsize, "?")
                 local charOk, charMessage = pcall(string.packsize, "c")
                 local nextOk, nextMessage = pcall(string.packsize, "Xz")
+                local unicodeSizeOk, unicodeSizeMessage = pcall(string.packsize, "i١")
+                local unicodeCharOk, unicodeCharMessage = pcall(string.packsize, "c١")
                 return variableOk, variableMessage,
                     zeroOk, zeroMessage,
                     largeOk, largeMessage,
                     alignOk, alignMessage,
                     invalidOk, invalidMessage,
                     charOk, charMessage,
-                    nextOk, nextMessage
+                    nextOk, nextMessage,
+                    unicodeSizeOk, unicodeSizeMessage,
+                    unicodeCharOk, unicodeCharMessage
                 """.trimIndent(),
                 "string-packsize-errors.lua",
             ),
@@ -18166,6 +18170,10 @@ class LuaStdlibTest {
             "bad argument #1 to 'packsize' (invalid next option for option 'X')",
             state.toString(14),
         )
+        assertFalse(state.toBoolean(15))
+        assertEquals("invalid format option '١'", state.toString(16))
+        assertFalse(state.toBoolean(17))
+        assertEquals("missing size for format option 'c'", state.toString(18))
     }
 
     @Test
