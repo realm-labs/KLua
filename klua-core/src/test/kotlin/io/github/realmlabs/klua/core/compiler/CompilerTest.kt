@@ -498,12 +498,18 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects const global declarations until read only semantics exist`() {
+    fun `const global declarations reject direct assignment`() {
         val error = assertFailsWith<CompilerException> {
-            Compiler.compile("""global <const> answer = 42""", "global-const-declaration.lua")
+            Compiler.compile(
+                """
+                global <const> answer = 42
+                answer = 43
+                """.trimIndent(),
+                "global-const-declaration.lua",
+            )
         }
 
-        assertEquals("global-const-declaration.lua:1:1: const global declarations are not supported", error.message)
+        assertEquals("global-const-declaration.lua:2:1: attempt to assign to const variable 'answer'", error.message)
     }
 
     @Test
@@ -998,6 +1004,24 @@ class CompilerTest {
             0003  [4]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `const wildcard global declarations reject undeclared global assignment`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                global <const> *
+                other = 1
+                """.trimIndent(),
+                "const-wildcard-global-declaration.lua",
+            )
+        }
+
+        assertEquals(
+            "const-wildcard-global-declaration.lua:2:1: attempt to assign to const variable 'other'",
+            error.message,
         )
     }
 

@@ -187,7 +187,7 @@ class ParserTest {
 
         val global = assertIs<GlobalStatement>(chunk.statements.single())
         assertEquals(emptyList(), global.names)
-        assertEquals(emptyList(), global.attributes)
+        assertEquals(listOf(LocalAttribute.CONST), global.attributes)
         assertEquals(emptyList(), global.values)
         assertEquals(true, global.wildcard)
     }

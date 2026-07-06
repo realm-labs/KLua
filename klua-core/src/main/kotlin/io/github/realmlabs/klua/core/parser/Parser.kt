@@ -150,7 +150,7 @@ internal class Parser private constructor(
         if (match(TokenKind.STAR)) {
             return GlobalStatement(
                 names = emptyList(),
-                attributes = emptyList(),
+                attributes = listOf(defaultAttribute),
                 values = emptyList(),
                 wildcard = true,
                 range = SourceRange(start.range.start, previous().range.end),

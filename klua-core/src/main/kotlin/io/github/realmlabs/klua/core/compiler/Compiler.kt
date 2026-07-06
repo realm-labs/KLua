@@ -278,15 +278,12 @@ internal class Compiler private constructor(
     }
 
     private fun compileGlobal(statement: GlobalStatement) {
-        if (statement.attributes.any { attribute -> attribute == LocalAttribute.CONST }) {
-            throw unsupported(statement, "const global declarations are not supported")
-        }
         if (statement.wildcard) {
-            globalDeclarations += GlobalDeclaration(name = null)
+            globalDeclarations += GlobalDeclaration(name = null, isConst = statement.attributes.singleOrNull() == LocalAttribute.CONST)
             return
         }
         if (statement.values.isEmpty()) {
-            declareGlobalNames(statement.names)
+            declareGlobalNames(statement.names, statement.attributes)
             return
         }
 
@@ -297,12 +294,12 @@ internal class Compiler private constructor(
             writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
             writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueBase + index), statement.range.start.line)
         }
-        declareGlobalNames(statement.names)
+        declareGlobalNames(statement.names, statement.attributes)
     }
 
-    private fun declareGlobalNames(names: List<String>) {
-        for (name in names) {
-            globalDeclarations += GlobalDeclaration(name)
+    private fun declareGlobalNames(names: List<String>, attributes: List<LocalAttribute> = List(names.size) { LocalAttribute.NONE }) {
+        for ((index, name) in names.withIndex()) {
+            globalDeclarations += GlobalDeclaration(name, isConst = attributes[index] == LocalAttribute.CONST)
         }
     }
 
@@ -413,7 +410,10 @@ internal class Compiler private constructor(
             throw unsupported(statement, "too many upvalues")
         }
         if (locals[target.name] == null && upvalue == null) {
-            requireDeclaredGlobal(target.name, target.range.start)
+            val global = requireDeclaredGlobal(target.name, target.range.start)
+            if (global.isConst) {
+                throw constAssignmentError(target)
+            }
         }
     }
 
@@ -968,10 +968,12 @@ internal class Compiler private constructor(
         writer.emit(Instruction.abc(Opcode.GET_GLOBAL, register, name), expression.range.start.line)
     }
 
-    private fun requireDeclaredGlobal(name: String, position: SourcePosition) {
-        if (!resolveGlobalDeclaration(name).allowed) {
+    private fun requireDeclaredGlobal(name: String, position: SourcePosition): GlobalLookup {
+        val lookup = resolveGlobalDeclaration(name)
+        if (!lookup.allowed) {
             throw CompilerException(position, "variable '$name' not declared")
         }
+        return lookup
     }
 
     private fun resolveGlobalDeclaration(name: String): GlobalLookup {
@@ -979,7 +981,7 @@ internal class Compiler private constructor(
         for (declaration in globalDeclarations.asReversed()) {
             hasCurrentGlobalDeclaration = true
             if (declaration.name == null || declaration.name == name) {
-                return GlobalLookup(allowed = true, restricted = true)
+                return GlobalLookup(allowed = true, restricted = true, isConst = declaration.isConst)
             }
         }
         val parentLookup = parentGlobalResolver?.invoke(name)
@@ -987,9 +989,9 @@ internal class Compiler private constructor(
             return parentLookup
         }
         if (hasCurrentGlobalDeclaration) {
-            return GlobalLookup(allowed = false, restricted = true)
+            return GlobalLookup(allowed = false, restricted = true, isConst = false)
         }
-        return parentLookup ?: GlobalLookup(allowed = true, restricted = false)
+        return parentLookup ?: GlobalLookup(allowed = true, restricted = false, isConst = false)
     }
 
     private fun resolveUpvalue(name: String): Int? {
@@ -1305,11 +1307,13 @@ internal class Compiler private constructor(
 
     private data class GlobalDeclaration(
         val name: String?,
+        val isConst: Boolean,
     )
 
     private data class GlobalLookup(
         val allowed: Boolean,
         val restricted: Boolean,
+        val isConst: Boolean,
     )
 
     private data class PreparedAssignmentTargets(
