@@ -564,11 +564,15 @@ internal object LuaOsLibrary {
             is Long -> value
             is Float -> value.toDouble().luaInteger()
             is Double -> value.luaInteger()
-            is CharSequence -> value.toString().trim().let { text ->
+            is CharSequence -> value.toString().trimLuaAsciiWhitespace().let { text ->
                 parseHexInteger(text) ?: text.toLongOrNull() ?: text.toDoubleOrNull()?.luaInteger()
             }
             else -> null
         }
+    }
+
+    private fun String.trimLuaAsciiWhitespace(): String {
+        return trim { char -> char == ' ' || char == '\u000C' || char == '\n' || char == '\r' || char == '\t' || char == '\u000B' }
     }
 
     private fun parseHexInteger(text: String): Long? {

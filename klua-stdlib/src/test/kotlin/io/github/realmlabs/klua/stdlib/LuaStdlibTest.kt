@@ -12054,6 +12054,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time date fields trim only lua ascii whitespace`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local em = utf8.char(0x2003)
+                local ascii = {year = " \t\n2020\r\n", month = 1, day = 1}
+                local unicode = {year = em .. "2020" .. em, month = 1, day = 1}
+                local asciiOk = pcall(os.time, ascii)
+                local unicodeOk, unicodeMessage = pcall(os.time, unicode)
+                return asciiOk, ascii.year, unicodeOk, unicodeMessage
+                """.trimIndent(),
+                "os-time-date-field-ascii-whitespace.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(2020L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("field 'year' is not an integer", state.toString(4))
+    }
+
+    @Test
     fun `os time rejects source sentinel result`() {
         val previous = TimeZone.getDefault()
         TimeZone.setDefault(TimeZone.getTimeZone("UTC"))
