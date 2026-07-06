@@ -341,7 +341,7 @@ internal class Compiler private constructor(
         validateWritableName(statement.name, statement.nameRange, statement)
         val register = nextLocalRegister
         compileFunctionExpression(statement.function, register)
-        emitNamedAssignment(statement.name, statement.range.start.line, register)
+        emitNamedAssignment(statement.name, statement.range.start.line, register, register + 1)
     }
 
     private fun compileGlobalFunction(statement: GlobalFunctionStatement) {
@@ -452,7 +452,12 @@ internal class Compiler private constructor(
     ) {
         for ((index, target) in targets.withIndex()) {
             when (target) {
-                is PreparedAssignmentTarget.Local -> assignLocalTarget(statement, target.target, valueBase + index)
+                is PreparedAssignmentTarget.Local -> assignLocalTarget(
+                    statement,
+                    target.target,
+                    valueBase + index,
+                    valueBase + statement.targets.size,
+                )
                 is PreparedAssignmentTarget.Index -> {
                     when (val key = target.key) {
                         is PreparedAssignmentKey.Field -> {
@@ -474,11 +479,16 @@ internal class Compiler private constructor(
         }
     }
 
-    private fun assignLocalTarget(statement: AssignmentStatement, target: LocalAssignmentTarget, valueRegister: Int) {
-        emitNamedAssignment(target.name, statement.range.start.line, valueRegister)
+    private fun assignLocalTarget(
+        statement: AssignmentStatement,
+        target: LocalAssignmentTarget,
+        valueRegister: Int,
+        tempRegister: Int,
+    ) {
+        emitNamedAssignment(target.name, statement.range.start.line, valueRegister, tempRegister)
     }
 
-    private fun emitNamedAssignment(name: String, line: Int, valueRegister: Int) {
+    private fun emitNamedAssignment(name: String, line: Int, valueRegister: Int, tempRegister: Int) {
         val targetSlot = resolveCurrentLocalSlot(name)
         if (targetSlot != null) {
             writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueRegister), line)
@@ -497,7 +507,11 @@ internal class Compiler private constructor(
                     return
                 }
                 val constant = stringConstantIndex(name)
-                writer.emit(Instruction.abc(Opcode.SET_GLOBAL, constant, valueRegister), line)
+                if (compileLexicalEnvironmentReceiver(tempRegister, line)) {
+                    writer.emit(Instruction.abc(Opcode.SET_FIELD, tempRegister, constant, valueRegister), line)
+                } else {
+                    writer.emit(Instruction.abc(Opcode.SET_GLOBAL, constant, valueRegister), line)
+                }
             }
         }
     }
@@ -1022,7 +1036,33 @@ internal class Compiler private constructor(
 
         val name = stringConstantIndex(expression.name)
         requireDeclaredGlobal(expression.name, expression.range.start)
-        writer.emit(Instruction.abc(Opcode.GET_GLOBAL, register, name), expression.range.start.line)
+        if (compileLexicalEnvironmentReceiver(register, expression.range.start.line)) {
+            writer.emit(Instruction.abc(Opcode.GET_FIELD, register, register, name), expression.range.start.line)
+        } else {
+            writer.emit(Instruction.abc(Opcode.GET_GLOBAL, register, name), expression.range.start.line)
+        }
+    }
+
+    private fun compileLexicalEnvironmentReceiver(register: Int, line: Int): Boolean {
+        val source = resolveCurrentLocalSlot(LUA_ENV_NAME)
+        if (source != null) {
+            maxRegister = maxRegister.coerceAtLeast(register + 1)
+            if (source != register) {
+                writer.emit(Instruction.abc(Opcode.MOVE, register, source), line)
+            }
+            return true
+        }
+
+        if (resolveCurrentGlobalDeclaration(LUA_ENV_NAME) != null) {
+            return false
+        }
+        val upvalue = resolveUpvalue(LUA_ENV_NAME) ?: return false
+        if (upvalue > 255) {
+            throw CompilerException(SourcePosition(sourceName, 0, line, 1), "too many upvalues")
+        }
+        maxRegister = maxRegister.coerceAtLeast(register + 1)
+        writer.emit(Instruction.abc(Opcode.GET_UPVALUE, register, upvalue), line)
+        return true
     }
 
     private fun requireDeclaredGlobal(name: String, position: SourcePosition): GlobalLookup {

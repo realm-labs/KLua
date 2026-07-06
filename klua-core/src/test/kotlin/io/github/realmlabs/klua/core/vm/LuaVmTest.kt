@@ -334,6 +334,53 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes global reads through local environments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local _ENV = { answer = 42 }
+                return answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `executes global writes through local environments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local _ENV = {}
+                answer = 42
+                return _ENV.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `captures local environments for nested global reads`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local _ENV = { answer = 10 }
+                local get = function()
+                    return answer
+                end
+                _ENV = { answer = 42 }
+                return get()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `allows implicit environment assignment in strict global scopes`() {
         val result = LuaVm().execute(
             Compiler.compile(

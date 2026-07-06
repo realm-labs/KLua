@@ -938,6 +938,30 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles global reads through local environments`() {
+        val prototype = Compiler.compile(
+            """
+            local _ENV = { answer = 42 }
+            return answer
+            """.trimIndent(),
+            "local-environment-read.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [1]  LOAD_INT R2 42
+            0002  [1]  SET_FIELD R0 K0 R2 ; "answer"
+            0003  [2]  MOVE R1 R0
+            0004  [2]  GET_FIELD R1 R1 K0 ; "answer"
+            0005  [2]  MOVE R0 R1
+            0006  [2]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles global assignments`() {
         val prototype = Compiler.compile(
             """
