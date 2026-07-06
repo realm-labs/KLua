@@ -918,7 +918,13 @@ public object LuaStdlib {
             } ?: "thread"
             "function" -> context.get(index)?.typedPointerString(typeName(context, metatable, "function")) ?: "function"
             "table" -> tableToLuaString(context, index)
-            "userdata" -> context.get(index)?.typedPointerString(typeName(context, metatable, "userdata")) ?: "userdata"
+            "userdata" -> context.get(index)?.let { value ->
+                if (value is LuaStdlibStringValue) {
+                    value.luaToString()
+                } else {
+                    value.typedPointerString(typeName(context, metatable, "userdata"))
+                }
+            } ?: "userdata"
             else -> context.typeName(index)
         }
     }
@@ -1121,4 +1127,8 @@ public object LuaStdlib {
         state.setField(-2, name)
     }
 
+}
+
+internal interface LuaStdlibStringValue {
+    fun luaToString(): String
 }

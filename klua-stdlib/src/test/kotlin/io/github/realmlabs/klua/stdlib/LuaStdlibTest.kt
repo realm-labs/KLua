@@ -3232,6 +3232,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io file handles format tostring like lua`() {
+        val path = Files.createTempFile("klua-io-tostring-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w"))
+                    local openText = tostring(handle)
+                    debug.setmetatable(handle, {
+                        __tostring = function()
+                            return "custom-file"
+                        end,
+                    })
+                    local customText = tostring(handle)
+                    debug.setmetatable(handle, nil)
+                    handle:close()
+                    return openText, customText, tostring(handle)
+                    """.trimIndent(),
+                    "io-file-tostring.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toString(1)?.matches(Regex("""file \([0-9a-f]+\)""")) == true, state.toString(1))
+            assertEquals("custom-file", state.toString(2))
+            assertEquals("file (closed)", state.toString(3))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io open validates source mode extensions`() {
         val path = Files.createTempFile("klua-io-mode-", ".txt")
         Files.writeString(path, "seed")

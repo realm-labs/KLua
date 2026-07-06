@@ -631,7 +631,7 @@ internal object LuaIoLibrary {
         val deleteOnClose: Boolean = false,
         private val nonClosing: Boolean = false,
         val closeResult: (() -> LuaReturn)? = null,
-    ) {
+    ) : LuaStdlibStringValue {
         constructor(
             path: Path?,
             file: RandomAccessFile,
@@ -669,6 +669,14 @@ internal object LuaIoLibrary {
 
         val flushable: Boolean
             get() = randomAccessFile != null || outputStream != null
+
+        override fun luaToString(): String {
+            return if (closed) {
+                "file (closed)"
+            } else {
+                "file (${System.identityHashCode(this).toString(16)})"
+            }
+        }
 
         companion object {
             fun input(
