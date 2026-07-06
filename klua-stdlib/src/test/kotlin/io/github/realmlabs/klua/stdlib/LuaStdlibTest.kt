@@ -3714,7 +3714,7 @@ class LuaStdlibTest {
             assertFalse(state.toBoolean(2))
             assertEquals("default input file is closed", state.toString(3))
             assertFalse(state.toBoolean(4))
-            assertEquals("default input file is closed", state.toString(5))
+            assertEquals("attempt to use a closed file", state.toString(5))
             assertEquals("closed file", state.toString(6))
             assertFalse(state.toBoolean(7))
             assertEquals("default output file is closed", state.toString(8))

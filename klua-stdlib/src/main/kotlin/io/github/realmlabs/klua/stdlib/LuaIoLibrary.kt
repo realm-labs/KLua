@@ -184,7 +184,9 @@ internal object LuaIoLibrary {
     private fun ioLines(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
         if (context.isNone(1) || context.isNil(1)) {
             val formats = readFormatsFromContext(context, 2, "io.lines", MAX_LINE_FORMAT_ARGUMENTS)
-            return LuaReturn.of(lineIterator(defaultInput(defaultFiles), formats, closeOnEnd = false))
+            val handle = currentInput(defaultFiles)
+            handle.ensureOpen()
+            return LuaReturn.of(lineIterator(handle, formats, closeOnEnd = false))
         }
         val filename = requiredString(context, 1, "io.lines")
         val openResult = ioOpenValue(filename, "r")
