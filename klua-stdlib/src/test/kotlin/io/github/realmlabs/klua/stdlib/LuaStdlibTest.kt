@@ -12637,6 +12637,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os difftime avoids signed integer overflow`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return os.difftime(math.maxinteger, math.mininteger),
+                    os.difftime(math.mininteger, math.maxinteger)
+                """.trimIndent(),
+                "os-difftime-extreme-range.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val fullUnsignedRange = 18446744073709551616.0
+        assertEquals(fullUnsignedRange, state.toNumber(1) ?: error("missing positive difftime"), 0.0)
+        assertEquals(-fullUnsignedRange, state.toNumber(2) ?: error("missing negative difftime"), 0.0)
+    }
+
+    @Test
     fun `os time and difftime report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

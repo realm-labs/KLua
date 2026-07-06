@@ -50,7 +50,7 @@ internal object LuaOsLibrary {
     private fun difftime(context: LuaCallContext): LuaReturn {
         val first = requiredTime(context, 1, "os.difftime")
         val second = requiredTime(context, 2, "os.difftime")
-        return LuaReturn.of((first - second).toDouble())
+        return LuaReturn.of(first.toDouble() - second.toDouble())
     }
 
     private fun execute(context: LuaCallContext): LuaReturn {
