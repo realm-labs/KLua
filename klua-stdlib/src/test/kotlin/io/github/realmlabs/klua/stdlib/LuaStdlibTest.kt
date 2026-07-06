@@ -10907,6 +10907,27 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os date formats c99 strftime directives`() {
+        val state = LuaState.create()
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return os.date("!%C|%e|%g|%G|%n|%t|%V", 0),
+                    os.date("!%g|%G|%V", 1609459200)
+                """.trimIndent(),
+                "os-date-c99-strftime.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("19| 1|70|1970|\n|\t|01", state.toString(1))
+        assertEquals("20|2020|53", state.toString(2))
+    }
+
+    @Test
     fun `os date local table results roundtrip through os time`() {
         val state = LuaState.create()
         LuaStdlib.openOs(state)
