@@ -14064,6 +14064,7 @@ class LuaStdlibTest {
             """"x", 2147483648""" to "string-rep-large-error.lua",
             """"é", 1073741824""" to "string-rep-large-multibyte-error.lua",
             """"x", 715827884, "é"""" to "string-rep-large-multibyte-separator-error.lua",
+            """"", 1073741825, "é"""" to "string-rep-large-empty-with-multibyte-separator-error.lua",
         )) {
             val state = LuaState.create()
             LuaStdlib.openString(state)
