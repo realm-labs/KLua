@@ -4203,6 +4203,62 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io popen validates source mode grammar`() {
+        val outputPath = Files.createTempFile("klua-popen-mode-", ".txt")
+        val readCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "echo KLua"
+        } else {
+            "printf KLua"
+        }
+        val writeCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "more > \"${outputPath.luaPath()}\""
+        } else {
+            "cat > \"${outputPath.luaPath()}\""
+        }
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local readHandle = assert(io.popen("$readCommand", "rb"))
+                    local data = readHandle:read("a")
+                    readHandle:close()
+
+                    local writeHandle = assert(io.popen('$writeCommand', 'wt'))
+                    writeHandle:write("ok")
+                    local closeOk = writeHandle:close()
+
+                    local badOneOk, badOneMessage = pcall(io.popen, "$readCommand", "rtb")
+                    local badTwoOk, badTwoMessage = pcall(io.popen, "$readCommand", "br")
+                    local badThreeOk, badThreeMessage = pcall(io.popen, "$readCommand", "r+")
+                    return data, closeOk,
+                        badOneOk, badOneMessage,
+                        badTwoOk, badTwoMessage,
+                        badThreeOk, badThreeMessage
+                    """.trimIndent(),
+                    "io-popen-mode-validation.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toString(1)?.contains("KLua") == true, state.toString(1))
+            assertTrue(state.toBoolean(2))
+            assertFalse(state.toBoolean(3))
+            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(8))
+        } finally {
+            Files.deleteIfExists(outputPath)
+        }
+    }
+
+    @Test
     fun `debug sethook and gethook accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

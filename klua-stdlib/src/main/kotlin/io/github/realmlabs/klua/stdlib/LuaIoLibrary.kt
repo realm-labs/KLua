@@ -112,12 +112,12 @@ internal object LuaIoLibrary {
         } else {
             requiredString(context, 2, "io.popen")
         }
-        val normalizedMode = mode.removeSuffix("b").removeSuffix("t")
-        if (normalizedMode != "r" && normalizedMode != "w") {
+        val parsedMode = parsePopenMode(mode)
+        if (parsedMode == null) {
             throw LuaRuntimeException("bad argument #2 to 'io.popen' (invalid mode)")
         }
         return try {
-            if (normalizedMode == "r") {
+            if (parsedMode == "r") {
                 val process = ProcessBuilder(shellCommand(command))
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start()
@@ -136,6 +136,18 @@ internal object LuaIoLibrary {
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             throw LuaRuntimeException("interrupted while opening process")
+        }
+    }
+
+    private fun parsePopenMode(mode: String): String? {
+        return if (
+            mode.length in 1..2 &&
+            mode[0] in "rw" &&
+            (mode.length == 1 || mode[1] == 'b' || mode[1] == 't')
+        ) {
+            mode[0].toString()
+        } else {
+            null
         }
     }
 
