@@ -107,6 +107,10 @@ interface LuaCallContext {
         throw IllegalArgumentException("value is not a table")
     }
 
+    fun setValueField(value: Any?, key: Any?, fieldValue: Any?) {
+        setTableField(value, key, fieldValue)
+    }
+
     fun getMetatable(index: Int): Any?
 
     fun getRawMetatable(index: Int): Any? {

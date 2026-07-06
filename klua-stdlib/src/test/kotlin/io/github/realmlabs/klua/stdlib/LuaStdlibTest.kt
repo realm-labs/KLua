@@ -12406,7 +12406,9 @@ class LuaStdlibTest {
     fun `os time normalization writes missing fields through newindex`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openOs(state)
+        LuaStdlib.openDebug(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -12446,6 +12448,20 @@ class LuaStdlibTest {
                     __newindex = proxy,
                 })
                 os.time(nestedDate)
+                local originalStringMetatable = debug.getmetatable("")
+                local stringWrites = {}
+                debug.setmetatable("", {
+                    __newindex = stringWrites,
+                })
+                local stringDate = setmetatable({
+                    year = 2020,
+                    month = 1,
+                    day = 2,
+                }, {
+                    __newindex = "sink",
+                })
+                os.time(stringDate)
+                debug.setmetatable("", originalStringMetatable)
                 return type(timestamp),
                     date.year, date.month, date.day,
                     rawget(date, "hour"),
@@ -12456,7 +12472,10 @@ class LuaStdlibTest {
                     tableWrites.wday ~= nil, tableWrites.yday ~= nil, tableWrites.isdst ~= nil,
                     rawget(proxy, "hour"),
                     nestedWrites.hour, nestedWrites.min, nestedWrites.sec,
-                    nestedWrites.wday ~= nil, nestedWrites.yday ~= nil, nestedWrites.isdst ~= nil
+                    nestedWrites.wday ~= nil, nestedWrites.yday ~= nil, nestedWrites.isdst ~= nil,
+                    rawget(stringDate, "hour"),
+                    stringWrites.hour, stringWrites.min, stringWrites.sec,
+                    stringWrites.wday ~= nil, stringWrites.yday ~= nil, stringWrites.isdst ~= nil
                 """.trimIndent(),
                 "os-time-newindex-normalization.lua",
             ),
@@ -12488,6 +12507,13 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(23))
         assertTrue(state.toBoolean(24))
         assertTrue(state.toBoolean(25))
+        assertTrue(state.isNil(26))
+        assertEquals(12L, state.toInteger(27))
+        assertEquals(0L, state.toInteger(28))
+        assertEquals(0L, state.toInteger(29))
+        assertTrue(state.toBoolean(30))
+        assertTrue(state.toBoolean(31))
+        assertTrue(state.toBoolean(32))
     }
 
     @Test

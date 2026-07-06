@@ -35,6 +35,7 @@ class LuaState private constructor(
     private val userValues = IdentityHashMap<Any, MutableMap<Int, LuaStackValue>>()
     private val callMetamethodKey = LuaStackValue.StringValue("__call")
     private val indexMetamethodKey = LuaStackValue.StringValue("__index")
+    private val newIndexMetamethodKey = LuaStackValue.StringValue("__newindex")
     private var lastError: LuaException? = null
 
     companion object {
@@ -1844,6 +1845,83 @@ class LuaState private constructor(
             val tableValue = table as? LuaStackValue.TableValue
                 ?: throw IllegalArgumentException("value is not a table")
             setStackTableValue(tableValue, key, value)
+        }
+
+        override fun setValueField(value: Any?, key: Any?, fieldValue: Any?) {
+            stackSetValue(
+                value.toStackValue(),
+                key.toStackValue(),
+                fieldValue.toStackValue(),
+                java.util.Collections.newSetFromMap(IdentityHashMap()),
+                depth = 0,
+            )
+        }
+
+        private fun stackSetValue(
+            receiver: LuaStackValue,
+            key: LuaStackValue,
+            value: LuaStackValue,
+            visited: MutableSet<LuaStackValue.TableValue>,
+            depth: Int,
+        ) {
+            if (depth >= MAX_CALL_METAMETHOD_DEPTH) {
+                throw IllegalArgumentException("'__newindex' chain too long; possible loop")
+            }
+            when (receiver) {
+                is LuaStackValue.TableValue -> stackTableSetValue(receiver, key, value, visited, depth)
+                else -> {
+                    val metatable = stackValueMetatable(receiver) ?: throw IllegalArgumentException(
+                        attemptToIndexMessage(receiver),
+                    )
+                    val newIndex = metatable.fields[newIndexMetamethodKey] ?: throw IllegalArgumentException(
+                        attemptToIndexMessage(receiver),
+                    )
+                    stackMetamethodSetValue(receiver, key, value, newIndex, visited, depth)
+                }
+            }
+        }
+
+        private fun stackTableSetValue(
+            table: LuaStackValue.TableValue,
+            key: LuaStackValue,
+            value: LuaStackValue,
+            visited: MutableSet<LuaStackValue.TableValue>,
+            depth: Int,
+        ) {
+            if (table.fields.containsKey(key)) {
+                setStackTableValue(table, key.toPublicCallReturnValue(), value.toPublicCallReturnValue())
+                return
+            }
+            if (!visited.add(table)) {
+                throw IllegalArgumentException("'__newindex' chain too long; possible loop")
+            }
+            val newIndex = table.metatable?.fields?.get(newIndexMetamethodKey)
+            if (newIndex == null || newIndex == LuaStackValue.Nil) {
+                setStackTableValue(table, key.toPublicCallReturnValue(), value.toPublicCallReturnValue())
+                return
+            }
+            stackMetamethodSetValue(table, key, value, newIndex, visited, depth)
+        }
+
+        private fun stackMetamethodSetValue(
+            receiver: LuaStackValue,
+            key: LuaStackValue,
+            value: LuaStackValue,
+            newIndex: LuaStackValue,
+            visited: MutableSet<LuaStackValue.TableValue>,
+            depth: Int,
+        ) {
+            when (newIndex) {
+                is LuaStackValue.NativeFunctionValue -> callFunction(
+                    newIndex,
+                    listOf(
+                        receiver.toPublicCallReturnValue(),
+                        key.toPublicCallReturnValue(),
+                        value.toPublicCallReturnValue(),
+                    ),
+                )
+                else -> stackSetValue(newIndex, key, value, visited, depth + 1)
+            }
         }
 
         private fun setStackTableValue(table: LuaStackValue.TableValue, key: Any?, value: Any?) {

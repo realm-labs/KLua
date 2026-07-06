@@ -543,10 +543,14 @@ internal object LuaOsLibrary {
             setDateField(context, newIndex, context.getTableMetatable(newIndex), key, value, visited)
             return
         }
-        try {
+        if (context.isFunctionValue(newIndex)) {
             context.call(newIndex, listOf(table, key, value))
-        } catch (_: IllegalArgumentException) {
-            context.setTableField(table, key, value)
+            return
+        }
+        try {
+            context.setValueField(newIndex, key, value)
+        } catch (error: IllegalArgumentException) {
+            throw LuaRuntimeException(error.message ?: "attempt to index a ${context.valueTypeName(newIndex)} value")
         }
     }
 
