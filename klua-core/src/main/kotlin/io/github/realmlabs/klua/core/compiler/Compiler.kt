@@ -990,11 +990,7 @@ internal class Compiler private constructor(
         return when (callee) {
             is VariableExpression -> CallSiteInfo(0, callee.name, callSiteNameWhat(callee.name))
             is IndexExpression -> {
-                val name = when (val key = callee.key) {
-                    is StringExpression -> key.value
-                    is IntegerExpression -> "integer index"
-                    else -> "?"
-                }
+                val name = indexCallSiteKeyName(callee.key)
                 val nameWhat = if (callee.receiver is VariableExpression && callee.receiver.name == "_ENV") {
                     "global"
                 } else {
@@ -1003,6 +999,22 @@ internal class Compiler private constructor(
                 CallSiteInfo(0, name, nameWhat)
             }
             else -> null
+        }
+    }
+
+    private fun indexCallSiteKeyName(key: Expression): String {
+        return when (key) {
+            is StringExpression -> key.value
+            is IntegerExpression -> "integer index"
+            is VariableExpression -> if (
+                resolveCurrentLocalSlot(key.name) != null ||
+                resolveCurrentGlobalDeclaration(key.name) == null && resolveUpvalue(key.name) != null
+            ) {
+                key.name
+            } else {
+                "?"
+            }
+            else -> "?"
         }
     }
 
