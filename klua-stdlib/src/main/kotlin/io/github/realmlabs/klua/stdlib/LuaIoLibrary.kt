@@ -16,9 +16,9 @@ import java.util.Locale
 
 internal object LuaIoLibrary {
     fun open(state: LuaState): LuaState {
-        val stdin = IoFileHandle.input(System.`in`, closeResult = ::standardFileCloseResult)
-        val stdout = IoFileHandle.output(System.out, closeResult = ::standardFileCloseResult)
-        val stderr = IoFileHandle.output(System.err, closeResult = ::standardFileCloseResult)
+        val stdin = IoFileHandle.input(System.`in`, nonClosing = true, closeResult = ::standardFileCloseResult)
+        val stdout = IoFileHandle.output(System.out, nonClosing = true, closeResult = ::standardFileCloseResult)
+        val stderr = IoFileHandle.output(System.err, nonClosing = true, closeResult = ::standardFileCloseResult)
         val defaultFiles = IoDefaultFiles(input = stdin, output = stdout)
         state.registerType(IoFileHandle::class.java) { type ->
             type.method("close") { receiver, _ -> closeHandle(receiver) }
@@ -105,23 +105,13 @@ internal object LuaIoLibrary {
                 val process = ProcessBuilder(shellCommand(command))
                     .redirectError(ProcessBuilder.Redirect.DISCARD)
                     .start()
-                val output = process.inputStream.use { stream -> stream.readBytes() }
-                val exitCode = process.waitFor()
-                val path = Files.createTempFile("klua-popen-", ".tmp")
-                Files.write(path, output)
-                val file = RandomAccessFile(path.toFile(), "r")
-                LuaReturn.of(
-                    IoFileHandle(path, file, deleteOnClose = true) {
-                        processCloseResult(exitCode)
-                    },
-                )
+                LuaReturn.of(IoFileHandle.input(process.inputStream) { waitForProcessClose(process) })
             } else {
-                val path = Files.createTempFile("klua-popen-", ".tmp")
-                LuaReturn.of(
-                    IoFileHandle(path, RandomAccessFile(path.toFile(), "rw"), deleteOnClose = true) {
-                        writeProcessCloseResult(command, path)
-                    },
-                )
+                val process = ProcessBuilder(shellCommand(command))
+                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start()
+                LuaReturn.of(IoFileHandle.output(process.outputStream) { waitForProcessClose(process) })
             }
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
@@ -404,20 +394,9 @@ internal object LuaIoLibrary {
         return LuaReturn.of(null, "cannot close standard file")
     }
 
-    private fun writeProcessCloseResult(command: String, inputPath: Path): LuaReturn {
+    private fun waitForProcessClose(process: Process): LuaReturn {
         return try {
-            val process = ProcessBuilder(shellCommand(command))
-                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                .redirectError(ProcessBuilder.Redirect.DISCARD)
-                .start()
-            process.outputStream.use { output ->
-                Files.newInputStream(inputPath).use { input ->
-                    input.copyTo(output)
-                }
-            }
             processCloseResult(process.waitFor())
-        } catch (error: IOException) {
-            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             throw LuaRuntimeException("interrupted while closing process")
@@ -465,24 +444,32 @@ internal object LuaIoLibrary {
             get() = randomAccessFile ?: throw LuaRuntimeException("bad file descriptor")
 
         companion object {
-            fun input(inputStream: java.io.InputStream, closeResult: () -> LuaReturn): IoFileHandle {
+            fun input(
+                inputStream: java.io.InputStream,
+                nonClosing: Boolean = false,
+                closeResult: () -> LuaReturn,
+            ): IoFileHandle {
                 return IoFileHandle(
                     path = null,
                     randomAccessFile = null,
                     inputStream = PushbackInputStream(inputStream, 4),
                     outputStream = null,
-                    nonClosing = true,
+                    nonClosing = nonClosing,
                     closeResult = closeResult,
                 )
             }
 
-            fun output(outputStream: OutputStream, closeResult: () -> LuaReturn): IoFileHandle {
+            fun output(
+                outputStream: OutputStream,
+                nonClosing: Boolean = false,
+                closeResult: () -> LuaReturn,
+            ): IoFileHandle {
                 return IoFileHandle(
                     path = null,
                     randomAccessFile = null,
                     inputStream = null,
                     outputStream = outputStream,
-                    nonClosing = true,
+                    nonClosing = nonClosing,
                     closeResult = closeResult,
                 )
             }

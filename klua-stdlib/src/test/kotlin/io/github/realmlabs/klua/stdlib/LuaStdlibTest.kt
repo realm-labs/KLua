@@ -3607,10 +3607,15 @@ class LuaStdlibTest {
 
     @Test
     fun `io popen reads process output`() {
-        val command = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+        val allCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
             "echo KLua"
         } else {
             "printf KLua"
+        }
+        val lineCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "echo first && echo second"
+        } else {
+            "printf 'first\\nsecond\\n'"
         }
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -3620,10 +3625,16 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local handle = assert(io.popen("$command", "r"))
+                local handle = assert(io.popen("$allCommand", "r"))
                 local output = handle:read("*a")
                 local closeOk, kind, code = handle:close()
-                return output, closeOk, kind, code
+                local closedType = io.type(handle)
+                local lineHandle = assert(io.popen("$lineCommand", "r"))
+                local first = lineHandle:read("l")
+                local second = lineHandle:read("l")
+                local third = lineHandle:read("l")
+                lineHandle:close()
+                return output, closeOk, kind, code, closedType, first, second, third
                 """.trimIndent(),
                 "io-popen-read.lua",
             ),
@@ -3634,6 +3645,10 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("exit", state.toString(3))
         assertEquals(0L, state.toInteger(4))
+        assertEquals("closed file", state.toString(5))
+        assertEquals("first", state.toString(6)?.trim())
+        assertEquals("second", state.toString(7)?.trim())
+        assertTrue(state.isNil(8))
     }
 
     @Test
@@ -3656,8 +3671,9 @@ class LuaStdlibTest {
                     local handle = assert(io.popen('$command', 'w'))
                     local writeResult = handle:write("alpha\n", "beta\n")
                     local closeOk, kind, code = handle:close()
+                    local closedType = io.type(handle)
                     local badModeOk, badModeMessage = pcall(io.popen, '$command', 'a')
-                    return writeResult == handle, closeOk, kind, code, badModeOk, badModeMessage
+                    return writeResult == handle, closeOk, kind, code, closedType, badModeOk, badModeMessage
                     """.trimIndent(),
                     "io-popen-write.lua",
                 ),
@@ -3668,8 +3684,9 @@ class LuaStdlibTest {
             assertTrue(state.toBoolean(2))
             assertEquals("exit", state.toString(3))
             assertEquals(0L, state.toInteger(4))
-            assertFalse(state.toBoolean(5))
-            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(6))
+            assertEquals("closed file", state.toString(5))
+            assertFalse(state.toBoolean(6))
+            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(7))
             val output = Files.readString(outputPath)
                 .replace("\r\n", "\n")
                 .replace(Regex("\n+\\z"), "\n")
