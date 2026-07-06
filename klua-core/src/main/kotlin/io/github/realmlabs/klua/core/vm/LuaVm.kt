@@ -277,8 +277,7 @@ internal class LuaVm(
                             }
                         }
                         Opcode.FOR_LOOP -> {
-                            incrementForIndex(stack, frame, instruction)
-                            if (forLoopContinues(stack, frame, instruction)) {
+                            if (advanceForLoop(stack, frame, instruction)) {
                                 frame.pc += signedByte(Instruction.b(instruction))
                             }
                         }
@@ -1261,22 +1260,43 @@ internal class LuaVm(
 
     private fun forLoopContinues(stack: LuaStack, frame: CallFrame, instruction: Int): Boolean {
         val base = register(frame, Instruction.a(instruction))
-        val index = numberValue(stack.get(base))
+        val indexValue = stack.get(base)
+        val limitValue = stack.get(base + 1)
+        val stepValue = stack.get(base + 2)
+        if (indexValue is LuaInteger && limitValue is LuaInteger && stepValue is LuaInteger) {
+            if (stepValue.value == 0L) {
+                throw LuaVmException("'for' step is zero")
+            }
+            return if (stepValue.value > 0L) {
+                indexValue.value <= limitValue.value
+            } else {
+                indexValue.value >= limitValue.value
+            }
+        }
+
+        val index = numberValue(indexValue)
             ?: throw LuaVmException("numeric for index must be a number")
-        val limit = numberValue(stack.get(base + 1))
+        val limit = numberValue(limitValue)
             ?: throw LuaVmException("numeric for limit must be a number")
-        val step = numberValue(stack.get(base + 2))
+        val step = numberValue(stepValue)
             ?: throw LuaVmException("numeric for step must be a number")
+        if (step == 0.0) {
+            throw LuaVmException("'for' step is zero")
+        }
         return if (step >= 0.0) index <= limit else index >= limit
     }
 
-    private fun incrementForIndex(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun advanceForLoop(stack: LuaStack, frame: CallFrame, instruction: Int): Boolean {
         val base = register(frame, Instruction.a(instruction))
         val index = stack.get(base)
+        val limit = stack.get(base + 1)
         val step = stack.get(base + 2)
-        if (index is LuaInteger && step is LuaInteger) {
-            stack.set(base, LuaInteger(index.value + step.value))
-            return
+        if (index is LuaInteger && limit is LuaInteger && step is LuaInteger) {
+            if (integerForHasNext(index.value, limit.value, step.value)) {
+                stack.set(base, LuaInteger(index.value + step.value))
+                return true
+            }
+            return false
         }
 
         val indexNumber = numberValue(index)
@@ -1284,6 +1304,19 @@ internal class LuaVm(
         val stepNumber = numberValue(step)
             ?: throw LuaVmException("numeric for step must be a number")
         stack.set(base, LuaFloat(indexNumber + stepNumber))
+        return forLoopContinues(stack, frame, instruction)
+    }
+
+    private fun integerForHasNext(index: Long, limit: Long, step: Long): Boolean {
+        if (step == 0L) {
+            throw LuaVmException("'for' step is zero")
+        }
+        return if (step > 0L) {
+            java.lang.Long.compareUnsigned(limit - index, step) >= 0
+        } else {
+            val magnitude = -(step + 1L) + 1L
+            java.lang.Long.compareUnsigned(index - limit, magnitude) >= 0
+        }
     }
 
     private enum class Arithmetic {

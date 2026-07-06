@@ -1637,6 +1637,76 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes numeric for loop over adjacent integer boundaries`() {
+        val globals = LuaTable()
+        globals.rawSet(LuaString("max"), LuaInteger(Long.MAX_VALUE))
+        globals.rawSet(LuaString("maxMinusOne"), LuaInteger(Long.MAX_VALUE - 1L))
+        globals.rawSet(LuaString("min"), LuaInteger(Long.MIN_VALUE))
+        globals.rawSet(LuaString("minPlusOne"), LuaInteger(Long.MIN_VALUE + 1L))
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                local ascendingCount = 0
+                local ascendingFirst = nil
+                local ascendingSecond = nil
+                for i = maxMinusOne, max do
+                    ascendingCount = ascendingCount + 1
+                    if ascendingCount == 1 then
+                        ascendingFirst = i
+                    else
+                        ascendingSecond = i
+                    end
+                end
+
+                local descendingCount = 0
+                local descendingFirst = nil
+                local descendingSecond = nil
+                for i = minPlusOne, min, -1 do
+                    descendingCount = descendingCount + 1
+                    if descendingCount == 1 then
+                        descendingFirst = i
+                    else
+                        descendingSecond = i
+                    end
+                end
+
+                return ascendingCount, ascendingFirst, ascendingSecond,
+                    descendingCount, descendingFirst, descendingSecond
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(2),
+                LuaInteger(Long.MAX_VALUE - 1L),
+                LuaInteger(Long.MAX_VALUE),
+                LuaInteger(2),
+                LuaInteger(Long.MIN_VALUE + 1L),
+                LuaInteger(Long.MIN_VALUE),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `rejects numeric for loop with zero step`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    for i = 1, 3, 0 do
+                    end
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("'for' step is zero", error.message)
+    }
+
+    @Test
     fun `executes break in numeric for loop`() {
         val result = LuaVm().execute(
             Compiler.compile(
