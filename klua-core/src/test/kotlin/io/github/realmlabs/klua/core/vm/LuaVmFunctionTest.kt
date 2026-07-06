@@ -320,6 +320,25 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `executes parenthesized indexed function call statements`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local total = 0
+                local t = {}
+                t.tick = function(value)
+                    total = total + value
+                end;
+                (t["tick"])(42)
+                return total
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `executes local vararg expansion`() {
         val result = LuaVm().execute(
             Compiler.compile(
