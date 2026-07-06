@@ -314,6 +314,9 @@ internal object LuaIoLibrary {
             requiredString(context, 1, "seek")
         }
         val offset = if (context.isNone(2) || context.isNil(2)) 0L else requiredInteger(context, 2, "seek")
+        if (!handle.seekable) {
+            return LuaReturn.of(null, "Illegal seek", 1L)
+        }
         val base = when (whence) {
             "set" -> 0L
             "cur" -> handle.file.filePointer
@@ -442,6 +445,9 @@ internal object LuaIoLibrary {
 
         val file: RandomAccessFile
             get() = randomAccessFile ?: throw LuaRuntimeException("bad file descriptor")
+
+        val seekable: Boolean
+            get() = randomAccessFile != null
 
         companion object {
             fun input(

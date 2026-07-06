@@ -3527,6 +3527,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io seek reports stream handle failures as results`() {
+        val originalIn = System.`in`
+        System.setIn(ByteArrayInputStream("input".toByteArray(StandardCharsets.UTF_8)))
+        val command = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "echo KLua"
+        } else {
+            "printf KLua"
+        }
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local stdinOk, stdinPosition, stdinMessage, stdinCode = pcall(io.stdin.seek, io.stdin)
+                    local handle = assert(io.popen("$command", "r"))
+                    local popenOk, popenPosition, popenMessage, popenCode = pcall(handle.seek, handle)
+                    handle:close()
+                    return stdinOk, stdinPosition, type(stdinMessage), type(stdinCode),
+                        popenOk, popenPosition, type(popenMessage), type(popenCode)
+                    """.trimIndent(),
+                    "io-stream-seek.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertTrue(state.isNil(2))
+            assertEquals("string", state.toString(3))
+            assertEquals("number", state.toString(4))
+            assertTrue(state.toBoolean(5))
+            assertTrue(state.isNil(6))
+            assertEquals("string", state.toString(7))
+            assertEquals("number", state.toString(8))
+        } finally {
+            System.setIn(originalIn)
+        }
+    }
+
+    @Test
     fun `io lines uses current default input`() {
         val inputPath = Files.createTempFile("klua-io-default-lines-", ".txt")
         Files.writeString(inputPath, "first\nsecond\n")
