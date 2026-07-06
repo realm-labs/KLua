@@ -25,6 +25,7 @@ import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
+import java.math.BigInteger
 
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
@@ -1263,26 +1264,32 @@ internal class LuaVm(
         val indexValue = stack.get(base)
         val limitValue = stack.get(base + 1)
         val stepValue = stack.get(base + 2)
-        if (indexValue is LuaInteger && limitValue is LuaInteger && stepValue is LuaInteger) {
+        if (indexValue is LuaInteger && stepValue is LuaInteger) {
             if (stepValue.value == 0L) {
                 throw LuaVmException("'for' step is zero")
             }
-            return if (stepValue.value > 0L) {
-                indexValue.value <= limitValue.value
-            } else {
-                indexValue.value >= limitValue.value
+            val limitInteger = forIntegerLimitValue(limitValue, stepValue.value)
+            if (limitInteger != null) {
+                stack.set(base + 1, LuaInteger(limitInteger))
+                return if (stepValue.value > 0L) {
+                    indexValue.value <= limitInteger
+                } else {
+                    indexValue.value >= limitInteger
+                }
             }
         }
-
-        val index = numberValue(indexValue)
+        val index = forNumberValue(indexValue)
             ?: throw LuaVmException("numeric for index must be a number")
-        val limit = numberValue(limitValue)
+        val limit = forNumberValue(limitValue)
             ?: throw LuaVmException("numeric for limit must be a number")
-        val step = numberValue(stepValue)
+        val step = forNumberValue(stepValue)
             ?: throw LuaVmException("numeric for step must be a number")
         if (step == 0.0) {
             throw LuaVmException("'for' step is zero")
         }
+        stack.set(base, LuaFloat(index))
+        stack.set(base + 1, LuaFloat(limit))
+        stack.set(base + 2, LuaFloat(step))
         return if (step >= 0.0) index <= limit else index >= limit
     }
 
@@ -1291,17 +1298,20 @@ internal class LuaVm(
         val index = stack.get(base)
         val limit = stack.get(base + 1)
         val step = stack.get(base + 2)
-        if (index is LuaInteger && limit is LuaInteger && step is LuaInteger) {
-            if (integerForHasNext(index.value, limit.value, step.value)) {
+        if (index is LuaInteger && step is LuaInteger) {
+            val limitInteger = forIntegerLimitValue(limit, step.value)
+            if (limitInteger != null && integerForHasNext(index.value, limitInteger, step.value)) {
                 stack.set(base, LuaInteger(index.value + step.value))
                 return true
             }
-            return false
+            if (limitInteger != null) {
+                return false
+            }
         }
 
-        val indexNumber = numberValue(index)
+        val indexNumber = forNumberValue(index)
             ?: throw LuaVmException("numeric for index must be a number")
-        val stepNumber = numberValue(step)
+        val stepNumber = forNumberValue(step)
             ?: throw LuaVmException("numeric for step must be a number")
         stack.set(base, LuaFloat(indexNumber + stepNumber))
         return forLoopContinues(stack, frame, instruction)
@@ -1505,27 +1515,6 @@ internal class LuaVm(
             return if (leftCeiling != null) leftCeiling <= right else left < 0.0
         }
 
-        private fun Double.luaFloorToInteger(): Long? {
-            if (!java.lang.Double.isFinite(this)) {
-                return null
-            }
-            return kotlin.math.floor(this).luaIntegerInRange()
-        }
-
-        private fun Double.luaCeilToInteger(): Long? {
-            if (!java.lang.Double.isFinite(this)) {
-                return null
-            }
-            return kotlin.math.ceil(this).luaIntegerInRange()
-        }
-
-        private fun Double.luaIntegerInRange(): Long? {
-            if (this < Long.MIN_VALUE.toDouble() || this >= LONG_MAX_EXCLUSIVE) {
-                return null
-            }
-            return toLong()
-        }
-
         private fun luaByteCompare(left: String, right: String): Int {
             val leftBytes = left.luaRawBytes()
             val rightBytes = right.luaRawBytes()
@@ -1603,8 +1592,121 @@ private fun numberValue(value: LuaValue): Double? {
     }
 }
 
+private fun forNumberValue(value: LuaValue): Double? {
+    return when (value) {
+        is LuaInteger -> value.value.toDouble()
+        is LuaFloat -> value.value
+        is LuaString -> luaNumberFromString(value.value)
+        else -> null
+    }
+}
+
+private fun forIntegerLimitValue(value: LuaValue, step: Long): Long? {
+    return when (value) {
+        is LuaInteger -> value.value
+        is LuaFloat -> if (step > 0L) value.value.luaFloorToInteger() else value.value.luaCeilToInteger()
+        is LuaString -> luaIntegerFromString(value.value)
+            ?: luaNumberFromString(value.value)?.let { number ->
+                if (step > 0L) number.luaFloorToInteger() else number.luaCeilToInteger()
+            }
+        else -> null
+    }
+}
+
+private fun luaNumberFromString(value: String): Double? {
+    val trimmed = value.trimLuaAsciiWhitespace()
+    if (trimmed.isEmpty() || trimmed.isNamedFloatingPointLiteral()) {
+        return null
+    }
+    return luaIntegerFromTrimmedString(trimmed)?.toDouble()
+        ?: luaFloatFromTrimmedString(trimmed)
+}
+
+private fun luaIntegerFromString(value: String): Long? {
+    val trimmed = value.trimLuaAsciiWhitespace()
+    if (trimmed.isEmpty()) {
+        return null
+    }
+    return luaIntegerFromTrimmedString(trimmed)
+}
+
+private fun luaIntegerFromTrimmedString(value: String): Long? {
+    return luaHexIntegerFromString(value) ?: value.toLongOrNull()
+}
+
+private fun luaFloatFromTrimmedString(value: String): Double? {
+    val parsed = if (value.isHexNumeral()) {
+        val parseable = if (value.indexOf('p', ignoreCase = true) < 0) "${value}p0" else value
+        parseable.toDoubleOrNull()
+    } else {
+        value.toDoubleOrNull()
+    }
+    return parsed?.takeIf { number -> java.lang.Double.isFinite(number) }
+}
+
+private fun luaHexIntegerFromString(value: String): Long? {
+    val sign = when {
+        value.startsWith("-") -> -1
+        value.startsWith("+") -> 1
+        else -> 1
+    }
+    val digitsStart = if (value.startsWith("-") || value.startsWith("+")) 1 else 0
+    if (!value.regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)) {
+        return null
+    }
+    val digits = value.substring(digitsStart + 2)
+    if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
+        return null
+    }
+    var parsed = BigInteger.ZERO
+    val radix = BigInteger.valueOf(16L)
+    for (digit in digits) {
+        parsed = parsed.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
+    }
+    if (sign < 0) {
+        parsed = parsed.negate()
+    }
+    return parsed.mod(UINT64_MODULUS).toLong()
+}
+
+private fun String.trimLuaAsciiWhitespace(): String {
+    return trim { char -> char == ' ' || char == '\u000C' || char == '\n' || char == '\r' || char == '\t' || char == '\u000B' }
+}
+
+private fun String.isNamedFloatingPointLiteral(): Boolean {
+    val unsigned = trimStart('+', '-')
+    return unsigned.equals("nan", ignoreCase = true) || unsigned.equals("infinity", ignoreCase = true)
+}
+
+private fun String.isHexNumeral(): Boolean {
+    val digitsStart = if (startsWith("-") || startsWith("+")) 1 else 0
+    return regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)
+}
+
+private fun Double.luaFloorToInteger(): Long? {
+    if (!java.lang.Double.isFinite(this)) {
+        return null
+    }
+    return kotlin.math.floor(this).luaIntegerInRange()
+}
+
+private fun Double.luaCeilToInteger(): Long? {
+    if (!java.lang.Double.isFinite(this)) {
+        return null
+    }
+    return kotlin.math.ceil(this).luaIntegerInRange()
+}
+
+private fun Double.luaIntegerInRange(): Long? {
+    if (this < Long.MIN_VALUE.toDouble() || this >= LONG_MAX_EXCLUSIVE) {
+        return null
+    }
+    return toLong()
+}
+
 private const val LONG_BITS = 64L
 private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
+private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
 private fun integerValue(value: LuaValue): Long? {
     return when (value) {

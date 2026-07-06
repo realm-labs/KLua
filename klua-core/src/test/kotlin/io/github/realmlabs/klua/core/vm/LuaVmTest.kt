@@ -1637,6 +1637,47 @@ class LuaVmTest {
     }
 
     @Test
+    fun `numeric for loop coerces string bounds`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local stringSum = 0
+                for i = "1", "3" do
+                    stringSum = stringSum + i
+                end
+
+                local floorCount = 0
+                local floorLast = 0
+                for i = 1, "3.8" do
+                    floorCount = floorCount + 1
+                    floorLast = i
+                end
+
+                local ceilCount = 0
+                local ceilLast = 0
+                for i = 3, "1.2", -1 do
+                    ceilCount = ceilCount + 1
+                    ceilLast = i
+                end
+
+                return stringSum, floorCount, floorLast, ceilCount, ceilLast
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaFloat(6.0),
+                LuaInteger(3),
+                LuaInteger(3),
+                LuaInteger(2),
+                LuaInteger(2),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `executes numeric for loop over adjacent integer boundaries`() {
         val globals = LuaTable()
         globals.rawSet(LuaString("max"), LuaInteger(Long.MAX_VALUE))
@@ -1697,6 +1738,22 @@ class LuaVmTest {
                 Compiler.compile(
                     """
                     for i = 1, 3, 0 do
+                    end
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("'for' step is zero", error.message)
+    }
+
+    @Test
+    fun `rejects numeric for loop with string zero step`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    for i = 1, 3, "0" do
                     end
                     """.trimIndent(),
                 ),
