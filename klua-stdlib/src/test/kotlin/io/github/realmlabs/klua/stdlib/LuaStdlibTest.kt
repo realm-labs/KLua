@@ -3295,8 +3295,9 @@ class LuaStdlibTest {
                     local third = iterator(stateValue, second)
                     local done = iterator(stateValue, third)
                     local closed = io.type(closeFile)
+                    local closedIteratorOk, closedIteratorMessage = pcall(iterator, stateValue, third)
                     return fromHandle[1], fromHandle[2], fromHandle[3], fromHandle[4],
-                        stillOpen, first, second, third, done, closed
+                        stillOpen, first, second, third, done, closed, closedIteratorOk, closedIteratorMessage
                     """.trimIndent(),
                     "io-lines.lua",
                 ),
@@ -3313,6 +3314,8 @@ class LuaStdlibTest {
             assertEquals("two", state.toString(8))
             assertTrue(state.isNil(9))
             assertEquals("closed file", state.toString(10))
+            assertFalse(state.toBoolean(11))
+            assertEquals("file is already closed", state.toString(12))
         } finally {
             Files.deleteIfExists(path)
         }

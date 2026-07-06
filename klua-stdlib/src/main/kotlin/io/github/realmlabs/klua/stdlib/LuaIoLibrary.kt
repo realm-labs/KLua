@@ -235,6 +235,9 @@ internal object LuaIoLibrary {
 
     private fun lineIterator(handle: IoFileHandle, formats: List<IoReadFormat>, closeOnEnd: Boolean): LuaFunction {
         return LuaFunction {
+            if (handle.closed) {
+                throw LuaRuntimeException("file is already closed")
+            }
             val values = readFormats(handle, formats)
             if (values.firstOrNull() == null) {
                 if (closeOnEnd && !handle.closed) {
