@@ -153,14 +153,14 @@ internal object LuaIoLibrary {
         if (!context.isNone(1) && !context.isNil(1)) {
             defaultFiles.input = defaultFileArgument(context, 1, mode = "r", functionName = "io.input")
         }
-        return LuaReturn.of(defaultInput(defaultFiles))
+        return LuaReturn.of(currentInput(defaultFiles))
     }
 
     private fun ioOutput(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
         if (!context.isNone(1) && !context.isNil(1)) {
             defaultFiles.output = defaultFileArgument(context, 1, mode = "w", functionName = "io.output")
         }
-        return LuaReturn.of(defaultOutput(defaultFiles))
+        return LuaReturn.of(currentOutput(defaultFiles))
     }
 
     private fun defaultFileArgument(
@@ -208,10 +208,26 @@ internal object LuaIoLibrary {
     }
 
     private fun defaultInput(defaultFiles: IoDefaultFiles): IoFileHandle {
-        return defaultFiles.input ?: throw LuaRuntimeException("default input is not supported")
+        val handle = currentInput(defaultFiles)
+        if (handle.closed) {
+            throw LuaRuntimeException("default input file is closed")
+        }
+        return handle
     }
 
     private fun defaultOutput(defaultFiles: IoDefaultFiles): IoFileHandle {
+        val handle = currentOutput(defaultFiles)
+        if (handle.closed) {
+            throw LuaRuntimeException("default output file is closed")
+        }
+        return handle
+    }
+
+    private fun currentInput(defaultFiles: IoDefaultFiles): IoFileHandle {
+        return defaultFiles.input ?: throw LuaRuntimeException("default input is not supported")
+    }
+
+    private fun currentOutput(defaultFiles: IoDefaultFiles): IoFileHandle {
         return defaultFiles.output ?: throw LuaRuntimeException("default output is not supported")
     }
 

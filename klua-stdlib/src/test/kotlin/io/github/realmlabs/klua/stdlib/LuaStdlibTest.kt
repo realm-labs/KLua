@@ -3676,6 +3676,57 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io default stream operations report closed default files`() {
+        val inputPath = Files.createTempFile("klua-io-default-input-closed-", ".txt")
+        val outputPath = Files.createTempFile("klua-io-default-output-closed-", ".txt")
+        Files.writeString(inputPath, "data")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local input = io.input("${inputPath.luaPath()}")
+                    input:close()
+                    local inputGetterType = io.type(io.input())
+                    local readOk, readMessage = pcall(io.read)
+                    local linesOk, linesMessage = pcall(io.lines)
+
+                    local output = assert(io.open("${outputPath.luaPath()}", "w"))
+                    io.output(output)
+                    output:close()
+                    local outputGetterType = io.type(io.output())
+                    local writeOk, writeMessage = pcall(io.write, "x")
+                    local flushOk, flushMessage = pcall(io.flush)
+
+                    return inputGetterType, readOk, readMessage, linesOk, linesMessage,
+                        outputGetterType, writeOk, writeMessage, flushOk, flushMessage
+                    """.trimIndent(),
+                    "io-default-closed-files.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("closed file", state.toString(1))
+            assertFalse(state.toBoolean(2))
+            assertEquals("default input file is closed", state.toString(3))
+            assertFalse(state.toBoolean(4))
+            assertEquals("default input file is closed", state.toString(5))
+            assertEquals("closed file", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("default output file is closed", state.toString(8))
+            assertFalse(state.toBoolean(9))
+            assertEquals("default output file is closed", state.toString(10))
+        } finally {
+            Files.deleteIfExists(inputPath)
+            Files.deleteIfExists(outputPath)
+        }
+    }
+
+    @Test
     fun `io write uses standard output by default`() {
         val originalOut = System.out
         val captured = ByteArrayOutputStream()
