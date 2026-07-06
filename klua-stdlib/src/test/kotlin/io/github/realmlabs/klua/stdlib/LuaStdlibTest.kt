@@ -3494,6 +3494,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io lines named file open failures raise errors`() {
+        val missingPath = Files.createTempFile("klua-io-lines-missing-", ".txt")
+        Files.deleteIfExists(missingPath)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local opened, openMessage, openCode = io.open("${missingPath.luaPath()}", "r")
+                local linesOk, linesMessage = pcall(io.lines, "${missingPath.luaPath()}")
+                local inputOk, inputMessage = pcall(io.input, "${missingPath.luaPath()}")
+                return opened, type(openMessage), type(openCode),
+                    linesOk, linesMessage,
+                    inputOk, inputMessage
+                """.trimIndent(),
+                "io-lines-open-failure.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("string", state.toString(2))
+        assertEquals("number", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(
+            state.toString(5)?.startsWith("cannot open file '$missingPath' (") == true,
+            state.toString(5),
+        )
+        assertFalse(state.toBoolean(6))
+        assertTrue(
+            state.toString(7)?.startsWith("cannot open file '$missingPath' (") == true,
+            state.toString(7),
+        )
+    }
+
+    @Test
     fun `io read supports source file formats`() {
         val path = Files.createTempFile("klua-io-read-", ".txt")
         Files.writeString(path, "  42 tail\n0x10 3.5\nabc")

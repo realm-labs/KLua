@@ -173,7 +173,7 @@ internal object LuaIoLibrary {
         if (filename != null) {
             val result = ioOpenValue(filename, mode)
             return result.values.firstOrNull() as? IoFileHandle
-                ?: throw LuaRuntimeException(result.get(2)?.toString() ?: "cannot open file '$filename'")
+                ?: throw LuaRuntimeException(openFileError(filename, result))
         }
         val handle = context.toUserData(index, IoFileHandle::class.java)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
@@ -190,7 +190,8 @@ internal object LuaIoLibrary {
         }
         val filename = requiredString(context, 1, "io.lines")
         val openResult = ioOpenValue(filename, "r")
-        val handle = openResult.values.firstOrNull() as? IoFileHandle ?: return openResult
+        val handle = openResult.values.firstOrNull() as? IoFileHandle
+            ?: throw LuaRuntimeException(openFileError(filename, openResult))
         val formats = try {
             readFormatsFromContext(context, 2, "io.lines", MAX_LINE_FORMAT_ARGUMENTS)
         } catch (error: LuaRuntimeException) {
@@ -199,6 +200,14 @@ internal object LuaIoLibrary {
         }
         val iterator = lineIterator(handle, formats, closeOnEnd = true)
         return LuaReturn.of(iterator, null, null, handle)
+    }
+
+    private fun openFileError(filename: String, result: LuaReturn): String {
+        val message = result.get(2)?.toString() ?: "(no extra info)"
+        if (message.startsWith(filename)) {
+            return "cannot open file '$filename'${message.removePrefix(filename)}"
+        }
+        return "cannot open file '$filename' ($message)"
     }
 
     private fun ioType(context: LuaCallContext): LuaReturn {
