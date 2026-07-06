@@ -22989,7 +22989,9 @@ class LuaStdlibTest {
     fun `table insert reports nonindexable newindex values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openTable(state)
+        LuaStdlib.openDebug(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -23001,10 +23003,15 @@ class LuaStdlibTest {
                 local booleanValues = setmetatable({}, { __newindex = true })
                 local booleanOk, booleanMessage = pcall(table.insert, booleanValues, "value")
 
+                local stringWrites = {}
+                local originalStringMetatable = debug.getmetatable("")
+                debug.setmetatable("", { __newindex = stringWrites })
                 local stringValues = setmetatable({}, { __newindex = "x" })
                 local stringOk, stringMessage = pcall(table.insert, stringValues, "value")
+                debug.setmetatable("", originalStringMetatable)
 
-                return numberOk, numberMessage, booleanOk, booleanMessage, stringOk, stringMessage
+                return numberOk, numberMessage, booleanOk, booleanMessage,
+                    stringOk, stringMessage, rawget(stringValues, 1), stringWrites[1]
                 """.trimIndent(),
                 "table-insert-newindex-nonindexable.lua",
             ),
@@ -23015,8 +23022,10 @@ class LuaStdlibTest {
         assertEquals("attempt to index a number value", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("attempt to index a boolean value", state.toString(4))
-        assertFalse(state.toBoolean(5))
-        assertEquals("attempt to index a string value", state.toString(6))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertTrue(state.isNil(7))
+        assertEquals("value", state.toString(8))
     }
 
     @Test

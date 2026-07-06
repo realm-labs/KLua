@@ -245,7 +245,11 @@ internal object LuaTableLibrary {
             return
         }
 
-        throw LuaRuntimeException("attempt to index a ${context.valueTypeName(newIndex)} value")
+        try {
+            context.setValueField(newIndex, key, value)
+        } catch (error: IllegalArgumentException) {
+            throw LuaRuntimeException(error.message ?: "attempt to index a ${context.valueTypeName(newIndex)} value")
+        }
     }
 
     private fun identitySet(): MutableSet<Any> {
