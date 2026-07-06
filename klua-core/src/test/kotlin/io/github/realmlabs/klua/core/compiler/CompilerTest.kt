@@ -1350,6 +1350,37 @@ class CompilerTest {
     }
 
     @Test
+    fun `allows goto to labels in trailing no op label runs`() {
+        val firstPrototype = Compiler.compile(
+            """
+            do
+                goto first
+                local value = 1
+                ::first::
+                ::second::
+            end
+            return 2
+            """.trimIndent(),
+            "goto-first-trailing-label-run.lua",
+        )
+        val secondPrototype = Compiler.compile(
+            """
+            do
+                goto second
+                local value = 1
+                ::first::
+                ::second::
+            end
+            return 2
+            """.trimIndent(),
+            "goto-second-trailing-label-run.lua",
+        )
+
+        assertEquals("goto-first-trailing-label-run.lua", firstPrototype.sourceName)
+        assertEquals("goto-second-trailing-label-run.lua", secondPrototype.sourceName)
+    }
+
+    @Test
     fun `allows nested goto to enclosing end label after local declarations`() {
         val prototype = Compiler.compile(
             """

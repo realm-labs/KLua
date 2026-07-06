@@ -1415,6 +1415,27 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes goto to first label in trailing label run after locals`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local value = 0
+                do
+                    goto first
+                    local skipped = 1
+                    value = skipped
+                    ::first::
+                    ::second::
+                end
+                return value
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(0)), result)
+    }
+
+    @Test
     fun `executes goto to trailing label in numeric for body`() {
         val result = LuaVm().execute(
             Compiler.compile(
