@@ -1006,14 +1006,6 @@ internal class Compiler private constructor(
         return when (key) {
             is StringExpression -> key.value
             is IntegerExpression -> "integer index"
-            is VariableExpression -> if (
-                resolveCurrentLocalSlot(key.name) != null ||
-                resolveCurrentGlobalDeclaration(key.name) == null && resolveUpvalue(key.name) != null
-            ) {
-                key.name
-            } else {
-                "?"
-            }
             else -> "?"
         }
     }

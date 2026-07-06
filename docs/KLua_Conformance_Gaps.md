@@ -9,7 +9,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 ## Debug Library
 
 - Optional thread arguments for `debug.traceback`, `debug.getinfo`, `debug.getlocal`, `debug.setlocal`, `debug.sethook`, and `debug.gethook` are implemented for explicit current threads and suspended, normal, and empty-stack KLua coroutine states such as dead coroutines. Broader cross-thread debug behavior beyond these KLua thread states is not implemented yet.
-- `debug.getinfo(..., "n")` resolves common source call-site names for local, global, upvalue, field, computed field, integer-indexed field, method, generic-for iterator, `__call`, `__index`, `__newindex`, and operator metamethod calls, but broader Lua 5.5 name inference for indirect call patterns is not complete yet.
+- `debug.getinfo(..., "n")` resolves common source call-site names for local, global, upvalue, field, unknown computed field keys, integer-indexed field, method, generic-for iterator, `__call`, `__index`, `__newindex`, and operator metamethod calls, but broader Lua 5.5 name inference for indirect call patterns is not complete yet.
 
 ## Package Library
 
