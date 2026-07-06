@@ -4153,6 +4153,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io write formats numeric arguments like lua`() {
+        val path = Files.createTempFile("klua-io-write-numbers-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    local returned = handle:write(1, "|", 1.0, "|", 1.25, "|", 1e14, "|", 1e15, "|", 1e-5, "|", 0/0, "|", 1/0, "|", -1/0)
+                    handle:seek("set", 0)
+                    local fileText = handle:read("a")
+                    handle:close()
+
+                    local output = assert(io.open("${path.luaPath()}", "w+"))
+                    io.output(output)
+                    local moduleReturned = io.write(1e15, "|", 1e-5)
+                    io.close(output)
+                    local readback = assert(io.open("${path.luaPath()}", "r"))
+                    local moduleText = readback:read("a")
+                    readback:close()
+                    return returned == handle, fileText, moduleReturned == output, moduleText
+                    """.trimIndent(),
+                    "io-write-number-format.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertEquals("1|1.0|1.25|100000000000000.0|1e+15|1e-05|nan|inf|-inf", state.toString(2))
+            assertTrue(state.toBoolean(3))
+            assertEquals("1e+15|1e-05", state.toString(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read uses standard input by default`() {
         val originalIn = System.`in`
         System.setIn(ByteArrayInputStream("first\n  0x10 tail".toByteArray(StandardCharsets.UTF_8)))

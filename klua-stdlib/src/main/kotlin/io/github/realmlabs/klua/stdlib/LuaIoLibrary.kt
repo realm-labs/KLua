@@ -480,7 +480,7 @@ internal object LuaIoLibrary {
         }
         return try {
             for (index in 1..context.argumentCount) {
-                val value = context.toString(index)
+                val value = writeArgumentString(context, index)
                     ?: throw LuaRuntimeException(
                         "bad argument #${firstArgumentIndex + index - 1} to 'write' (string expected)",
                     )
@@ -490,6 +490,58 @@ internal object LuaIoLibrary {
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         }
+    }
+
+    private fun writeArgumentString(context: LuaCallContext, index: Int): String? {
+        return if (context.typeName(index) == "number") {
+            luaNumberToString(context.get(index))
+        } else {
+            context.toString(index)
+        }
+    }
+
+    private fun luaNumberToString(value: Any?): String {
+        return when (value) {
+            is Byte -> value.toLong().toString()
+            is Short -> value.toLong().toString()
+            is Int -> value.toLong().toString()
+            is Long -> value.toString()
+            is Float -> luaFloatToString(value.toDouble())
+            is Double -> luaFloatToString(value)
+            else -> value?.toString() ?: "number"
+        }
+    }
+
+    private fun luaFloatToString(value: Double): String {
+        if (value.isNaN()) {
+            return "nan"
+        }
+        if (value == Double.POSITIVE_INFINITY) {
+            return "inf"
+        }
+        if (value == Double.NEGATIVE_INFINITY) {
+            return "-inf"
+        }
+        val formatted = String.format(Locale.ROOT, "%.15g", value).lowercase(Locale.ROOT)
+        val exponentIndex = formatted.indexOf('e')
+        return if (exponentIndex >= 0) {
+            val mantissa = formatted.substring(0, exponentIndex).trimLuaFloatTrailingZeros()
+            mantissa + formatted.substring(exponentIndex)
+        } else {
+            val decimal = formatted.trimLuaFloatTrailingZeros()
+            if (value.isFiniteWholeNumber() && '.' !in decimal) "$decimal.0" else decimal
+        }
+    }
+
+    private fun String.trimLuaFloatTrailingZeros(): String {
+        if ('.' !in this) {
+            return this
+        }
+        return trimEnd('0').trimEnd('.')
+    }
+
+    private fun Double.isFiniteWholeNumber(): Boolean {
+        return isFinite() && this % 1.0 == 0.0
     }
 
     private fun seekHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
