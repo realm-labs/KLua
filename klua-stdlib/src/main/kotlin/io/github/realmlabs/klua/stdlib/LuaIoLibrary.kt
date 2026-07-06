@@ -255,6 +255,9 @@ internal object LuaIoLibrary {
             if (handle.closed) {
                 throw LuaRuntimeException("file is already closed")
             }
+            if (!handle.readable) {
+                throw LuaRuntimeException("Bad file descriptor")
+            }
             val values = readFormats(handle, formats)
             if (values.firstOrNull() == null) {
                 if (closeOnEnd && !handle.closed) {

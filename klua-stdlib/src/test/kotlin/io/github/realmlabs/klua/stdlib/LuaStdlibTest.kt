@@ -3422,6 +3422,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io lines iterator reports file read errors`() {
+        val path = Files.createTempFile("klua-io-lines-error-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w"))
+                    local iterator = handle:lines()
+                    local ok, message = pcall(iterator)
+                    handle:close()
+                    return ok, message
+                    """.trimIndent(),
+                    "io-lines-read-error.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertFalse(state.toBoolean(1))
+            assertEquals("Bad file descriptor", state.toString(2))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read supports source file formats`() {
         val path = Files.createTempFile("klua-io-read-", ".txt")
         Files.writeString(path, "  42 tail\n0x10 3.5\nabc")
