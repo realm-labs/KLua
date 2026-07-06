@@ -16124,8 +16124,10 @@ class LuaStdlibTest {
                 local invalidFind = string.find("abc", "[", 5)
                 local invalidMatch = string.match("abc", "[", 5)
                 local invalidIterator = string.gmatch("abc", "[", 5)
-                return plainStart, plainEnd, patternStart, patternEnd, matched, iterator(),
-                    invalidFind, invalidMatch, invalidIterator()
+                local iteratorMatch = iterator()
+                local invalidIteratorMatch = invalidIterator()
+                return plainStart, plainEnd, patternStart, patternEnd, matched, iteratorMatch,
+                    invalidFind, invalidMatch, invalidIteratorMatch
                 """.trimIndent(),
                 "string-search-init-past-end.lua",
             ),
@@ -16663,8 +16665,11 @@ class LuaStdlibTest {
                 local dollar = string.match("end$", "%$")
                 local percentAtEnd = string.match("done%", "%%$")
                 local iterator = string.gmatch("a,b;c", "%p")
+                local first = iterator()
+                local second = iterator()
+                local done = iterator()
                 return commaStart, commaEnd, bang, replaced, count, dollarStart, dollarEnd, dollar, percentAtEnd,
-                    iterator(), iterator(), iterator()
+                    first, second, done
                 """.trimIndent(),
                 "string-pattern-escaped-punctuation.lua",
             ),
@@ -16698,7 +16703,10 @@ class LuaStdlibTest {
                 local matched = string.match("cost $ later", "%${'$'}")
                 local replaced, count = string.gsub("a${'$'}b${'$'}", "%${'$'}", "x")
                 local iterator = string.gmatch("a${'$'}b${'$'}", "%${'$'}")
-                return first, last, matched, replaced, count, iterator(), iterator(), iterator()
+                local firstDollar = iterator()
+                local secondDollar = iterator()
+                local done = iterator()
+                return first, last, matched, replaced, count, firstDollar, secondDollar, done
                 """.trimIndent(),
                 "string-pattern-escaped-dollar.lua",
             ),
@@ -16728,8 +16736,11 @@ class LuaStdlibTest {
                 local matched = string.match("xq", "%q")
                 local replaced, count = string.gsub("xq q", "%q", "Q")
                 local iterator = string.gmatch("q q", "%q")
+                local firstMatch = iterator()
+                local secondMatch = iterator()
+                local done = iterator()
                 return first, last, matched, replaced, count,
-                    iterator(), iterator(), iterator(),
+                    firstMatch, secondMatch, done,
                     string.match("xq", "[%q]"),
                     string.match("xq", "[^%q]")
                 """.trimIndent(),
@@ -16763,11 +16774,14 @@ class LuaStdlibTest {
                 local longStart, longEnd = string.find("abc", "ab?c")
                 local replaced, count = string.gsub("color colour", "colou?r", "x")
                 local iterator = string.gmatch("ab ac abc", "ab?c")
+                local shortMatch = iterator()
+                local longMatch = iterator()
+                local done = iterator()
                 return shortStart, shortEnd, longStart, longEnd,
                     string.match("color", "colou?r"),
                     string.match("colour", "colou?r"),
                     replaced, count,
-                    iterator(), iterator(), iterator()
+                    shortMatch, longMatch, done
                 """.trimIndent(),
                 "string-pattern-optional.lua",
             ),
@@ -16802,6 +16816,11 @@ class LuaStdlibTest {
                 local questionStart, questionEnd = string.find("a* + - ?", "?")
                 local replaced, count = string.gsub("*+ -?", "[*+%-?]", "x")
                 local iterator = string.gmatch("* + - ?", "[*+%-?]")
+                local star = iterator()
+                local plus = iterator()
+                local minus = iterator()
+                local question = iterator()
+                local done = iterator()
                 return starStart, starEnd,
                     plusStart, plusEnd,
                     minusStart, minusEnd,
@@ -16809,7 +16828,7 @@ class LuaStdlibTest {
                     replaced, count,
                     string.match("ab", "a*b"),
                     string.match("ab", "*b"),
-                    iterator(), iterator(), iterator(), iterator(), iterator()
+                    star, plus, minus, question, done
                 """.trimIndent(),
                 "string-pattern-standalone-suffixes.lua",
             ),
@@ -16848,11 +16867,14 @@ class LuaStdlibTest {
                 local starStart, starEnd = string.find("b", "a*b")
                 local replaced, count = string.gsub("a1 22 333", "%d+", "n")
                 local iterator = string.gmatch("a12b3", "%d+")
+                local first = iterator()
+                local second = iterator()
+                local done = iterator()
                 return plusStart, plusEnd, starStart, starEnd,
                     string.match("aaab", "a*"),
                     string.match("b", "a+"),
                     replaced, count,
-                    iterator(), iterator(), iterator()
+                    first, second, done
                 """.trimIndent(),
                 "string-pattern-repetition.lua",
             ),
@@ -16885,11 +16907,14 @@ class LuaStdlibTest {
                 local minimalStart, minimalEnd = string.find("a123b456b", "a.-b")
                 local replaced, count = string.gsub("a1b a22b", "a.-b", "x")
                 local iterator = string.gmatch("a1b a22b", "a.-b")
+                local first = iterator()
+                local second = iterator()
+                local done = iterator()
                 return greedyStart, greedyEnd, minimalStart, minimalEnd,
                     string.match("a123b456b", "a.*b"),
                     string.match("a123b456b", "a.-b"),
                     replaced, count,
-                    iterator(), iterator(), iterator()
+                    first, second, done
                 """.trimIndent(),
                 "string-pattern-minimal.lua",
             ),
@@ -16920,8 +16945,13 @@ class LuaStdlibTest {
                 """
                 local replaced, count = string.gsub("abc", "x*", "-")
                 local iterator = string.gmatch("abc", "x*")
+                local first = iterator()
+                local second = iterator()
+                local third = iterator()
+                local fourth = iterator()
+                local done = iterator()
                 return replaced, count,
-                    iterator(), iterator(), iterator(), iterator(), iterator()
+                    first, second, third, fourth, done
                 """.trimIndent(),
                 "string-pattern-empty.lua",
             ),
@@ -17219,7 +17249,10 @@ class LuaStdlibTest {
                 local iterator = string.gmatch("[a] [b]", "%b[]")
                 local missing = string.match("(abc", "%b()")
                 local quoted = string.match("'a' b", "%b''")
-                return first, last, matched, replaced, count, iterator(), iterator(), iterator(), missing, quoted
+                local firstBalanced = iterator()
+                local secondBalanced = iterator()
+                local done = iterator()
+                return first, last, matched, replaced, count, firstBalanced, secondBalanced, done, missing, quoted
                 """.trimIndent(),
                 "string-pattern-balanced.lua",
             ),
@@ -17278,7 +17311,10 @@ class LuaStdlibTest {
                 local iterator = string.gmatch("one, two", "%f[%a]%a+")
                 local endFirst, endLast = string.find("word!", "%f[%A]")
                 local missing = string.match("hello", "%f[%d]%a")
-                return first, last, matched, replaced, count, iterator(), iterator(), iterator(),
+                local firstWord = iterator()
+                local secondWord = iterator()
+                local done = iterator()
+                return first, last, matched, replaced, count, firstWord, secondWord, done,
                     endFirst, endLast, missing
                 """.trimIndent(),
                 "string-pattern-frontier.lua",
@@ -19311,6 +19347,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gmatch exhausted iterators return no values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function capture(...)
+                    return select("#", ...), ...
+                end
+                local iterator = string.gmatch("ab", ".")
+                local firstCount, first = capture(iterator())
+                local second = iterator()
+                local doneCount = select("#", iterator())
+                local pastEnd = string.gmatch("ab", ".", 4)
+                local pastEndCount = select("#", pastEnd())
+                local missing = string.gmatch("ab", "z")
+                local missingCount = select("#", missing())
+                return firstCount, first, second, doneCount, pastEndCount, missingCount
+                """.trimIndent(),
+                "string-gmatch-exhausted-count.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("a", state.toString(2))
+        assertEquals("b", state.toString(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(6))
+    }
+
+    @Test
     fun `string gmatch honors init argument`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -19359,7 +19431,12 @@ class LuaStdlibTest {
                 """
                 local literal = string.gmatch("a ^abc ^abc", "^abc")
                 local anchoredEnd = string.gmatch("abc abc", "abc$")
-                return literal(), literal(), literal(), anchoredEnd(), anchoredEnd()
+                local literalFirst = literal()
+                local literalSecond = literal()
+                local literalDone = literal()
+                local anchoredMatch = anchoredEnd()
+                local anchoredDone = anchoredEnd()
+                return literalFirst, literalSecond, literalDone, anchoredMatch, anchoredDone
                 """.trimIndent(),
                 "string-gmatch-caret-literal.lua",
             ),
@@ -19386,8 +19463,20 @@ class LuaStdlibTest {
                 local iterator = string.gmatch("ab", "")
                 local empty = string.gmatch("", "")
                 local wide = string.gmatch(utf8.char(128512), "")
-                return iterator(), iterator(), iterator(), iterator(),
-                    empty(), empty(), wide(), wide(), wide(), wide(), wide(), wide()
+                local first = iterator()
+                local second = iterator()
+                local third = iterator()
+                local done = iterator()
+                local emptyMatch = empty()
+                local emptyDone = empty()
+                local wideFirst = wide()
+                local wideSecond = wide()
+                local wideThird = wide()
+                local wideFourth = wide()
+                local wideFifth = wide()
+                local wideDone = wide()
+                return first, second, third, done,
+                    emptyMatch, emptyDone, wideFirst, wideSecond, wideThird, wideFourth, wideFifth, wideDone
                 """.trimIndent(),
                 "string-gmatch-empty-pattern.lua",
             ),
@@ -19419,7 +19508,11 @@ class LuaStdlibTest {
                 """
                 local missing = string.gmatch("abc", "a]")
                 local iterator = string.gmatch("a] a]", "a]")
-                return missing(), iterator(), iterator(), iterator()
+                local missingMatch = missing()
+                local first = iterator()
+                local second = iterator()
+                local done = iterator()
+                return missingMatch, first, second, done
                 """.trimIndent(),
                 "string-gmatch-closing-bracket.lua",
             ),
@@ -19859,8 +19952,12 @@ class LuaStdlibTest {
                 """
                 local iterator = string.gmatch("A" .. utf8.char(233) .. "Z", utf8.charpattern)
                 local b1, b2, b3, b4 = string.byte(utf8.charpattern, 1, 4)
+                local first = iterator()
+                local second = iterator()
+                local third = iterator()
+                local done = iterator()
                 return b1, b2, b3, b4,
-                    iterator(), iterator(), iterator(), iterator()
+                    first, second, third, done
                 """.trimIndent(),
                 "utf8-charpattern.lua",
             ),

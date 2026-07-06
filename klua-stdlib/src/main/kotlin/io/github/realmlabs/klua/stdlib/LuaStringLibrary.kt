@@ -300,18 +300,18 @@ internal object LuaStringLibrary {
         val subject = text.toLuaPatternSubject()
         val patternSubject = pattern.toLuaPatternSubject()
         if (searchStart.bytePosition - 1L > subject.text.length) {
-            val emptyIterator = LuaFunction { LuaReturn.of(null) }
+            val emptyIterator = LuaFunction { LuaReturn.none() }
             return LuaReturn.of(emptyIterator)
         }
         val compiledPattern = LuaStringPattern.compileGmatch(patternSubject.text)
         var cursor = (searchStart.bytePosition - 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         val iterator = LuaFunction { _ ->
             if (cursor > subject.text.length) {
-                LuaReturn.of(null)
+                LuaReturn.none()
             } else {
                 val match = compiledPattern.find(subject.text, cursor)
                 if (match == null) {
-                    LuaReturn.of(null)
+                    LuaReturn.none()
                 } else {
                     cursor = if (match.startIndex == match.endIndex && match.endIndex < subject.text.length) {
                         match.endIndex + 1
