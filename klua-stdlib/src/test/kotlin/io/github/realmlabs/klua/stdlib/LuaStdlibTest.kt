@@ -7588,7 +7588,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `pairs defers non table errors and ipairs ends non table iteration`() {
+    fun `pairs and ipairs defer non table errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
@@ -7618,8 +7618,8 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(6))
         assertEquals("not-table", state.toString(7))
         assertEquals(0L, state.toInteger(8))
-        assertTrue(state.toBoolean(9))
-        assertTrue(state.isNil(10))
+        assertFalse(state.toBoolean(9))
+        assertEquals("attempt to index a string value", state.toString(10))
         assertFalse(state.toBoolean(11))
         assertEquals("bad argument #2 to 'ipairs iterator' (number expected)", state.toString(12))
     }

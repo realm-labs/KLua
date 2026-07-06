@@ -425,7 +425,7 @@ public object LuaStdlib {
             }
         }
         val index = context.getTableField(context.getRawMetatable(valueIndex), "__index")
-            ?: return IndexedValue(null, handled = context.isTable(valueIndex) || context.typeName(valueIndex) == "string")
+            ?: return IndexedValue(null, handled = context.isTable(valueIndex))
         return try {
             IndexedValue(context.call(index, listOf(argumentValue(context, valueIndex), key)).get(1), handled = true)
         } catch (_: IllegalArgumentException) {
