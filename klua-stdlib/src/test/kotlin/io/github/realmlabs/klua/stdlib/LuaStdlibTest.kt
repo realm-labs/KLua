@@ -3570,6 +3570,60 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io stream handles report read and write direction failures as results`() {
+        val originalIn = System.`in`
+        System.setIn(ByteArrayInputStream("input".toByteArray(StandardCharsets.UTF_8)))
+        val readCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "echo KLua"
+        } else {
+            "printf KLua"
+        }
+        val writeCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "more > nul"
+        } else {
+            "cat >/dev/null"
+        }
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local stdoutOk, stdoutValue, stdoutMessage, stdoutCode = pcall(io.stdout.read, io.stdout)
+                    local stdinOk, stdinValue, stdinMessage, stdinCode = pcall(io.stdin.write, io.stdin, "x")
+                    local readHandle = assert(io.popen("$readCommand", "r"))
+                    local readWriteOk, readWriteValue, readWriteMessage, readWriteCode =
+                        pcall(readHandle.write, readHandle, "x")
+                    readHandle:close()
+                    local writeHandle = assert(io.popen("$writeCommand", "w"))
+                    local writeReadOk, writeReadValue, writeReadMessage, writeReadCode =
+                        pcall(writeHandle.read, writeHandle)
+                    writeHandle:close()
+                    return stdoutOk, stdoutValue, type(stdoutMessage), type(stdoutCode),
+                        stdinOk, stdinValue, type(stdinMessage), type(stdinCode),
+                        readWriteOk, readWriteValue, type(readWriteMessage), type(readWriteCode),
+                        writeReadOk, writeReadValue, type(writeReadMessage), type(writeReadCode)
+                    """.trimIndent(),
+                    "io-stream-direction.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            for (index in listOf(1, 5, 9, 13)) {
+                assertTrue(state.toBoolean(index))
+                assertTrue(state.isNil(index + 1))
+                assertEquals("string", state.toString(index + 2))
+                assertEquals("number", state.toString(index + 3))
+            }
+        } finally {
+            System.setIn(originalIn)
+        }
+    }
+
+    @Test
     fun `io lines uses current default input`() {
         val inputPath = Files.createTempFile("klua-io-default-lines-", ".txt")
         Files.writeString(inputPath, "first\nsecond\n")

@@ -218,6 +218,9 @@ internal object LuaIoLibrary {
 
     private fun readHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
         handle.ensureOpen()
+        if (!handle.readable) {
+            return LuaReturn.of(null, "Bad file descriptor", 1L)
+        }
         return LuaReturn.ofValues(readFormats(handle, readFormatsFromContext(context, 1, "read")))
     }
 
@@ -294,6 +297,9 @@ internal object LuaIoLibrary {
 
     private fun writeHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
         handle.ensureOpen()
+        if (!handle.writable) {
+            return LuaReturn.of(null, "Bad file descriptor", 1L)
+        }
         return try {
             for (index in 1..context.argumentCount) {
                 val value = context.toString(index)
@@ -448,6 +454,12 @@ internal object LuaIoLibrary {
 
         val seekable: Boolean
             get() = randomAccessFile != null
+
+        val readable: Boolean
+            get() = randomAccessFile != null || inputStream != null
+
+        val writable: Boolean
+            get() = randomAccessFile != null || outputStream != null
 
         companion object {
             fun input(
