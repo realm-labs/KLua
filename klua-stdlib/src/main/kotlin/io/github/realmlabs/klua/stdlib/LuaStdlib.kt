@@ -919,7 +919,7 @@ public object LuaStdlib {
             "function" -> context.get(index)?.typedPointerString(typeName(context, metatable, "function")) ?: "function"
             "table" -> tableToLuaString(context, index)
             "userdata" -> context.get(index)?.let { value ->
-                if (value is LuaStdlibStringValue) {
+                if (metatable == null && value is LuaStdlibStringValue) {
                     value.luaToString()
                 } else {
                     value.typedPointerString(typeName(context, metatable, "userdata"))

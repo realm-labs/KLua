@@ -3244,6 +3244,8 @@ class LuaStdlibTest {
                     """
                     local handle = assert(io.open("${path.luaPath()}", "w"))
                     local openText = tostring(handle)
+                    debug.setmetatable(handle, { __name = "NamedFile" })
+                    local namedText = tostring(handle)
                     debug.setmetatable(handle, {
                         __tostring = function()
                             return "custom-file"
@@ -3252,7 +3254,7 @@ class LuaStdlibTest {
                     local customText = tostring(handle)
                     debug.setmetatable(handle, nil)
                     handle:close()
-                    return openText, customText, tostring(handle)
+                    return openText, namedText, customText, tostring(handle)
                     """.trimIndent(),
                     "io-file-tostring.lua",
                 ),
@@ -3260,8 +3262,9 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
             assertTrue(state.toString(1)?.matches(Regex("""file \([0-9a-f]+\)""")) == true, state.toString(1))
-            assertEquals("custom-file", state.toString(2))
-            assertEquals("file (closed)", state.toString(3))
+            assertTrue(state.toString(2)?.matches(Regex("""NamedFile: [0-9a-f]+""")) == true, state.toString(2))
+            assertEquals("custom-file", state.toString(3))
+            assertEquals("file (closed)", state.toString(4))
         } finally {
             Files.deleteIfExists(path)
         }
