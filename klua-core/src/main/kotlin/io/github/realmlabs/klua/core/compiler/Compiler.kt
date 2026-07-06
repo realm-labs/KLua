@@ -292,26 +292,50 @@ internal class Compiler private constructor(
         }
 
         compileAdjustedValues(statement.values, slots.first(), slots.size, statement.range.start.line)
+        emitCloseLocalChecks(statement, slots)
         registerLocalDeclarations(statement, slots)
     }
 
     private fun validateCloseLocalInitializers(statement: LocalStatement) {
         for ((index, attribute) in statement.attributes.withIndex()) {
-            if (attribute == LocalAttribute.CLOSE && !statement.closeInitializerIsStaticallyFalse(index)) {
+            if (attribute == LocalAttribute.CLOSE && statement.closeInitializerKind(index) == CloseInitializerKind.STATIC_NON_FALSE) {
                 throw unsupported(statement, "to-be-closed local variables are not supported")
             }
         }
     }
 
-    private fun LocalStatement.closeInitializerIsStaticallyFalse(index: Int): Boolean {
+    private fun emitCloseLocalChecks(statement: LocalStatement, slots: List<Int>) {
+        for ((index, attribute) in statement.attributes.withIndex()) {
+            if (attribute == LocalAttribute.CLOSE && statement.closeInitializerKind(index) == CloseInitializerKind.DYNAMIC) {
+                val name = stringConstantIndex(statement.names[index])
+                writer.emit(Instruction.abc(Opcode.CHECK_CLOSE_FALSE, slots[index], name), statement.range.start.line)
+            }
+        }
+    }
+
+    private fun LocalStatement.closeInitializerKind(index: Int): CloseInitializerKind {
         val expression = values.getOrNull(index)
         if (expression == null) {
-            return !values.lastOrNull().isOpenResultExpression()
+            return if (values.lastOrNull().isOpenResultExpression()) {
+                CloseInitializerKind.DYNAMIC
+            } else {
+                CloseInitializerKind.STATIC_FALSE
+            }
         }
         if (expression.isOpenResultExpression()) {
-            return false
+            return CloseInitializerKind.DYNAMIC
         }
-        return expression is NilExpression || expression is BooleanExpression && !expression.value
+        return when (expression) {
+            is NilExpression -> CloseInitializerKind.STATIC_FALSE
+            is BooleanExpression -> if (expression.value) CloseInitializerKind.STATIC_NON_FALSE else CloseInitializerKind.STATIC_FALSE
+            is FloatExpression,
+            is FunctionExpression,
+            is IntegerExpression,
+            is StringExpression,
+            is TableExpression,
+            -> CloseInitializerKind.STATIC_NON_FALSE
+            else -> CloseInitializerKind.DYNAMIC
+        }
     }
 
     private fun compileGlobal(statement: GlobalStatement) {
@@ -1477,6 +1501,12 @@ internal class Compiler private constructor(
         val isConst: Boolean,
         val order: Int?,
     )
+
+    private enum class CloseInitializerKind {
+        STATIC_FALSE,
+        STATIC_NON_FALSE,
+        DYNAMIC,
+    }
 
     private data class PreparedAssignmentTargets(
         val targets: List<PreparedAssignmentTarget>,

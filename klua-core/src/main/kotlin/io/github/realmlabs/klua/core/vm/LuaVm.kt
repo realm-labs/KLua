@@ -236,6 +236,7 @@ internal class LuaVm(
                         Opcode.GET_ENV -> getEnvironment(stack, frame, instruction)
                         Opcode.SET_ENV -> setEnvironment(stack, frame, instruction)
                         Opcode.CHECK_FIELD_NIL -> checkFieldNil(stack, frame, instruction)
+                        Opcode.CHECK_CLOSE_FALSE -> checkCloseFalse(stack, frame, instruction)
                         Opcode.CLOSURE -> createClosure(stack, frame, instruction)
                         Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
                         Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
@@ -759,6 +760,15 @@ internal class LuaVm(
         if (indexGet(receiver, key) != LuaNil) {
             throw LuaVmException("global '${key.value}' already defined")
         }
+    }
+
+    private fun checkCloseFalse(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val value = stack.get(register(frame, Instruction.a(instruction)))
+        if (value == LuaNil || value == LuaBoolean(false)) {
+            return
+        }
+        val name = stringConstant(frame.prototype, Instruction.b(instruction))
+        throw LuaVmException("variable '${name.value}' got a non-closable value")
     }
 
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {

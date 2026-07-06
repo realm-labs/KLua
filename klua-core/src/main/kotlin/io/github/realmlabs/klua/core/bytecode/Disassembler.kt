@@ -76,6 +76,7 @@ internal object Disassembler {
             Opcode.GET_ENV -> "GET_ENV R${Instruction.a(instruction)}"
             Opcode.SET_ENV -> "SET_ENV R${Instruction.a(instruction)}"
             Opcode.CHECK_FIELD_NIL -> fieldNilCheck(instruction, prototype)
+            Opcode.CHECK_CLOSE_FALSE -> closeFalseCheck(instruction, prototype)
         }
     }
 
@@ -113,6 +114,11 @@ internal object Disassembler {
     private fun fieldNilCheck(instruction: Int, prototype: Prototype): String {
         val constant = prototype.constants[Instruction.b(instruction)]
         return "CHECK_FIELD_NIL R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
+    }
+
+    private fun closeFalseCheck(instruction: Int, prototype: Prototype): String {
+        val constant = prototype.constants[Instruction.b(instruction)]
+        return "CHECK_CLOSE_FALSE R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value

@@ -6,7 +6,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 - Full cross-scope `goto` and label semantics are still being hardened; current support covers AST representation, compilation, VM execution, end-of-block labels, exported pending gotos, and close-aware escaping jumps.
 - Lua 5.5 `global` variable declarations are supported for regular and `<const>` named/wildcard scopes, initialized declarations, local-shadowing resolution, plain function declaration binding, lexical `_ENV` lowering, and `global function` declarations with Lua-style already-defined checks.
-- `<close>` local declarations are parsed; statically nil/false close locals compile as no-op close values, while non-false to-be-closed variable semantics are still rejected by the compiler because `__close` handling is not implemented.
+- `<close>` local declarations are parsed; statically nil/false close locals compile as no-op close values, dynamic close initializers are runtime-checked to allow only nil/false, and statically non-false to-be-closed variable semantics are still rejected by the compiler because `__close` handling is not implemented.
 
 ## Debug Library
 

@@ -222,6 +222,58 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes dynamic false to be closed locals as no-op close values`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function maybeNil()
+                    return nil
+                end
+                local function values()
+                    return false, nil
+                end
+                local first <close> = maybeNil()
+                local disabled, second <close> = values()
+                return first, disabled, second
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaNil, LuaBoolean(false), LuaNil), result)
+    }
+
+    @Test
+    fun `rejects dynamic non false to be closed local values`() {
+        val directError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local function resource()
+                        return {}
+                    end
+                    local value <close> = resource()
+                    """.trimIndent(),
+                ),
+            )
+        }
+        assertEquals("variable 'value' got a non-closable value", directError.message)
+
+        val adjustedError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local function values()
+                        return false, {}
+                    end
+                    local disabled, resource <close> = values()
+                    """.trimIndent(),
+                ),
+            )
+        }
+        assertEquals("variable 'resource' got a non-closable value", adjustedError.message)
+    }
+
+    @Test
     fun `executes local reassignment`() {
         val result = LuaVm().execute(
             Compiler.compile(

@@ -49,4 +49,5 @@ internal enum class Opcode {
     GET_ENV,
     SET_ENV,
     CHECK_FIELD_NIL,
+    CHECK_CLOSE_FALSE,
 }

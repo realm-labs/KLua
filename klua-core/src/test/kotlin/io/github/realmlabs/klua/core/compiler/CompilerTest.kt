@@ -504,35 +504,28 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects to be closed locals initialized from open results`() {
-        val directError = assertFailsWith<CompilerException> {
-            Compiler.compile(
-                """
-                local function maybeClose()
-                    return {}
-                end
-                local resource <close> = maybeClose()
-                """.trimIndent(),
-                "close-call-local.lua",
-            )
-        }
-        assertEquals("close-call-local.lua:4:1: to-be-closed local variables are not supported", directError.message)
-
-        val adjustedError = assertFailsWith<CompilerException> {
-            Compiler.compile(
-                """
-                local function values()
-                    return false, {}
-                end
-                local disabled, resource <close> = values()
-                """.trimIndent(),
-                "close-adjusted-call-local.lua",
-            )
-        }
-        assertEquals(
-            "close-adjusted-call-local.lua:4:1: to-be-closed local variables are not supported",
-            adjustedError.message,
+    fun `checks dynamic to be closed locals initialized from open results`() {
+        val direct = Compiler.compile(
+            """
+            local function maybeClose()
+                return nil
+            end
+            local resource <close> = maybeClose()
+            """.trimIndent(),
+            "close-call-local.lua",
         )
+        assertTrue(Disassembler.disassemble(direct).contains("""CHECK_CLOSE_FALSE R1 K0 ; "resource""""))
+
+        val adjusted = Compiler.compile(
+            """
+            local function values()
+                return false, nil
+            end
+            local disabled, resource <close> = values()
+            """.trimIndent(),
+            "close-adjusted-call-local.lua",
+        )
+        assertTrue(Disassembler.disassemble(adjusted).contains("""CHECK_CLOSE_FALSE R2 K0 ; "resource""""))
     }
 
     @Test
