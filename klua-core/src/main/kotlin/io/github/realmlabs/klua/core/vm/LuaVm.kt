@@ -1374,7 +1374,7 @@ internal class LuaVm(
                 MUL -> LuaFloat(leftNumber * rightNumber)
                 DIV -> LuaFloat(leftNumber / rightNumber)
                 IDIV -> LuaFloat(kotlin.math.floor(leftNumber / rightNumber))
-                MOD -> LuaFloat(leftNumber % rightNumber)
+                MOD -> LuaFloat(floatModulo(leftNumber, rightNumber))
                 POW -> LuaFloat(Math.pow(leftNumber, rightNumber))
             }
         }
@@ -1389,6 +1389,14 @@ internal class LuaVm(
                 MOD -> LuaInteger(Math.floorMod(left, right))
                 POW -> LuaFloat(Math.pow(left.toDouble(), right.toDouble()))
             }
+        }
+
+        private fun floatModulo(left: Double, right: Double): Double {
+            var result = left % right
+            if (if (result > 0.0) right < 0.0 else result < 0.0 && right > 0.0) {
+                result += right
+            }
+            return result
         }
     }
 

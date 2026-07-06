@@ -111,13 +111,30 @@ class LuaVmTest {
 
     @Test
     fun `executes float arithmetic expressions`() {
-        val result = LuaVm().execute(Compiler.compile("return 7 / 2, 2 ^ 3, -(1 + 2.5)"))
+        val result = LuaVm().execute(
+            Compiler.compile("return 7 / 2, 2 ^ 3, -(1 + 2.5), -3.5 % 2.0, 3.5 % -2.0"),
+        )
 
         assertEquals(
             listOf(
                 LuaFloat(3.5),
                 LuaFloat(8.0),
                 LuaFloat(-3.5),
+                LuaFloat(0.5),
+                LuaFloat(-0.5),
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `executes mixed numeric modulo with lua float sign rules`() {
+        val result = LuaVm().execute(Compiler.compile("return 3 % -2.0, -3 % 2.0"))
+
+        assertEquals(
+            listOf(
+                LuaFloat(-1.0),
+                LuaFloat(1.0),
             ),
             result,
         )
