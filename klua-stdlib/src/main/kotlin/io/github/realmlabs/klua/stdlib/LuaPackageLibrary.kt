@@ -200,6 +200,13 @@ internal object LuaPackageLibrary {
                 if filename == nil then
                     return searchError
                 end
+                local loader, loadError, where = loadNative(filename, name)
+                if loader ~= nil then
+                    return loader, filename
+                end
+                if where ~= "init" then
+                    error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" .. loadError)
+                end
                 return "no module '" .. name .. "' in file '" .. filename .. "'"
             end,
         }

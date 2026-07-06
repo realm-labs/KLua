@@ -4319,11 +4319,27 @@ class LuaStdlibTest {
                 local plainMessage, plainExtra = package.searchers[4]("plain")
                 local plainCount = select("#", package.searchers[4]("plain"))
                 local missingMessage, missingExtra = package.searchers[4]("missing.child")
+                local loadFailureOk, loadFailureMessage = pcall(package.searchers[4], "root.child")
+                local initMissName
+                package.loadlib = function(_, init)
+                    initMissName = init
+                    return nil, "missing init", "init"
+                end
                 local foundMessage, foundExtra = package.searchers[4]("root.child")
+                local successName
+                package.loadlib = function(_, init)
+                    successName = init
+                    return function(moduleName, filename)
+                        return moduleName .. "@" .. filename
+                    end
+                end
+                local loader, loadedFile = package.searchers[4]("root.child")
+                local loadedValue = loader("root.child", loadedFile)
                 package.cpath = false
                 local cpathOk, cpathMessage = pcall(package.searchers[4], "root.child")
                 return plainMessage, plainExtra, plainCount, missingMessage, missingExtra,
-                    foundMessage, foundExtra, cpathOk, cpathMessage, package._moduleRoot
+                    loadFailureOk, loadFailureMessage, initMissName, foundMessage, foundExtra,
+                    successName, loadedValue, loadedFile, cpathOk, cpathMessage, package._moduleRoot
                 """.trimIndent(),
                 "package-c-root-searcher.lua",
             ),
@@ -4335,11 +4351,22 @@ class LuaStdlibTest {
         assertEquals(0L, state.toInteger(3))
         assertTrue(state.toString(4)?.contains("no file '${root}/missing.dll'") == true)
         assertTrue(state.isNil(5))
-        assertEquals("no module 'root.child' in file '${root}/root.dll'", state.toString(6))
-        assertTrue(state.isNil(7))
-        assertFalse(state.toBoolean(8))
-        assertEquals("'package.cpath' must be a string", state.toString(9))
+        assertFalse(state.toBoolean(6))
+        assertTrue(state.toString(7)?.startsWith("""[string "stdlib-package.lua"]:""") == true, state.toString(7))
+        assertTrue(state.toString(7)?.contains("error loading module 'root.child' from file") == true, state.toString(7))
+        assertTrue(
+            state.toString(7)?.endsWith("dynamic libraries not enabled; check your Lua installation") == true,
+            state.toString(7),
+        )
+        assertEquals("luaopen_root_child", state.toString(8))
+        assertEquals("no module 'root.child' in file '${root}/root.dll'", state.toString(9))
         assertTrue(state.isNil(10))
+        assertEquals("luaopen_root_child", state.toString(11))
+        assertEquals("root.child@${root}/root.dll", state.toString(12))
+        assertEquals("${root}/root.dll", state.toString(13))
+        assertFalse(state.toBoolean(14))
+        assertEquals("'package.cpath' must be a string", state.toString(15))
+        assertTrue(state.isNil(16))
     }
 
     @Test
@@ -4564,11 +4591,11 @@ class LuaStdlibTest {
         assertTrue(missingMessage.contains("no file '${root}/missing.so'"), missingMessage)
         assertFalse(state.toBoolean(3))
         val rootMessage = state.toString(4) ?: ""
-        val normalizedRootMessage = rootMessage.replace('\\', '/')
-        val normalizedRoot = root.toString().replace('\\', '/')
-        assertTrue(rootMessage.contains("module 'native.child' not found"), rootMessage)
-        assertTrue(normalizedRootMessage.contains("no file '$normalizedRoot/native/child.so'"), rootMessage)
-        assertTrue(normalizedRootMessage.contains("no module 'native.child' in file '$normalizedRoot/native.so'"), rootMessage)
+        assertTrue(rootMessage.contains("error loading module 'native.child' from file"), rootMessage)
+        assertTrue(
+            rootMessage.endsWith("dynamic libraries not enabled; check your Lua installation"),
+            rootMessage,
+        )
         assertFalse(state.toBoolean(5))
         assertTrue(state.toString(6)?.contains("error loading module 'native' from file") == true, state.toString(6))
         assertTrue(
