@@ -185,14 +185,16 @@ internal object LuaTableLibrary {
             return rawValue
         }
         val index = context.getTableField(metatable, "__index") ?: return null
-        return if (context.isFunctionValue(index)) {
-            context.call(index, listOf(receiver, key)).get(1)
-        } else if (context.isTableValue(index)) {
-            tableIndexValue(context, index, context.getTableMetatable(index), key, visited)
-        } else if (index is CharSequence) {
-            null
-        } else {
-            throw LuaRuntimeException("attempt to index a ${context.valueTypeName(index)} value")
+        if (context.isFunctionValue(index)) {
+            return context.call(index, listOf(receiver, key)).get(1)
+        }
+        if (context.isTableValue(index)) {
+            return tableIndexValue(context, index, context.getTableMetatable(index), key, visited)
+        }
+        return try {
+            context.getValueField(index, key)
+        } catch (error: IllegalArgumentException) {
+            throw LuaRuntimeException(error.message ?: "attempt to index a ${context.valueTypeName(index)} value")
         }
     }
 

@@ -20859,7 +20859,9 @@ class LuaStdlibTest {
     fun `table concat reports bad index metamethod chains`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openTable(state)
+        LuaStdlib.openDebug(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -20876,7 +20878,14 @@ class LuaStdlibTest {
                 local loopOk, loopMessage = pcall(table.concat, loopValues, ",", 1, 1)
 
                 local stringValues = setmetatable({}, { __index = "x" })
+                local originalStringMetatable = debug.getmetatable("")
+                debug.setmetatable("", {
+                    __index = {
+                        [1] = "indexed-string",
+                    },
+                })
                 local stringOk, stringMessage = pcall(table.concat, stringValues, ",", 1, 1)
+                debug.setmetatable("", originalStringMetatable)
 
                 return numberOk, numberMessage, booleanOk, booleanMessage,
                     loopOk, loopMessage, stringOk, stringMessage
@@ -20892,8 +20901,8 @@ class LuaStdlibTest {
         assertEquals("attempt to index a boolean value", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("'__index' chain too long; possible loop", state.toString(6))
-        assertFalse(state.toBoolean(7))
-        assertEquals("invalid value (nil) at index 1 in table for 'concat'", state.toString(8))
+        assertTrue(state.toBoolean(7))
+        assertEquals("indexed-string", state.toString(8))
     }
 
     @Test
@@ -23045,7 +23054,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `table sort reports nil and boolean comparison errors`() {
+    fun `table sort reports string index and boolean comparison errors`() {
         val nilState = LuaState.create()
         LuaStdlib.openBase(nilState)
         LuaStdlib.openTable(nilState)
@@ -23068,7 +23077,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.RUNTIME_ERROR, nilState.pcall(0, -1))
 
         assertIs<LuaRuntimeException>(nilState.getLastError())
-        assertEquals("attempt to compare two nil values", nilState.toString(-1))
+        assertEquals("attempt to index a string value", nilState.toString(-1))
 
         val booleanState = LuaState.create()
         LuaStdlib.openTable(booleanState)
