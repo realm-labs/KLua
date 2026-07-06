@@ -23,15 +23,21 @@ internal object LuaIoLibrary {
         val stderr = IoFileHandle.output(System.err, nonClosing = true, closeResult = ::standardFileCloseResult)
         val defaultFiles = IoDefaultFiles(input = stdin, output = stdout)
         state.registerType(IoFileHandle::class.java) { type ->
-            type.method("close") { receiver, _ -> closeHandle(receiver) }
-            type.method("flush") { receiver, _ -> flushHandle(receiver) }
+            type.method("close") { receiver, _ -> closeHandle(fileMethodReceiver(receiver, "close")) }
+            type.method("flush") { receiver, _ -> flushHandle(fileMethodReceiver(receiver, "flush")) }
             type.method("lines") { receiver, context ->
-                linesHandle(receiver, context, firstArgumentIndex = 2, closeOnEnd = false)
+                linesHandle(fileMethodReceiver(receiver, "lines"), context, firstArgumentIndex = 2, closeOnEnd = false)
             }
-            type.method("read") { receiver, context -> readHandle(receiver, context, firstArgumentIndex = 2) }
-            type.method("seek") { receiver, context -> seekHandle(receiver, context) }
-            type.method("setvbuf") { receiver, context -> setBufferMode(receiver, context) }
-            type.method("write") { receiver, context -> writeHandle(receiver, context, firstArgumentIndex = 2) }
+            type.method("read") { receiver, context ->
+                readHandle(fileMethodReceiver(receiver, "read"), context, firstArgumentIndex = 2)
+            }
+            type.method("seek") { receiver, context -> seekHandle(fileMethodReceiver(receiver, "seek"), context) }
+            type.method("setvbuf") { receiver, context ->
+                setBufferMode(fileMethodReceiver(receiver, "setvbuf"), context)
+            }
+            type.method("write") { receiver, context ->
+                writeHandle(fileMethodReceiver(receiver, "write"), context, firstArgumentIndex = 2)
+            }
         }
 
         state.newTable()
@@ -244,6 +250,13 @@ internal object LuaIoLibrary {
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
         if (!handle.luaToStringFallbackEnabled) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
+        }
+        return handle
+    }
+
+    private fun fileMethodReceiver(handle: IoFileHandle, functionName: String): IoFileHandle {
+        if (!handle.luaToStringFallbackEnabled) {
+            throw LuaRuntimeException("bad argument #1 to '$functionName' (FILE* expected)")
         }
         return handle
     }

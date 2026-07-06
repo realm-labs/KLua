@@ -3242,8 +3242,12 @@ class LuaStdlibTest {
                 LuaStatus.OK,
                 state.load(
                     """
-                    local handle = assert(io.open("${path.luaPath()}", "w"))
-                    local openText = tostring(handle)
+                    local openHandle = assert(io.open("${path.luaPath()}", "w"))
+                    local openText = tostring(openHandle)
+                    openHandle:close()
+
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    handle:close()
                     debug.setmetatable(handle, { __name = "NamedFile" })
                     local namedText = tostring(handle)
                     debug.setmetatable(handle, {
@@ -3254,7 +3258,6 @@ class LuaStdlibTest {
                     local customText = tostring(handle)
                     debug.setmetatable(handle, nil)
                     local clearedText = tostring(handle)
-                    handle:close()
                     local defaultClosed = assert(io.open("${path.luaPath()}", "r"))
                     defaultClosed:close()
                     return openText, namedText, customText, clearedText, tostring(handle), tostring(defaultClosed)
@@ -3331,6 +3334,60 @@ class LuaStdlibTest {
         } finally {
             Files.deleteIfExists(path)
         }
+    }
+
+    @Test
+    fun `io file methods reject saved receivers without file metatable`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe(name, ...)
+                    local handle = assert(io.tmpfile())
+                    local method = handle[name]
+                    handle:close()
+                    debug.setmetatable(handle, nil)
+                    return pcall(method, handle, ...)
+                end
+
+                local closeOk, closeMessage = probe("close")
+                local flushOk, flushMessage = probe("flush")
+                local linesOk, linesMessage = probe("lines")
+                local readOk, readMessage = probe("read")
+                local seekOk, seekMessage = probe("seek")
+                local setvbufOk, setvbufMessage = probe("setvbuf", "no")
+                local writeOk, writeMessage = probe("write", "x")
+
+                return closeOk, closeMessage,
+                    flushOk, flushMessage,
+                    linesOk, linesMessage,
+                    readOk, readMessage,
+                    seekOk, seekMessage,
+                    setvbufOk, setvbufMessage,
+                    writeOk, writeMessage
+                """.trimIndent(),
+                "io-file-method-metatable.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'close' (FILE* expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'flush' (FILE* expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'lines' (FILE* expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'read' (FILE* expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'seek' (FILE* expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #1 to 'setvbuf' (FILE* expected)", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("bad argument #1 to 'write' (FILE* expected)", state.toString(14))
     }
 
     @Test
