@@ -3205,9 +3205,11 @@ class LuaStdlibTest {
                     local rest = handle:read("a")
                     local closed = handle:close()
                     local after = io.type(handle)
-                    local secondClose, secondMessage = handle:close()
+                    local secondCloseOk, secondMessage = pcall(function()
+                        return handle:close()
+                    end)
                     return before, written == handle, position, line, blank, rest, closed,
-                        after, secondClose, secondMessage
+                        after, secondCloseOk, secondMessage
                     """.trimIndent(),
                     "io-file-handle.lua",
                 ),
@@ -3222,8 +3224,8 @@ class LuaStdlibTest {
             assertEquals("beta", state.toString(6))
             assertTrue(state.toBoolean(7))
             assertEquals("closed file", state.toString(8))
-            assertTrue(state.isNil(9))
-            assertEquals("file is already closed", state.toString(10))
+            assertFalse(state.toBoolean(9))
+            assertEquals("attempt to use a closed file", state.toString(10))
         } finally {
             Files.deleteIfExists(path)
         }

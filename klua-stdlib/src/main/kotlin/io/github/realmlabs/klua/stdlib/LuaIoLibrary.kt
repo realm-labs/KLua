@@ -193,7 +193,7 @@ internal object LuaIoLibrary {
 
     private fun closeHandle(handle: IoFileHandle): LuaReturn {
         if (handle.closed) {
-            return LuaReturn.of(null, "file is already closed")
+            throw LuaRuntimeException("attempt to use a closed file")
         }
         return try {
             val result = handle.close()
