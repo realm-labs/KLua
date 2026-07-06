@@ -193,7 +193,7 @@ internal object LuaMathLibrary {
         val leftType = context.typeName(leftIndex)
         val rightType = context.typeName(rightIndex)
         if (leftType == "number" && rightType == "number") {
-            return requiredNumber(context, leftIndex, "min") < requiredNumber(context, rightIndex, "min")
+            return luaNumberLessThan(context.get(leftIndex), context.get(rightIndex))
         }
         if (leftType == "string" && rightType == "string") {
             return luaByteCompare(
@@ -206,6 +206,34 @@ internal object LuaMathLibrary {
             throw LuaRuntimeException("attempt to compare two $leftType values")
         }
         throw LuaRuntimeException("attempt to compare $leftType with $rightType")
+    }
+
+    private fun luaNumberLessThan(left: Any?, right: Any?): Boolean {
+        val leftInteger = left.luaIntegerSubtype()
+        val rightInteger = right.luaIntegerSubtype()
+        if (leftInteger != null) {
+            return if (rightInteger != null) {
+                leftInteger < rightInteger
+            } else {
+                luaIntegerLessThanFloat(leftInteger, (right as Number).toDouble())
+            }
+        }
+        val leftFloat = (left as Number).toDouble()
+        return if (rightInteger != null) {
+            luaFloatLessThanInteger(leftFloat, rightInteger)
+        } else {
+            leftFloat < (right as Number).toDouble()
+        }
+    }
+
+    private fun luaIntegerLessThanFloat(left: Long, right: Double): Boolean {
+        val rightCeiling = right.luaCeilToInteger()
+        return if (rightCeiling != null) left < rightCeiling else right > 0.0
+    }
+
+    private fun luaFloatLessThanInteger(left: Double, right: Long): Boolean {
+        val leftFloor = left.luaFloorToInteger()
+        return if (leftFloor != null) leftFloor < right else left < 0.0
     }
 
     private fun luaByteCompare(left: String, right: String): Int {
@@ -356,13 +384,40 @@ internal object LuaMathLibrary {
         if (context.typeName(index) != "number") {
             return null
         }
-        return when (val value = context.get(index)) {
-            is Byte -> value.toLong()
-            is Short -> value.toLong()
-            is Int -> value.toLong()
-            is Long -> value
+        return context.get(index).luaIntegerSubtype()
+    }
+
+    private fun Any?.luaIntegerSubtype(): Long? {
+        return when (this) {
+            is Byte -> toLong()
+            is Short -> toLong()
+            is Int -> toLong()
+            is Long -> this
             else -> null
         }
+    }
+
+    private fun Double.luaFloorToInteger(): Long? {
+        if (!isFinite()) {
+            return null
+        }
+        val floored = floor(this)
+        return floored.luaIntegerInRange()
+    }
+
+    private fun Double.luaCeilToInteger(): Long? {
+        if (!isFinite()) {
+            return null
+        }
+        val ceiled = ceil(this)
+        return ceiled.luaIntegerInRange()
+    }
+
+    private fun Double.luaIntegerInRange(): Long? {
+        if (this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
+            return null
+        }
+        return toLong()
     }
 
     private fun numberToIntegerSubtype(value: Double): Long? {

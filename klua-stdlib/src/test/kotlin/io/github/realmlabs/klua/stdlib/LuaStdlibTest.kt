@@ -13284,6 +13284,35 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math min and max compare adjacent large integers exactly`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local maxMinusOne = math.maxinteger - 1
+                local minPlusOne = math.mininteger + 1
+                local selectedMax = math.max(maxMinusOne, math.maxinteger)
+                local selectedMin = math.min(minPlusOne, math.mininteger)
+                return selectedMax,
+                    selectedMin,
+                    math.type(selectedMax),
+                    math.type(selectedMin)
+                """.trimIndent(),
+                "math-min-max-large-integers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Long.MAX_VALUE, state.toInteger(1))
+        assertEquals(Long.MIN_VALUE, state.toInteger(2))
+        assertEquals("integer", state.toString(3))
+        assertEquals("integer", state.toString(4))
+    }
+
+    @Test
     fun `math min and max use lua comparison and return selected value`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
