@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.io.EOFException
 import java.io.IOException
+import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.Path
@@ -14,7 +15,9 @@ import java.util.Locale
 
 internal object LuaIoLibrary {
     fun open(state: LuaState): LuaState {
-        val defaultFiles = IoDefaultFiles()
+        val stdout = IoFileHandle.output(System.out, closeResult = ::standardFileCloseResult)
+        val stderr = IoFileHandle.output(System.err, closeResult = ::standardFileCloseResult)
+        val defaultFiles = IoDefaultFiles(output = stdout)
         state.registerType(IoFileHandle::class.java) { type ->
             type.method("close") { receiver, _ -> closeHandle(receiver) }
             type.method("flush") { receiver, _ -> flushHandle(receiver) }
@@ -37,6 +40,8 @@ internal object LuaIoLibrary {
         setFunctionField(state, "tmpfile") { _ -> ioTmpFile() }
         setFunctionField(state, "type", ::ioType)
         setFunctionField(state, "write") { context -> writeHandle(defaultOutput(defaultFiles), context) }
+        setHandleField(state, "stdout", stdout)
+        setHandleField(state, "stderr", stderr)
         state.setGlobal("io")
         return state
     }
@@ -198,9 +203,7 @@ internal object LuaIoLibrary {
             return LuaReturn.of(null, "file is already closed")
         }
         return try {
-            handle.closed = true
-            handle.file.close()
-            val result = handle.closeResult?.invoke() ?: LuaReturn.of(true)
+            val result = handle.close()
             if (handle.deleteOnClose && handle.path != null) {
                 Files.deleteIfExists(handle.path)
             }
@@ -213,7 +216,7 @@ internal object LuaIoLibrary {
     private fun flushHandle(handle: IoFileHandle): LuaReturn {
         handle.ensureOpen()
         return try {
-            handle.file.fd.sync()
+            handle.flush()
             LuaReturn.of(true)
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
@@ -302,7 +305,7 @@ internal object LuaIoLibrary {
             for (index in 1..context.argumentCount) {
                 val value = context.toString(index)
                     ?: throw LuaRuntimeException("bad argument #$index to 'write' (string expected)")
-                handle.file.write(value.toByteArray(Charsets.UTF_8))
+                handle.write(value.toByteArray(Charsets.UTF_8))
             }
             LuaReturn.of(handle)
         } catch (error: IOException) {
@@ -353,6 +356,11 @@ internal object LuaIoLibrary {
         state.setField(-2, name)
     }
 
+    private fun setHandleField(state: LuaState, name: String, handle: IoFileHandle) {
+        state.pushUserData(handle)
+        state.setField(-2, name)
+    }
+
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
         return context.toString(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
@@ -387,6 +395,10 @@ internal object LuaIoLibrary {
         } else {
             LuaReturn.of(null, "exit", exitCode.toLong())
         }
+    }
+
+    private fun standardFileCloseResult(): LuaReturn {
+        return LuaReturn.of(null, "cannot close standard file")
     }
 
     private fun writeProcessCloseResult(command: String, inputPath: Path): LuaReturn {
@@ -428,18 +440,68 @@ internal object LuaIoLibrary {
         var output: IoFileHandle? = null,
     )
 
-    private class IoFileHandle(
+    private class IoFileHandle private constructor(
         val path: Path?,
-        val file: RandomAccessFile,
+        private val randomAccessFile: RandomAccessFile?,
+        private val outputStream: OutputStream?,
         val deleteOnClose: Boolean = false,
+        private val nonClosing: Boolean = false,
         val closeResult: (() -> LuaReturn)? = null,
     ) {
+        constructor(
+            path: Path?,
+            file: RandomAccessFile,
+            deleteOnClose: Boolean = false,
+            closeResult: (() -> LuaReturn)? = null,
+        ) : this(path, file, null, deleteOnClose, nonClosing = false, closeResult)
+
         var closed: Boolean = false
+
+        val file: RandomAccessFile
+            get() = randomAccessFile ?: throw LuaRuntimeException("bad file descriptor")
+
+        companion object {
+            fun output(outputStream: OutputStream, closeResult: () -> LuaReturn): IoFileHandle {
+                return IoFileHandle(
+                    path = null,
+                    randomAccessFile = null,
+                    outputStream = outputStream,
+                    nonClosing = true,
+                    closeResult = closeResult,
+                )
+            }
+        }
 
         fun ensureOpen() {
             if (closed) {
                 throw LuaRuntimeException("attempt to use a closed file")
             }
+        }
+
+        fun close(): LuaReturn {
+            if (nonClosing) {
+                return closeResult?.invoke() ?: LuaReturn.of(null, "cannot close standard file")
+            }
+            closed = true
+            randomAccessFile?.close()
+            outputStream?.close()
+            return closeResult?.invoke() ?: LuaReturn.of(true)
+        }
+
+        fun flush() {
+            outputStream?.let { output ->
+                output.flush()
+                return
+            }
+            file.fd.sync()
+        }
+
+        fun write(bytes: ByteArray) {
+            outputStream?.let { output ->
+                output.write(bytes)
+                return
+            }
+            file.write(bytes)
         }
 
         fun readAll(): String {

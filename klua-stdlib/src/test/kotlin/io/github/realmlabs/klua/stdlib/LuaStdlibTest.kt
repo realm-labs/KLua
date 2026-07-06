@@ -13,6 +13,8 @@ import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.withContinuation
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
+import java.io.PrintStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.Path
@@ -3446,6 +3448,45 @@ class LuaStdlibTest {
         } finally {
             Files.deleteIfExists(inputPath)
             Files.deleteIfExists(outputPath)
+        }
+    }
+
+    @Test
+    fun `io write uses standard output by default`() {
+        val originalOut = System.out
+        val captured = ByteArrayOutputStream()
+        System.setOut(PrintStream(captured, true, StandardCharsets.UTF_8))
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local current = io.output()
+                    local writeResult = io.write("alpha", 42)
+                    local flushed = io.flush()
+                    local closeOk, closeMessage = io.close(current)
+                    local stillOpenType = io.type(current)
+                    io.write("beta")
+                    return writeResult == current, flushed, closeOk, closeMessage, stillOpenType, io.type(io.stderr)
+                    """.trimIndent(),
+                    "io-standard-output.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertTrue(state.toBoolean(2))
+            assertTrue(state.isNil(3))
+            assertEquals("cannot close standard file", state.toString(4))
+            assertEquals("file", state.toString(5))
+            assertEquals("file", state.toString(6))
+            assertEquals("alpha42beta", captured.toString(StandardCharsets.UTF_8))
+        } finally {
+            System.setOut(originalOut)
         }
     }
 
