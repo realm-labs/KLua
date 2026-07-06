@@ -779,26 +779,22 @@ internal object LuaStringLibrary {
         if (count <= 0L) {
             return LuaReturn.of("")
         }
-        validateStringRepByteLength(text, separator, count)
-        val charResultLength = stringRepResultLength(text.length.toLong(), separator.length.toLong(), count)
-        if (charResultLength == 0) {
+        val textBytes = text.luaRawBytes()
+        val separatorBytes = separator.luaRawBytes()
+        val resultLength = stringRepResultLength(textBytes.size.toLong(), separatorBytes.size.toLong(), count)
+        if (resultLength == 0) {
             return LuaReturn.of("")
         }
-        return LuaReturn.of(
-            buildString {
-                ensureCapacity(charResultLength)
-                repeat(count.toInt()) { index ->
-                    if (index > 0) {
-                        append(separator)
-                    }
-                    append(text)
-                }
-            },
-        )
-    }
-
-    private fun validateStringRepByteLength(text: String, separator: String, count: Long) {
-        stringRepResultLength(text.luaRawBytes().size.toLong(), separator.luaRawBytes().size.toLong(), count)
+        val output = ByteArrayOutputStream(resultLength)
+        var index = 0L
+        while (index < count) {
+            if (index > 0L) {
+                output.write(separatorBytes)
+            }
+            output.write(textBytes)
+            index++
+        }
+        return LuaReturn.of(output.toByteArray().toLuaByteString())
     }
 
     private fun stringRepResultLength(textLength: Long, separatorLength: Long, count: Long): Int {

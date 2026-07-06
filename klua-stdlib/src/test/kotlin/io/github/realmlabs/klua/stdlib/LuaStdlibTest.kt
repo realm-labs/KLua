@@ -14178,6 +14178,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string rep preserves raw byte strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local bytes = string.char(128, 255)
+                local separator = string.char(0)
+                local repeated = string.rep(bytes, 2, separator)
+                return string.len(repeated), string.byte(repeated, 1, -1)
+                """.trimIndent(),
+                "string-rep-raw-bytes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(5L, state.toInteger(1))
+        assertEquals(128L, state.toInteger(2))
+        assertEquals(255L, state.toInteger(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(128L, state.toInteger(5))
+        assertEquals(255L, state.toInteger(6))
+    }
+
+    @Test
     fun `string rep reports large result errors`() {
         for ((source, chunkName) in listOf(
             """"x", 2147483648""" to "string-rep-large-error.lua",
