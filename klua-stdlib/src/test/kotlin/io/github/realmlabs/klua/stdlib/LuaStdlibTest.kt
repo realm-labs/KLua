@@ -3533,6 +3533,52 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io lines validates read formats when iterator runs`() {
+        val path = Files.createTempFile("klua-io-lines-format-", ".txt")
+        Files.writeString(path, "alpha\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local handleCreateOk, handleIterator = pcall(function()
+                        return handle:lines("?")
+                    end)
+                    local handleRunOk, handleMessage = pcall(handleIterator)
+                    handle:close()
+
+                    local moduleCreateOk, moduleIterator, stateValue, controlValue, closeFile =
+                        pcall(io.lines, "${path.luaPath()}", "?")
+                    local moduleRunOk, moduleMessage = pcall(moduleIterator, stateValue, controlValue)
+                    closeFile:close()
+
+                    return handleCreateOk, type(handleIterator), handleRunOk, handleMessage,
+                        moduleCreateOk, type(moduleIterator), moduleRunOk, moduleMessage
+                    """.trimIndent(),
+                    "io-lines-delayed-format.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertEquals("function", state.toString(2))
+            assertFalse(state.toBoolean(3))
+            assertEquals("bad argument #1 to 'lines' (invalid format)", state.toString(4))
+            assertTrue(state.toBoolean(5))
+            assertEquals("function", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("bad argument #2 to 'io.lines' (invalid format)", state.toString(8))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read supports source file formats`() {
         val path = Files.createTempFile("klua-io-read-", ".txt")
         Files.writeString(path, "  42 tail\n0x10 3.5\nabc")
@@ -3575,6 +3621,45 @@ class LuaStdlibTest {
             assertEquals("abc", state.toString(9))
             assertTrue(state.isNil(10))
             assertEquals("", state.toString(11))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
+    fun `io read treats numeric strings as formats`() {
+        val path = Files.createTempFile("klua-io-read-string-number-", ".txt")
+        Files.writeString(path, "abcdef")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local numeric = assert(io.open("${path.luaPath()}", "r"))
+                    local chars = numeric:read(2)
+                    numeric:close()
+
+                    local stringFormat = assert(io.open("${path.luaPath()}", "r"))
+                    local ok, message = pcall(function()
+                        return stringFormat:read("2")
+                    end)
+                    local after = stringFormat:read(2)
+                    stringFormat:close()
+                    return chars, ok, message, after
+                    """.trimIndent(),
+                    "io-read-numeric-string-format.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("ab", state.toString(1))
+            assertFalse(state.toBoolean(2))
+            assertEquals("bad argument #1 to 'read' (invalid format)", state.toString(3))
+            assertEquals("ab", state.toString(4))
         } finally {
             Files.deleteIfExists(path)
         }
