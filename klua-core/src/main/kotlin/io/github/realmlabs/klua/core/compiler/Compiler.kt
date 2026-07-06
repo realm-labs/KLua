@@ -1007,6 +1007,11 @@ internal class Compiler private constructor(
             return
         }
 
+        if (expression.name == LUA_ENV_NAME) {
+            writer.emit(Instruction.abc(Opcode.GET_ENV, register), expression.range.start.line)
+            return
+        }
+
         val name = stringConstantIndex(expression.name)
         requireDeclaredGlobal(expression.name, expression.range.start)
         writer.emit(Instruction.abc(Opcode.GET_GLOBAL, register, name), expression.range.start.line)
@@ -1437,6 +1442,8 @@ internal class Compiler private constructor(
     }
 
     companion object {
+        private const val LUA_ENV_NAME = "_ENV"
+
         fun compile(
             source: String,
             sourceName: String = "chunk",

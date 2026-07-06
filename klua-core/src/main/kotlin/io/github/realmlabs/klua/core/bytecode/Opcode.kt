@@ -46,4 +46,5 @@ internal enum class Opcode {
     CALL,
     RETURN,
     CHECK_GLOBAL_NIL,
+    GET_ENV,
 }

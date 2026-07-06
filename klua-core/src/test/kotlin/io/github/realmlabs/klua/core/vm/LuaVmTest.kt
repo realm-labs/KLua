@@ -268,6 +268,20 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes default environment field access`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                _ENV.answer = 42
+                return answer, _ENV.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42), LuaInteger(42)), result)
+    }
+
+    @Test
     fun `stages indexed assignment targets before writes`() {
         val result = LuaVm().execute(
             Compiler.compile(

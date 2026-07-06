@@ -73,6 +73,7 @@ internal object Disassembler {
             Opcode.CALL -> "CALL R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))} ${formatCount(Instruction.c(instruction))}"
             Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
             Opcode.CHECK_GLOBAL_NIL -> globalNilCheck(instruction, prototype)
+            Opcode.GET_ENV -> "GET_ENV R${Instruction.a(instruction)}"
         }
     }
 

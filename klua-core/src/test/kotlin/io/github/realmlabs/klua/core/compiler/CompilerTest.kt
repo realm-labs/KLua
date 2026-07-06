@@ -901,6 +901,20 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles default environment reads`() {
+        val prototype = Compiler.compile("return _ENV.answer", "environment.lua")
+
+        assertEquals(
+            """
+            0000  [1]  GET_ENV R0
+            0001  [1]  GET_FIELD R0 R0 K0 ; "answer"
+            0002  [1]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `compiles global assignments`() {
         val prototype = Compiler.compile(
             """
