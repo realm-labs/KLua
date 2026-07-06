@@ -113,7 +113,22 @@ internal class Compiler private constructor(
     }
 
     private fun compileStatements(statements: List<Statement>, endLabelLocalDepth: Int? = null) {
-        for ((index, statement) in statements.withIndex()) {
+        var index = 0
+        while (index < statements.size) {
+            val statement = statements[index]
+            if (statement is LabelStatement) {
+                var labelRunEnd = index + 1
+                while (labelRunEnd < statements.size && statements[labelRunEnd] is LabelStatement) {
+                    labelRunEnd++
+                }
+                val localDepthOverride = endLabelLocalDepth.takeIf { labelRunEnd == statements.size }
+                // Lua 5.5 lparser.c labelstat consumes following no-op labels before creating this label.
+                for (labelIndex in labelRunEnd - 1 downTo index) {
+                    compileLabel(statements[labelIndex] as LabelStatement, localDepthOverride)
+                }
+                index = labelRunEnd
+                continue
+            }
             when (statement) {
                 is LocalStatement -> compileLocal(statement)
                 is GlobalStatement -> compileGlobal(statement)
@@ -131,10 +146,9 @@ internal class Compiler private constructor(
                 is ReturnStatement -> compileReturn(statement)
                 is BreakStatement -> compileBreak(statement)
                 is GotoStatement -> compileGoto(statement)
-                is LabelStatement -> compileLabel(statement, endLabelLocalDepth?.takeIf {
-                    statements.drop(index + 1).all { following -> following is LabelStatement }
-                })
+                is LabelStatement -> error("label statements are compiled in runs")
             }
+            index++
         }
     }
 

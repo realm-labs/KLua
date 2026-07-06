@@ -1237,7 +1237,7 @@ class CompilerTest {
             )
         }
 
-        assertEquals("duplicate-label.lua:2:1: label 'again' already defined on line 1", error.message)
+        assertEquals("duplicate-label.lua:1:1: label 'again' already defined on line 2", error.message)
     }
 
     @Test
