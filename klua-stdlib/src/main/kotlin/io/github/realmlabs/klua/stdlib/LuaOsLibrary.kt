@@ -338,6 +338,7 @@ internal object LuaOsLibrary {
             'F' -> formatDate("%Y-%m-%d", dateTime)
             'g' -> twoDigits(java.lang.Math.floorMod(isoWeekYear(dateTime), 100))
             'G' -> fourDigits(isoWeekYear(dateTime))
+            'h' -> dateTime.format(DateTimeFormatter.ofPattern("MMM", Locale.getDefault()))
             'H' -> twoDigits(dateTime.hour)
             'I' -> twoDigits(hour12(dateTime.hour))
             'j' -> dateTime.dayOfYear.toString().padStart(3, '0')
