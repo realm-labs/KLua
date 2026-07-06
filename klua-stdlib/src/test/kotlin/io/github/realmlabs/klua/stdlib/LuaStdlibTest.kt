@@ -21262,30 +21262,31 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local writes = {}
+                local values = { 3, 1, 2 }
                 debug.setmetatable("proxy", {
                     __len = function(value)
                         return value == "proxy" and 3 or 0
                     end,
                     __index = function(value, index)
-                        return value == "proxy" and ({ 3, 1, 2 })[index] or nil
+                        return value == "proxy" and values[index] or nil
                     end,
                     __newindex = function(value, key, sorted)
-                        writes[#writes + 1] = value .. ":" .. key .. ":" .. tostring(sorted)
+                        if value == "proxy" then
+                            values[key] = sorted
+                        end
                     end,
                 })
                 table.sort("proxy")
-                return #writes, writes[1], writes[2], writes[3]
+                return values[1], values[2], values[3]
                 """.trimIndent(),
                 "table-sort-table-like.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals(3L, state.toInteger(1))
-        assertEquals("proxy:1:1", state.toString(2))
-        assertEquals("proxy:2:2", state.toString(3))
-        assertEquals("proxy:3:3", state.toString(4))
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(3L, state.toInteger(3))
     }
 
     @Test
@@ -21594,6 +21595,40 @@ class LuaStdlibTest {
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("invalid order function for sorting", state.toString(2))
+    }
+
+    @Test
+    fun `table sort reports invalid comparator order for table-like values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {1, 2, 3, 4}
+                debug.setmetatable("proxy", {
+                    __len = function(value)
+                        return value == "proxy" and #values or 0
+                    end,
+                    __index = function(value, index)
+                        return value == "proxy" and values[index] or nil
+                    end,
+                    __newindex = function(value, index, sorted)
+                        if value == "proxy" then
+                            values[index] = sorted
+                        end
+                    end,
+                })
+                return pcall(table.sort, "proxy", function() return true end)
+                """.trimIndent(),
+                "table-sort-table-like-invalid-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
         assertEquals("invalid order function for sorting", state.toString(2))

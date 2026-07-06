@@ -468,30 +468,8 @@ internal object LuaTableLibrary {
             throw LuaRuntimeException("bad argument #2 to 'sort' (function expected)")
         }
 
-        if (context.isTable(1)) {
-            tableSortRange(context, 1L, length, hasComparator)
-        } else {
-            tableSortTableLikeValue(context, length, hasComparator)
-        }
+        tableSortRange(context, 1L, length, hasComparator)
         return LuaReturn.none()
-    }
-
-    private fun tableSortTableLikeValue(context: LuaCallContext, length: Long, hasComparator: Boolean) {
-        val values = MutableList(length.toInt()) { offset -> tableIndexValue(context, offset.toLong() + 1L) }
-        var index = 1
-        while (index < values.size) {
-            val value = values[index]
-            var previous = index - 1
-            while (previous >= 0 && tableSortBefore(context, value, values[previous], hasComparator)) {
-                values[previous + 1] = values[previous]
-                previous--
-            }
-            values[previous + 1] = value
-            index++
-        }
-        for (offset in values.indices) {
-            tableSetValue(context, 1, offset.toLong() + 1L, values[offset])
-        }
     }
 
     private fun tableSortRange(context: LuaCallContext, lowIndex: Long, highIndex: Long, hasComparator: Boolean) {
