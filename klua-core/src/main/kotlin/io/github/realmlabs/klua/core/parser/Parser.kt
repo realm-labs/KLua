@@ -242,6 +242,7 @@ internal class Parser private constructor(
         }
         return FunctionStatement(
             name = functionName,
+            nameRange = name.range,
             function = function,
             range = SourceRange(start.range.start, function.range.end),
         )

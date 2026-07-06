@@ -53,6 +53,7 @@ import io.github.realmlabs.klua.core.bytecode.UpvalueDescriptor
 import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import io.github.realmlabs.klua.core.parser.Parser
 import io.github.realmlabs.klua.core.source.SourcePosition
+import io.github.realmlabs.klua.core.source.SourceRange
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaString
@@ -337,10 +338,10 @@ internal class Compiler private constructor(
     }
 
     private fun compileFunctionStatement(statement: FunctionStatement) {
+        validateWritableName(statement.name, statement.nameRange, statement)
         val register = nextLocalRegister
         compileFunctionExpression(statement.function, register)
-        val name = stringConstantIndex(statement.name)
-        writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, register), statement.range.start.line)
+        emitNamedAssignment(statement.name, statement.range.start.line, register)
     }
 
     private fun compileGlobalFunction(statement: GlobalFunctionStatement) {
@@ -413,15 +414,20 @@ internal class Compiler private constructor(
     }
 
     private fun validateAssignmentTarget(target: LocalAssignmentTarget, statement: AssignmentStatement) {
-        val localSlot = resolveCurrentLocalSlot(target.name)
-        if (localSlot != null && localAttributes[target.name] == LocalAttribute.CONST) {
-            throw constAssignmentError(target)
+        validateWritableName(target.name, target.range, statement)
+    }
+
+    private fun validateWritableName(name: String, range: SourceRange, statement: Statement) {
+        val localSlot = resolveCurrentLocalSlot(name)
+        val currentGlobal = resolveCurrentGlobalDeclaration(name)
+        if (localSlot != null && localAttributes[name] == LocalAttribute.CONST) {
+            throw constAssignmentError(name, range.start)
         }
-        if (localSlot == null && resolveCurrentGlobalDeclaration(target.name) == null && parentConstResolver?.invoke(target.name) == true) {
-            throw constAssignmentError(target)
+        if (localSlot == null && currentGlobal == null && parentConstResolver?.invoke(name) == true) {
+            throw constAssignmentError(name, range.start)
         }
-        val upvalue = if (localSlot == null && resolveCurrentGlobalDeclaration(target.name) == null) {
-            resolveUpvalue(target.name)
+        val upvalue = if (localSlot == null && currentGlobal == null) {
+            resolveUpvalue(name)
         } else {
             null
         }
@@ -429,9 +435,9 @@ internal class Compiler private constructor(
             throw unsupported(statement, "too many upvalues")
         }
         if (localSlot == null && upvalue == null) {
-            val global = requireDeclaredGlobal(target.name, target.range.start)
+            val global = requireDeclaredGlobal(name, range.start)
             if (global.isConst) {
-                throw constAssignmentError(target)
+                throw constAssignmentError(name, range.start)
             }
         }
     }
@@ -466,20 +472,24 @@ internal class Compiler private constructor(
     }
 
     private fun assignLocalTarget(statement: AssignmentStatement, target: LocalAssignmentTarget, valueRegister: Int) {
-        val targetSlot = resolveCurrentLocalSlot(target.name)
+        emitNamedAssignment(target.name, statement.range.start.line, valueRegister)
+    }
+
+    private fun emitNamedAssignment(name: String, line: Int, valueRegister: Int) {
+        val targetSlot = resolveCurrentLocalSlot(name)
         if (targetSlot != null) {
-            writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueRegister), statement.range.start.line)
+            writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueRegister), line)
         } else {
-            val upvalue = if (resolveCurrentGlobalDeclaration(target.name) == null) {
-                resolveUpvalue(target.name)
+            val upvalue = if (resolveCurrentGlobalDeclaration(name) == null) {
+                resolveUpvalue(name)
             } else {
                 null
             }
             if (upvalue != null) {
-                writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueRegister), statement.range.start.line)
+                writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueRegister), line)
             } else {
-                val name = stringConstantIndex(target.name)
-                writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueRegister), statement.range.start.line)
+                val constant = stringConstantIndex(name)
+                writer.emit(Instruction.abc(Opcode.SET_GLOBAL, constant, valueRegister), line)
             }
         }
     }
@@ -1283,8 +1293,8 @@ internal class Compiler private constructor(
         }
     }
 
-    private fun constAssignmentError(target: LocalAssignmentTarget): CompilerException {
-        return CompilerException(target.range.start, "attempt to assign to const variable '${target.name}'")
+    private fun constAssignmentError(name: String, position: SourcePosition): CompilerException {
+        return CompilerException(position, "attempt to assign to const variable '$name'")
     }
 
     private fun enterBlockScope() {

@@ -46,6 +46,7 @@ internal data class LocalFunctionStatement(
 
 internal data class FunctionStatement(
     val name: String,
+    val nameRange: SourceRange,
     val function: FunctionExpression,
     override val range: SourceRange,
 ) : Statement

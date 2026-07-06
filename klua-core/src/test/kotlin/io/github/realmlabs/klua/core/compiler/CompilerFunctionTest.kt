@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class CompilerFunctionTest {
     @Test
@@ -94,6 +95,53 @@ class CompilerFunctionTest {
             Disassembler.disassemble(prototype),
         )
         assertEquals(2, prototype.nested.single().numParams)
+    }
+
+    @Test
+    fun `compiles function declarations as existing local stores`() {
+        val prototype = Compiler.compile(
+            """
+            local add
+            function add(a, b)
+                return a + b
+            end
+            return add(20, 22)
+            """.trimIndent(),
+        )
+
+        assertEquals(4, prototype.maxStackSize)
+        assertEquals(1, prototype.nested.size)
+        assertEquals(
+            """
+            0000  [1]  LOAD_NIL R0
+            0001  [2]  CLOSURE R1 P0
+            0002  [2]  MOVE R0 R1
+            0003  [5]  MOVE R1 R0
+            0004  [5]  LOAD_INT R2 20
+            0005  [5]  LOAD_INT R3 22
+            0006  [5]  CALL R1 2 *
+            0007  [5]  RETURN R1 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+        assertEquals(2, prototype.nested.single().numParams)
+    }
+
+    @Test
+    fun `function declarations reject const global stores`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                global <const> answer
+                function answer()
+                    return 42
+                end
+                """.trimIndent(),
+                "const-global-function.lua",
+            )
+        }
+
+        assertEquals("const-global-function.lua:2:10: attempt to assign to const variable 'answer'", error.message)
     }
 
     @Test
