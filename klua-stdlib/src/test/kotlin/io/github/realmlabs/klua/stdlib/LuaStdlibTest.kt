@@ -3415,6 +3415,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io file handles validate buffer modes`() {
+        val path = Files.createTempFile("klua-io-buffer-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w"))
+                    local no = handle:setvbuf("no")
+                    local full = handle:setvbuf("full", 1024)
+                    local line = handle:setvbuf("line", nil)
+                    local badModeOk, badModeMessage = pcall(function()
+                        return handle:setvbuf("bad")
+                    end)
+                    local badSizeOk, badSizeMessage = pcall(function()
+                        return handle:setvbuf("full", 1.5)
+                    end)
+                    handle:close()
+                    return no, full, line, badModeOk, badModeMessage,
+                        badSizeOk, badSizeMessage
+                    """.trimIndent(),
+                    "io-setvbuf.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertTrue(state.toBoolean(2))
+            assertTrue(state.toBoolean(3))
+            assertFalse(state.toBoolean(4))
+            assertEquals("bad argument #1 to 'setvbuf' (invalid option 'bad')", state.toString(5))
+            assertFalse(state.toBoolean(6))
+            assertEquals("bad argument #2 to 'setvbuf' (number has no integer representation)", state.toString(7))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `debug sethook and gethook accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

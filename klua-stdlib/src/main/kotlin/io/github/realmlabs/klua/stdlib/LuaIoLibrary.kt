@@ -21,6 +21,7 @@ internal object LuaIoLibrary {
             type.method("lines") { receiver, context -> linesHandle(receiver, context, closeOnEnd = false) }
             type.method("read") { receiver, context -> readHandle(receiver, context) }
             type.method("seek") { receiver, context -> seekHandle(receiver, context) }
+            type.method("setvbuf") { receiver, context -> setBufferMode(receiver, context) }
             type.method("write") { receiver, context -> writeHandle(receiver, context) }
         }
 
@@ -286,6 +287,18 @@ internal object LuaIoLibrary {
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         }
+    }
+
+    private fun setBufferMode(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
+        handle.ensureOpen()
+        val mode = requiredString(context, 1, "setvbuf")
+        if (mode !in FILE_BUFFER_MODES) {
+            throw LuaRuntimeException("bad argument #1 to 'setvbuf' (invalid option '$mode')")
+        }
+        if (!context.isNone(2) && !context.isNil(2)) {
+            requiredInteger(context, 2, "setvbuf")
+        }
+        return LuaReturn.of(true)
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
@@ -561,4 +574,5 @@ internal object LuaIoLibrary {
     }
 
     private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
+    private val FILE_BUFFER_MODES = setOf("no", "full", "line")
 }
