@@ -1356,8 +1356,9 @@ internal class LuaVm(
         fun apply(left: LuaValue, right: LuaValue): Boolean {
             return when (this) {
                 EQ -> luaEquals(left, right)
-                LT -> orderedCompare(left, right) < 0
-                LE -> orderedCompare(left, right) <= 0
+                LT,
+                LE,
+                -> orderedCompare(left, right, this)
             }
         }
 
@@ -1365,13 +1366,7 @@ internal class LuaVm(
             if (this == EQ) {
                 return luaEquals(left, right)
             }
-            return primitiveOrderedCompare(left, right)?.let { comparison ->
-                when (this) {
-                    LT -> comparison < 0
-                    LE -> comparison <= 0
-                    EQ -> false
-                }
-            }
+            return primitiveOrderedCompare(left, right, this)
         }
 
         private fun luaEquals(left: LuaValue, right: LuaValue): Boolean {
@@ -1404,24 +1399,98 @@ internal class LuaVm(
             }
         }
 
-        private fun orderedCompare(left: LuaValue, right: LuaValue): Int {
-            primitiveOrderedCompare(left, right)?.let { return it }
+        private fun orderedCompare(left: LuaValue, right: LuaValue, comparison: Comparison): Boolean {
+            primitiveOrderedCompare(left, right, comparison)?.let { return it }
             if (typeName(left) == typeName(right)) {
                 throw LuaVmException("attempt to compare two ${typeName(left)} values")
             }
             throw LuaVmException("attempt to compare ${typeName(left)} with ${typeName(right)}")
         }
 
-        private fun primitiveOrderedCompare(left: LuaValue, right: LuaValue): Int? {
-            val leftNumber = numberValue(left)
-            val rightNumber = numberValue(right)
-            if (leftNumber != null && rightNumber != null) {
-                return leftNumber.compareTo(rightNumber)
-            }
+        private fun primitiveOrderedCompare(left: LuaValue, right: LuaValue, comparison: Comparison): Boolean? {
+            luaNumberComparison(left, right, comparison)?.let { return it }
             if (left is LuaString && right is LuaString) {
-                return luaByteCompare(left.value, right.value)
+                val byteComparison = luaByteCompare(left.value, right.value)
+                return when (comparison) {
+                    LT -> byteComparison < 0
+                    LE -> byteComparison <= 0
+                    EQ -> false
+                }
             }
             return null
+        }
+
+        private fun luaNumberComparison(left: LuaValue, right: LuaValue, comparison: Comparison): Boolean? {
+            return when (left) {
+                is LuaInteger -> when (right) {
+                    is LuaInteger -> when (comparison) {
+                        LT -> left.value < right.value
+                        LE -> left.value <= right.value
+                        EQ -> false
+                    }
+                    is LuaFloat -> when (comparison) {
+                        LT -> luaIntegerLessThanFloat(left.value, right.value)
+                        LE -> luaIntegerLessEqualFloat(left.value, right.value)
+                        EQ -> false
+                    }
+                    else -> null
+                }
+                is LuaFloat -> when (right) {
+                    is LuaInteger -> when (comparison) {
+                        LT -> luaFloatLessThanInteger(left.value, right.value)
+                        LE -> luaFloatLessEqualInteger(left.value, right.value)
+                        EQ -> false
+                    }
+                    is LuaFloat -> when (comparison) {
+                        LT -> left.value < right.value
+                        LE -> left.value <= right.value
+                        EQ -> false
+                    }
+                    else -> null
+                }
+                else -> null
+            }
+        }
+
+        private fun luaIntegerLessThanFloat(left: Long, right: Double): Boolean {
+            val rightCeiling = right.luaCeilToInteger()
+            return if (rightCeiling != null) left < rightCeiling else right > 0.0
+        }
+
+        private fun luaIntegerLessEqualFloat(left: Long, right: Double): Boolean {
+            val rightFloor = right.luaFloorToInteger()
+            return if (rightFloor != null) left <= rightFloor else right > 0.0
+        }
+
+        private fun luaFloatLessThanInteger(left: Double, right: Long): Boolean {
+            val leftFloor = left.luaFloorToInteger()
+            return if (leftFloor != null) leftFloor < right else left < 0.0
+        }
+
+        private fun luaFloatLessEqualInteger(left: Double, right: Long): Boolean {
+            val leftCeiling = left.luaCeilToInteger()
+            return if (leftCeiling != null) leftCeiling <= right else left < 0.0
+        }
+
+        private fun Double.luaFloorToInteger(): Long? {
+            if (!java.lang.Double.isFinite(this)) {
+                return null
+            }
+            return kotlin.math.floor(this).luaIntegerInRange()
+        }
+
+        private fun Double.luaCeilToInteger(): Long? {
+            if (!java.lang.Double.isFinite(this)) {
+                return null
+            }
+            return kotlin.math.ceil(this).luaIntegerInRange()
+        }
+
+        private fun Double.luaIntegerInRange(): Long? {
+            if (this < Long.MIN_VALUE.toDouble() || this >= LONG_MAX_EXCLUSIVE) {
+                return null
+            }
+            return toLong()
         }
 
         private fun luaByteCompare(left: String, right: String): Int {
