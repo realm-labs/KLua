@@ -20904,6 +20904,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort orders adjacent large integers exactly`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {
+                    math.maxinteger,
+                    math.mininteger + 1,
+                    math.maxinteger - 1,
+                    math.mininteger,
+                }
+                table.sort(values)
+                return values[1], values[2], values[3], values[4]
+                """.trimIndent(),
+                "table-sort-large-integers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Long.MIN_VALUE, state.toInteger(1))
+        assertEquals(Long.MIN_VALUE + 1L, state.toInteger(2))
+        assertEquals(Long.MAX_VALUE - 1L, state.toInteger(3))
+        assertEquals(Long.MAX_VALUE, state.toInteger(4))
+    }
+
+    @Test
     fun `table sort uses comparator functions`() {
         val state = LuaState.create()
         LuaStdlib.openTable(state)

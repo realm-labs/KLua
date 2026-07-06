@@ -591,23 +591,82 @@ internal object LuaTableLibrary {
         hasComparator: Boolean,
     ): Boolean {
         if (!hasComparator) {
-            return context.lessThanValues(left, right)
-                ?: (compareTableSortValues(context, left, right) < 0)
+            return context.lessThanValues(left, right) ?: tableSortLessThan(context, left, right)
         }
 
         return context.call(2, listOf(left, right)).get(1).isLuaTruthy()
     }
 
-    private fun compareTableSortValues(context: LuaCallContext, left: Any?, right: Any?): Int {
+    private fun tableSortLessThan(context: LuaCallContext, left: Any?, right: Any?): Boolean {
+        val leftInteger = left.luaIntegerSubtype()
+        val rightInteger = right.luaIntegerSubtype()
+        if (leftInteger != null) {
+            return if (rightInteger != null) {
+                leftInteger < rightInteger
+            } else if (right.asLuaNumber() != null) {
+                luaIntegerLessThanFloat(leftInteger, (right as Number).toDouble())
+            } else {
+                throw LuaRuntimeException(tableSortComparisonError(context, left, right))
+            }
+        }
         val leftNumber = left.asLuaNumber()
-        val rightNumber = right.asLuaNumber()
-        if (leftNumber != null && rightNumber != null) {
-            return leftNumber.compareTo(rightNumber)
+        if (leftNumber != null) {
+            return if (rightInteger != null) {
+                luaFloatLessThanInteger((left as Number).toDouble(), rightInteger)
+            } else if (right.asLuaNumber() != null) {
+                (left as Number).toDouble() < (right as Number).toDouble()
+            } else {
+                throw LuaRuntimeException(tableSortComparisonError(context, left, right))
+            }
         }
         if (left is CharSequence && right is CharSequence) {
-            return left.toString().compareTo(right.toString())
+            return luaByteCompare(left.toString(), right.toString()) < 0
         }
         throw LuaRuntimeException(tableSortComparisonError(context, left, right))
+    }
+
+    private fun luaIntegerLessThanFloat(left: Long, right: Double): Boolean {
+        val rightCeiling = right.luaCeilToInteger()
+        return if (rightCeiling != null) left < rightCeiling else right > 0.0
+    }
+
+    private fun luaFloatLessThanInteger(left: Double, right: Long): Boolean {
+        val leftFloor = left.luaFloorToInteger()
+        return if (leftFloor != null) leftFloor < right else left < 0.0
+    }
+
+    private fun luaByteCompare(left: String, right: String): Int {
+        val leftBytes = left.luaRawBytes()
+        val rightBytes = right.luaRawBytes()
+        val limit = minOf(leftBytes.size, rightBytes.size)
+        for (index in 0 until limit) {
+            val comparison = (leftBytes[index].toInt() and 0xff) - (rightBytes[index].toInt() and 0xff)
+            if (comparison != 0) {
+                return comparison
+            }
+        }
+        return leftBytes.size - rightBytes.size
+    }
+
+    private fun Double.luaFloorToInteger(): Long? {
+        if (!isFinite()) {
+            return null
+        }
+        return kotlin.math.floor(this).luaIntegerInRange()
+    }
+
+    private fun Double.luaCeilToInteger(): Long? {
+        if (!isFinite()) {
+            return null
+        }
+        return kotlin.math.ceil(this).luaIntegerInRange()
+    }
+
+    private fun Double.luaIntegerInRange(): Long? {
+        if (this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
+            return null
+        }
+        return toLong()
     }
 
     private fun tableSortComparisonError(context: LuaCallContext, left: Any?, right: Any?): String {
@@ -628,6 +687,16 @@ internal object LuaTableLibrary {
             is Long -> toDouble()
             is Float -> toDouble()
             is Double -> this
+            else -> null
+        }
+    }
+
+    private fun Any?.luaIntegerSubtype(): Long? {
+        return when (this) {
+            is Byte -> toLong()
+            is Short -> toLong()
+            is Int -> toLong()
+            is Long -> this
             else -> null
         }
     }
