@@ -3594,9 +3594,13 @@ class LuaStdlibTest {
                     """
                     local stdoutOk, stdoutValue, stdoutMessage, stdoutCode = pcall(io.stdout.read, io.stdout)
                     local stdinOk, stdinValue, stdinMessage, stdinCode = pcall(io.stdin.write, io.stdin, "x")
+                    local stdinFlushOk, stdinFlushValue, stdinFlushMessage, stdinFlushCode =
+                        pcall(io.stdin.flush, io.stdin)
                     local readHandle = assert(io.popen("$readCommand", "r"))
                     local readWriteOk, readWriteValue, readWriteMessage, readWriteCode =
                         pcall(readHandle.write, readHandle, "x")
+                    local readFlushOk, readFlushValue, readFlushMessage, readFlushCode =
+                        pcall(readHandle.flush, readHandle)
                     readHandle:close()
                     local writeHandle = assert(io.popen("$writeCommand", "w"))
                     local writeReadOk, writeReadValue, writeReadMessage, writeReadCode =
@@ -3604,7 +3608,9 @@ class LuaStdlibTest {
                     writeHandle:close()
                     return stdoutOk, stdoutValue, type(stdoutMessage), type(stdoutCode),
                         stdinOk, stdinValue, type(stdinMessage), type(stdinCode),
+                        stdinFlushOk, stdinFlushValue, type(stdinFlushMessage), type(stdinFlushCode),
                         readWriteOk, readWriteValue, type(readWriteMessage), type(readWriteCode),
+                        readFlushOk, readFlushValue, type(readFlushMessage), type(readFlushCode),
                         writeReadOk, writeReadValue, type(writeReadMessage), type(writeReadCode)
                     """.trimIndent(),
                     "io-stream-direction.lua",
@@ -3612,7 +3618,7 @@ class LuaStdlibTest {
             )
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-            for (index in listOf(1, 5, 9, 13)) {
+            for (index in listOf(1, 5, 9, 13, 17, 21)) {
                 assertTrue(state.toBoolean(index))
                 assertTrue(state.isNil(index + 1))
                 assertEquals("string", state.toString(index + 2))

@@ -208,6 +208,9 @@ internal object LuaIoLibrary {
 
     private fun flushHandle(handle: IoFileHandle): LuaReturn {
         handle.ensureOpen()
+        if (!handle.flushable) {
+            return LuaReturn.of(null, "Bad file descriptor", 1L)
+        }
         return try {
             handle.flush()
             LuaReturn.of(true)
@@ -459,6 +462,9 @@ internal object LuaIoLibrary {
             get() = randomAccessFile != null || inputStream != null
 
         val writable: Boolean
+            get() = randomAccessFile != null || outputStream != null
+
+        val flushable: Boolean
             get() = randomAccessFile != null || outputStream != null
 
         companion object {
