@@ -213,36 +213,11 @@ internal object LuaStringLibrary {
     }
 
     private fun gsubTableReplacementValue(context: LuaCallContext, table: Any?, key: Any?): Any? {
-        return gsubTableReplacementValue(context, table, key, identitySet())
-    }
-
-    private fun gsubTableReplacementValue(
-        context: LuaCallContext,
-        table: Any?,
-        key: Any?,
-        visited: MutableSet<Any>,
-    ): Any? {
-        if (table != null && !visited.add(table)) {
-            throw LuaRuntimeException("'__index' chain too long; possible loop")
+        return try {
+            context.getValueField(table, key)
+        } catch (error: IllegalArgumentException) {
+            throw LuaRuntimeException(error.message ?: "invalid table index")
         }
-        val rawValue = context.getTableField(table, key)
-        if (rawValue != null) {
-            return rawValue
-        }
-        val index = context.getTableField(context.getTableMetatable(table), "__index") ?: return null
-        return if (context.isFunctionValue(index)) {
-            context.call(index, listOf(table, key)).get(1)
-        } else if (context.isTableValue(index)) {
-            gsubTableReplacementValue(context, index, key, visited)
-        } else if (index is CharSequence) {
-            null
-        } else {
-            throw LuaRuntimeException("attempt to index a ${context.valueTypeName(index)} value")
-        }
-    }
-
-    private fun identitySet(): MutableSet<Any> {
-        return java.util.Collections.newSetFromMap(java.util.IdentityHashMap())
     }
 
     private fun expandReplacement(

@@ -19004,9 +19004,9 @@ class LuaStdlibTest {
                 local booleanOk, booleanMessage = pcall(string.gsub, "a", "a", booleanTable)
 
                 local stringTable = setmetatable({}, { __index = "x" })
-                local stringResult, stringCount = string.gsub("a", "a", stringTable)
+                local stringOk, stringMessage = pcall(string.gsub, "sub", "sub", stringTable)
 
-                return numberOk, numberMessage, booleanOk, booleanMessage, stringResult, stringCount
+                return numberOk, numberMessage, booleanOk, booleanMessage, stringOk, stringMessage
                 """.trimIndent(),
                 "string-gsub-table-replacement-bad-index.lua",
             ),
@@ -19017,8 +19017,8 @@ class LuaStdlibTest {
         assertEquals("attempt to index a number value", state.toString(2))
         assertFalse(state.toBoolean(3))
         assertEquals("attempt to index a boolean value", state.toString(4))
-        assertEquals("a", state.toString(5))
-        assertEquals(1L, state.toInteger(6))
+        assertFalse(state.toBoolean(5))
+        assertEquals("invalid replacement value (a function)", state.toString(6))
     }
 
     @Test

@@ -99,6 +99,8 @@ interface LuaCallContext {
 
     fun getTableField(table: Any?, key: Any?): Any?
 
+    fun getValueField(value: Any?, key: Any?): Any? = getTableField(value, key)
+
     fun setTableValue(index: Int, key: Any?, value: Any?)
 
     fun setTableField(table: Any?, key: Any?, value: Any?) {

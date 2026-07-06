@@ -34,6 +34,7 @@ class LuaState private constructor(
     private val coreBackedNativeGlobals = mutableSetOf<String>()
     private val userValues = IdentityHashMap<Any, MutableMap<Int, LuaStackValue>>()
     private val callMetamethodKey = LuaStackValue.StringValue("__call")
+    private val indexMetamethodKey = LuaStackValue.StringValue("__index")
     private var lastError: LuaException? = null
 
     companion object {
@@ -1754,6 +1755,83 @@ class LuaState private constructor(
         override fun getTableField(table: Any?, key: Any?): Any? {
             val tableValue = table as? LuaStackValue.TableValue ?: return null
             return tableValue.fields[key.toStackValue()]?.toPublicCallReturnValue()
+        }
+
+        override fun getValueField(value: Any?, key: Any?): Any? {
+            return stackIndexValue(
+                value.toStackValue(),
+                key.toStackValue(),
+                java.util.Collections.newSetFromMap(IdentityHashMap()),
+            ).toPublicCallReturnValue()
+        }
+
+        private fun stackIndexValue(
+            receiver: LuaStackValue,
+            key: LuaStackValue,
+            visited: MutableSet<LuaStackValue.TableValue>,
+        ): LuaStackValue {
+            return when (receiver) {
+                is LuaStackValue.TableValue -> stackTableValue(receiver, key, visited)
+                else -> {
+                    val metatable = stackValueMetatable(receiver) ?: throw IllegalArgumentException(
+                        attemptToIndexMessage(receiver),
+                    )
+                    stackMetamethodIndexValue(receiver, key, metatable.fields[indexMetamethodKey], visited)
+                }
+            }
+        }
+
+        private fun stackTableValue(
+            table: LuaStackValue.TableValue,
+            key: LuaStackValue,
+            visited: MutableSet<LuaStackValue.TableValue>,
+        ): LuaStackValue {
+            val rawValue = table.fields[key]
+            if (rawValue != null) {
+                return rawValue
+            }
+            if (!visited.add(table)) {
+                throw IllegalArgumentException("cycle in __index chain")
+            }
+            return stackMetamethodIndexValue(table, key, table.metatable?.fields?.get(indexMetamethodKey), visited)
+        }
+
+        private fun stackMetamethodIndexValue(
+            receiver: LuaStackValue,
+            key: LuaStackValue,
+            index: LuaStackValue?,
+            visited: MutableSet<LuaStackValue.TableValue>,
+        ): LuaStackValue {
+            return when (index) {
+                null,
+                LuaStackValue.Nil,
+                -> LuaStackValue.Nil
+                is LuaStackValue.TableValue -> stackTableValue(index, key, visited)
+                is LuaStackValue.NativeFunctionValue -> callFunction(
+                    index,
+                    listOf(receiver.toPublicCallReturnValue(), key.toPublicCallReturnValue()),
+                ).values.getOrNull(0).toStackValue()
+                else -> stackIndexValue(index, key, visited)
+            }
+        }
+
+        private fun stackValueMetatable(value: LuaStackValue): LuaStackValue.TableValue? {
+            return when (value) {
+                is LuaStackValue.TableValue -> value.metatable
+                is LuaStackValue.UserDataValue -> {
+                    val typeName = stackTypeName(value)
+                    if (typeName in RAW_TYPE_METATABLE_TYPES) {
+                        KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, typeName)?.toStackValue()
+                    } else {
+                        userMetatables[value.value]
+                    }
+                }
+                else -> KLuaCoreRuntime.getRawTypeMetatable(coreGlobals, stackTypeName(value))?.toStackValue()
+            } as? LuaStackValue.TableValue
+        }
+
+        private fun attemptToIndexMessage(value: LuaStackValue): String {
+            return "attempt to index a ${stackTypeName(value)} value"
         }
 
         override fun setTableValue(index: Int, key: Any?, value: Any?) {
