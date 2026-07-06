@@ -17,6 +17,10 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 - Native C module loading is intentionally unavailable in the pure Kotlin runtime. `package.loadlib` exposes the Lua fallback-style unsupported result, and the C/C-root searcher slots can report `package.cpath` misses or dynamic-loading failures but cannot create native loaders.
 
+## IO Library
+
+- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`, but KLua does not yet expose a pure-Kotlin `io` library installer or `LuaStandardLibrary.IO` whitelist entry.
+
 ## Strings And UTF-8
 
 - KLua strings are still JVM-string-backed rather than byte-string-faithful in all standard-library paths. This leaves Lua 5.5 byte-level behavior incomplete for cases such as validating or iterating broader malformed byte sequences.
