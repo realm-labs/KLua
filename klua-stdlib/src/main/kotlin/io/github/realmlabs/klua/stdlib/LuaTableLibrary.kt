@@ -759,16 +759,13 @@ internal object LuaTableLibrary {
         if (context.isTableValue(index)) {
             return tableUnpackIndexValue(context, index, context.getTableMetatable(index), sourceType, key, visited)
         }
+        if (context.isFunctionValue(index)) {
+            return context.call(index, listOf(table, key)).get(1)
+        }
         return try {
-            if (index is CharSequence) {
-                return null
-            }
-            if (!context.isFunctionValue(index)) {
-                throw LuaRuntimeException("attempt to index a ${context.valueTypeName(index)} value")
-            }
-            context.call(index, listOf(table, key)).get(1)
-        } catch (_: IllegalArgumentException) {
-            context.getTableField(index, key)
+            context.getValueField(index, key)
+        } catch (error: IllegalArgumentException) {
+            throw LuaRuntimeException(error.message ?: "attempt to index a ${context.valueTypeName(index)} value")
         }
     }
 

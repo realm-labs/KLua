@@ -23502,7 +23502,9 @@ class LuaStdlibTest {
     fun `table unpack reports bad index metamethod chains`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openTable(state)
+        LuaStdlib.openDebug(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -23531,7 +23533,14 @@ class LuaStdlibTest {
                     __len = function() return 1 end,
                     __index = "x",
                 })
+                local oldStringMetatable = debug.getmetatable("")
+                debug.setmetatable("", {
+                    __index = {
+                        [1] = "indexed-string",
+                    },
+                })
                 local stringOk, stringValue = pcall(table.unpack, stringValues)
+                debug.setmetatable("", oldStringMetatable)
 
                 return numberOk, numberMessage, booleanOk, booleanMessage,
                     loopOk, loopMessage, stringOk, stringValue
@@ -23548,7 +23557,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertEquals("'__index' chain too long; possible loop", state.toString(6))
         assertTrue(state.toBoolean(7))
-        assertTrue(state.isNil(8))
+        assertEquals("indexed-string", state.toString(8))
     }
 
     @Test
