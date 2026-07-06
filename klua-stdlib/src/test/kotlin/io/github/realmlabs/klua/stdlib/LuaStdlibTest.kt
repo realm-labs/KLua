@@ -8900,6 +8900,51 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pairs calls callable pairs metamethod values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local callable = setmetatable({prefix = "called"}, {
+                    __call = function(self, target)
+                        local done = false
+                        return function(state, key)
+                            if done then
+                                return nil
+                            end
+                            done = true
+                            return "seen", self.prefix .. ":" .. state.name .. ":" .. key
+                        end, target, "start", "closed"
+                    end,
+                })
+                local target = setmetatable({name = "target"}, {
+                    __pairs = callable,
+                })
+
+                local iterator, stateValue, key, closing = pairs(target)
+                local firstKey, firstValue = iterator(stateValue, key)
+                local done = iterator(stateValue, firstKey)
+                return stateValue == target, key, closing, firstKey, firstValue, done,
+                    select("#", pairs(target))
+                """.trimIndent(),
+                "pairs-callable-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("start", state.toString(2))
+        assertEquals("closed", state.toString(3))
+        assertEquals("seen", state.toString(4))
+        assertEquals("called:target:start", state.toString(5))
+        assertTrue(state.isNil(6))
+        assertEquals(4L, state.toInteger(7))
+    }
+
+    @Test
     fun `pairs uses primitive type pairs metamethod`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
