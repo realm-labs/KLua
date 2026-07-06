@@ -4,7 +4,6 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 ## Language And VM
 
-- Full cross-scope `goto` and label semantics are still being hardened; current support covers AST representation, compilation, VM execution, end-of-block labels, exported pending gotos, and close-aware escaping jumps.
 - `<close>` local declarations are parsed; statically nil/false close locals compile as no-op close values, dynamic close initializers are runtime-checked to allow only nil/false, and statically non-false to-be-closed variable semantics are still rejected by the compiler because `__close` handling is not implemented.
 
 ## Debug Library
