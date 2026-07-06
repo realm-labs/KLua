@@ -235,6 +235,7 @@ internal class LuaVm(
                         Opcode.CHECK_GLOBAL_NIL -> checkGlobalNil(frame, instruction)
                         Opcode.GET_ENV -> getEnvironment(stack, frame, instruction)
                         Opcode.SET_ENV -> setEnvironment(stack, frame, instruction)
+                        Opcode.CHECK_FIELD_NIL -> checkFieldNil(stack, frame, instruction)
                         Opcode.CLOSURE -> createClosure(stack, frame, instruction)
                         Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
                         Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
@@ -748,6 +749,14 @@ internal class LuaVm(
     private fun checkGlobalNil(frame: CallFrame, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.a(instruction))
         if (indexGet(frame.globals, key) != LuaNil) {
+            throw LuaVmException("global '${key.value}' already defined")
+        }
+    }
+
+    private fun checkFieldNil(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val receiver = stack.get(register(frame, Instruction.a(instruction)))
+        val key = stringConstant(frame.prototype, Instruction.b(instruction))
+        if (indexGet(receiver, key) != LuaNil) {
             throw LuaVmException("global '${key.value}' already defined")
         }
     }

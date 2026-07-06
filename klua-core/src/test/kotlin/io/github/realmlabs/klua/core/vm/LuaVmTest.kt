@@ -381,6 +381,37 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes initialized global declarations through local environments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local _ENV = {}
+                global answer = 42
+                return _ENV.answer, answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42), LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `initialized global declarations reject existing local environment fields`() {
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local _ENV = { answer = false }
+                    global answer = 42
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("global 'answer' already defined", error.message)
+    }
+
+    @Test
     fun `allows implicit environment assignment in strict global scopes`() {
         val result = LuaVm().execute(
             Compiler.compile(

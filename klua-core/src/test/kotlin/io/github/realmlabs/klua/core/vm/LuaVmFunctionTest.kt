@@ -57,6 +57,23 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `executes global function declarations through local environments`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local _ENV = {}
+                global function add(a, b)
+                    return a + b
+                end
+                return _ENV.add(20, 22)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
     fun `executes initialized global declarations`() {
         val result = LuaVm().execute(
             Compiler.compile(

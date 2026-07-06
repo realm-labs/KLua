@@ -1009,6 +1009,33 @@ class CompilerTest {
     }
 
     @Test
+    fun `compiles initialized global declarations through local environments`() {
+        val prototype = Compiler.compile(
+            """
+            local _ENV = {}
+            global answer = 42
+            return _ENV.answer
+            """.trimIndent(),
+            "global-init-local-env.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [2]  LOAD_INT R1 42
+            0002  [2]  MOVE R2 R0
+            0003  [2]  CHECK_FIELD_NIL R2 K0 ; "answer"
+            0004  [2]  SET_FIELD R2 K0 R1 ; "answer"
+            0005  [3]  MOVE R1 R0
+            0006  [3]  GET_FIELD R1 R1 K0 ; "answer"
+            0007  [3]  MOVE R0 R1
+            0008  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `declaration only globals allow later global reads and writes`() {
         val prototype = Compiler.compile(
             """

@@ -299,10 +299,16 @@ internal class Compiler private constructor(
 
         val valueBase = nextLocalRegister
         compileAdjustedValues(statement.values, valueBase, statement.names.size, statement.range.start.line)
+        val receiverRegister = valueBase + statement.names.size
         for (index in statement.names.indices.reversed()) {
             val name = stringConstantIndex(statement.names[index])
-            writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
-            writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueBase + index), statement.range.start.line)
+            if (compileLexicalEnvironmentReceiver(receiverRegister, statement.range.start.line)) {
+                writer.emit(Instruction.abc(Opcode.CHECK_FIELD_NIL, receiverRegister, name), statement.range.start.line)
+                writer.emit(Instruction.abc(Opcode.SET_FIELD, receiverRegister, name, valueBase + index), statement.range.start.line)
+            } else {
+                writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
+                writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueBase + index), statement.range.start.line)
+            }
         }
         declareGlobalNames(statement.names, statement.attributes)
     }
@@ -349,8 +355,14 @@ internal class Compiler private constructor(
         val register = nextLocalRegister
         compileFunctionExpression(statement.function, register)
         val name = stringConstantIndex(statement.name)
-        writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
-        writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, register), statement.range.start.line)
+        val receiverRegister = register + 1
+        if (compileLexicalEnvironmentReceiver(receiverRegister, statement.range.start.line)) {
+            writer.emit(Instruction.abc(Opcode.CHECK_FIELD_NIL, receiverRegister, name), statement.range.start.line)
+            writer.emit(Instruction.abc(Opcode.SET_FIELD, receiverRegister, name, register), statement.range.start.line)
+        } else {
+            writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
+            writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, register), statement.range.start.line)
+        }
     }
 
     private fun compileAssignment(statement: AssignmentStatement) {

@@ -215,6 +215,37 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `compiles global function declarations through local environments`() {
+        val prototype = Compiler.compile(
+            """
+            local _ENV = {}
+            global function add(a, b)
+                return a + b
+            end
+            return _ENV.add
+            """.trimIndent(),
+        )
+
+        assertEquals(3, prototype.maxStackSize)
+        assertEquals(1, prototype.nested.size)
+        assertEquals(
+            """
+            0000  [1]  NEW_TABLE R0
+            0001  [2]  CLOSURE R1 P0
+            0002  [2]  MOVE R2 R0
+            0003  [2]  CHECK_FIELD_NIL R2 K0 ; "add"
+            0004  [2]  SET_FIELD R2 K0 R1 ; "add"
+            0005  [5]  MOVE R1 R0
+            0006  [5]  GET_FIELD R1 R1 K0 ; "add"
+            0007  [5]  MOVE R0 R1
+            0008  [5]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+        assertEquals(2, prototype.nested.single().numParams)
+    }
+
+    @Test
     fun `nested functions can read declared parent globals`() {
         val prototype = Compiler.compile(
             """
