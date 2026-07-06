@@ -17861,9 +17861,15 @@ class LuaStdlibTest {
                 local doneCount = select("#", iterator(stateValue, thirdIndex))
                 local nilControlIndex, nilControlCode = iterator(stateValue, nil)
                 local badControlIndex, badControlCode = iterator(stateValue, "bad")
+                local fractionalIndex, fractionalCode = iterator(stateValue, 1.5)
+                local fractionalStringIndex, fractionalStringCode = iterator(stateValue, "1.5")
+                local negativeFractional = iterator(stateValue, -0.5)
+                local negativeFractionalCount = select("#", iterator(stateValue, -0.5))
                 return firstIndex, firstCode, firstAgainIndex, firstAgainCode,
                     secondIndex, secondCode, thirdIndex, thirdCode, done, doneCount,
-                    nilControlIndex, nilControlCode, badControlIndex, badControlCode
+                    nilControlIndex, nilControlCode, badControlIndex, badControlCode,
+                    fractionalIndex, fractionalCode, fractionalStringIndex, fractionalStringCode,
+                    negativeFractional, negativeFractionalCount
                 """.trimIndent(),
                 "utf8-codes.lua",
             ),
@@ -17884,6 +17890,12 @@ class LuaStdlibTest {
         assertEquals(65L, state.toInteger(12))
         assertEquals(1L, state.toInteger(13))
         assertEquals(65L, state.toInteger(14))
+        assertEquals(2L, state.toInteger(15))
+        assertEquals(128512L, state.toInteger(16))
+        assertEquals(2L, state.toInteger(17))
+        assertEquals(128512L, state.toInteger(18))
+        assertTrue(state.isNil(19))
+        assertEquals(0L, state.toInteger(20))
     }
 
     @Test
