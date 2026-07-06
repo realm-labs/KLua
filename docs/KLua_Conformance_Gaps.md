@@ -19,7 +19,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 ## IO Library
 
-- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration, and common file read formats, but broader `liolib.c` behavior such as standard input/output redirection, module-level `io.read`/`io.write`, buffering controls, and process-backed `io.popen` is not complete yet.
+- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration, common file read formats, and explicit file-backed default input/output routing, but broader `liolib.c` behavior such as process stdin/stdout defaults, buffering controls, and process-backed `io.popen` is not complete yet.
 
 ## Strings And UTF-8
 

@@ -3363,6 +3363,58 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io input and output route module level reads and writes`() {
+        val inputPath = Files.createTempFile("klua-io-input-", ".txt")
+        val outputPath = Files.createTempFile("klua-io-output-", ".txt")
+        Files.writeString(inputPath, "123 rest")
+        Files.writeString(outputPath, "old")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local input = io.input("${inputPath.luaPath()}")
+                    local currentInput = io.input()
+                    local number = io.read("n")
+                    local rest = io.read("a")
+                    input:close()
+
+                    local output = assert(io.open("${outputPath.luaPath()}", "w"))
+                    local selectedOutput = io.output(output)
+                    local currentOutput = io.output()
+                    local written = io.write("value=", number)
+                    local flushed = io.flush()
+                    local closed = io.close()
+                    return input == currentInput, number, rest,
+                        selectedOutput == output, currentOutput == output,
+                        written == output, flushed, closed, io.type(output)
+                    """.trimIndent(),
+                    "io-default-files.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertEquals(123L, state.toInteger(2))
+            assertEquals(" rest", state.toString(3))
+            assertTrue(state.toBoolean(4))
+            assertTrue(state.toBoolean(5))
+            assertTrue(state.toBoolean(6))
+            assertTrue(state.toBoolean(7))
+            assertTrue(state.toBoolean(8))
+            assertEquals("closed file", state.toString(9))
+            assertEquals("value=123", Files.readString(outputPath))
+        } finally {
+            Files.deleteIfExists(inputPath)
+            Files.deleteIfExists(outputPath)
+        }
+    }
+
+    @Test
     fun `debug sethook and gethook accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -10773,7 +10825,8 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return type(io), type(io.open), type(io.tmpfile), type(io.type), type(io.close), type(io.lines)
+                return type(io), type(io.open), type(io.tmpfile), type(io.type), type(io.close), type(io.lines),
+                    type(io.input), type(io.output), type(io.read), type(io.write), type(io.flush)
                 """.trimIndent(),
                 "open-libs-io.lua",
             ),
@@ -10786,6 +10839,11 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
         assertEquals("function", state.toString(6))
+        assertEquals("function", state.toString(7))
+        assertEquals("function", state.toString(8))
+        assertEquals("function", state.toString(9))
+        assertEquals("function", state.toString(10))
+        assertEquals("function", state.toString(11))
     }
 
     @Test

@@ -14,6 +14,7 @@ import java.util.Locale
 
 internal object LuaIoLibrary {
     fun open(state: LuaState): LuaState {
+        val defaultFiles = IoDefaultFiles()
         state.registerType(IoFileHandle::class.java) { type ->
             type.method("close") { receiver, _ -> closeHandle(receiver) }
             type.method("flush") { receiver, _ -> flushHandle(receiver) }
@@ -24,12 +25,16 @@ internal object LuaIoLibrary {
         }
 
         state.newTable()
-        setFunctionField(state, "close", ::ioClose)
-        setFunctionField(state, "flush") { _ -> LuaReturn.of(true) }
+        setFunctionField(state, "close") { context -> ioClose(context, defaultFiles) }
+        setFunctionField(state, "flush") { _ -> flushHandle(defaultOutput(defaultFiles)) }
+        setFunctionField(state, "input") { context -> ioInput(context, defaultFiles) }
         setFunctionField(state, "lines", ::ioLines)
         setFunctionField(state, "open", ::ioOpen)
-        setFunctionField(state, "tmpfile", ::ioTmpFile)
+        setFunctionField(state, "output") { context -> ioOutput(context, defaultFiles) }
+        setFunctionField(state, "read") { context -> readHandle(defaultInput(defaultFiles), context) }
+        setFunctionField(state, "tmpfile") { _ -> ioTmpFile() }
         setFunctionField(state, "type", ::ioType)
+        setFunctionField(state, "write") { context -> writeHandle(defaultOutput(defaultFiles), context) }
         state.setGlobal("io")
         return state
     }
@@ -63,7 +68,7 @@ internal object LuaIoLibrary {
         }
     }
 
-    private fun ioTmpFile(context: LuaCallContext): LuaReturn {
+    private fun ioTmpFile(): LuaReturn {
         return try {
             val path = Files.createTempFile("klua-io-", ".tmp")
             LuaReturn.of(IoFileHandle(path, RandomAccessFile(path.toFile(), "rw"), deleteOnClose = true))
@@ -74,10 +79,46 @@ internal object LuaIoLibrary {
         }
     }
 
-    private fun ioClose(context: LuaCallContext): LuaReturn {
-        val handle = context.toUserData(1, IoFileHandle::class.java)
-            ?: throw LuaRuntimeException("bad argument #1 to 'io.close' (FILE* expected)")
+    private fun ioClose(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
+        val handle = if (context.isNone(1)) {
+            defaultOutput(defaultFiles)
+        } else {
+            context.toUserData(1, IoFileHandle::class.java)
+                ?: throw LuaRuntimeException("bad argument #1 to 'io.close' (FILE* expected)")
+        }
         return closeHandle(handle)
+    }
+
+    private fun ioInput(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
+        if (!context.isNone(1) && !context.isNil(1)) {
+            defaultFiles.input = defaultFileArgument(context, 1, mode = "r", functionName = "io.input")
+        }
+        return LuaReturn.of(defaultInput(defaultFiles))
+    }
+
+    private fun ioOutput(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
+        if (!context.isNone(1) && !context.isNil(1)) {
+            defaultFiles.output = defaultFileArgument(context, 1, mode = "w", functionName = "io.output")
+        }
+        return LuaReturn.of(defaultOutput(defaultFiles))
+    }
+
+    private fun defaultFileArgument(
+        context: LuaCallContext,
+        index: Int,
+        mode: String,
+        functionName: String,
+    ): IoFileHandle {
+        val filename = context.toString(index)
+        if (filename != null) {
+            val result = ioOpenValue(filename, mode)
+            return result.values.firstOrNull() as? IoFileHandle
+                ?: throw LuaRuntimeException(result.get(2)?.toString() ?: "cannot open file '$filename'")
+        }
+        val handle = context.toUserData(index, IoFileHandle::class.java)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
+        handle.ensureOpen()
+        return handle
     }
 
     private fun ioLines(context: LuaCallContext): LuaReturn {
@@ -95,6 +136,14 @@ internal object LuaIoLibrary {
     private fun ioType(context: LuaCallContext): LuaReturn {
         val handle = context.toUserData(1, IoFileHandle::class.java) ?: return LuaReturn.of(null)
         return LuaReturn.of(if (handle.closed) "closed file" else "file")
+    }
+
+    private fun defaultInput(defaultFiles: IoDefaultFiles): IoFileHandle {
+        return defaultFiles.input ?: throw LuaRuntimeException("default input is not supported")
+    }
+
+    private fun defaultOutput(defaultFiles: IoDefaultFiles): IoFileHandle {
+        return defaultFiles.output ?: throw LuaRuntimeException("default output is not supported")
     }
 
     private fun closeHandle(handle: IoFileHandle): LuaReturn {
@@ -276,6 +325,11 @@ internal object LuaIoLibrary {
         val randomAccessMode: String,
         val append: Boolean,
         val truncate: Boolean,
+    )
+
+    private data class IoDefaultFiles(
+        var input: IoFileHandle? = null,
+        var output: IoFileHandle? = null,
     )
 
     private class IoFileHandle(
