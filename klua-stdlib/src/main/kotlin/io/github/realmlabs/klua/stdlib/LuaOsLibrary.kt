@@ -495,13 +495,16 @@ internal object LuaOsLibrary {
             return rawValue
         }
         val index = context.getTableField(metatable, "__index") ?: return null
+        if (context.isFunctionValue(index)) {
+            return context.call(index, listOf(table, key)).get(1)
+        }
         if (context.isTableValue(index)) {
             return dateTableField(context, index, context.getTableMetatable(index), key, visited)
         }
         return try {
-            context.call(index, listOf(table, key)).get(1)
-        } catch (_: IllegalArgumentException) {
-            context.getTableField(index, key)
+            context.getValueField(index, key)
+        } catch (error: IllegalArgumentException) {
+            throw LuaRuntimeException(error.message ?: "attempt to index a ${context.valueTypeName(index)} value")
         }
     }
 

@@ -12205,7 +12205,9 @@ class LuaStdlibTest {
     fun `os time reads date fields through index metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openOs(state)
+        LuaStdlib.openDebug(state)
 
         assertEquals(
             LuaStatus.OK,
@@ -12224,7 +12226,13 @@ class LuaStdlibTest {
                 local first = os.time(tableBacked)
                 local second = os.time(nestedTableBacked)
                 local third = os.time(functionBacked)
-                return os.difftime(second, first), os.difftime(third, first), calls[1], calls[2], calls[3],
+                local originalStringMetatable = debug.getmetatable("")
+                debug.setmetatable("", {__index = fallback})
+                local stringBacked = setmetatable({}, {__index = "date"})
+                local fourth = os.time(stringBacked)
+                debug.setmetatable("", originalStringMetatable)
+                return os.difftime(second, first), os.difftime(third, first), os.difftime(fourth, first),
+                    calls[1], calls[2], calls[3],
                     tableBacked.year, nestedTableBacked.year, functionBacked.year
                 """.trimIndent(),
                 "os-time-index-metamethod.lua",
@@ -12234,12 +12242,13 @@ class LuaStdlibTest {
 
         assertEquals(0.0, state.toNumber(1) ?: error("missing difftime result"), 0.0)
         assertEquals(0.0, state.toNumber(2) ?: error("missing nested difftime result"), 0.0)
-        assertEquals("year", state.toString(3))
-        assertEquals("month", state.toString(4))
-        assertEquals("day", state.toString(5))
-        assertEquals(2020L, state.toInteger(6))
+        assertEquals(0.0, state.toNumber(3) ?: error("missing string-backed difftime result"), 0.0)
+        assertEquals("year", state.toString(4))
+        assertEquals("month", state.toString(5))
+        assertEquals("day", state.toString(6))
         assertEquals(2020L, state.toInteger(7))
         assertEquals(2020L, state.toInteger(8))
+        assertEquals(2020L, state.toInteger(9))
     }
 
     @Test
