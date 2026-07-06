@@ -10,7 +10,7 @@ internal data class CallFrame(
     val stack: LuaStack,
     val varargs: MutableList<LuaValue> = mutableListOf(),
     val upvalues: List<LuaUpvalue> = emptyList(),
-    var globals: LuaValue,
+    val environment: LuaUpvalue,
     val callSiteName: String? = null,
     val callSiteNameWhat: String = "",
     var pc: Int = 0,
@@ -25,4 +25,7 @@ internal data class CallFrame(
     val base: Int = 0,
     val returnBase: Int = 0,
     val expectedResults: Int = -1,
-)
+) {
+    val globals: LuaValue
+        get() = environment.value
+}

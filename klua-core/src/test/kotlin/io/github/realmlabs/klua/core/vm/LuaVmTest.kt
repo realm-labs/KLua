@@ -296,6 +296,44 @@ class LuaVmTest {
     }
 
     @Test
+    fun `shares environment assignment with existing closures`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local get = function()
+                    return answer
+                end
+                _ENV = { answer = 42 }
+                return get()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `shares repeated environment assignment across closures`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local first = function()
+                    return answer
+                end
+                _ENV = { answer = 10 }
+                local second = function()
+                    return answer
+                end
+                _ENV = { answer = 42 }
+                return first(), second()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42), LuaInteger(42)), result)
+    }
+
+    @Test
     fun `allows implicit environment assignment in strict global scopes`() {
         val result = LuaVm().execute(
             Compiler.compile(

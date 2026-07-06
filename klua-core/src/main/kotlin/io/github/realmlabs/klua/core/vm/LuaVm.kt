@@ -38,6 +38,7 @@ internal class LuaVm(
     private val instructionLimit: Long = 0,
 ) {
     private val thread = LuaThread()
+    private val rootEnvironment = LuaUpvalue(environment)
     private var debugHook: DebugHookState? = null
     private var runningDebugHook = false
     private var remainingInstructions = instructionLimit
@@ -182,7 +183,7 @@ internal class LuaVm(
             function.prototype,
             arguments,
             function.upvalues,
-            globals = function.globals ?: globals,
+            environment = function.environment ?: function.globals?.let(::LuaUpvalue) ?: rootEnvironment,
             function = function,
             callSiteName = callSiteInfo?.name,
             callSiteNameWhat = callSiteInfo?.nameWhat ?: "",
@@ -680,7 +681,7 @@ internal class LuaVm(
                 }
             }
         }.toMutableList()
-        stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues, frame.globals))
+        stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues, environment = frame.environment))
     }
 
     private fun getUpvalue(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -735,7 +736,7 @@ internal class LuaVm(
     }
 
     private fun setEnvironment(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        frame.globals = stack.get(register(frame, Instruction.a(instruction)))
+        frame.environment.value = stack.get(register(frame, Instruction.a(instruction)))
     }
 
     private fun setGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {

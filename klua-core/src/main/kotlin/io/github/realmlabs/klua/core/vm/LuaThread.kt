@@ -28,8 +28,8 @@ internal class LuaThread {
         prototype: Prototype,
         arguments: List<LuaValue>,
         upvalues: List<LuaUpvalue> = emptyList(),
-        globals: LuaValue = LuaTable(),
-        function: LuaValue = LuaClosure(prototype, upvalues.toMutableList(), globals),
+        environment: LuaUpvalue = LuaUpvalue(LuaTable()),
+        function: LuaValue = LuaClosure(prototype, upvalues.toMutableList(), environment = environment),
         callSiteName: String? = null,
         callSiteNameWhat: String = "",
     ): CallFrame {
@@ -48,7 +48,7 @@ internal class LuaThread {
             stack,
             varargs,
             upvalues,
-            globals,
+            environment,
             callSiteName,
             callSiteNameWhat,
         )

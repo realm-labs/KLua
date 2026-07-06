@@ -56,6 +56,7 @@ internal data class LuaClosure(
     val prototype: Prototype,
     val upvalues: MutableList<LuaUpvalue> = mutableListOf(),
     val globals: LuaValue? = null,
+    val environment: LuaUpvalue? = globals?.let(::LuaUpvalue),
 ) : LuaValue
 
 internal class LuaNativeFunction(
