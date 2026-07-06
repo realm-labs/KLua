@@ -157,8 +157,7 @@ internal object LuaIoLibrary {
         val handle = if (context.isNone(1)) {
             currentOutput(defaultFiles)
         } else {
-            context.toUserData(1, IoFileHandle::class.java)
-                ?: throw LuaRuntimeException("bad argument #1 to 'io.close' (FILE* expected)")
+            fileHandleArgument(context, 1, "io.close")
         }
         return closeHandle(handle)
     }
@@ -191,6 +190,9 @@ internal object LuaIoLibrary {
         }
         val handle = context.toUserData(index, IoFileHandle::class.java)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
+        if (!handle.luaToStringFallbackEnabled) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
+        }
         handle.ensureOpen()
         return handle
     }
@@ -231,7 +233,19 @@ internal object LuaIoLibrary {
             throw LuaRuntimeException("bad argument #1 to 'io.type' (value expected)")
         }
         val handle = context.toUserData(1, IoFileHandle::class.java) ?: return LuaReturn.of(null)
+        if (!handle.luaToStringFallbackEnabled) {
+            return LuaReturn.of(null)
+        }
         return LuaReturn.of(if (handle.closed) "closed file" else "file")
+    }
+
+    private fun fileHandleArgument(context: LuaCallContext, index: Int, functionName: String): IoFileHandle {
+        val handle = context.toUserData(index, IoFileHandle::class.java)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
+        if (!handle.luaToStringFallbackEnabled) {
+            throw LuaRuntimeException("bad argument #$index to '$functionName' (FILE* expected)")
+        }
+        return handle
     }
 
     private fun defaultInput(defaultFiles: IoDefaultFiles): IoFileHandle {

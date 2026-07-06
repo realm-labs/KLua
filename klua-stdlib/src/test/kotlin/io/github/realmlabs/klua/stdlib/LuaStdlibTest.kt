@@ -3276,6 +3276,64 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io module rejects handles without file metatable`() {
+        val path = Files.createTempFile("klua-io-metatable-", ".txt")
+        Files.writeString(path, "seed")
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local typed = assert(io.open("${path.luaPath()}", "r"))
+                    local openType = io.type(typed)
+                    typed:close()
+                    local closedType = io.type(typed)
+                    debug.setmetatable(typed, nil)
+                    local clearedType = io.type(typed)
+
+                    local closeHandle = assert(io.open("${path.luaPath()}", "r"))
+                    closeHandle:close()
+                    debug.setmetatable(closeHandle, nil)
+                    local closeOk, closeMessage = pcall(io.close, closeHandle)
+
+                    local inputHandle = assert(io.open("${path.luaPath()}", "r"))
+                    inputHandle:close()
+                    debug.setmetatable(inputHandle, {})
+                    local inputOk, inputMessage = pcall(io.input, inputHandle)
+
+                    local outputHandle = assert(io.open("${path.luaPath()}", "w"))
+                    outputHandle:close()
+                    debug.setmetatable(outputHandle, {})
+                    local outputOk, outputMessage = pcall(io.output, outputHandle)
+
+                    return openType, closedType, clearedType,
+                        closeOk, closeMessage,
+                        inputOk, inputMessage,
+                        outputOk, outputMessage
+                    """.trimIndent(),
+                    "io-file-metatable.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("file", state.toString(1))
+            assertEquals("closed file", state.toString(2))
+            assertTrue(state.isNil(3))
+            assertFalse(state.toBoolean(4))
+            assertEquals("bad argument #1 to 'io.close' (FILE* expected)", state.toString(5))
+            assertFalse(state.toBoolean(6))
+            assertEquals("bad argument #1 to 'io.input' (FILE* expected)", state.toString(7))
+            assertFalse(state.toBoolean(8))
+            assertEquals("bad argument #1 to 'io.output' (FILE* expected)", state.toString(9))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io open validates source mode extensions`() {
         val path = Files.createTempFile("klua-io-mode-", ".txt")
         Files.writeString(path, "seed")
