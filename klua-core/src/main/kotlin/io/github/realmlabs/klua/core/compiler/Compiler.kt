@@ -297,14 +297,20 @@ internal class Compiler private constructor(
 
     private fun validateCloseLocalInitializers(statement: LocalStatement) {
         for ((index, attribute) in statement.attributes.withIndex()) {
-            if (attribute == LocalAttribute.CLOSE && !statement.closeInitializerIsFalse(index)) {
+            if (attribute == LocalAttribute.CLOSE && !statement.closeInitializerIsStaticallyFalse(index)) {
                 throw unsupported(statement, "to-be-closed local variables are not supported")
             }
         }
     }
 
-    private fun LocalStatement.closeInitializerIsFalse(index: Int): Boolean {
-        val expression = values.getOrNull(index) ?: return true
+    private fun LocalStatement.closeInitializerIsStaticallyFalse(index: Int): Boolean {
+        val expression = values.getOrNull(index)
+        if (expression == null) {
+            return !values.lastOrNull().isOpenResultExpression()
+        }
+        if (expression.isOpenResultExpression()) {
+            return false
+        }
         return expression is NilExpression || expression is BooleanExpression && !expression.value
     }
 

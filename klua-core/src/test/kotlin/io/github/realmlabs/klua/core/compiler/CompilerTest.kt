@@ -504,6 +504,38 @@ class CompilerTest {
     }
 
     @Test
+    fun `rejects to be closed locals initialized from open results`() {
+        val directError = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local function maybeClose()
+                    return {}
+                end
+                local resource <close> = maybeClose()
+                """.trimIndent(),
+                "close-call-local.lua",
+            )
+        }
+        assertEquals("close-call-local.lua:4:1: to-be-closed local variables are not supported", directError.message)
+
+        val adjustedError = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local function values()
+                    return false, {}
+                end
+                local disabled, resource <close> = values()
+                """.trimIndent(),
+                "close-adjusted-call-local.lua",
+            )
+        }
+        assertEquals(
+            "close-adjusted-call-local.lua:4:1: to-be-closed local variables are not supported",
+            adjustedError.message,
+        )
+    }
+
+    @Test
     fun `rejects prefixed non false to be closed locals until close method semantics exist`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("""local <close> resource = {}""", "prefixed-close-local.lua")
