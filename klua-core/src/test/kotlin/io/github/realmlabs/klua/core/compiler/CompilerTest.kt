@@ -498,33 +498,12 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects declaration only global declarations until declaration scopes exist`() {
-        val error = assertFailsWith<CompilerException> {
-            Compiler.compile("""global answer""", "global-declaration.lua")
-        }
-
-        assertEquals("global-declaration.lua:1:1: global declaration scopes are not supported", error.message)
-    }
-
-    @Test
     fun `rejects const global declarations until read only semantics exist`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("""global <const> answer = 42""", "global-const-declaration.lua")
         }
 
         assertEquals("global-const-declaration.lua:1:1: const global declarations are not supported", error.message)
-    }
-
-    @Test
-    fun `rejects wildcard global declarations until declaration scopes exist`() {
-        val error = assertFailsWith<CompilerException> {
-            Compiler.compile("""global *""", "global-wildcard-declaration.lua")
-        }
-
-        assertEquals(
-            "global-wildcard-declaration.lua:1:1: global declaration scopes are not supported",
-            error.message,
-        )
     }
 
     @Test
@@ -957,6 +936,87 @@ class CompilerTest {
             0006  [2]  GET_GLOBAL R0 K1 ; "first"
             0007  [2]  GET_GLOBAL R1 K0 ; "second"
             0008  [2]  RETURN R0 2
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `declaration only globals allow later global reads and writes`() {
+        val prototype = Compiler.compile(
+            """
+            global answer
+            answer = 42
+            return answer
+            """.trimIndent(),
+            "global-declaration.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [2]  LOAD_INT R0 42
+            0001  [2]  SET_GLOBAL K0 R0 ; "answer"
+            0002  [3]  GET_GLOBAL R0 K0 ; "answer"
+            0003  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `named global declarations reject undeclared globals in scope`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                global answer
+                other = 1
+                """.trimIndent(),
+                "strict-global-declaration.lua",
+            )
+        }
+
+        assertEquals("strict-global-declaration.lua:2:1: variable 'other' not declared", error.message)
+    }
+
+    @Test
+    fun `wildcard global declarations allow undeclared globals in scope`() {
+        val prototype = Compiler.compile(
+            """
+            global answer
+            global *
+            other = 1
+            return other
+            """.trimIndent(),
+            "wildcard-global-declaration.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [3]  LOAD_INT R0 1
+            0001  [3]  SET_GLOBAL K0 R0 ; "other"
+            0002  [4]  GET_GLOBAL R0 K0 ; "other"
+            0003  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `global declaration scopes end with blocks`() {
+        val prototype = Compiler.compile(
+            """
+            do
+                global answer
+            end
+            return other
+            """.trimIndent(),
+            "global-block-scope.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [4]  GET_GLOBAL R0 K0 ; "other"
+            0001  [4]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )

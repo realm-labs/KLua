@@ -126,6 +126,34 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `nested functions can read declared parent globals`() {
+        val prototype = Compiler.compile(
+            """
+            global answer
+            return function()
+                return answer
+            end
+            """.trimIndent(),
+            "nested-global-declaration.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [2]  CLOSURE R0 P0
+            0001  [2]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+        assertEquals(
+            """
+            0000  [3]  GET_GLOBAL R0 K0 ; "answer"
+            0001  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype.nested.single()),
+        )
+    }
+
+    @Test
     fun `compiles simple function calls`() {
         val prototype = Compiler.compile(
             """

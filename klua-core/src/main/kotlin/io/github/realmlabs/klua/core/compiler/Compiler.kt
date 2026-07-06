@@ -52,6 +52,7 @@ import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.bytecode.UpvalueDescriptor
 import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import io.github.realmlabs.klua.core.parser.Parser
+import io.github.realmlabs.klua.core.source.SourcePosition
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaString
@@ -62,12 +63,14 @@ internal class Compiler private constructor(
     private val parentLocalResolver: ((String) -> Int?)? = null,
     private val parentUpvalueResolver: ((String) -> Int?)? = null,
     private val parentConstResolver: ((String) -> Boolean)? = null,
+    private val parentGlobalResolver: ((String) -> GlobalLookup)? = null,
 ) {
     private val writer = BytecodeWriter()
     private val constants = ConstantPool()
     private val nested = mutableListOf<Prototype>()
     private val locals = linkedMapOf<String, Int>()
     private val localAttributes = linkedMapOf<String, LocalAttribute>()
+    private val globalDeclarations = mutableListOf<GlobalDeclaration>()
     private val upvalues = mutableListOf<UpvalueDescriptor>()
     private val upvalueIndexes = linkedMapOf<String, Int>()
     private val localVars = mutableListOf<LocalVarBuilder>()
@@ -144,6 +147,7 @@ internal class Compiler private constructor(
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
+        val savedGlobalDeclarationCount = globalDeclarations.size
         enterBlockScope()
         compileStatements(statements, endLabelLocalDepth = savedNextLocalRegister)
         exitBlockScope(savedNextLocalRegister)
@@ -154,6 +158,7 @@ internal class Compiler private constructor(
             )
         }
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
     private fun compileNumericFor(statement: NumericForStatement) {
@@ -161,6 +166,7 @@ internal class Compiler private constructor(
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
+        val savedGlobalDeclarationCount = globalDeclarations.size
         val baseRegister = nextLocalRegister
         nextLocalRegister += 3
         maxRegister = maxRegister.coerceAtLeast(nextLocalRegister)
@@ -194,6 +200,7 @@ internal class Compiler private constructor(
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
     private fun compileGenericFor(statement: GenericForStatement) {
@@ -201,6 +208,7 @@ internal class Compiler private constructor(
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
+        val savedGlobalDeclarationCount = globalDeclarations.size
         val iteratorBase = nextLocalRegister
         val valueBase = iteratorBase + 3
         val valueSlots = maxOf(statement.names.size, 3)
@@ -247,6 +255,7 @@ internal class Compiler private constructor(
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
     private fun compileIteratorValues(values: List<Expression>, baseRegister: Int, line: Int) {
@@ -269,11 +278,16 @@ internal class Compiler private constructor(
     }
 
     private fun compileGlobal(statement: GlobalStatement) {
-        if (statement.wildcard || statement.values.isEmpty()) {
-            throw unsupported(statement, "global declaration scopes are not supported")
-        }
         if (statement.attributes.any { attribute -> attribute == LocalAttribute.CONST }) {
             throw unsupported(statement, "const global declarations are not supported")
+        }
+        if (statement.wildcard) {
+            globalDeclarations += GlobalDeclaration(name = null)
+            return
+        }
+        if (statement.values.isEmpty()) {
+            declareGlobalNames(statement.names)
+            return
         }
 
         val valueBase = nextLocalRegister
@@ -282,6 +296,13 @@ internal class Compiler private constructor(
             val name = stringConstantIndex(statement.names[index])
             writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
             writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueBase + index), statement.range.start.line)
+        }
+        declareGlobalNames(statement.names)
+    }
+
+    private fun declareGlobalNames(names: List<String>) {
+        for (name in names) {
+            globalDeclarations += GlobalDeclaration(name)
         }
     }
 
@@ -312,6 +333,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileGlobalFunction(statement: GlobalFunctionStatement) {
+        declareGlobalNames(listOf(statement.name))
         val register = nextLocalRegister
         compileFunctionExpression(statement.function, register)
         val name = stringConstantIndex(statement.name)
@@ -389,6 +411,9 @@ internal class Compiler private constructor(
         val upvalue = if (locals[target.name] == null) resolveUpvalue(target.name) else null
         if (upvalue != null && upvalue > 255) {
             throw unsupported(statement, "too many upvalues")
+        }
+        if (locals[target.name] == null && upvalue == null) {
+            requireDeclaredGlobal(target.name, target.range.start)
         }
     }
 
@@ -496,6 +521,7 @@ internal class Compiler private constructor(
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
         val savedNextLocalRegister = nextLocalRegister
+        val savedGlobalDeclarationCount = globalDeclarations.size
         val loopStart = writer.size
 
         enterBlockScope()
@@ -523,6 +549,7 @@ internal class Compiler private constructor(
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
     private fun compileBreak(statement: BreakStatement) {
@@ -886,6 +913,7 @@ internal class Compiler private constructor(
             parentLocalResolver = { name -> locals[name] },
             parentUpvalueResolver = { name -> resolveUpvalue(name) },
             parentConstResolver = { name -> isConstBinding(name) },
+            parentGlobalResolver = { name -> resolveGlobalDeclaration(name) },
         )
         for (parameter in expression.parameters) {
             val slot = compiler.nextLocalRegister++
@@ -936,7 +964,32 @@ internal class Compiler private constructor(
         }
 
         val name = stringConstantIndex(expression.name)
+        requireDeclaredGlobal(expression.name, expression.range.start)
         writer.emit(Instruction.abc(Opcode.GET_GLOBAL, register, name), expression.range.start.line)
+    }
+
+    private fun requireDeclaredGlobal(name: String, position: SourcePosition) {
+        if (!resolveGlobalDeclaration(name).allowed) {
+            throw CompilerException(position, "variable '$name' not declared")
+        }
+    }
+
+    private fun resolveGlobalDeclaration(name: String): GlobalLookup {
+        var hasCurrentGlobalDeclaration = false
+        for (declaration in globalDeclarations.asReversed()) {
+            hasCurrentGlobalDeclaration = true
+            if (declaration.name == null || declaration.name == name) {
+                return GlobalLookup(allowed = true, restricted = true)
+            }
+        }
+        val parentLookup = parentGlobalResolver?.invoke(name)
+        if (parentLookup != null && parentLookup.restricted) {
+            return parentLookup
+        }
+        if (hasCurrentGlobalDeclaration) {
+            return GlobalLookup(allowed = false, restricted = true)
+        }
+        return parentLookup ?: GlobalLookup(allowed = true, restricted = false)
     }
 
     private fun resolveUpvalue(name: String): Int? {
@@ -1218,6 +1271,12 @@ internal class Compiler private constructor(
         nextLocalRegister = savedNextLocalRegister
     }
 
+    private fun restoreGlobalDeclarations(savedCount: Int) {
+        while (globalDeclarations.size > savedCount) {
+            globalDeclarations.removeLast()
+        }
+    }
+
     private fun closeInactiveLocals(savedLocals: Map<String, Int>, endPc: Int) {
         for (local in localVars) {
             if (local.endPc == null && savedLocals[local.name] != local.slot) {
@@ -1242,6 +1301,15 @@ internal class Compiler private constructor(
         val slot: Int,
         val startPc: Int,
         var endPc: Int? = null,
+    )
+
+    private data class GlobalDeclaration(
+        val name: String?,
+    )
+
+    private data class GlobalLookup(
+        val allowed: Boolean,
+        val restricted: Boolean,
     )
 
     private data class PreparedAssignmentTargets(

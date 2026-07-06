@@ -182,7 +182,7 @@ Current implemented areas:
 Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
-- Known Lua 5.5 language gaps include full cross-scope `goto`/label semantics, full global declaration scope/read-only semantics, and to-be-closed local semantics; `<const>` locals are parsed and enforced, initialized regular `global` declarations and `global function` declarations compile with already-defined checks, while declaration-only/wildcard/`<const>` global semantics and `<close>` locals are currently rejected before execution.
+- Known Lua 5.5 language gaps include full cross-scope `goto`/label semantics, full global declaration read-only/shadowing semantics, and to-be-closed local semantics; `<const>` locals are parsed and enforced, regular named/wildcard `global` declaration scopes, initialized regular `global` declarations, and `global function` declarations compile with Lua-style checks, while `<const>` global semantics and `<close>` locals are currently rejected before execution.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
 - Known debug-library gaps include broader cross-thread debug behavior beyond explicit current threads and suspended, normal, and empty-stack KLua coroutine snapshots.
 - Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.5 conformance coverage beyond the current Lua-backed and protected-call yield/resume paths.
