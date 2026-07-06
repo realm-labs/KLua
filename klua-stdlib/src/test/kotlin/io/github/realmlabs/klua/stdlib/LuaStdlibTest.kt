@@ -1069,6 +1069,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports string constant call site names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local name, namewhat
+                debug.setmetatable("", {
+                    __call = function()
+                        local info = debug.getinfo(1, "n")
+                        name = info.name
+                        namewhat = info.namewhat
+                    end,
+                })
+
+                ;("literalCallee")()
+                debug.setmetatable("", nil)
+                return name, namewhat
+                """.trimIndent(),
+                "debug-getinfo-constant-call-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("literalCallee", state.toString(1))
+        assertEquals("constant", state.toString(2))
+    }
+
+    @Test
     fun `debug getinfo reports operator metamethod call site names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

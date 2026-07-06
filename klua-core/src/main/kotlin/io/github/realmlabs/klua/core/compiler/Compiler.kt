@@ -988,6 +988,7 @@ internal class Compiler private constructor(
 
     private fun callSiteInfo(callee: Expression): CallSiteInfo? {
         return when (callee) {
+            is StringExpression -> CallSiteInfo(0, callee.value, "constant")
             is VariableExpression -> CallSiteInfo(0, callee.name, callSiteNameWhat(callee.name))
             is IndexExpression -> {
                 val name = indexCallSiteKeyName(callee.key)
