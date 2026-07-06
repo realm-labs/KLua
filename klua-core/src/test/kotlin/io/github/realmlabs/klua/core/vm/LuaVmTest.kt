@@ -887,6 +887,48 @@ class LuaVmTest {
     }
 
     @Test
+    fun `executes numeric equality without losing integer precision`() {
+        val globals = LuaTable()
+        globals.rawSet(LuaString("max"), LuaInteger(Long.MAX_VALUE))
+        globals.rawSet(LuaString("maxMinusOne"), LuaInteger(Long.MAX_VALUE - 1L))
+        globals.rawSet(LuaString("min"), LuaInteger(Long.MIN_VALUE))
+        globals.rawSet(LuaString("minPlusOne"), LuaInteger(Long.MIN_VALUE + 1L))
+        globals.rawSet(LuaString("oneFloat"), LuaFloat(1.0))
+        globals.rawSet(LuaString("onePointFive"), LuaFloat(1.5))
+        globals.rawSet(LuaString("maxFloat"), LuaFloat(Long.MAX_VALUE.toDouble()))
+        globals.rawSet(LuaString("minFloat"), LuaFloat(Long.MIN_VALUE.toDouble()))
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                return max == maxMinusOne,
+                    max ~= maxMinusOne,
+                    min == minPlusOne,
+                    min ~= minPlusOne,
+                    1 == oneFloat,
+                    1 == onePointFive,
+                    max == maxFloat,
+                    min == minFloat
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaBoolean(false),
+                LuaBoolean(true),
+                LuaBoolean(false),
+                LuaBoolean(true),
+                LuaBoolean(true),
+                LuaBoolean(false),
+                LuaBoolean(false),
+                LuaBoolean(true),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `executes string equality over canonical raw bytes`() {
         val result = LuaVm().execute(
             Compiler.compile(

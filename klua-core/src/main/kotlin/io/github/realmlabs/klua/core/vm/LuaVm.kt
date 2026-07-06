@@ -1375,10 +1375,9 @@ internal class LuaVm(
         }
 
         private fun luaEquals(left: LuaValue, right: LuaValue): Boolean {
-            val leftNumber = numberValue(left)
-            val rightNumber = numberValue(right)
-            if (leftNumber != null && rightNumber != null) {
-                return leftNumber == rightNumber
+            val numericEquality = numericEquals(left, right)
+            if (numericEquality != null) {
+                return numericEquality
             }
             if (left is LuaString && right is LuaString) {
                 return luaByteCompare(left.value, right.value) == 0
@@ -1387,6 +1386,22 @@ internal class LuaVm(
                 return left.value === right.value
             }
             return left == right
+        }
+
+        private fun numericEquals(left: LuaValue, right: LuaValue): Boolean? {
+            return when (left) {
+                is LuaInteger -> when (right) {
+                    is LuaInteger -> left.value == right.value
+                    is LuaFloat -> integerValue(right)?.let { left.value == it } ?: false
+                    else -> null
+                }
+                is LuaFloat -> when (right) {
+                    is LuaInteger -> integerValue(left)?.let { it == right.value } ?: false
+                    is LuaFloat -> left.value == right.value
+                    else -> null
+                }
+                else -> null
+            }
         }
 
         private fun orderedCompare(left: LuaValue, right: LuaValue): Int {
