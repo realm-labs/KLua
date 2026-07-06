@@ -3740,9 +3740,11 @@ class LuaStdlibTest {
                     local outputGetterType = io.type(io.output())
                     local writeOk, writeMessage = pcall(io.write, "x")
                     local flushOk, flushMessage = pcall(io.flush)
+                    local closeOk, closeMessage = pcall(io.close)
 
                     return inputGetterType, readOk, readMessage, linesOk, linesMessage,
-                        outputGetterType, writeOk, writeMessage, flushOk, flushMessage
+                        outputGetterType, writeOk, writeMessage, flushOk, flushMessage,
+                        closeOk, closeMessage
                     """.trimIndent(),
                     "io-default-closed-files.lua",
                 ),
@@ -3759,6 +3761,8 @@ class LuaStdlibTest {
             assertEquals("default output file is closed", state.toString(8))
             assertFalse(state.toBoolean(9))
             assertEquals("default output file is closed", state.toString(10))
+            assertFalse(state.toBoolean(11))
+            assertEquals("attempt to use a closed file", state.toString(12))
         } finally {
             Files.deleteIfExists(inputPath)
             Files.deleteIfExists(outputPath)

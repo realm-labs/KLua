@@ -141,7 +141,7 @@ internal object LuaIoLibrary {
 
     private fun ioClose(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
         val handle = if (context.isNone(1)) {
-            defaultOutput(defaultFiles)
+            currentOutput(defaultFiles)
         } else {
             context.toUserData(1, IoFileHandle::class.java)
                 ?: throw LuaRuntimeException("bad argument #1 to 'io.close' (FILE* expected)")
