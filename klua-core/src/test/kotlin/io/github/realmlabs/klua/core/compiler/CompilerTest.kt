@@ -1047,6 +1047,56 @@ class CompilerTest {
     }
 
     @Test
+    fun `later named global declarations shadow earlier locals`() {
+        val prototype = Compiler.compile(
+            """
+            local answer = 1
+            global answer
+            answer = 2
+            return answer
+            """.trimIndent(),
+            "global-shadows-local.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [3]  LOAD_INT R1 2
+            0002  [3]  SET_GLOBAL K0 R1 ; "answer"
+            0003  [4]  GET_GLOBAL R1 K0 ; "answer"
+            0004  [4]  MOVE R0 R1
+            0005  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `later wildcard global declarations do not shadow earlier locals`() {
+        val prototype = Compiler.compile(
+            """
+            local answer = 1
+            global *
+            answer = 2
+            return answer
+            """.trimIndent(),
+            "wildcard-global-keeps-local.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [3]  LOAD_INT R1 2
+            0002  [3]  MOVE R0 R1
+            0003  [4]  MOVE R1 R0
+            0004  [4]  MOVE R0 R1
+            0005  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
     fun `rejects vararg expressions outside vararg functions`() {
         val error = assertFailsWith<CompilerException> {
             Compiler.compile("return ...", "bad-vararg.lua")

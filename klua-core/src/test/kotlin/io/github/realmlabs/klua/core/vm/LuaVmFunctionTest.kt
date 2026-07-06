@@ -98,6 +98,44 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `later named global declarations shadow earlier locals at runtime`() {
+        val globals = LuaTable()
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                local answer = 1
+                global answer
+                answer = 42
+                return answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+        assertEquals(LuaInteger(42), globals.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `later wildcard global declarations do not shadow earlier locals at runtime`() {
+        val globals = LuaTable()
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                local answer = 1
+                global *
+                answer = 42
+                return answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+        assertEquals(LuaNil, globals.rawGet(LuaString("answer")))
+    }
+
+    @Test
     fun `global function declarations reject existing globals`() {
         val globals = LuaTable()
         globals.rawSet(LuaString("add"), LuaInteger(99))

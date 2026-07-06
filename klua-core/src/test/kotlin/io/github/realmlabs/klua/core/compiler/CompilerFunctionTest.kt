@@ -154,6 +154,38 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `nested functions do not capture locals shadowed by later global declarations`() {
+        val prototype = Compiler.compile(
+            """
+            local answer = 1
+            global answer
+            return function()
+                return answer
+            end
+            """.trimIndent(),
+            "nested-global-shadows-local.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [3]  CLOSURE R1 P0
+            0002  [3]  MOVE R0 R1
+            0003  [3]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+        assertEquals(
+            """
+            0000  [4]  GET_GLOBAL R0 K0 ; "answer"
+            0001  [4]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype.nested.single()),
+        )
+        assertEquals(emptyList(), prototype.nested.single().upvalues.toList())
+    }
+
+    @Test
     fun `compiles simple function calls`() {
         val prototype = Compiler.compile(
             """

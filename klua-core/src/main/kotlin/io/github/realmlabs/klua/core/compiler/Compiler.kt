@@ -70,6 +70,7 @@ internal class Compiler private constructor(
     private val nested = mutableListOf<Prototype>()
     private val locals = linkedMapOf<String, Int>()
     private val localAttributes = linkedMapOf<String, LocalAttribute>()
+    private val localDeclarationOrders = linkedMapOf<String, Int>()
     private val globalDeclarations = mutableListOf<GlobalDeclaration>()
     private val upvalues = mutableListOf<UpvalueDescriptor>()
     private val upvalueIndexes = linkedMapOf<String, Int>()
@@ -83,6 +84,7 @@ internal class Compiler private constructor(
     private var maxRegister = 0
     private var hasCapturedLocals = false
     private var nextBlockScopeId = 1
+    private var nextDeclarationOrder = 0
 
     fun compile(chunk: Chunk): Prototype {
         if (chunk.statements.isEmpty()) {
@@ -146,6 +148,7 @@ internal class Compiler private constructor(
     private fun compileScopedBlock(statements: List<Statement>) {
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
         enterBlockScope()
@@ -157,7 +160,7 @@ internal class Compiler private constructor(
                 statements.lastOrNull()?.range?.end?.line ?: 0,
             )
         }
-        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -165,6 +168,7 @@ internal class Compiler private constructor(
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
         val baseRegister = nextLocalRegister
@@ -199,7 +203,7 @@ internal class Compiler private constructor(
         patchForTest(testIndex, writer.size)
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
-        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -207,6 +211,7 @@ internal class Compiler private constructor(
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
         val iteratorBase = nextLocalRegister
@@ -254,7 +259,7 @@ internal class Compiler private constructor(
         patchTest(testIndex, writer.size)
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
-        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -279,7 +284,11 @@ internal class Compiler private constructor(
 
     private fun compileGlobal(statement: GlobalStatement) {
         if (statement.wildcard) {
-            globalDeclarations += GlobalDeclaration(name = null, isConst = statement.attributes.singleOrNull() == LocalAttribute.CONST)
+            globalDeclarations += GlobalDeclaration(
+                name = null,
+                isConst = statement.attributes.singleOrNull() == LocalAttribute.CONST,
+                order = nextDeclarationOrder++,
+            )
             return
         }
         if (statement.values.isEmpty()) {
@@ -299,7 +308,11 @@ internal class Compiler private constructor(
 
     private fun declareGlobalNames(names: List<String>, attributes: List<LocalAttribute> = List(names.size) { LocalAttribute.NONE }) {
         for ((index, name) in names.withIndex()) {
-            globalDeclarations += GlobalDeclaration(name, isConst = attributes[index] == LocalAttribute.CONST)
+            globalDeclarations += GlobalDeclaration(
+                name,
+                isConst = attributes[index] == LocalAttribute.CONST,
+                order = nextDeclarationOrder++,
+            )
         }
     }
 
@@ -312,6 +325,7 @@ internal class Compiler private constructor(
     private fun registerLocal(name: String, slot: Int, attribute: LocalAttribute) {
         locals[name] = slot
         localAttributes[name] = attribute
+        localDeclarationOrders[name] = nextDeclarationOrder++
         localVars += LocalVarBuilder(name, slot, writer.size)
     }
 
@@ -399,17 +413,22 @@ internal class Compiler private constructor(
     }
 
     private fun validateAssignmentTarget(target: LocalAssignmentTarget, statement: AssignmentStatement) {
-        if (locals[target.name] != null && localAttributes[target.name] == LocalAttribute.CONST) {
+        val localSlot = resolveCurrentLocalSlot(target.name)
+        if (localSlot != null && localAttributes[target.name] == LocalAttribute.CONST) {
             throw constAssignmentError(target)
         }
-        if (locals[target.name] == null && parentConstResolver?.invoke(target.name) == true) {
+        if (localSlot == null && resolveCurrentGlobalDeclaration(target.name) == null && parentConstResolver?.invoke(target.name) == true) {
             throw constAssignmentError(target)
         }
-        val upvalue = if (locals[target.name] == null) resolveUpvalue(target.name) else null
+        val upvalue = if (localSlot == null && resolveCurrentGlobalDeclaration(target.name) == null) {
+            resolveUpvalue(target.name)
+        } else {
+            null
+        }
         if (upvalue != null && upvalue > 255) {
             throw unsupported(statement, "too many upvalues")
         }
-        if (locals[target.name] == null && upvalue == null) {
+        if (localSlot == null && upvalue == null) {
             val global = requireDeclaredGlobal(target.name, target.range.start)
             if (global.isConst) {
                 throw constAssignmentError(target)
@@ -447,11 +466,15 @@ internal class Compiler private constructor(
     }
 
     private fun assignLocalTarget(statement: AssignmentStatement, target: LocalAssignmentTarget, valueRegister: Int) {
-        val targetSlot = locals[target.name]
+        val targetSlot = resolveCurrentLocalSlot(target.name)
         if (targetSlot != null) {
             writer.emit(Instruction.abc(Opcode.MOVE, targetSlot, valueRegister), statement.range.start.line)
         } else {
-            val upvalue = resolveUpvalue(target.name)
+            val upvalue = if (resolveCurrentGlobalDeclaration(target.name) == null) {
+                resolveUpvalue(target.name)
+            } else {
+                null
+            }
             if (upvalue != null) {
                 writer.emit(Instruction.abc(Opcode.SET_UPVALUE, upvalue, valueRegister), statement.range.start.line)
             } else {
@@ -520,6 +543,7 @@ internal class Compiler private constructor(
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
         val loopStart = writer.size
@@ -548,7 +572,7 @@ internal class Compiler private constructor(
         }
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
-        restoreLocals(savedLocals, savedLocalAttributes, savedNextLocalRegister)
+        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -884,10 +908,10 @@ internal class Compiler private constructor(
     }
 
     private fun callSiteNameWhat(name: String): String {
-        if (locals.containsKey(name)) {
+        if (resolveCurrentLocalSlot(name) != null) {
             return "local"
         }
-        if (resolveUpvalue(name) != null) {
+        if (resolveCurrentGlobalDeclaration(name) == null && resolveUpvalue(name) != null) {
             return "upvalue"
         }
         return "global"
@@ -910,8 +934,14 @@ internal class Compiler private constructor(
         val compiler = Compiler(
             sourceName = sourceName,
             isVarargFunction = expression.isVararg,
-            parentLocalResolver = { name -> locals[name] },
-            parentUpvalueResolver = { name -> resolveUpvalue(name) },
+            parentLocalResolver = { name -> resolveCurrentLocalSlot(name) },
+            parentUpvalueResolver = { name ->
+                if (resolveCurrentGlobalDeclaration(name) == null) {
+                    resolveUpvalue(name)
+                } else {
+                    null
+                }
+            },
             parentConstResolver = { name -> isConstBinding(name) },
             parentGlobalResolver = { name -> resolveGlobalDeclaration(name) },
         )
@@ -946,7 +976,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileVariable(expression: VariableExpression, register: Int) {
-        val source = locals[expression.name]
+        val source = resolveCurrentLocalSlot(expression.name)
         if (source != null) {
             if (source != register) {
                 writer.emit(Instruction.abc(Opcode.MOVE, register, source), expression.range.start.line)
@@ -954,7 +984,11 @@ internal class Compiler private constructor(
             return
         }
 
-        val upvalue = resolveUpvalue(expression.name)
+        val upvalue = if (resolveCurrentGlobalDeclaration(expression.name) == null) {
+            resolveUpvalue(expression.name)
+        } else {
+            null
+        }
         if (upvalue != null) {
             if (upvalue > 255) {
                 throw unsupported(expression, "too many upvalues")
@@ -981,7 +1015,12 @@ internal class Compiler private constructor(
         for (declaration in globalDeclarations.asReversed()) {
             hasCurrentGlobalDeclaration = true
             if (declaration.name == null || declaration.name == name) {
-                return GlobalLookup(allowed = true, restricted = true, isConst = declaration.isConst)
+                return GlobalLookup(
+                    allowed = true,
+                    restricted = true,
+                    isConst = declaration.isConst,
+                    order = if (declaration.name == name) declaration.order else null,
+                )
             }
         }
         val parentLookup = parentGlobalResolver?.invoke(name)
@@ -989,9 +1028,20 @@ internal class Compiler private constructor(
             return parentLookup
         }
         if (hasCurrentGlobalDeclaration) {
-            return GlobalLookup(allowed = false, restricted = true, isConst = false)
+            return GlobalLookup(allowed = false, restricted = true, isConst = false, order = null)
         }
-        return parentLookup ?: GlobalLookup(allowed = true, restricted = false, isConst = false)
+        return parentLookup ?: GlobalLookup(allowed = true, restricted = false, isConst = false, order = null)
+    }
+
+    private fun resolveCurrentLocalSlot(name: String): Int? {
+        val slot = locals[name] ?: return null
+        val localOrder = localDeclarationOrders[name] ?: return slot
+        val globalOrder = resolveCurrentGlobalDeclaration(name)?.order ?: return slot
+        return if (globalOrder > localOrder) null else slot
+    }
+
+    private fun resolveCurrentGlobalDeclaration(name: String): GlobalDeclaration? {
+        return globalDeclarations.asReversed().firstOrNull { declaration -> declaration.name == name }
     }
 
     private fun resolveUpvalue(name: String): Int? {
@@ -1004,9 +1054,10 @@ internal class Compiler private constructor(
     }
 
     private fun isConstBinding(name: String): Boolean {
-        if (locals.containsKey(name)) {
+        if (resolveCurrentLocalSlot(name) != null) {
             return localAttributes[name] == LocalAttribute.CONST
         }
+        resolveCurrentGlobalDeclaration(name)?.let { global -> return global.isConst }
         return parentConstResolver?.invoke(name) == true
     }
 
@@ -1263,6 +1314,7 @@ internal class Compiler private constructor(
     private fun restoreLocals(
         savedLocals: LinkedHashMap<String, Int>,
         savedLocalAttributes: LinkedHashMap<String, LocalAttribute>,
+        savedLocalDeclarationOrders: LinkedHashMap<String, Int>,
         savedNextLocalRegister: Int,
     ) {
         closeInactiveLocals(savedLocals, writer.size)
@@ -1270,6 +1322,8 @@ internal class Compiler private constructor(
         locals.putAll(savedLocals)
         localAttributes.clear()
         localAttributes.putAll(savedLocalAttributes)
+        localDeclarationOrders.clear()
+        localDeclarationOrders.putAll(savedLocalDeclarationOrders)
         nextLocalRegister = savedNextLocalRegister
     }
 
@@ -1308,12 +1362,14 @@ internal class Compiler private constructor(
     private data class GlobalDeclaration(
         val name: String?,
         val isConst: Boolean,
+        val order: Int,
     )
 
     private data class GlobalLookup(
         val allowed: Boolean,
         val restricted: Boolean,
         val isConst: Boolean,
+        val order: Int?,
     )
 
     private data class PreparedAssignmentTargets(
