@@ -1385,8 +1385,18 @@ internal class LuaVm(
                 SUB -> LuaInteger(left - right)
                 MUL -> LuaInteger(left * right)
                 DIV -> LuaFloat(left.toDouble() / right.toDouble())
-                IDIV -> LuaInteger(Math.floorDiv(left, right))
-                MOD -> LuaInteger(Math.floorMod(left, right))
+                IDIV -> {
+                    if (right == 0L) {
+                        throw LuaVmException("attempt to divide by zero")
+                    }
+                    LuaInteger(Math.floorDiv(left, right))
+                }
+                MOD -> {
+                    if (right == 0L) {
+                        throw LuaVmException("attempt to perform 'n%0'")
+                    }
+                    LuaInteger(Math.floorMod(left, right))
+                }
                 POW -> LuaFloat(Math.pow(left.toDouble(), right.toDouble()))
             }
         }

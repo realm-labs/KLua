@@ -110,6 +110,19 @@ class LuaVmTest {
     }
 
     @Test
+    fun `reports integer division and modulo by zero as lua errors`() {
+        val divisionError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("return 1 // 0"))
+        }
+        val moduloError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(Compiler.compile("return 1 % 0"))
+        }
+
+        assertEquals("attempt to divide by zero", divisionError.message)
+        assertEquals("attempt to perform 'n%0'", moduloError.message)
+    }
+
+    @Test
     fun `executes float arithmetic expressions`() {
         val result = LuaVm().execute(
             Compiler.compile("return 7 / 2, 2 ^ 3, -(1 + 2.5), -3.5 % 2.0, 3.5 % -2.0"),
