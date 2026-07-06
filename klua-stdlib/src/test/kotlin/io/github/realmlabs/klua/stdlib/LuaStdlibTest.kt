@@ -3546,8 +3546,7 @@ class LuaStdlibTest {
                 local handle = assert(io.popen("$command", "r"))
                 local output = handle:read("*a")
                 local closeOk, kind, code = handle:close()
-                local writeOk, writeMessage = pcall(io.popen, "$command", "w")
-                return output, closeOk, kind, code, writeOk, writeMessage
+                return output, closeOk, kind, code
                 """.trimIndent(),
                 "io-popen-read.lua",
             ),
@@ -3558,8 +3557,49 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("exit", state.toString(3))
         assertEquals(0L, state.toInteger(4))
-        assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #2 to 'io.popen' (write mode is not supported)", state.toString(6))
+    }
+
+    @Test
+    fun `io popen writes process input`() {
+        val outputPath = Files.createTempFile("klua-popen-write-", ".txt")
+        val command = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "more > \"${outputPath.luaPath()}\""
+        } else {
+            "cat > \"${outputPath.luaPath()}\""
+        }
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.popen('$command', 'w'))
+                    local writeResult = handle:write("alpha\n", "beta\n")
+                    local closeOk, kind, code = handle:close()
+                    local badModeOk, badModeMessage = pcall(io.popen, '$command', 'a')
+                    return writeResult == handle, closeOk, kind, code, badModeOk, badModeMessage
+                    """.trimIndent(),
+                    "io-popen-write.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertTrue(state.toBoolean(2))
+            assertEquals("exit", state.toString(3))
+            assertEquals(0L, state.toInteger(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(6))
+            val output = Files.readString(outputPath)
+                .replace("\r\n", "\n")
+                .replace(Regex("\n+\\z"), "\n")
+            assertEquals("alpha\nbeta\n", output)
+        } finally {
+            Files.deleteIfExists(outputPath)
+        }
     }
 
     @Test

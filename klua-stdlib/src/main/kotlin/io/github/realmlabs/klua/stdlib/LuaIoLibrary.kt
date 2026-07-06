@@ -88,24 +88,33 @@ internal object LuaIoLibrary {
         } else {
             requiredString(context, 2, "io.popen")
         }
-        val normalizedMode = mode.removeSuffix("b")
-        if (normalizedMode != "r") {
-            throw LuaRuntimeException("bad argument #2 to 'io.popen' (write mode is not supported)")
+        val normalizedMode = mode.removeSuffix("b").removeSuffix("t")
+        if (normalizedMode != "r" && normalizedMode != "w") {
+            throw LuaRuntimeException("bad argument #2 to 'io.popen' (invalid mode)")
         }
         return try {
-            val process = ProcessBuilder(shellCommand(command))
-                .redirectError(ProcessBuilder.Redirect.DISCARD)
-                .start()
-            val output = process.inputStream.use { stream -> stream.readBytes() }
-            val exitCode = process.waitFor()
-            val path = Files.createTempFile("klua-popen-", ".tmp")
-            Files.write(path, output)
-            val file = RandomAccessFile(path.toFile(), "r")
-            LuaReturn.of(
-                IoFileHandle(path, file, deleteOnClose = true) {
-                    processCloseResult(exitCode)
-                },
-            )
+            if (normalizedMode == "r") {
+                val process = ProcessBuilder(shellCommand(command))
+                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .start()
+                val output = process.inputStream.use { stream -> stream.readBytes() }
+                val exitCode = process.waitFor()
+                val path = Files.createTempFile("klua-popen-", ".tmp")
+                Files.write(path, output)
+                val file = RandomAccessFile(path.toFile(), "r")
+                LuaReturn.of(
+                    IoFileHandle(path, file, deleteOnClose = true) {
+                        processCloseResult(exitCode)
+                    },
+                )
+            } else {
+                val path = Files.createTempFile("klua-popen-", ".tmp")
+                LuaReturn.of(
+                    IoFileHandle(path, RandomAccessFile(path.toFile(), "rw"), deleteOnClose = true) {
+                        writeProcessCloseResult(command, path)
+                    },
+                )
+            }
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         } catch (error: SecurityException) {
@@ -191,10 +200,11 @@ internal object LuaIoLibrary {
         return try {
             handle.closed = true
             handle.file.close()
+            val result = handle.closeResult?.invoke() ?: LuaReturn.of(true)
             if (handle.deleteOnClose && handle.path != null) {
                 Files.deleteIfExists(handle.path)
             }
-            handle.closeResult?.invoke() ?: LuaReturn.of(true)
+            result
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         }
@@ -376,6 +386,26 @@ internal object LuaIoLibrary {
             LuaReturn.of(true, "exit", 0L)
         } else {
             LuaReturn.of(null, "exit", exitCode.toLong())
+        }
+    }
+
+    private fun writeProcessCloseResult(command: String, inputPath: Path): LuaReturn {
+        return try {
+            val process = ProcessBuilder(shellCommand(command))
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+            process.outputStream.use { output ->
+                Files.newInputStream(inputPath).use { input ->
+                    input.copyTo(output)
+                }
+            }
+            processCloseResult(process.waitFor())
+        } catch (error: IOException) {
+            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw LuaRuntimeException("interrupted while closing process")
         }
     }
 
