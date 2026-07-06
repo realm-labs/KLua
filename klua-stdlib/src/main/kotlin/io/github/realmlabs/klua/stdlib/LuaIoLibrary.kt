@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -15,6 +16,7 @@ internal object LuaIoLibrary {
         state.registerType(IoFileHandle::class.java) { type ->
             type.method("close") { receiver, _ -> closeHandle(receiver) }
             type.method("flush") { receiver, _ -> flushHandle(receiver) }
+            type.method("lines") { receiver, context -> linesHandle(receiver, context, closeOnEnd = false) }
             type.method("read") { receiver, context -> readHandle(receiver, context) }
             type.method("seek") { receiver, context -> seekHandle(receiver, context) }
             type.method("write") { receiver, context -> writeHandle(receiver, context) }
@@ -23,6 +25,7 @@ internal object LuaIoLibrary {
         state.newTable()
         setFunctionField(state, "close", ::ioClose)
         setFunctionField(state, "flush") { _ -> LuaReturn.of(true) }
+        setFunctionField(state, "lines", ::ioLines)
         setFunctionField(state, "open", ::ioOpen)
         setFunctionField(state, "tmpfile", ::ioTmpFile)
         setFunctionField(state, "type", ::ioType)
@@ -37,6 +40,10 @@ internal object LuaIoLibrary {
         } else {
             requiredString(context, 2, "io.open")
         }
+        return ioOpenValue(filename, mode)
+    }
+
+    private fun ioOpenValue(filename: String, mode: String): LuaReturn {
         val parsed = parseMode(mode)
             ?: throw LuaRuntimeException("bad argument #2 to 'io.open' (invalid mode)")
         return try {
@@ -72,6 +79,18 @@ internal object LuaIoLibrary {
         return closeHandle(handle)
     }
 
+    private fun ioLines(context: LuaCallContext): LuaReturn {
+        if (context.isNone(1) || context.isNil(1)) {
+            throw LuaRuntimeException("default input is not supported")
+        }
+        val filename = requiredString(context, 1, "io.lines")
+        val openResult = ioOpenValue(filename, "r")
+        val handle = openResult.values.firstOrNull() as? IoFileHandle ?: return openResult
+        val formats = (2..context.argumentCount).map { index -> context.get(index) }
+        val iterator = lineIterator(handle, formats, closeOnEnd = true)
+        return LuaReturn.of(iterator, null, null, handle)
+    }
+
     private fun ioType(context: LuaCallContext): LuaReturn {
         val handle = context.toUserData(1, IoFileHandle::class.java) ?: return LuaReturn.of(null)
         return LuaReturn.of(if (handle.closed) "closed file" else "file")
@@ -105,19 +124,41 @@ internal object LuaIoLibrary {
 
     private fun readHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
         handle.ensureOpen()
-        if (context.argumentCount == 0) {
-            return LuaReturn.of(handle.readLine())
-        }
-        val results = mutableListOf<Any?>()
-        for (index in 1..context.argumentCount) {
-            val format = context.get(index)
-            results += when (format) {
-                "a", "*a" -> handle.readAll()
-                "l", "*l" -> handle.readLine()
-                else -> throw LuaRuntimeException("bad argument #$index to 'read' (unsupported format)")
+        return LuaReturn.ofValues(readFormats(handle, (1..context.argumentCount).map { index -> context.get(index) }))
+    }
+
+    private fun linesHandle(handle: IoFileHandle, context: LuaCallContext, closeOnEnd: Boolean): LuaReturn {
+        handle.ensureOpen()
+        val formats = (1..context.argumentCount).map { index -> context.get(index) }
+        return LuaReturn.of(lineIterator(handle, formats, closeOnEnd))
+    }
+
+    private fun lineIterator(handle: IoFileHandle, formats: List<Any?>, closeOnEnd: Boolean): LuaFunction {
+        return LuaFunction {
+            val values = readFormats(handle, formats)
+            if (values.firstOrNull() == null) {
+                if (closeOnEnd && !handle.closed) {
+                    closeHandle(handle)
+                }
+                LuaReturn.none()
+            } else {
+                LuaReturn.ofValues(values)
             }
         }
-        return LuaReturn.ofValues(results)
+    }
+
+    private fun readFormats(handle: IoFileHandle, formats: List<Any?>): List<Any?> {
+        handle.ensureOpen()
+        if (formats.isEmpty()) {
+            return listOf(handle.readLine())
+        }
+        return formats.mapIndexed { index, format ->
+            when (format) {
+                "a", "*a" -> handle.readAll()
+                "l", "*l" -> handle.readLine()
+                else -> throw LuaRuntimeException("bad argument #${index + 1} to 'read' (unsupported format)")
+            }
+        }
     }
 
     private fun writeHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {

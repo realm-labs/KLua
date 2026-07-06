@@ -3265,6 +3265,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io lines iterates file handles and named files`() {
+        val path = Files.createTempFile("klua-io-lines-", ".txt")
+        Files.writeString(path, "one\n\ntwo\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local fromHandle = {}
+                    for line in handle:lines() do
+                        fromHandle[#fromHandle + 1] = line
+                    end
+                    local stillOpen = io.type(handle)
+                    handle:close()
+
+                    local iterator, stateValue, control, closeFile = io.lines("${path.luaPath()}")
+                    local first = iterator(stateValue, control)
+                    local second = iterator(stateValue, first)
+                    local third = iterator(stateValue, second)
+                    local done = iterator(stateValue, third)
+                    local closed = io.type(closeFile)
+                    return fromHandle[1], fromHandle[2], fromHandle[3], fromHandle[4],
+                        stillOpen, first, second, third, done, closed
+                    """.trimIndent(),
+                    "io-lines.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("one", state.toString(1))
+            assertEquals("", state.toString(2))
+            assertEquals("two", state.toString(3))
+            assertTrue(state.isNil(4))
+            assertEquals("file", state.toString(5))
+            assertEquals("one", state.toString(6))
+            assertEquals("", state.toString(7))
+            assertEquals("two", state.toString(8))
+            assertTrue(state.isNil(9))
+            assertEquals("closed file", state.toString(10))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `debug sethook and gethook accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -10675,7 +10725,7 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return type(io), type(io.open), type(io.tmpfile), type(io.type), type(io.close)
+                return type(io), type(io.open), type(io.tmpfile), type(io.type), type(io.close), type(io.lines)
                 """.trimIndent(),
                 "open-libs-io.lua",
             ),
@@ -10687,6 +10737,7 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(3))
         assertEquals("function", state.toString(4))
         assertEquals("function", state.toString(5))
+        assertEquals("function", state.toString(6))
     }
 
     @Test
