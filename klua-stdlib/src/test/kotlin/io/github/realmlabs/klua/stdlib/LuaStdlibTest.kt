@@ -3535,6 +3535,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read formats use leading source selector`() {
+        val path = Files.createTempFile("klua-io-read-selector-", ".txt")
+        Files.writeString(path, "alpha\nbeta")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local line = handle:read("line")
+                    local rest = handle:read("*all")
+                    handle:close()
+
+                    local numeric = assert(io.open("${path.luaPath()}", "r"))
+                    local numberProbe = numeric:read("nope")
+                    local afterProbe = numeric:read(5)
+                    numeric:close()
+
+                    local invalid = assert(io.open("${path.luaPath()}", "r"))
+                    local invalidOk, invalidMessage = pcall(function()
+                        return invalid:read("*")
+                    end)
+                    invalid:close()
+
+                    return line, rest, numberProbe, afterProbe, invalidOk, invalidMessage
+                    """.trimIndent(),
+                    "io-read-leading-selector.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("alpha", state.toString(1))
+            assertEquals("beta", state.toString(2))
+            assertTrue(state.isNil(3))
+            assertEquals("alpha", state.toString(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #1 to 'read' (invalid format)", state.toString(6))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io input and output route module level reads and writes`() {
         val inputPath = Files.createTempFile("klua-io-input-", ".txt")
         val outputPath = Files.createTempFile("klua-io-output-", ".txt")

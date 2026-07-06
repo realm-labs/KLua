@@ -310,12 +310,14 @@ internal object LuaIoLibrary {
                     "bad argument #$index to '$functionName' (number has no integer representation)",
                 )
             }
-            when (val format = context.toString(index)) {
-                "a", "*a" -> IoReadFormat.All
-                "l", "*l" -> IoReadFormat.Line
-                "L", "*L" -> IoReadFormat.LineWithNewline
-                "n", "*n" -> IoReadFormat.Number
-                null -> throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+            val format = context.toString(index)
+                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+            val selectorIndex = if (format.startsWith("*")) 1 else 0
+            when (format.getOrNull(selectorIndex)) {
+                'a' -> IoReadFormat.All
+                'l' -> IoReadFormat.Line
+                'L' -> IoReadFormat.LineWithNewline
+                'n' -> IoReadFormat.Number
                 else -> throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid format)")
             }
         }
