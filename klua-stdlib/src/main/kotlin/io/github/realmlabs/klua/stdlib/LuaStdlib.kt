@@ -511,12 +511,30 @@ public object LuaStdlib {
         return when (leftType) {
             "nil" -> true
             "boolean" -> context.toBoolean(leftIndex) == context.toBoolean(rightIndex)
-            "number" -> context.toNumber(leftIndex) == context.toNumber(rightIndex)
+            "number" -> rawNumberEqual(context.get(leftIndex), context.get(rightIndex))
             "string" -> context.toString(leftIndex) == context.toString(rightIndex)
             "table" -> context.getTable(leftIndex) === context.getTable(rightIndex)
             "userdata" -> context.toUserData(leftIndex) === context.toUserData(rightIndex)
             "function" -> context.getLuaValue(leftIndex) === context.getLuaValue(rightIndex)
             else -> false
+        }
+    }
+
+    private fun rawNumberEqual(left: Any?, right: Any?): Boolean {
+        val leftInteger = left.luaIntegerSubtype()
+        val rightInteger = right.luaIntegerSubtype()
+        if (leftInteger != null) {
+            return if (rightInteger != null) {
+                leftInteger == rightInteger
+            } else {
+                (right as? Number)?.toDouble()?.luaInteger()?.let { leftInteger == it } ?: false
+            }
+        }
+        val leftNumber = (left as? Number)?.toDouble() ?: return false
+        return if (rightInteger != null) {
+            leftNumber.luaInteger()?.let { it == rightInteger } ?: false
+        } else {
+            leftNumber == (right as? Number)?.toDouble()
         }
     }
 
@@ -1048,7 +1066,26 @@ public object LuaStdlib {
         return value.mod(UINT64_MODULUS).toLong()
     }
 
+    private fun Any?.luaIntegerSubtype(): Long? {
+        return when (this) {
+            is Byte -> toLong()
+            is Short -> toLong()
+            is Int -> toLong()
+            is Long -> this
+            else -> null
+        }
+    }
+
+    private fun Double.luaInteger(): Long? {
+        if (!isFinite() || this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
+            return null
+        }
+        val integer = toLong()
+        return if (integer.toDouble() == this) integer else null
+    }
+
     private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
+    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private val DEFAULT_GARBAGE_COLLECTOR_PARAMS: Map<String, Long> = mapOf(
         "minormul" to 20L,
         "majorminor" to 50L,

@@ -7807,6 +7807,9 @@ class LuaStdlibTest {
                 local otherFunction = function() end
                 local threadValue = coroutine.create(function() end)
                 local otherThread = coroutine.create(function() end)
+                local max = math.maxinteger
+                local maxMinusOne = math.maxinteger - 1
+                local min = math.mininteger
                 return rawequal(nil, nil),
                     rawequal(1, 1.0),
                     rawequal("x", "x"),
@@ -7820,7 +7823,10 @@ class LuaStdlibTest {
                     rawequal(functionValue, otherFunction),
                     rawequal(threadValue, threadValue),
                     rawequal(threadValue, otherThread),
-                    rawequal(equalByMetamethod, {})
+                    rawequal(equalByMetamethod, {}),
+                    rawequal(max, maxMinusOne),
+                    rawequal(max, max + 0.0),
+                    rawequal(min, min + 0.0)
                 """.trimIndent(),
                 "rawequal.lua",
             ),
@@ -7841,6 +7847,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(12))
         assertFalse(state.toBoolean(13))
         assertFalse(state.toBoolean(14))
+        assertFalse(state.toBoolean(15))
+        assertFalse(state.toBoolean(16))
+        assertTrue(state.toBoolean(17))
     }
 
     @Test
