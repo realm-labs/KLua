@@ -1268,14 +1268,18 @@ internal class LuaVm(
             if (stepValue.value == 0L) {
                 throw LuaVmException("'for' step is zero")
             }
-            val limitInteger = forIntegerLimitValue(limitValue, stepValue.value)
-            if (limitInteger != null) {
-                stack.set(base + 1, LuaInteger(limitInteger))
-                return if (stepValue.value > 0L) {
-                    indexValue.value <= limitInteger
-                } else {
-                    indexValue.value >= limitInteger
+            when (val limit = forIntegerLimit(limitValue, stepValue.value)) {
+                is ForIntegerLimit.Run -> {
+                    val limitInteger = limit.value
+                    stack.set(base + 1, LuaInteger(limitInteger))
+                    return if (stepValue.value > 0L) {
+                        indexValue.value <= limitInteger
+                    } else {
+                        indexValue.value >= limitInteger
+                    }
                 }
+                ForIntegerLimit.Skip -> return false
+                ForIntegerLimit.Invalid -> throw LuaVmException("numeric for limit must be a number")
             }
         }
         val index = forNumberValue(indexValue)
@@ -1299,13 +1303,17 @@ internal class LuaVm(
         val limit = stack.get(base + 1)
         val step = stack.get(base + 2)
         if (index is LuaInteger && step is LuaInteger) {
-            val limitInteger = forIntegerLimitValue(limit, step.value)
-            if (limitInteger != null && integerForHasNext(index.value, limitInteger, step.value)) {
-                stack.set(base, LuaInteger(index.value + step.value))
-                return true
-            }
-            if (limitInteger != null) {
-                return false
+            when (val integerLimit = forIntegerLimit(limit, step.value)) {
+                is ForIntegerLimit.Run -> {
+                    val limitInteger = integerLimit.value
+                    if (integerForHasNext(index.value, limitInteger, step.value)) {
+                        stack.set(base, LuaInteger(index.value + step.value))
+                        return true
+                    }
+                    return false
+                }
+                ForIntegerLimit.Skip -> return false
+                ForIntegerLimit.Invalid -> throw LuaVmException("numeric for limit must be a number")
             }
         }
 
@@ -1601,15 +1609,38 @@ private fun forNumberValue(value: LuaValue): Double? {
     }
 }
 
-private fun forIntegerLimitValue(value: LuaValue, step: Long): Long? {
+private sealed interface ForIntegerLimit {
+    data class Run(val value: Long) : ForIntegerLimit
+    data object Skip : ForIntegerLimit
+    data object Invalid : ForIntegerLimit
+}
+
+private fun forIntegerLimit(value: LuaValue, step: Long): ForIntegerLimit {
     return when (value) {
-        is LuaInteger -> value.value
-        is LuaFloat -> if (step > 0L) value.value.luaFloorToInteger() else value.value.luaCeilToInteger()
-        is LuaString -> luaIntegerFromString(value.value)
-            ?: luaNumberFromString(value.value)?.let { number ->
-                if (step > 0L) number.luaFloorToInteger() else number.luaCeilToInteger()
+        is LuaInteger -> ForIntegerLimit.Run(value.value)
+        is LuaFloat -> forIntegerLimitFromNumber(value.value, step)
+        is LuaString -> {
+            val integer = luaIntegerFromString(value.value)
+            if (integer != null) {
+                ForIntegerLimit.Run(integer)
+            } else {
+                val number = luaNumberFromString(value.value) ?: return ForIntegerLimit.Invalid
+                forIntegerLimitFromNumber(number, step)
             }
-        else -> null
+        }
+        else -> ForIntegerLimit.Invalid
+    }
+}
+
+private fun forIntegerLimitFromNumber(value: Double, step: Long): ForIntegerLimit {
+    val limit = if (step > 0L) value.luaFloorToInteger() else value.luaCeilToInteger()
+    if (limit != null) {
+        return ForIntegerLimit.Run(limit)
+    }
+    return if (value > 0.0) {
+        if (step < 0L) ForIntegerLimit.Skip else ForIntegerLimit.Run(Long.MAX_VALUE)
+    } else {
+        if (step > 0L) ForIntegerLimit.Skip else ForIntegerLimit.Run(Long.MIN_VALUE)
     }
 }
 

@@ -1678,6 +1678,57 @@ class LuaVmTest {
     }
 
     @Test
+    fun `numeric for loop clamps out of range integer limits`() {
+        val globals = LuaTable()
+        globals.rawSet(LuaString("max"), LuaInteger(Long.MAX_VALUE))
+        globals.rawSet(LuaString("min"), LuaInteger(Long.MIN_VALUE))
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                local highCount = 0
+                local highLast = nil
+                for i = max, "1e100" do
+                    highCount = highCount + 1
+                    highLast = i
+                end
+
+                local highSkipCount = 0
+                for i = max, "1e100", -1 do
+                    highSkipCount = highSkipCount + 1
+                end
+
+                local lowSkipCount = 0
+                for i = min, "-1e100" do
+                    lowSkipCount = lowSkipCount + 1
+                end
+
+                local lowCount = 0
+                local lowLast = nil
+                for i = min, "-1e100", -1 do
+                    lowCount = lowCount + 1
+                    lowLast = i
+                end
+
+                return highCount, highLast, highSkipCount, lowSkipCount, lowCount, lowLast
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(1),
+                LuaInteger(Long.MAX_VALUE),
+                LuaInteger(0),
+                LuaInteger(0),
+                LuaInteger(1),
+                LuaInteger(Long.MIN_VALUE),
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `executes numeric for loop over adjacent integer boundaries`() {
         val globals = LuaTable()
         globals.rawSet(LuaString("max"), LuaInteger(Long.MAX_VALUE))
