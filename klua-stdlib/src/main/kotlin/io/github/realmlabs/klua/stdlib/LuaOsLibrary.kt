@@ -308,6 +308,7 @@ internal object LuaOsLibrary {
                 throw invalidDateFormat("")
             }
             index++
+            val specifierStart = index
             val modifier = if (format[index] == 'E' || format[index] == 'O') {
                 val value = format[index]
                 index++
@@ -319,15 +320,27 @@ internal object LuaOsLibrary {
                 throw invalidDateFormat(modifier?.toString() ?: "")
             }
             val conversion = format[index]
-            result.append(formatDateConversion(dateTime, modifier, conversion))
+            result.append(
+                formatDateConversion(
+                    dateTime,
+                    modifier,
+                    conversion,
+                    invalidConversion = format.substring(specifierStart),
+                ),
+            )
             index++
         }
         return result.toString()
     }
 
-    private fun formatDateConversion(dateTime: ZonedDateTime, modifier: Char?, conversion: Char): String {
+    private fun formatDateConversion(
+        dateTime: ZonedDateTime,
+        modifier: Char?,
+        conversion: Char,
+        invalidConversion: String,
+    ): String {
         if (!isValidDateAlternateConversion(modifier, conversion)) {
-            throw invalidDateFormat("$modifier$conversion")
+            throw invalidDateFormat(invalidConversion)
         }
         return when (conversion) {
             'a' -> dateTime.format(DateTimeFormatter.ofPattern("EEE", Locale.getDefault()))
@@ -367,7 +380,7 @@ internal object LuaOsLibrary {
             'z' -> zoneOffset(dateTime)
             'Z' -> dateTime.zone.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault())
             '%' -> "%"
-            else -> throw invalidDateFormat((modifier?.toString() ?: "") + conversion)
+            else -> throw invalidDateFormat(invalidConversion)
         }
     }
 
