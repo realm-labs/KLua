@@ -406,7 +406,7 @@ internal object LuaIoLibrary {
             val start = file.filePointer
             val token = scanLuaNumber()
             val number = token.luaNumber()
-            if (number == null) {
+            if (number == null && token.isEmpty()) {
                 file.seek(start)
             }
             return number

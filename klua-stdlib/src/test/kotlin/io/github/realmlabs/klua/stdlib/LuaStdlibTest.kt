@@ -3363,6 +3363,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io numeric reads consume invalid numeric prefixes`() {
+        val path = Files.createTempFile("klua-io-read-prefix-", ".txt")
+        Files.writeString(path, "0x abc")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local invalidHex = handle:read("n")
+                    local afterHex = handle:read(1)
+                    local nonNumber = handle:read("n")
+                    local afterText = handle:read(3)
+                    handle:close()
+                    return invalidHex, afterHex, nonNumber, afterText
+                    """.trimIndent(),
+                    "io-read-invalid-prefix.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals(" ", state.toString(2))
+            assertTrue(state.isNil(3))
+            assertEquals("abc", state.toString(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io input and output route module level reads and writes`() {
         val inputPath = Files.createTempFile("klua-io-input-", ".txt")
         val outputPath = Files.createTempFile("klua-io-output-", ".txt")
