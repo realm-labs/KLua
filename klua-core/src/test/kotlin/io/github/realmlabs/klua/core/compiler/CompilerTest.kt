@@ -1213,7 +1213,7 @@ class CompilerTest {
             Compiler.compile("break", "bad-break.lua")
         }
 
-        assertEquals("bad-break.lua:1:1: 'break' outside loop", error.message)
+        assertEquals("bad-break.lua:1:1: break outside loop", error.message)
     }
 
     @Test

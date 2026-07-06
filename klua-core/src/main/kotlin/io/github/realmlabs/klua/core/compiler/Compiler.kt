@@ -636,7 +636,7 @@ internal class Compiler private constructor(
 
     private fun compileBreak(statement: BreakStatement) {
         val breaks = loopBreaks.lastOrNull()
-            ?: throw unsupported(statement, "'break' outside loop")
+            ?: throw unsupported(statement, "break outside loop")
         val breakJump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
         val close = if (hasCapturedLocals) {
