@@ -3315,6 +3315,54 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read supports source file formats`() {
+        val path = Files.createTempFile("klua-io-read-", ".txt")
+        Files.writeString(path, "  42 tail\n0x10 3.5\nabc")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local first = handle:read("n")
+                    local bytes = handle:read(5)
+                    local lineWithEnd = handle:read("L")
+                    local hex, float = handle:read("*n", "*n")
+                    local newline = handle:read("*L")
+                    local numberFail, skipped = handle:read("n", 3)
+                    local text = handle:read(3)
+                    local eofProbe = handle:read(0)
+                    local eofAll = handle:read("a")
+                    handle:close()
+                    return first, bytes, lineWithEnd, hex, float, newline,
+                        numberFail, skipped, text, eofProbe, eofAll
+                    """.trimIndent(),
+                    "io-read-formats.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(42L, state.toInteger(1))
+            assertEquals(" tail", state.toString(2))
+            assertEquals("\n", state.toString(3))
+            assertEquals(16L, state.toInteger(4))
+            assertEquals(3.5, state.toNumber(5) ?: error("missing float"), 0.0)
+            assertEquals("\n", state.toString(6))
+            assertTrue(state.isNil(7))
+            assertTrue(state.isNil(8))
+            assertEquals("abc", state.toString(9))
+            assertTrue(state.isNil(10))
+            assertEquals("", state.toString(11))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `debug sethook and gethook accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

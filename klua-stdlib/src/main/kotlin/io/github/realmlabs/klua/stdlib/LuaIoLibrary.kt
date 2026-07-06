@@ -10,6 +10,7 @@ import java.io.IOException
 import java.io.RandomAccessFile
 import java.nio.file.Files
 import java.nio.file.Path
+import java.util.Locale
 
 internal object LuaIoLibrary {
     fun open(state: LuaState): LuaState {
@@ -86,7 +87,7 @@ internal object LuaIoLibrary {
         val filename = requiredString(context, 1, "io.lines")
         val openResult = ioOpenValue(filename, "r")
         val handle = openResult.values.firstOrNull() as? IoFileHandle ?: return openResult
-        val formats = (2..context.argumentCount).map { index -> context.get(index) }
+        val formats = readFormatsFromContext(context, 2, "io.lines")
         val iterator = lineIterator(handle, formats, closeOnEnd = true)
         return LuaReturn.of(iterator, null, null, handle)
     }
@@ -124,16 +125,16 @@ internal object LuaIoLibrary {
 
     private fun readHandle(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
         handle.ensureOpen()
-        return LuaReturn.ofValues(readFormats(handle, (1..context.argumentCount).map { index -> context.get(index) }))
+        return LuaReturn.ofValues(readFormats(handle, readFormatsFromContext(context, 1, "read")))
     }
 
     private fun linesHandle(handle: IoFileHandle, context: LuaCallContext, closeOnEnd: Boolean): LuaReturn {
         handle.ensureOpen()
-        val formats = (1..context.argumentCount).map { index -> context.get(index) }
+        val formats = readFormatsFromContext(context, 1, "lines")
         return LuaReturn.of(lineIterator(handle, formats, closeOnEnd))
     }
 
-    private fun lineIterator(handle: IoFileHandle, formats: List<Any?>, closeOnEnd: Boolean): LuaFunction {
+    private fun lineIterator(handle: IoFileHandle, formats: List<IoReadFormat>, closeOnEnd: Boolean): LuaFunction {
         return LuaFunction {
             val values = readFormats(handle, formats)
             if (values.firstOrNull() == null) {
@@ -147,16 +148,53 @@ internal object LuaIoLibrary {
         }
     }
 
-    private fun readFormats(handle: IoFileHandle, formats: List<Any?>): List<Any?> {
+    private fun readFormats(handle: IoFileHandle, formats: List<IoReadFormat>): List<Any?> {
         handle.ensureOpen()
         if (formats.isEmpty()) {
-            return listOf(handle.readLine())
+            return listOf(handle.readLine(chop = true))
         }
-        return formats.mapIndexed { index, format ->
-            when (format) {
-                "a", "*a" -> handle.readAll()
-                "l", "*l" -> handle.readLine()
-                else -> throw LuaRuntimeException("bad argument #${index + 1} to 'read' (unsupported format)")
+        val values = mutableListOf<Any?>()
+        for (format in formats) {
+            val value = when (format) {
+                IoReadFormat.All -> handle.readAll()
+                IoReadFormat.Line -> handle.readLine(chop = true)
+                IoReadFormat.LineWithNewline -> handle.readLine(chop = false)
+                IoReadFormat.Number -> handle.readNumber()
+                is IoReadFormat.Chars -> handle.readChars(format.count)
+            }
+            values += value
+            if (value == null) {
+                break
+            }
+        }
+        return values
+    }
+
+    private fun readFormatsFromContext(
+        context: LuaCallContext,
+        firstIndex: Int,
+        functionName: String,
+    ): List<IoReadFormat> {
+        return (firstIndex..context.argumentCount).map { index ->
+            val integer = context.toInteger(index)
+            if (integer != null) {
+                if (integer < 0L || integer > Int.MAX_VALUE) {
+                    throw LuaRuntimeException("bad argument #$index to '$functionName' (out of range)")
+                }
+                return@map IoReadFormat.Chars(integer.toInt())
+            }
+            if (context.toNumber(index) != null) {
+                throw LuaRuntimeException(
+                    "bad argument #$index to '$functionName' (number has no integer representation)",
+                )
+            }
+            when (val format = context.toString(index)) {
+                "a", "*a" -> IoReadFormat.All
+                "l", "*l" -> IoReadFormat.Line
+                "L", "*L" -> IoReadFormat.LineWithNewline
+                "n", "*n" -> IoReadFormat.Number
+                null -> throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+                else -> throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid format)")
             }
         }
     }
@@ -266,7 +304,16 @@ internal object LuaIoLibrary {
             return bytes.toString(Charsets.UTF_8)
         }
 
-        fun readLine(): String? {
+        fun readChars(count: Int): String? {
+            if (count == 0) {
+                return if (file.filePointer < file.length()) "" else null
+            }
+            val bytes = ByteArray(count)
+            val read = file.read(bytes)
+            return if (read <= 0) null else bytes.copyOf(read).toString(Charsets.UTF_8)
+        }
+
+        fun readLine(chop: Boolean): String? {
             val bytes = mutableListOf<Byte>()
             var sawLineTerminator = false
             while (true) {
@@ -277,13 +324,187 @@ internal object LuaIoLibrary {
                 }
                 if (value == '\n'.code) {
                     sawLineTerminator = true
+                    if (!chop) {
+                        bytes += value.toByte()
+                    }
                     break
                 }
-                if (value != '\r'.code) {
-                    bytes += value.toByte()
-                }
+                bytes += value.toByte()
             }
             return if (bytes.isEmpty() && !sawLineTerminator) null else bytes.toByteArray().toString(Charsets.UTF_8)
         }
+
+        fun readNumber(): Any? {
+            skipWhitespace()
+            val start = file.filePointer
+            val token = scanLuaNumber()
+            val number = token.luaNumber()
+            if (number == null) {
+                file.seek(start)
+            }
+            return number
+        }
+
+        private fun scanLuaNumber(): String {
+            return buildString {
+                appendOptionalSign()
+                if (appendHexPrefix()) {
+                    var count = appendDigits(hex = true)
+                    if (appendChar('.')) {
+                        count += appendDigits(hex = true)
+                    }
+                    if (count > 0 && appendAny('p', 'P')) {
+                        appendOptionalSign()
+                        appendDigits(hex = false)
+                    }
+                } else {
+                    var count = appendDigits(hex = false)
+                    if (appendChar('.')) {
+                        count += appendDigits(hex = false)
+                    }
+                    if (count > 0 && appendAny('e', 'E')) {
+                        appendOptionalSign()
+                        appendDigits(hex = false)
+                    }
+                }
+            }
+        }
+
+        private fun StringBuilder.appendOptionalSign() {
+            appendAny('+', '-')
+        }
+
+        private fun StringBuilder.appendHexPrefix(): Boolean {
+            val before = file.filePointer
+            val beforeLength = length
+            if (!appendChar('0')) {
+                return false
+            }
+            if (appendAny('x', 'X')) {
+                return true
+            }
+            file.seek(before)
+            setLength(beforeLength)
+            return false
+        }
+
+        private fun StringBuilder.appendDigits(hex: Boolean): Int {
+            var count = 0
+            while (file.filePointer < file.length()) {
+                val position = file.filePointer
+                val char = file.readUnsignedByte().toChar()
+                if (if (hex) char.isHexDigit() else char.isDigit()) {
+                    append(char)
+                    count++
+                } else {
+                    file.seek(position)
+                    break
+                }
+            }
+            return count
+        }
+
+        private fun StringBuilder.appendChar(expected: Char): Boolean {
+            if (file.filePointer >= file.length()) {
+                return false
+            }
+            val position = file.filePointer
+            val char = file.readUnsignedByte().toChar()
+            return if (char == expected) {
+                append(char)
+                true
+            } else {
+                file.seek(position)
+                false
+            }
+        }
+
+        private fun StringBuilder.appendAny(first: Char, second: Char): Boolean {
+            if (file.filePointer >= file.length()) {
+                return false
+            }
+            val position = file.filePointer
+            val char = file.readUnsignedByte().toChar()
+            return if (char == first || char == second) {
+                append(char)
+                true
+            } else {
+                file.seek(position)
+                false
+            }
+        }
+
+        private fun skipWhitespace() {
+            while (file.filePointer < file.length()) {
+                val position = file.filePointer
+                if (!file.readUnsignedByte().toChar().isWhitespace()) {
+                    file.seek(position)
+                    return
+                }
+            }
+        }
     }
+
+    private sealed interface IoReadFormat {
+        data object All : IoReadFormat
+        data object Line : IoReadFormat
+        data object LineWithNewline : IoReadFormat
+        data object Number : IoReadFormat
+        data class Chars(val count: Int) : IoReadFormat
+    }
+
+    private fun Char.isHexDigit(): Boolean {
+        return isDigit() || this in 'a'..'f' || this in 'A'..'F'
+    }
+
+    private fun String.luaNumber(): Any? {
+        if (isEmpty()) {
+            return null
+        }
+        val normalized = lowercase(Locale.ROOT)
+        val parsed = if (normalized.startsWith("0x") || normalized.startsWith("+0x") || normalized.startsWith("-0x")) {
+            parseHexNumber()
+        } else {
+            toLongOrNull() ?: toDoubleOrNull()
+        } ?: return null
+        return when (parsed) {
+            is Long -> parsed
+            is Double -> parsed.luaInteger() ?: parsed
+            else -> null
+        }
+    }
+
+    private fun String.parseHexNumber(): Any? {
+        val sign = if (startsWith("-")) -1 else 1
+        val unsigned = removePrefix("+").removePrefix("-")
+        val body = unsigned.removePrefix("0x").removePrefix("0X")
+        if (body.isEmpty()) {
+            return null
+        }
+        if ('p' in body || 'P' in body || '.' in body) {
+            val parsed = try {
+                java.lang.Double.parseDouble((if (sign < 0) "-" else "") + "0x" + body)
+            } catch (_: NumberFormatException) {
+                return null
+            }
+            return parsed.luaInteger() ?: parsed
+        }
+        val parsed = body.toULongOrNull(16) ?: return null
+        val signed = if (sign < 0) {
+            if (parsed == Long.MIN_VALUE.toULong()) Long.MIN_VALUE else -(parsed.toLong())
+        } else {
+            parsed.toLong()
+        }
+        return signed
+    }
+
+    private fun Double.luaInteger(): Long? {
+        if (!isFinite() || this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
+            return null
+        }
+        val integer = toLong()
+        return if (integer.toDouble() == this) integer else null
+    }
+
+    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
 }
