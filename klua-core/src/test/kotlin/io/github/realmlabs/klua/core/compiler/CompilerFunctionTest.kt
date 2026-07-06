@@ -97,6 +97,35 @@ class CompilerFunctionTest {
     }
 
     @Test
+    fun `compiles global function declarations with redeclaration checks`() {
+        val prototype = Compiler.compile(
+            """
+            global function add(a, b)
+                return a + b
+            end
+            return add(20, 22)
+            """.trimIndent(),
+        )
+
+        assertEquals(3, prototype.maxStackSize)
+        assertEquals(1, prototype.nested.size)
+        assertEquals(
+            """
+            0000  [1]  CLOSURE R0 P0
+            0001  [1]  CHECK_GLOBAL_NIL K0 ; "add"
+            0002  [1]  SET_GLOBAL K0 R0 ; "add"
+            0003  [4]  GET_GLOBAL R0 K0 ; "add"
+            0004  [4]  LOAD_INT R1 20
+            0005  [4]  LOAD_INT R2 22
+            0006  [4]  CALL R0 2 *
+            0007  [4]  RETURN R0 *
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+        assertEquals(2, prototype.nested.single().numParams)
+    }
+
+    @Test
     fun `compiles simple function calls`() {
         val prototype = Compiler.compile(
             """

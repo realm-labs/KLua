@@ -231,6 +231,7 @@ internal class LuaVm(
                         Opcode.SET_FIELD -> setField(stack, frame, instruction)
                         Opcode.GET_GLOBAL -> getGlobal(stack, frame, instruction)
                         Opcode.SET_GLOBAL -> setGlobal(stack, frame, instruction)
+                        Opcode.CHECK_GLOBAL_NIL -> checkGlobalNil(frame, instruction)
                         Opcode.CLOSURE -> createClosure(stack, frame, instruction)
                         Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
                         Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
@@ -731,6 +732,13 @@ internal class LuaVm(
         val key = stringConstant(frame.prototype, Instruction.a(instruction))
         val value = stack.get(register(frame, Instruction.b(instruction)))
         indexSet(frame.globals, key, value)
+    }
+
+    private fun checkGlobalNil(frame: CallFrame, instruction: Int) {
+        val key = stringConstant(frame.prototype, Instruction.a(instruction))
+        if (indexGet(frame.globals, key) != LuaNil) {
+            throw LuaVmException("global '${key.value}' already defined")
+        }
     }
 
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {

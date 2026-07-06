@@ -5,7 +5,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 ## Language And VM
 
 - Full cross-scope `goto` and label semantics are still being hardened; current support covers AST representation, compilation, VM execution, end-of-block labels, exported pending gotos, and close-aware escaping jumps.
-- Lua 5.5 `global` variable and function declarations are lexed and parsed, then rejected by the compiler because declaration semantics are not implemented.
+- Lua 5.5 `global` variable declarations are partially supported for initialized regular declarations, and `global function` declarations compile with Lua-style already-defined checks. Declaration-only scopes, wildcard scopes, and `<const>` global read-only semantics are not implemented yet.
 - `<close>` local declarations are parsed, then rejected by the compiler because to-be-closed variable semantics are not implemented.
 
 ## Debug Library

@@ -110,8 +110,8 @@ internal class Compiler private constructor(
         for ((index, statement) in statements.withIndex()) {
             when (statement) {
                 is LocalStatement -> compileLocal(statement)
-                is GlobalStatement -> throw unsupported(statement, "global declarations are not supported")
-                is GlobalFunctionStatement -> throw unsupported(statement, "global function declarations are not supported")
+                is GlobalStatement -> compileGlobal(statement)
+                is GlobalFunctionStatement -> compileGlobalFunction(statement)
                 is AssignmentStatement -> compileAssignment(statement)
                 is CallStatement -> compileCallStatement(statement)
                 is DoStatement -> compileScopedBlock(statement.block)
@@ -268,6 +268,23 @@ internal class Compiler private constructor(
         registerLocalDeclarations(statement, slots)
     }
 
+    private fun compileGlobal(statement: GlobalStatement) {
+        if (statement.wildcard || statement.values.isEmpty()) {
+            throw unsupported(statement, "global declaration scopes are not supported")
+        }
+        if (statement.attributes.any { attribute -> attribute == LocalAttribute.CONST }) {
+            throw unsupported(statement, "const global declarations are not supported")
+        }
+
+        val valueBase = nextLocalRegister
+        compileAdjustedValues(statement.values, valueBase, statement.names.size, statement.range.start.line)
+        for (index in statement.names.indices.reversed()) {
+            val name = stringConstantIndex(statement.names[index])
+            writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
+            writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, valueBase + index), statement.range.start.line)
+        }
+    }
+
     private fun registerLocalDeclarations(statement: LocalStatement, slots: List<Int>) {
         for ((index, name) in statement.names.withIndex()) {
             registerLocal(name, slots[index], statement.attributes[index])
@@ -291,6 +308,14 @@ internal class Compiler private constructor(
         val register = nextLocalRegister
         compileFunctionExpression(statement.function, register)
         val name = stringConstantIndex(statement.name)
+        writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, register), statement.range.start.line)
+    }
+
+    private fun compileGlobalFunction(statement: GlobalFunctionStatement) {
+        val register = nextLocalRegister
+        compileFunctionExpression(statement.function, register)
+        val name = stringConstantIndex(statement.name)
+        writer.emit(Instruction.abc(Opcode.CHECK_GLOBAL_NIL, name), statement.range.start.line)
         writer.emit(Instruction.abc(Opcode.SET_GLOBAL, name, register), statement.range.start.line)
     }
 

@@ -498,21 +498,33 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects global declarations until declaration semantics exist`() {
+    fun `rejects declaration only global declarations until declaration scopes exist`() {
         val error = assertFailsWith<CompilerException> {
-            Compiler.compile("""global <const> answer = 42""", "global-declaration.lua")
+            Compiler.compile("""global answer""", "global-declaration.lua")
         }
 
-        assertEquals("global-declaration.lua:1:1: global declarations are not supported", error.message)
+        assertEquals("global-declaration.lua:1:1: global declaration scopes are not supported", error.message)
     }
 
     @Test
-    fun `rejects global function declarations until declaration semantics exist`() {
+    fun `rejects const global declarations until read only semantics exist`() {
         val error = assertFailsWith<CompilerException> {
-            Compiler.compile("""global function answer() return 42 end""", "global-function.lua")
+            Compiler.compile("""global <const> answer = 42""", "global-const-declaration.lua")
         }
 
-        assertEquals("global-function.lua:1:1: global function declarations are not supported", error.message)
+        assertEquals("global-const-declaration.lua:1:1: const global declarations are not supported", error.message)
+    }
+
+    @Test
+    fun `rejects wildcard global declarations until declaration scopes exist`() {
+        val error = assertFailsWith<CompilerException> {
+            Compiler.compile("""global *""", "global-wildcard-declaration.lua")
+        }
+
+        assertEquals(
+            "global-wildcard-declaration.lua:1:1: global declaration scopes are not supported",
+            error.message,
+        )
     }
 
     @Test
@@ -919,6 +931,32 @@ class CompilerTest {
             0001  [1]  SET_GLOBAL K0 R0 ; "answer"
             0002  [2]  GET_GLOBAL R0 K0 ; "answer"
             0003  [2]  RETURN R0 1
+            """.trimIndent(),
+            Disassembler.disassemble(prototype),
+        )
+    }
+
+    @Test
+    fun `compiles initialized global declarations with redeclaration checks`() {
+        val prototype = Compiler.compile(
+            """
+            global first, second = 1, 2
+            return first, second
+            """.trimIndent(),
+            "global-init.lua",
+        )
+
+        assertEquals(
+            """
+            0000  [1]  LOAD_INT R0 1
+            0001  [1]  LOAD_INT R1 2
+            0002  [1]  CHECK_GLOBAL_NIL K0 ; "second"
+            0003  [1]  SET_GLOBAL K0 R1 ; "second"
+            0004  [1]  CHECK_GLOBAL_NIL K1 ; "first"
+            0005  [1]  SET_GLOBAL K1 R0 ; "first"
+            0006  [2]  GET_GLOBAL R0 K1 ; "first"
+            0007  [2]  GET_GLOBAL R1 K0 ; "second"
+            0008  [2]  RETURN R0 2
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )

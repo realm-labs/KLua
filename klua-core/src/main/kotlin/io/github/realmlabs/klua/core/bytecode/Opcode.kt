@@ -45,4 +45,5 @@ internal enum class Opcode {
     FOR_LOOP,
     CALL,
     RETURN,
+    CHECK_GLOBAL_NIL,
 }

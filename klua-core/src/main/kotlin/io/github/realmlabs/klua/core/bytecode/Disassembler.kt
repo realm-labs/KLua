@@ -72,6 +72,7 @@ internal object Disassembler {
             Opcode.FOR_LOOP -> "FOR_LOOP R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
             Opcode.CALL -> "CALL R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))} ${formatCount(Instruction.c(instruction))}"
             Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
+            Opcode.CHECK_GLOBAL_NIL -> globalNilCheck(instruction, prototype)
         }
     }
 
@@ -99,6 +100,11 @@ internal object Disassembler {
     private fun globalSet(instruction: Int, prototype: Prototype): String {
         val constant = prototype.constants[Instruction.a(instruction)]
         return "SET_GLOBAL K${Instruction.a(instruction)} R${Instruction.b(instruction)} ; ${formatConstant(constant)}"
+    }
+
+    private fun globalNilCheck(instruction: Int, prototype: Prototype): String {
+        val constant = prototype.constants[Instruction.a(instruction)]
+        return "CHECK_GLOBAL_NIL K${Instruction.a(instruction)} ; ${formatConstant(constant)}"
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value

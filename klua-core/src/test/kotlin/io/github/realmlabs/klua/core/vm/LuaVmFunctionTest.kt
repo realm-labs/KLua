@@ -1,10 +1,12 @@
 package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.compiler.Compiler
+import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.LuaTable
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -52,6 +54,69 @@ class LuaVmFunctionTest {
         )
 
         assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `executes initialized global declarations`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                global first, second = 20, 22
+                return first + second
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `initialized global declarations reject existing false values`() {
+        val globals = LuaTable()
+        globals.rawSet(LuaString("answer"), LuaBoolean(false))
+
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm(globals).execute(Compiler.compile("global answer = 42", "global-redeclare-false.lua"))
+        }
+
+        assertEquals("global 'answer' already defined", error.message)
+        assertEquals(LuaBoolean(false), globals.rawGet(LuaString("answer")))
+    }
+
+    @Test
+    fun `initialized global declarations store right to left before redeclaration errors`() {
+        val globals = LuaTable()
+        globals.rawSet(LuaString("first"), LuaInteger(99))
+
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm(globals).execute(Compiler.compile("global first, second = 1, 2", "global-init-order.lua"))
+        }
+
+        assertEquals("global 'first' already defined", error.message)
+        assertEquals(LuaInteger(99), globals.rawGet(LuaString("first")))
+        assertEquals(LuaInteger(2), globals.rawGet(LuaString("second")))
+    }
+
+    @Test
+    fun `global function declarations reject existing globals`() {
+        val globals = LuaTable()
+        globals.rawSet(LuaString("add"), LuaInteger(99))
+
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm(globals).execute(
+                Compiler.compile(
+                    """
+                    global function add(a, b)
+                        return a + b
+                    end
+                    """.trimIndent(),
+                    "global-function-redeclare.lua",
+                ),
+            )
+        }
+
+        assertEquals("global 'add' already defined", error.message)
+        assertEquals(LuaInteger(99), globals.rawGet(LuaString("add")))
     }
 
     @Test
