@@ -11698,7 +11698,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `coroutine isyieldable reports explicit dead coroutines as yieldable`() {
+    fun `coroutine isyieldable reports explicit dead coroutines as not yieldable`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
 
@@ -11730,9 +11730,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
         assertEquals("done", state.toString(6))
-        assertTrue(state.toBoolean(7))
+        assertFalse(state.toBoolean(7))
         assertTrue(state.toBoolean(8))
-        assertTrue(state.toBoolean(9))
+        assertFalse(state.toBoolean(9))
     }
 
     @Test
@@ -12399,7 +12399,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(4))
         assertTrue(state.toBoolean(5))
         assertFalse(state.toBoolean(6))
-        assertTrue(state.toBoolean(7))
+        assertFalse(state.toBoolean(7))
         assertEquals("dead", state.toString(8))
     }
 
