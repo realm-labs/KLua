@@ -15,6 +15,8 @@ import java.nio.file.Path
 import java.util.Locale
 
 internal object LuaIoLibrary {
+    private const val MAX_LINE_FORMAT_ARGUMENTS = 250
+
     fun open(state: LuaState): LuaState {
         val stdin = IoFileHandle.input(System.`in`, nonClosing = true, closeResult = ::standardFileCloseResult)
         val stdout = IoFileHandle.output(System.out, nonClosing = true, closeResult = ::standardFileCloseResult)
@@ -181,13 +183,18 @@ internal object LuaIoLibrary {
 
     private fun ioLines(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
         if (context.isNone(1) || context.isNil(1)) {
-            val formats = readFormatsFromContext(context, 2, "io.lines")
+            val formats = readFormatsFromContext(context, 2, "io.lines", MAX_LINE_FORMAT_ARGUMENTS)
             return LuaReturn.of(lineIterator(defaultInput(defaultFiles), formats, closeOnEnd = false))
         }
         val filename = requiredString(context, 1, "io.lines")
         val openResult = ioOpenValue(filename, "r")
         val handle = openResult.values.firstOrNull() as? IoFileHandle ?: return openResult
-        val formats = readFormatsFromContext(context, 2, "io.lines")
+        val formats = try {
+            readFormatsFromContext(context, 2, "io.lines", MAX_LINE_FORMAT_ARGUMENTS)
+        } catch (error: LuaRuntimeException) {
+            closeHandle(handle)
+            throw error
+        }
         val iterator = lineIterator(handle, formats, closeOnEnd = true)
         return LuaReturn.of(iterator, null, null, handle)
     }
@@ -246,7 +253,7 @@ internal object LuaIoLibrary {
 
     private fun linesHandle(handle: IoFileHandle, context: LuaCallContext, closeOnEnd: Boolean): LuaReturn {
         handle.ensureOpen()
-        val formats = readFormatsFromContext(context, 1, "lines")
+        val formats = readFormatsFromContext(context, 1, "lines", MAX_LINE_FORMAT_ARGUMENTS)
         return LuaReturn.of(lineIterator(handle, formats, closeOnEnd))
     }
 
@@ -296,7 +303,12 @@ internal object LuaIoLibrary {
         context: LuaCallContext,
         firstIndex: Int,
         functionName: String,
+        maxFormats: Int? = null,
     ): List<IoReadFormat> {
+        if (maxFormats != null && context.argumentCount - firstIndex + 1 > maxFormats) {
+            val errorIndex = firstIndex + maxFormats
+            throw LuaRuntimeException("bad argument #$errorIndex to '$functionName' (too many arguments)")
+        }
         return (firstIndex..context.argumentCount).map { index ->
             val integer = context.toInteger(index)
             if (integer != null) {

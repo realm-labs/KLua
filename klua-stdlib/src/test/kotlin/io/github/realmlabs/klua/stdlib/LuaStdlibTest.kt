@@ -3452,6 +3452,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io lines limits source format argument count`() {
+        val path = Files.createTempFile("klua-io-lines-args-", ".txt")
+        Files.writeString(path, "one\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+        LuaStdlib.openTable(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local args = {}
+                    for index = 1, 251 do
+                        args[index] = "l"
+                    end
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local handleOk, handleMessage = pcall(function()
+                        return handle:lines(table.unpack(args))
+                    end)
+                    handle:close()
+                    local moduleOk, moduleMessage = pcall(function()
+                        return io.lines("${path.luaPath()}", table.unpack(args))
+                    end)
+                    return handleOk, handleMessage, moduleOk, moduleMessage
+                    """.trimIndent(),
+                    "io-lines-too-many-args.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertFalse(state.toBoolean(1))
+            assertEquals("bad argument #251 to 'lines' (too many arguments)", state.toString(2))
+            assertFalse(state.toBoolean(3))
+            assertEquals("bad argument #252 to 'io.lines' (too many arguments)", state.toString(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read supports source file formats`() {
         val path = Files.createTempFile("klua-io-read-", ".txt")
         Files.writeString(path, "  42 tail\n0x10 3.5\nabc")
