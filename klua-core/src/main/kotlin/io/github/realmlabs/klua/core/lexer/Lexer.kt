@@ -382,7 +382,11 @@ internal class Lexer(
             keepGoing = false
 
             while (peek().isWhitespace()) {
-                advance()
+                if (isLuaNewlineStart()) {
+                    consumeLuaNewlineSequence()
+                } else {
+                    advance()
+                }
             }
 
             if (peek() == '-' && peekNext() == '-') {
@@ -394,7 +398,7 @@ internal class Lexer(
                     consumeLongBracketOpening(equals)
                     readLongBracketContent(equals, commentStart, "unterminated long comment")
                 } else {
-                    while (!isAtEnd() && peek() != '\n') {
+                    while (!isAtEnd() && !isLuaNewlineStart()) {
                         advance()
                     }
                 }
@@ -404,8 +408,8 @@ internal class Lexer(
     }
 
     private fun readLongBracketContent(equals: Int, start: SourcePosition, errorMessage: String): String {
-        if (peek() == '\r' || peek() == '\n') {
-            advance()
+        if (isLuaNewlineStart()) {
+            consumeLuaNewlineSequence()
         }
 
         val builder = StringBuilder()
@@ -414,7 +418,12 @@ internal class Lexer(
                 consumeLongBracketClose(equals)
                 return builder.toString()
             }
-            builder.append(advance())
+            if (isLuaNewlineStart()) {
+                consumeLuaNewlineSequence()
+                builder.append('\n')
+            } else {
+                builder.append(advance())
+            }
         }
         throw errorAt(start, errorMessage)
     }
@@ -500,6 +509,17 @@ internal class Lexer(
             column++
         }
         return char
+    }
+
+    private fun isLuaNewlineStart(): Boolean = peek() == '\r' || peek() == '\n'
+
+    private fun consumeLuaNewlineSequence() {
+        val first = source[offset++]
+        if (!isAtEnd() && isLuaNewlineStart() && source[offset] != first) {
+            offset++
+        }
+        line++
+        column = 1
     }
 
     private fun peek(): Char = if (isAtEnd()) '\u0000' else source[offset]

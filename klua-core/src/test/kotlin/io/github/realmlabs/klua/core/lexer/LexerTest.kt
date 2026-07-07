@@ -185,6 +185,16 @@ class LexerTest {
     }
 
     @Test
+    fun `normalizes lua newline sequences in long bracket strings`() {
+        val tokens = Lexer("[[\r\nbody]] [[\n\rbody]] [[first\r\nsecond\rthird\nfourth\n\rend]]").tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals("body", tokens[0].literal)
+        assertEquals("body", tokens[1].literal)
+        assertEquals("first\nsecond\nthird\nfourth\nend", tokens[2].literal)
+    }
+
+    @Test
     fun `reports decimal escape range errors`() {
         val error = assertFailsWith<LexerException> {
             Lexer("return \"\\256\"", "escape.lua").tokenize()
@@ -255,6 +265,24 @@ class LexerTest {
             ),
             tokens.map { it.kind },
         )
+    }
+
+    @Test
+    fun `ends line comments at lua newline sequences`() {
+        val tokens = Lexer("-- carriage return\rreturn 1\n\rreturn 2", "comments.lua").tokenize()
+
+        assertEquals(
+            listOf(
+                TokenKind.RETURN,
+                TokenKind.INTEGER,
+                TokenKind.RETURN,
+                TokenKind.INTEGER,
+                TokenKind.EOF,
+            ),
+            tokens.map { it.kind },
+        )
+        assertEquals(2, tokens[0].range.start.line)
+        assertEquals(3, tokens[2].range.start.line)
     }
 
     @Test
