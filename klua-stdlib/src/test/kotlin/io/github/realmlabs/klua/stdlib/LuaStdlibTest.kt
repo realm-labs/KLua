@@ -21695,6 +21695,58 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string integer arguments accept locale decimal numeric strings`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openString(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local foundStart, foundEnd = string.find("abcd", "c", "2,0", true)
+                    local replaced, replacements = string.gsub("aaa", "a", "b", "2,0")
+                    local fractionalOk, fractionalMessage = pcall(string.sub, "abc", "1,5")
+                    local mixedOk, mixedMessage = pcall(string.sub, "abc", "1,0.0")
+                    return string.rep("x", "3,0", "-"),
+                        string.sub("abcd", "2,0", "0x1,8p1"),
+                        string.byte("abc", "2,0"),
+                        string.char("65,0"),
+                        foundStart, foundEnd,
+                        string.match("abcd", "c", "2,0"),
+                        replaced, replacements,
+                        string.format("%d|%c", "16,0", "65,0"),
+                        fractionalOk, fractionalMessage,
+                        mixedOk, mixedMessage
+                    """.trimIndent(),
+                    "string-locale-decimal-integer-arguments.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("x-x-x", state.toString(1))
+            assertEquals("bc", state.toString(2))
+            assertEquals('b'.code.toLong(), state.toInteger(3))
+            assertEquals("A", state.toString(4))
+            assertEquals(3L, state.toInteger(5))
+            assertEquals(3L, state.toInteger(6))
+            assertEquals("c", state.toString(7))
+            assertEquals("bba", state.toString(8))
+            assertEquals(2L, state.toInteger(9))
+            assertEquals("16|A", state.toString(10))
+            assertFalse(state.toBoolean(11))
+            assertEquals("bad argument #2 to 'sub' (number has no integer representation)", state.toString(12))
+            assertFalse(state.toBoolean(13))
+            assertEquals("bad argument #2 to 'sub' (number expected)", state.toString(14))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `string integer arguments report fractional number errors`() {
         fun assertFractionalIntegerError(source: String, chunkName: String, expected: String) {
             val state = LuaState.create()
