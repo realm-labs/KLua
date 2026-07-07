@@ -241,9 +241,6 @@ internal object LuaCoroutineLibrary {
         if (coroutine.isMain) {
             return LuaReturn.of(false)
         }
-        if (coroutine.status == CoroutineStatus.DEAD) {
-            return LuaReturn.of(false)
-        }
         if (coroutine.status != CoroutineStatus.RUNNING) {
             return LuaReturn.of(true)
         }
