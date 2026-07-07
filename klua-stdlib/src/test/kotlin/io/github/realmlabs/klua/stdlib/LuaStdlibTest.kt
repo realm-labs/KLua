@@ -8956,6 +8956,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `loadfile and require preserve raw bytes in source string literals`() {
+        val file = Files.createTempFile("klua-loadfile-raw-source-", ".lua")
+        val module = Files.createTempFile("klua-require-raw-source-", ".lua")
+        val sourceBytes = "return \"".toByteArray(StandardCharsets.UTF_8) +
+            byteArrayOf(255.toByte(), 128.toByte()) +
+            "\"".toByteArray(StandardCharsets.UTF_8)
+        Files.write(file, sourceBytes)
+        Files.write(module, sourceBytes)
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local loaded = assert(loadfile("${file.luaPath()}"))()
+                    package.path = "${module.luaPath()}"
+                    local required = require("raw-source-module")
+                    local loadA, loadB = string.byte(loaded, 1, -1)
+                    local requireA, requireB = string.byte(required, 1, -1)
+                    return loadA, loadB, requireA, requireB
+                    """.trimIndent(),
+                    "loadfile-require-raw-source.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(255L, state.toInteger(1))
+            assertEquals(128L, state.toInteger(2))
+            assertEquals(255L, state.toInteger(3))
+            assertEquals(128L, state.toInteger(4))
+        } finally {
+            Files.deleteIfExists(file)
+            Files.deleteIfExists(module)
+        }
+    }
+
+    @Test
     fun `dofile executes KLua bytecode files`() {
         val file = Files.createTempFile("klua-dofile-bytecode", ".kluac")
         try {

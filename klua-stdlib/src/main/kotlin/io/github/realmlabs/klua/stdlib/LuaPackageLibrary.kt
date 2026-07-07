@@ -5,6 +5,7 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -52,7 +53,7 @@ internal object LuaPackageLibrary {
         return if (isKLuaBinaryChunk(bytes)) {
             context.loadBytecode(bytes, filename)
         } else {
-            context.load(bytes.decodeToString(), filename, null, environmentProvided = false)
+            context.load(bytes.toLuaByteString(), filename, null, environmentProvided = false)
         }
     }
 

@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.core.lexer
 
 import io.github.realmlabs.klua.core.source.SourcePosition
 import io.github.realmlabs.klua.core.source.SourceRange
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.ByteArrayOutputStream
 import java.nio.charset.StandardCharsets
@@ -258,9 +259,9 @@ internal class Lexer(
     private fun writeSourceChar(bytes: ByteArrayOutputStream, char: Char) {
         if (char.isHighSurrogate() && !isAtEnd() && peek().isLowSurrogate()) {
             val low = advance()
-            bytes.write("$char$low".toByteArray(StandardCharsets.UTF_8))
+            bytes.write("$char$low".luaRawBytes())
         } else {
-            bytes.write(char.toString().toByteArray(StandardCharsets.UTF_8))
+            bytes.write(char.toString().luaRawBytes())
         }
     }
 

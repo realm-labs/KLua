@@ -13,6 +13,7 @@ import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.continueWith
 import io.github.realmlabs.klua.api.withContinuation
 import io.github.realmlabs.klua.core.value.luaRawBytes
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.IOException
 import java.math.BigInteger
 import java.nio.file.Files
@@ -387,7 +388,7 @@ public object LuaStdlib {
                 return LoadFileRead(source = LoadFileSource(state.config.standardInput.get(), "=stdin"))
             } else {
                 val bytes = Files.readAllBytes(Path.of(filename))
-                return LoadFileRead(source = LoadFileSource(bytes.decodeToString(), filename, bytes))
+                return LoadFileRead(source = LoadFileSource(bytes.toLuaByteString(), filename, bytes))
             }
         } catch (error: IOException) {
             return LoadFileRead(error = error.message ?: "cannot read file '$filename'")
