@@ -20732,6 +20732,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 offset returns end sentinel boundary positions`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local emptyStart, emptyEnd = utf8.offset("", 1)
+                local emptyCurrentStart, emptyCurrentEnd = utf8.offset("", 0)
+                local afterStart, afterEnd = utf8.offset("abc", 4)
+                local beforeStart = utf8.offset("abc", -4)
+                return emptyStart, emptyEnd,
+                    emptyCurrentStart, emptyCurrentEnd,
+                    afterStart, afterEnd,
+                    beforeStart,
+                    select("#", utf8.offset("abc", 5)),
+                    select("#", utf8.offset("abc", -4))
+                """.trimIndent(),
+                "utf8-offset-boundary-sentinels.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(4L, state.toInteger(5))
+        assertEquals(4L, state.toInteger(6))
+        assertTrue(state.isNil(7))
+        assertEquals(1L, state.toInteger(8))
+        assertEquals(1L, state.toInteger(9))
+    }
+
+    @Test
     fun `utf8 offset rejects nonzero offsets from continuation bytes`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
