@@ -1721,6 +1721,33 @@ class LuaVmTest {
     }
 
     @Test
+    fun `numeric for loop rejects non ascii hexadecimal string bounds`() {
+        val initialError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    for i = "0x" .. "\239\188\166", 20 do
+                    end
+                    """.trimIndent(),
+                ),
+            )
+        }
+        val limitError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    for i = 1, "0x" .. "\217\161" do
+                    end
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("numeric for index must be a number", initialError.message)
+        assertEquals("numeric for limit must be a number", limitError.message)
+    }
+
+    @Test
     fun `numeric for loop clamps out of range integer limits`() {
         val globals = LuaTable()
         globals.rawSet(LuaString("max"), LuaInteger(Long.MAX_VALUE))
