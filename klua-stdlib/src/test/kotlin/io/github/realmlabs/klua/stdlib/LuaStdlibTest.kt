@@ -8159,6 +8159,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load ignores tostring metamethods for chunk sources like lua_tolstring`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local source = setmetatable({}, {
+                    __tostring = function()
+                        return "return 42"
+                    end,
+                })
+                local ok, message = pcall(load, source)
+                return ok, message
+                """.trimIndent(),
+                "load-source-tostring-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'load' (function expected)", state.toString(2))
+    }
+
+    @Test
     fun `load compiles chunks from reader functions`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
