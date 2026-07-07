@@ -308,8 +308,12 @@ class LexerTest {
         val error = assertFailsWith<LexerException> {
             Lexer("return \"\\u{80000000}\"", "unicode-range.lua").tokenize()
         }
+        val overflow = assertFailsWith<LexerException> {
+            Lexer("return \"\\u{ffffffffffffffff}\"", "unicode-overflow.lua").tokenize()
+        }
 
         assertEquals("unicode-range.lua:1:8: unicode escape out of range", error.message)
+        assertEquals("unicode-overflow.lua:1:8: unicode escape out of range", overflow.message)
     }
 
     @Test

@@ -268,10 +268,11 @@ internal class Lexer(
             if (!peek().isHexDigit()) {
                 throw errorAt(start, "expected hexadecimal digit in unicode escape")
             }
-            value = value * 16 + advance().digitToInt(16)
-            if (value > MAX_UTF8_ESCAPE_VALUE) {
+            val digit = advance().digitToInt(16)
+            if (value > (MAX_UTF8_ESCAPE_VALUE - digit) / 16) {
                 throw errorAt(start, "unicode escape out of range")
             }
+            value = value * 16 + digit
         }
 
         if (!match('}')) {
