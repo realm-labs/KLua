@@ -45,6 +45,8 @@ class LuaStateStackJavaTest {
         state.pushString("9223372036854775808");
         state.pushString("0x1p63");
         state.pushString("-0x1p63");
+        state.pushString("0x1.8");
+        state.pushString("0x.8");
 
         assertEquals(3L, state.toInteger(1));
         assertEquals(3L, state.toInteger(2));
@@ -57,6 +59,8 @@ class LuaStateStackJavaTest {
         assertNull(state.toInteger(9));
         assertNull(state.toInteger(10));
         assertEquals(Long.MIN_VALUE, state.toInteger(11));
+        assertNull(state.toInteger(12));
+        assertNull(state.toInteger(13));
     }
 
     @Test
@@ -71,12 +75,14 @@ class LuaStateStackJavaTest {
             state.pushString("3.0");
             state.pushString("3,5");
             state.pushString("3,0.0");
+            state.pushString("0x1,8");
 
             assertEquals(3L, state.toInteger(1));
             assertEquals(3L, state.toInteger(2));
             assertEquals(3L, state.toInteger(3));
             assertNull(state.toInteger(4));
             assertNull(state.toInteger(5));
+            assertNull(state.toInteger(6));
         } finally {
             Locale.setDefault(previousLocale);
         }
@@ -93,6 +99,8 @@ class LuaStateStackJavaTest {
         state.pushString("NaN");
         state.pushString("Infinity");
         state.pushString("\u20033.5");
+        state.pushString("0x1.8");
+        state.pushString("0x.8");
 
         assertEquals(3.5, state.toNumber(1));
         assertEquals(3.5, state.toNumber(2));
@@ -101,6 +109,8 @@ class LuaStateStackJavaTest {
         assertNull(state.toNumber(5));
         assertNull(state.toNumber(6));
         assertNull(state.toNumber(7));
+        assertEquals(1.5, state.toNumber(8));
+        assertEquals(0.5, state.toNumber(9));
     }
 
     @Test
@@ -114,6 +124,7 @@ class LuaStateStackJavaTest {
             state.pushString("0x1,8p1");
             state.pushString("3.5");
             state.pushString("3,5.0");
+            state.pushString("0x1,8");
 
             assertEquals(3.5, state.toNumber(1));
             assertEquals(3.0, state.toNumber(2));
@@ -123,6 +134,8 @@ class LuaStateStackJavaTest {
             assertTrue(state.isNumber(2));
             assertTrue(state.isNumber(3));
             assertFalse(state.isNumber(4));
+            assertEquals(1.5, state.toNumber(5));
+            assertTrue(state.isNumber(5));
         } finally {
             Locale.setDefault(previousLocale);
         }

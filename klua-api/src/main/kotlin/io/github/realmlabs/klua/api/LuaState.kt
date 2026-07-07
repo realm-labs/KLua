@@ -1181,7 +1181,7 @@ class LuaState private constructor(
         val normalized = trimmed.normalizeLuaNumberDecimalPoint()
         return hexIntegerFromString(trimmed)
             ?: normalized.toLongOrNull()
-            ?: normalized.toDoubleOrNull()?.let(::integerFromNumber)
+            ?: normalized.luaFloatFromString()?.let(::integerFromNumber)
     }
 
     private fun numberFromString(value: String): Double? {
@@ -1191,9 +1191,14 @@ class LuaState private constructor(
         }
         val normalized = trimmed.normalizeLuaNumberDecimalPoint()
         val parsed = hexIntegerFromString(trimmed)?.toDouble()
-            ?: normalized.toDoubleOrNull()
+            ?: normalized.luaFloatFromString()
             ?: return null
         return parsed.takeIf { number -> number.isFinite() }
+    }
+
+    private fun String.luaFloatFromString(): Double? {
+        val parseable = if (isHexNumeral() && indexOf('p', ignoreCase = true) < 0) "${this}p0" else this
+        return parseable.toDoubleOrNull()
     }
 
     private fun String.normalizeLuaNumberDecimalPoint(): String {
@@ -1236,6 +1241,11 @@ class LuaState private constructor(
             parsed = parsed.negate()
         }
         return parsed.mod(UINT64_MODULUS).toLong()
+    }
+
+    private fun String.isHexNumeral(): Boolean {
+        val digitsStart = if (startsWith("-") || startsWith("+")) 1 else 0
+        return regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)
     }
 
     private fun Char.asciiDigitToIntOrNull(base: Int): Int? {
