@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.core.value.toLuaByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertTrue
 
 class LexerTest {
     @Test
@@ -178,6 +179,14 @@ class LexerTest {
     }
 
     @Test
+    fun `stops whitespace string escape before non lua whitespace`() {
+        val tokens = Lexer("\"a\\z \u2003b\"").tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals("a\u2003b", tokens[0].literal)
+    }
+
+    @Test
     fun `tokenizes unicode string escapes`() {
         val tokens = Lexer(
             "\"\\u{41}\\u{1F642}\"",
@@ -345,6 +354,18 @@ class LexerTest {
             ),
             tokens.map { it.kind },
         )
+    }
+
+    @Test
+    fun `rejects non lua whitespace between tokens`() {
+        val error = assertFailsWith<LexerException> {
+            Lexer("return\u20031", "unicode-space.lua").tokenize()
+        }
+
+        assertEquals("unicode-space.lua", error.position.sourceName)
+        assertEquals(1, error.position.line)
+        assertEquals(7, error.position.column)
+        assertTrue(error.message.orEmpty().contains("unexpected character"))
     }
 
     @Test

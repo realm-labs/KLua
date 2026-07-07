@@ -246,7 +246,7 @@ internal class Lexer(
             'x' -> readHexEscape(start)
             'u' -> readUnicodeEscape(start)
             'z' -> {
-                while (peek().isWhitespace()) {
+                while (peek().isLuaWhitespace()) {
                     if (isLuaNewlineStart()) {
                         consumeLuaNewlineSequence()
                     } else {
@@ -388,7 +388,7 @@ internal class Lexer(
         while (keepGoing) {
             keepGoing = false
 
-            while (peek().isWhitespace()) {
+            while (peek().isLuaWhitespace()) {
                 if (isLuaNewlineStart()) {
                     consumeLuaNewlineSequence()
                 } else {
@@ -546,6 +546,8 @@ internal class Lexer(
     private fun Char.isDigit(): Boolean = this in '0'..'9'
 
     private fun Char.isHexDigit(): Boolean = isDigit() || this in 'A'..'F' || this in 'a'..'f'
+
+    private fun Char.isLuaWhitespace(): Boolean = this == ' ' || this in '\t'..'\r'
 
     private fun Char.hexValue(): Int {
         return when (this) {
