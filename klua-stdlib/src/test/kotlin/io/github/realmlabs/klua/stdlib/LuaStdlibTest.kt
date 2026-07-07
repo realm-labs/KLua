@@ -3280,13 +3280,15 @@ class LuaStdlibTest {
                 local setIndexFractionOk, setIndexFractionMessage = pcall(debug.setuservalue, userdata, "value", 1.5)
                 local setIndexFirstOk, setIndexFirstMessage =
                     pcall(debug.setuservalue, "not-userdata", "value", "bad")
+                local missingGetValue, missingGetPresent = debug.getuservalue()
                 return setTargetOk, setTargetMessage,
                     setValueOk, setValueMessage,
                     getIndexOk, getIndexMessage,
                     setIndexOk, setIndexMessage,
                     getIndexFractionOk, getIndexFractionMessage,
                     setIndexFractionOk, setIndexFractionMessage,
-                    setIndexFirstOk, setIndexFirstMessage
+                    setIndexFirstOk, setIndexFirstMessage,
+                    missingGetValue, missingGetPresent
                 """.trimIndent(),
                 "debug-uservalue-errors.lua",
             ),
@@ -3307,6 +3309,8 @@ class LuaStdlibTest {
         assertEquals("bad argument #3 to 'setuservalue' (number has no integer representation)", state.toString(12))
         assertFalse(state.toBoolean(13))
         assertEquals("bad argument #3 to 'setuservalue' (number expected)", state.toString(14))
+        assertTrue(state.isNil(15))
+        assertTrue(state.isNil(16))
     }
 
     @Test
