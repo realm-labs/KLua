@@ -8157,12 +8157,14 @@ class LuaStdlibTest {
                 local updated = collectgarbage("param", "pause")
                 local query = collectgarbage("param", "pause", nil)
                 local unchanged = collectgarbage("param", "pause", -1)
+                local negativeIgnored = collectgarbage("param", "pause", -2)
+                local afterNegative = collectgarbage("param", "pause")
                 local stepmul = collectgarbage("param", "stepmul")
                 local stepsize = collectgarbage("param", "stepsize")
                 local previousStepSize = collectgarbage("param", "stepsize", 8192)
                 local updatedStepSize = collectgarbage("param", "stepsize")
                 return minormul, majorminor, minormajor, pause, previous, updated, query, unchanged,
-                    stepmul, stepsize, previousStepSize, updatedStepSize
+                    negativeIgnored, afterNegative, stepmul, stepsize, previousStepSize, updatedStepSize
                 """.trimIndent(),
                 "collectgarbage-param.lua",
             ),
@@ -8177,10 +8179,12 @@ class LuaStdlibTest {
         assertEquals(300L, state.toInteger(6))
         assertEquals(300L, state.toInteger(7))
         assertEquals(300L, state.toInteger(8))
-        assertEquals(200L, state.toInteger(9))
-        assertEquals(9600L, state.toInteger(10))
-        assertEquals(9600L, state.toInteger(11))
-        assertEquals(8192L, state.toInteger(12))
+        assertEquals(300L, state.toInteger(9))
+        assertEquals(300L, state.toInteger(10))
+        assertEquals(200L, state.toInteger(11))
+        assertEquals(9600L, state.toInteger(12))
+        assertEquals(9600L, state.toInteger(13))
+        assertEquals(8192L, state.toInteger(14))
     }
 
     @Test

@@ -226,7 +226,7 @@ public object LuaStdlib {
                     ?: throw LuaRuntimeException("bad argument #2 to 'collectgarbage' (invalid option '$parameter')")
                 if (!context.isNone(3) && !context.isNil(3)) {
                     val value = requiredIntegerLikeLuaL(context, 3, "collectgarbage")
-                    if (value != -1L) {
+                    if (value >= 0L) {
                         params[parameter] = value
                     }
                 }
