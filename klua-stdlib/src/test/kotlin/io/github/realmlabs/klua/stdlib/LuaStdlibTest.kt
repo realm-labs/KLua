@@ -15201,6 +15201,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math numeric arguments accept locale decimal numeric strings`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openMath(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    math.randomseed("1,0", "2,0")
+                    local randomValue = math.random("1,0", "3,0")
+                    local fractionalOk, fractionalMessage = pcall(math.random, "1,5")
+                    local mixedOk, mixedMessage = pcall(math.abs, "1,0.0")
+                    return math.abs("-1,5"),
+                        math.floor("2,9"),
+                        math.ceil("2,1"),
+                        math.fmod("5,5", "2,0"),
+                        math.ldexp("1,5", "1,0"),
+                        math.ult("1,0", "2,0"),
+                        math.tointeger("0x1,8p1"),
+                        randomValue >= 1 and randomValue <= 3,
+                        fractionalOk, fractionalMessage,
+                        mixedOk, mixedMessage
+                    """.trimIndent(),
+                    "math-locale-decimal-numeric-arguments.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1.5, state.toNumber(1) ?: error("missing abs result"), 0.0)
+            assertEquals(2L, state.toInteger(2))
+            assertEquals(3L, state.toInteger(3))
+            assertEquals(1.5, state.toNumber(4) ?: error("missing fmod result"), 0.0)
+            assertEquals(3.0, state.toNumber(5) ?: error("missing ldexp result"), 0.0)
+            assertTrue(state.toBoolean(6))
+            assertEquals(3L, state.toInteger(7))
+            assertTrue(state.toBoolean(8))
+            assertFalse(state.toBoolean(9))
+            assertEquals("bad argument #1 to 'random' (number has no integer representation)", state.toString(10))
+            assertFalse(state.toBoolean(11))
+            assertEquals("bad argument #1 to 'abs' (number expected)", state.toString(12))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `math abs preserves subtype only for numeric integer arguments`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
