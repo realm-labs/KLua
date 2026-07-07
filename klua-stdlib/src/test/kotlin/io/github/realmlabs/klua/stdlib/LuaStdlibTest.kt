@@ -8814,6 +8814,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `load reader function yield is reported as protected reader failure`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    return load(function()
+                        return coroutine.yield("paused")
+                    end)
+                end)
+                local ok, first, second = coroutine.resume(co)
+                return ok, first, second, type(first), type(second), coroutine.status(co)
+                """.trimIndent(),
+                "load-reader-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.isNil(2))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(3))
+        assertEquals("nil", state.toString(4))
+        assertEquals("string", state.toString(5))
+        assertEquals("dead", state.toString(6))
+    }
+
+    @Test
     fun `load returns syntax errors without running chunks`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

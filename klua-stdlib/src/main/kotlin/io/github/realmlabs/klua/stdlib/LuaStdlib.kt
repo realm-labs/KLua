@@ -268,7 +268,7 @@ public object LuaStdlib {
             try {
                 readChunkSource(context)
             } catch (yield: LuaYieldException) {
-                throw yield
+                return LuaReturn.of(null, "attempt to yield across a C-call boundary")
             } catch (exception: LuaException) {
                 return LuaReturn.of(null, errorObject(exception))
             } catch (exception: RuntimeException) {
