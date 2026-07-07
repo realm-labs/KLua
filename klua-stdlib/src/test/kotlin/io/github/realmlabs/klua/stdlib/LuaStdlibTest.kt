@@ -329,6 +329,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tostring metamethod cannot yield across native tostring boundary`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = setmetatable({}, {
+                    __tostring = function()
+                        return coroutine.yield("paused")
+                    end,
+                })
+                local co = coroutine.create(function()
+                    return tostring(value)
+                end)
+                local ok, message = coroutine.resume(co)
+                return ok, message, coroutine.status(co)
+                """.trimIndent(),
+                "tostring-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+    }
+
+    @Test
     fun `tostring uses string tostring metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -8094,6 +8124,38 @@ class LuaStdlibTest {
 
         assertEquals(listOf("number-value"), output)
         assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `print tostring metamethod cannot yield across native print boundary`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openLibs(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = setmetatable({}, {
+                    __tostring = function()
+                        return coroutine.yield("paused")
+                    end,
+                })
+                local co = coroutine.create(function()
+                    print(value)
+                end)
+                local ok, message = coroutine.resume(co)
+                return ok, message, coroutine.status(co)
+                """.trimIndent(),
+                "print-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        assertEquals(emptyList(), output)
     }
 
     @Test
