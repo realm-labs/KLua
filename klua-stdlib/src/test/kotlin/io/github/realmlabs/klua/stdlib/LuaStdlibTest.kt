@@ -9600,6 +9600,51 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pairs metamethod can yield before returning iterator results`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, {
+                    __pairs = function(self)
+                        local resumed = coroutine.yield("paused", self)
+                        return function(state, key)
+                            if key == nil then
+                                return resumed, state.marker
+                            end
+                        end, self, nil, "closing"
+                    end,
+                })
+                target.marker = "value"
+                local co = coroutine.create(function()
+                    local iterator, state, key, closing = pairs(target)
+                    local firstKey, firstValue = iterator(state, key)
+                    return firstKey, firstValue, closing
+                end)
+                local firstOk, marker, yieldedSelf = coroutine.resume(co)
+                local secondOk, firstKey, firstValue, closing = coroutine.resume(co, "resumed")
+                return firstOk, marker, yieldedSelf == target,
+                    secondOk, firstKey, firstValue, closing, coroutine.status(co)
+                """.trimIndent(),
+                "pairs-yielding-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("paused", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("resumed", state.toString(5))
+        assertEquals("value", state.toString(6))
+        assertEquals("closing", state.toString(7))
+        assertEquals("dead", state.toString(8))
+    }
+
+    @Test
     fun `pairs calls callable pairs metamethod values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

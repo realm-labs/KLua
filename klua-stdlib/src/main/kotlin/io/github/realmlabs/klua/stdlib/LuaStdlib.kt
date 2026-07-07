@@ -89,7 +89,7 @@ public object LuaStdlib {
         state.register("load", ::load)
         state.register("loadfile") { context -> loadfile(context, state) }
         state.register("next", ::next)
-        state.register("pairs", ::pairs)
+        registerYieldable(state, "pairs", ::pairs)
         registerYieldable(state, "pcall", ::pcall)
         state.register("print") { context -> print(context, output) }
         state.register("rawequal", ::rawequal)
@@ -440,9 +440,25 @@ public object LuaStdlib {
         requireAnyArgument(context, "pairs")
         val pairs = context.getTableField(context.getRawMetatable(1), "__pairs")
         if (pairs != null) {
-            return pairsReturn(context.call(pairs, listOf(argumentValue(context, 1))))
+            return try {
+                pairsReturn(context.call(pairs, listOf(argumentValue(context, 1))))
+            } catch (yield: LuaYieldException) {
+                throw yield.withContinuation { arguments ->
+                    pairsReturnResume(yield, arguments)
+                }
+            }
         }
         return LuaReturn.ofValues(listOf(LuaFunction(::next), argumentValue(context, 1), null, null))
+    }
+
+    private fun pairsReturnResume(yield: LuaYieldException, arguments: List<Any?>): LuaReturn {
+        return try {
+            pairsReturn(yield.continueWith(arguments))
+        } catch (nextYield: LuaYieldException) {
+            throw nextYield.withContinuation { nextArguments ->
+                pairsReturnResume(nextYield, nextArguments)
+            }
+        }
     }
 
     private fun pairsReturn(result: LuaReturn): LuaReturn {
