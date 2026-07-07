@@ -6611,6 +6611,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber accepts locale decimal points`() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.GERMANY)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    return tonumber("1,5"),
+                        tonumber("0x1,8p1"),
+                        tonumber("2.5"),
+                        tonumber("1,5.0"),
+                        tonumber("1,5", 10)
+                    """.trimIndent(),
+                    "tonumber-locale-decimal.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1.5, state.toNumber(1) ?: error("missing locale decimal result"), 0.0)
+            assertEquals(3.0, state.toNumber(2) ?: error("missing locale hex result"), 0.0)
+            assertEquals(2.5, state.toNumber(3) ?: error("missing dot fallback result"), 0.0)
+            assertTrue(state.isNil(4))
+            assertTrue(state.isNil(5))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `tonumber rejects non ascii surrounding spaces`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

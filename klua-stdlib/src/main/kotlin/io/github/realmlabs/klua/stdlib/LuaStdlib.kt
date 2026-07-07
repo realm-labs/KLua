@@ -946,7 +946,19 @@ public object LuaStdlib {
         if (trimmed.isNamedFloatingPointLiteral()) {
             return null
         }
-        return parseHexInteger(trimmed) ?: trimmed.toLongOrNull() ?: trimmed.toDoubleOrNull()
+        val normalized = trimmed.normalizeLuaNumberDecimalPoint()
+        return parseHexInteger(trimmed) ?: normalized.toLongOrNull() ?: normalized.toDoubleOrNull()
+    }
+
+    private fun String.normalizeLuaNumberDecimalPoint(): String {
+        val decimalPoint = luaLocaleDecimalPoint()
+        if (decimalPoint == '.' || decimalPoint !in this) {
+            return this
+        }
+        if ('.' in this) {
+            return this
+        }
+        return replace(decimalPoint, '.')
     }
 
     private fun parseBasedInteger(text: String, base: Int): Long? {
