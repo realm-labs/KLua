@@ -3965,7 +3965,7 @@ class LuaStdlibTest {
     @Test
     fun `io numeric reads consume invalid numeric prefixes`() {
         val path = Files.createTempFile("klua-io-read-prefix-", ".txt")
-        Files.writeString(path, "0x abc")
+        Files.writeString(path, "0x 1e+tail .done abc")
         val state = LuaState.create()
         LuaStdlib.openBase(state)
         LuaStdlib.openIo(state)
@@ -3978,10 +3978,17 @@ class LuaStdlibTest {
                     local handle = assert(io.open("${path.luaPath()}", "r"))
                     local invalidHex = handle:read("n")
                     local afterHex = handle:read(1)
+                    local invalidExponent = handle:read("n")
+                    local afterExponent = handle:read(4)
+                    local invalidFraction = handle:read("n")
+                    local afterFraction = handle:read(4)
                     local nonNumber = handle:read("n")
                     local afterText = handle:read(3)
                     handle:close()
-                    return invalidHex, afterHex, nonNumber, afterText
+                    return invalidHex, afterHex,
+                        invalidExponent, afterExponent,
+                        invalidFraction, afterFraction,
+                        nonNumber, afterText
                     """.trimIndent(),
                     "io-read-invalid-prefix.lua",
                 ),
@@ -3991,7 +3998,11 @@ class LuaStdlibTest {
             assertTrue(state.isNil(1))
             assertEquals(" ", state.toString(2))
             assertTrue(state.isNil(3))
-            assertEquals("abc", state.toString(4))
+            assertEquals("tail", state.toString(4))
+            assertTrue(state.isNil(5))
+            assertEquals("done", state.toString(6))
+            assertTrue(state.isNil(7))
+            assertEquals("abc", state.toString(8))
         } finally {
             Files.deleteIfExists(path)
         }
