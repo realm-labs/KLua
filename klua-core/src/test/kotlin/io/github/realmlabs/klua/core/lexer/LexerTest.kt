@@ -160,6 +160,24 @@ class LexerTest {
     }
 
     @Test
+    fun `tokenizes escaped lua newline sequences as line feeds`() {
+        val tokens = Lexer("\"a\\\r\nb\" \"a\\\n\rb\"").tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals("a\nb", tokens[0].literal)
+        assertEquals("a\nb", tokens[1].literal)
+    }
+
+    @Test
+    fun `counts lua newline sequences once after whitespace string escape`() {
+        val tokens = Lexer("\"a\\z \n\r b\" return", "zap.lua").tokenize()
+
+        assertEquals(listOf(TokenKind.STRING, TokenKind.RETURN, TokenKind.EOF), tokens.map { it.kind })
+        assertEquals("ab", tokens[0].literal)
+        assertEquals(2, tokens[1].range.start.line)
+    }
+
+    @Test
     fun `tokenizes unicode string escapes`() {
         val tokens = Lexer(
             "\"\\u{41}\\u{1F642}\"",

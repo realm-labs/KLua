@@ -230,6 +230,10 @@ internal class Lexer(
         if (isAtEnd()) {
             throw errorAt(start, "unterminated escape sequence")
         }
+        if (isLuaNewlineStart()) {
+            consumeLuaNewlineSequence()
+            return byteArrayOf(0x0A)
+        }
 
         return when (val escaped = advance()) {
             'a' -> byteArrayOf(0x07)
@@ -243,14 +247,17 @@ internal class Lexer(
             'u' -> readUnicodeEscape(start)
             'z' -> {
                 while (peek().isWhitespace()) {
-                    advance()
+                    if (isLuaNewlineStart()) {
+                        consumeLuaNewlineSequence()
+                    } else {
+                        advance()
+                    }
                 }
                 ByteArray(0)
             }
             '\\' -> byteArrayOf('\\'.code.toByte())
             '"' -> byteArrayOf('"'.code.toByte())
             '\'' -> byteArrayOf('\''.code.toByte())
-            '\n' -> byteArrayOf(0x0A)
             in '0'..'9' -> readDecimalEscape(start, escaped)
             else -> throw errorAt(start, "invalid escape sequence")
         }
