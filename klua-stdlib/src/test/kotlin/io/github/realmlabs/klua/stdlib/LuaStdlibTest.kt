@@ -4123,7 +4123,7 @@ class LuaStdlibTest {
         val previousLocale = Locale.getDefault()
         Locale.setDefault(Locale.GERMANY)
         val path = Files.createTempFile("klua-io-read-locale-decimal-", ".txt")
-        Files.writeString(path, "1,5 0x1,8p1 2.5")
+        Files.writeString(path, "1,5 0x1,8p1 0x1,8 0x.8 2.5")
         val state = LuaState.create()
         LuaStdlib.openBase(state)
         LuaStdlib.openIo(state)
@@ -4136,9 +4136,11 @@ class LuaStdlibTest {
                     local handle = assert(io.open("${path.luaPath()}", "r"))
                     local decimal = handle:read("n")
                     local hexFloat = handle:read("n")
+                    local exponentlessLocaleHex = handle:read("n")
+                    local exponentlessDotHex = handle:read("n")
                     local dotFallback = handle:read("n")
                     handle:close()
-                    return decimal, hexFloat, dotFallback
+                    return decimal, hexFloat, exponentlessLocaleHex, exponentlessDotHex, dotFallback
                     """.trimIndent(),
                     "io-read-locale-decimal.lua",
                 ),
@@ -4147,7 +4149,9 @@ class LuaStdlibTest {
 
             assertEquals(1.5, state.toNumber(1) ?: error("missing decimal result"), 0.0)
             assertEquals(3.0, state.toNumber(2) ?: error("missing hex float result"), 0.0)
-            assertEquals(2.5, state.toNumber(3) ?: error("missing dot fallback result"), 0.0)
+            assertEquals(1.5, state.toNumber(3) ?: error("missing exponentless locale hex result"), 0.0)
+            assertEquals(0.5, state.toNumber(4) ?: error("missing exponentless dot hex result"), 0.0)
+            assertEquals(2.5, state.toNumber(5) ?: error("missing dot fallback result"), 0.0)
         } finally {
             Locale.setDefault(previousLocale)
             Files.deleteIfExists(path)
@@ -6589,6 +6593,8 @@ class LuaStdlibTest {
                 return tonumber("42"),
                     tonumber("3.5"),
                     tonumber("0x1.8p1"),
+                    tonumber("0x1.8"),
+                    tonumber("0x.8"),
                     tonumber("bad"),
                     tonumber("NaN"),
                     tonumber("Infinity"),
@@ -6603,11 +6609,13 @@ class LuaStdlibTest {
         assertEquals(42L, state.toInteger(1))
         assertEquals(3.5, state.toNumber(2))
         assertEquals(3.0, state.toNumber(3))
-        assertTrue(state.isNil(4))
-        assertTrue(state.isNil(5))
+        assertEquals(1.5, state.toNumber(4))
+        assertEquals(0.5, state.toNumber(5))
         assertTrue(state.isNil(6))
         assertTrue(state.isNil(7))
-        assertEquals(7L, state.toInteger(8))
+        assertTrue(state.isNil(8))
+        assertTrue(state.isNil(9))
+        assertEquals(7L, state.toInteger(10))
     }
 
     @Test
@@ -6624,6 +6632,7 @@ class LuaStdlibTest {
                     """
                     return tonumber("1,5"),
                         tonumber("0x1,8p1"),
+                        tonumber("0x1,8"),
                         tonumber("2.5"),
                         tonumber("1,5.0"),
                         tonumber("1,5", 10)
@@ -6635,9 +6644,10 @@ class LuaStdlibTest {
 
             assertEquals(1.5, state.toNumber(1) ?: error("missing locale decimal result"), 0.0)
             assertEquals(3.0, state.toNumber(2) ?: error("missing locale hex result"), 0.0)
-            assertEquals(2.5, state.toNumber(3) ?: error("missing dot fallback result"), 0.0)
-            assertTrue(state.isNil(4))
+            assertEquals(1.5, state.toNumber(3) ?: error("missing locale exponentless hex result"), 0.0)
+            assertEquals(2.5, state.toNumber(4) ?: error("missing dot fallback result"), 0.0)
             assertTrue(state.isNil(5))
+            assertTrue(state.isNil(6))
         } finally {
             Locale.setDefault(previousLocale)
         }

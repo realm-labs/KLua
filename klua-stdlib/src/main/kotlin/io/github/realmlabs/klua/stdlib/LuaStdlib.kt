@@ -947,7 +947,12 @@ public object LuaStdlib {
             return null
         }
         val normalized = trimmed.normalizeLuaNumberDecimalPoint()
-        return parseHexInteger(trimmed) ?: normalized.toLongOrNull() ?: normalized.toDoubleOrNull()
+        return parseHexInteger(trimmed) ?: normalized.toLongOrNull() ?: normalized.luaFloatFromString()
+    }
+
+    private fun String.luaFloatFromString(): Double? {
+        val parseable = if (isHexNumeral() && indexOf('p', ignoreCase = true) < 0) "${this}p0" else this
+        return parseable.toDoubleOrNull()
     }
 
     private fun String.normalizeLuaNumberDecimalPoint(): String {
@@ -1031,6 +1036,11 @@ public object LuaStdlib {
             value = value.negate()
         }
         return value.mod(UINT64_MODULUS).toLong()
+    }
+
+    private fun String.isHexNumeral(): Boolean {
+        val digitsStart = if (startsWith("-") || startsWith("+")) 1 else 0
+        return regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)
     }
 
     private fun Any?.luaIntegerSubtype(): Long? {

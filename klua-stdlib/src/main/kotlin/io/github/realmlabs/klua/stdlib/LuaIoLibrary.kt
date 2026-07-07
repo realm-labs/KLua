@@ -1122,8 +1122,9 @@ internal object LuaIoLibrary {
             return null
         }
         if ('p' in body || 'P' in body || '.' in body) {
+            val parseableBody = if ('p' in body || 'P' in body) body else "${body}p0"
             val parsed = try {
-                java.lang.Double.parseDouble((if (sign < 0) "-" else "") + "0x" + body)
+                java.lang.Double.parseDouble((if (sign < 0) "-" else "") + "0x" + parseableBody)
             } catch (_: NumberFormatException) {
                 return null
             }
