@@ -5,7 +5,6 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
-import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
@@ -50,10 +49,11 @@ internal object LuaPackageLibrary {
         } catch (error: IOException) {
             return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
         }
-        return if (isKLuaBinaryChunk(bytes)) {
-            context.loadBytecode(bytes, filename)
+        val source = loadFileContent(bytes)
+        return if (isKLuaBinaryChunk(source.bytes)) {
+            context.loadBytecode(source.bytes, filename)
         } else {
-            context.load(bytes.toLuaByteString(), filename, null, environmentProvided = false)
+            context.load(source.source, filename, null, environmentProvided = false)
         }
     }
 

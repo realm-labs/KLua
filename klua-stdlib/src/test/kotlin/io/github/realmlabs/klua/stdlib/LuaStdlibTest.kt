@@ -6689,6 +6689,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require skips bom and shebang in Lua files`() {
+        val root = Files.createTempDirectory("klua-require-file-preamble")
+        val moduleSource = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) +
+            """
+            #!/usr/bin/env lua
+            local name, filename = ...
+            return { name = name, filename = filename, value = 42 }
+            """.trimIndent().toByteArray(StandardCharsets.UTF_8)
+        Files.write(root.resolve("real.lua"), moduleSource)
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = "${root.luaPath()}/?.lua"
+                local loaded, path = require("real")
+                return loaded.name, loaded.value, loaded.filename, path
+                """.trimIndent(),
+                "require-file-preamble.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("real", state.toString(1))
+        assertEquals(42L, state.toInteger(2))
+        assertTrue(state.toString(3)?.endsWith("real.lua") == true)
+        assertTrue(state.toString(4)?.endsWith("real.lua") == true)
+    }
+
+    @Test
     fun `require Lua searcher ignores global loadfile replacement`() {
         val root = Files.createTempDirectory("klua-require-file-loadfile")
         Files.writeString(
@@ -9290,6 +9323,69 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `loadfile and dofile skip bom and shebang like luaL_loadfilex`() {
+        val loadFile = Files.createTempFile("klua-loadfile-preamble", ".lua")
+        val doFile = Files.createTempFile("klua-dofile-preamble", ".lua")
+        val errorFile = Files.createTempFile("klua-loadfile-preamble-error", ".lua")
+        try {
+            val loadSource = byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) +
+                "#!/usr/bin/env lua\nreturn 41 + 1".toByteArray(StandardCharsets.UTF_8)
+            Files.write(loadFile, loadSource)
+            Files.writeString(doFile, "#!/usr/bin/env lua\nreturn 'ok', 42")
+            Files.writeString(errorFile, "#!/usr/bin/env lua\nlocal x <close> = {}")
+
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local chunk = assert(loadfile("${loadFile.luaPath()}"))
+                    local doName, doValue = dofile("${doFile.luaPath()}")
+                    local syntax, message = loadfile("${errorFile.luaPath()}")
+                    return chunk(), doName, doValue, syntax, message
+                    """.trimIndent(),
+                    "loadfile-dofile-preamble.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(42L, state.toInteger(1))
+            assertEquals("ok", state.toString(2))
+            assertEquals(42L, state.toInteger(3))
+            assertTrue(state.isNil(4))
+            assertEquals("$errorFile:2:1: to-be-closed local variables are not supported", state.toString(5))
+        } finally {
+            Files.deleteIfExists(loadFile)
+            Files.deleteIfExists(doFile)
+            Files.deleteIfExists(errorFile)
+        }
+    }
+
+    @Test
+    fun `loadfile skips bom and shebang in configured standard input`() {
+        withStandardInput("\uFEFF#!/usr/bin/env lua\nreturn 42") {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local chunk = assert(loadfile(nil))
+                    return chunk()
+                    """.trimIndent(),
+                    "loadfile-stdin-preamble.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(42L, state.toInteger(1))
+        }
+    }
+
+    @Test
     fun `loadfile honors text chunk mode`() {
         val file = Files.createTempFile("klua-loadfile-mode", ".lua")
         try {
@@ -9332,6 +9428,7 @@ class LuaStdlibTest {
     @Test
     fun `loadfile loads KLua bytecode files in binary mode`() {
         val file = Files.createTempFile("klua-loadfile-bytecode", ".kluac")
+        val preambleFile = Files.createTempFile("klua-loadfile-bytecode-preamble", ".kluac")
         try {
             val dumpState = LuaState.create()
             LuaStdlib.openLibs(dumpState)
@@ -9348,6 +9445,12 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, dumpState.pcall(0, -1), dumpState.toString(-1))
             val dumped = dumpState.toString(1) ?: error("missing dumped bytecode")
             Files.write(file, dumped.luaRawBytes())
+            Files.write(
+                preambleFile,
+                byteArrayOf(0xEF.toByte(), 0xBB.toByte(), 0xBF.toByte()) +
+                    "#!/usr/bin/env klua\n".toByteArray(StandardCharsets.UTF_8) +
+                    dumped.luaRawBytes(),
+            )
 
             val state = LuaState.create()
             LuaStdlib.openLibs(state)
@@ -9360,7 +9463,8 @@ class LuaStdlibTest {
                     local binaryChunk = loadfile("${file.luaPath()}", "b", env)
                     local defaultChunk = loadfile("${file.luaPath()}")
                     local textOnly, textMessage = loadfile("${file.luaPath()}", "t")
-                    return binaryChunk(), defaultChunk(), textOnly, textMessage
+                    local preambleChunk = loadfile("${preambleFile.luaPath()}", "b", env)
+                    return binaryChunk(), defaultChunk(), textOnly, textMessage, preambleChunk()
                     """.trimIndent(),
                     "loadfile-bytecode.lua",
                 ),
@@ -9371,8 +9475,10 @@ class LuaStdlibTest {
             assertEquals("global", state.toString(2))
             assertTrue(state.isNil(3))
             assertEquals("attempt to load a binary chunk (mode is 't')", state.toString(4))
+            assertEquals("env", state.toString(5))
         } finally {
             Files.deleteIfExists(file)
+            Files.deleteIfExists(preambleFile)
         }
     }
 
