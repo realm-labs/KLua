@@ -19503,6 +19503,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub skips empty matches at previous end`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local repeated, repeatedCount = string.gsub("ab", "a*", "x")
+                local captured, capturedCount = string.gsub("ab", "a*()", "[%1]")
+                return repeated, repeatedCount, captured, capturedCount
+                """.trimIndent(),
+                "string-gsub-lastmatch.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("xbx", state.toString(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("[2]b[3]", state.toString(3))
+        assertEquals(2L, state.toInteger(4))
+    }
+
+    @Test
     fun `string gsub accepts numeric replacements`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

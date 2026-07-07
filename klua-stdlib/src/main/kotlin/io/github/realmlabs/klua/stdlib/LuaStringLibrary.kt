@@ -123,14 +123,25 @@ internal object LuaStringLibrary {
         val patternSubject = pattern.toLuaPatternSubject()
         val result = StringBuilder()
         var cursor = 0
+        var lastMatchEnd: Int? = null
         var replacements = 0L
         val compiledPattern = LuaStringPattern.compile(patternSubject.text)
-        while (replacements < limit) {
+        while (replacements < limit && cursor <= subject.text.length) {
             val match = compiledPattern.find(subject.text, cursor)
             if (match == null) {
                 break
             }
             result.append(subject.text, cursor, match.startIndex)
+            if (match.endIndex == lastMatchEnd) {
+                if (match.startIndex < subject.text.length) {
+                    val nextCursor = match.startIndex + 1
+                    result.append(subject.text, match.startIndex, nextCursor)
+                    cursor = nextCursor
+                    continue
+                }
+                cursor = subject.text.length
+                break
+            }
             val wholeMatch = subject.substring(match.startIndex, match.endIndex)
             result.append(
                 replacementForMatch(
@@ -140,15 +151,8 @@ internal object LuaStringLibrary {
                     subject.luaPatternCaptures(match.captures),
                 ).toLuaPatternReplacement(),
             )
-            cursor = if (match.startIndex == match.endIndex && match.endIndex < subject.text.length) {
-                val nextCursor = match.endIndex + 1
-                result.append(subject.text, match.endIndex, nextCursor)
-                nextCursor
-            } else if (match.startIndex == match.endIndex) {
-                subject.text.length + 1
-            } else {
-                match.endIndex
-            }
+            cursor = match.endIndex
+            lastMatchEnd = match.endIndex
             replacements++
             if (compiledPattern.startAnchored) {
                 break
