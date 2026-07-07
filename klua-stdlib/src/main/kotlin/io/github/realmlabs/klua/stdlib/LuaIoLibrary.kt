@@ -264,9 +264,6 @@ internal object LuaIoLibrary {
     }
 
     private fun ioType(context: LuaCallContext): LuaReturn {
-        if (context.isNone(1)) {
-            throw LuaRuntimeException("bad argument #1 to 'io.type' (value expected)")
-        }
         val handle = context.toUserData(1, IoFileHandle::class.java) ?: return LuaReturn.of(null)
         if (!handle.luaToStringFallbackEnabled) {
             return LuaReturn.of(null)
