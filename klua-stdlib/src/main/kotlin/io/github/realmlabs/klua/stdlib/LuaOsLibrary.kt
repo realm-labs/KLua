@@ -573,10 +573,15 @@ internal object LuaOsLibrary {
             is Double -> value.luaInteger()
             is CharSequence -> value.toString().trimLuaAsciiWhitespace().let { text ->
                 val normalized = text.normalizeLuaNumberDecimalPoint()
-                parseHexInteger(text) ?: normalized.toLongOrNull() ?: normalized.toDoubleOrNull()?.luaInteger()
+                parseHexInteger(text) ?: normalized.toLongOrNull() ?: normalized.luaFloatFromString()?.luaInteger()
             }
             else -> null
         }
+    }
+
+    private fun String.luaFloatFromString(): Double? {
+        val parseable = if (isHexNumeral() && indexOf('p', ignoreCase = true) < 0) "${this}p0" else this
+        return parseable.toDoubleOrNull()
     }
 
     private fun String.normalizeLuaNumberDecimalPoint(): String {
@@ -589,6 +594,11 @@ internal object LuaOsLibrary {
 
     private fun String.trimLuaAsciiWhitespace(): String {
         return trim { char -> char == ' ' || char == '\u000C' || char == '\n' || char == '\r' || char == '\t' || char == '\u000B' }
+    }
+
+    private fun String.isHexNumeral(): Boolean {
+        val digitsStart = if (startsWith("-") || startsWith("+")) 1 else 0
+        return regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)
     }
 
     private fun parseHexInteger(text: String): Long? {

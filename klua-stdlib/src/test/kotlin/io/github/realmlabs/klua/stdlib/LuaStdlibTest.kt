@@ -12973,13 +12973,15 @@ class LuaStdlibTest {
                 state.load(
                     """
                     local numeric = {year = 2020, month = 1, day = 2, hour = 3, min = 4, sec = 5}
-                    local strings = {year = "2020,0", month = "1,0", day = "2,0", hour = "0x1,8p1", min = "+4,0", sec = "5.0"}
+                    local strings = {year = "2020,0", month = "0x1,0", day = "2,0", hour = "0x3,0", min = "+4,0", sec = "5.0"}
                     local numericTime = os.time(numeric)
                     local stringTime = os.time(strings)
                     local mixedOk, mixedMessage = pcall(os.time, {year = "2020,0.0", month = 1, day = 2})
+                    local fractionalOk, fractionalMessage = pcall(os.time, {year = "2020,8", month = 1, day = 2})
                     return os.difftime(stringTime, numericTime),
                         strings.year, strings.month, strings.day, strings.hour, strings.min, strings.sec,
-                        mixedOk, mixedMessage
+                        mixedOk, mixedMessage,
+                        fractionalOk, fractionalMessage
                     """.trimIndent(),
                     "os-time-locale-decimal-string-fields.lua",
                 ),
@@ -12995,6 +12997,8 @@ class LuaStdlibTest {
             assertEquals(5L, state.toInteger(7))
             assertFalse(state.toBoolean(8))
             assertEquals("field 'year' is not an integer", state.toString(9))
+            assertFalse(state.toBoolean(10))
+            assertEquals("field 'year' is not an integer", state.toString(11))
         } finally {
             Locale.setDefault(previousLocale)
         }
@@ -22691,9 +22695,9 @@ class LuaStdlibTest {
                     local concat = table.concat({"a", "b", "c", "d"}, "", "0x1,0p1", "3,0")
                     local created = table.create("2,0", "1,0")
                     local values = {"a", "c"}
-                    table.insert(values, "2,0", "b")
+                    table.insert(values, "0x2,0", "b")
                     local moved = {}
-                    table.move(values, "1,0", "0x1,8p1", "1,0", moved)
+                    table.move(values, "1,0", "0x3,0", "1,0", moved)
                     local removed = table.remove(moved, "2,0")
                     local first, second = table.unpack(moved, "1,0", "0x1,0p1")
                     local fallback = setmetatable({}, {
@@ -22706,8 +22710,10 @@ class LuaStdlibTest {
                     })
                     local mixedOk, mixedMessage = pcall(table.concat, {"a"}, "", "1,0.0", 1)
                     local fractionalOk, fractionalMessage = pcall(table.concat, {"a"}, "", "1,5", 1)
+                    local fractionalHexOk, fractionalHexMessage = pcall(table.concat, {"a"}, "", "0x1,8", 1)
                     return concat, type(created), table.concat(values, ""), removed, first, second,
-                        table.concat(fallback, ""), mixedOk, mixedMessage, fractionalOk, fractionalMessage
+                        table.concat(fallback, ""), mixedOk, mixedMessage, fractionalOk, fractionalMessage,
+                        fractionalHexOk, fractionalHexMessage
                     """.trimIndent(),
                     "table-locale-decimal-integer-arguments.lua",
                 ),
@@ -22725,6 +22731,8 @@ class LuaStdlibTest {
             assertEquals("bad argument #3 to 'concat' (number expected)", state.toString(9))
             assertFalse(state.toBoolean(10))
             assertEquals("bad argument #3 to 'concat' (number has no integer representation)", state.toString(11))
+            assertFalse(state.toBoolean(12))
+            assertEquals("bad argument #3 to 'concat' (number has no integer representation)", state.toString(13))
         } finally {
             Locale.setDefault(previousLocale)
         }

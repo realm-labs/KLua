@@ -791,7 +791,7 @@ internal object LuaTableLibrary {
             is Double -> value.luaInteger()
             is CharSequence -> value.toString().trimLuaAsciiWhitespace().let { text ->
                 val normalized = text.normalizeLuaNumberDecimalPoint()
-                parseHexInteger(text) ?: normalized.toLongOrNull() ?: normalized.toDoubleOrNull()?.luaInteger()
+                parseHexInteger(text) ?: normalized.toLongOrNull() ?: normalized.luaFloatFromString()?.luaInteger()
             }
             else -> null
         }
@@ -810,11 +810,16 @@ internal object LuaTableLibrary {
                     null
                 } else {
                     val normalized = text.normalizeLuaNumberDecimalPoint()
-                    parseHexInteger(text)?.toDouble() ?: normalized.toDoubleOrNull()?.takeIf { number -> number.isFinite() }
+                    parseHexInteger(text)?.toDouble() ?: normalized.luaFloatFromString()?.takeIf { number -> number.isFinite() }
                 }
             }
             else -> null
         }
+    }
+
+    private fun String.luaFloatFromString(): Double? {
+        val parseable = if (isHexNumeral() && indexOf('p', ignoreCase = true) < 0) "${this}p0" else this
+        return parseable.toDoubleOrNull()
     }
 
     private fun String.normalizeLuaNumberDecimalPoint(): String {
@@ -828,6 +833,11 @@ internal object LuaTableLibrary {
     private fun String.isNamedFloatingPointLiteral(): Boolean {
         val unsigned = trimStart('+', '-')
         return unsigned.equals("nan", ignoreCase = true) || unsigned.equals("infinity", ignoreCase = true)
+    }
+
+    private fun String.isHexNumeral(): Boolean {
+        val digitsStart = if (startsWith("-") || startsWith("+")) 1 else 0
+        return regionMatches(digitsStart, "0x", 0, 2, ignoreCase = true)
     }
 
     private fun String.trimLuaAsciiWhitespace(): String {
