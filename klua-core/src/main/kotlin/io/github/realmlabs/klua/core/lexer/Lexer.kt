@@ -35,6 +35,9 @@ internal class Lexer(
         longBracketEquals()?.let { equals ->
             return longString(start, equals)
         }
+        if (isInvalidLongBracketOpening()) {
+            throw errorAt(start, "invalid long string delimiter")
+        }
 
         if (peek() == '.' && peekNext().isDigit()) {
             return leadingDotNumber(start)
@@ -402,6 +405,18 @@ internal class Lexer(
         }
 
         return if (index < source.length && source[index] == '[') equals else null
+    }
+
+    private fun isInvalidLongBracketOpening(): Boolean {
+        if (peek() != '[' || peekNext() != '=') {
+            return false
+        }
+
+        var index = offset + 2
+        while (index < source.length && source[index] == '=') {
+            index++
+        }
+        return index >= source.length || source[index] != '['
     }
 
     private fun consumeLongBracketOpening(equals: Int) {

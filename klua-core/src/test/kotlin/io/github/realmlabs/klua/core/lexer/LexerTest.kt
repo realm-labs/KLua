@@ -256,6 +256,19 @@ class LexerTest {
     }
 
     @Test
+    fun `reports invalid long bracket string delimiters`() {
+        val missingBracket = assertFailsWith<LexerException> {
+            Lexer("[=not long", "invalid-long.lua").tokenize()
+        }
+        val unfinishedDelimiter = assertFailsWith<LexerException> {
+            Lexer("[=", "unfinished-delimiter.lua").tokenize()
+        }
+
+        assertEquals("invalid-long.lua:1:1: invalid long string delimiter", missingBracket.message)
+        assertEquals("unfinished-delimiter.lua:1:1: invalid long string delimiter", unfinishedDelimiter.message)
+    }
+
+    @Test
     fun `reports decimal escape range errors`() {
         val error = assertFailsWith<LexerException> {
             Lexer("return \"\\256\"", "escape.lua").tokenize()
@@ -344,6 +357,21 @@ class LexerTest {
         )
         assertEquals(2, tokens[0].range.start.line)
         assertEquals(3, tokens[2].range.start.line)
+    }
+
+    @Test
+    fun `treats invalid long bracket opener in comments as short comment text`() {
+        val tokens = Lexer("--[=not a long comment\nreturn 1", "short-comment.lua").tokenize()
+
+        assertEquals(
+            listOf(
+                TokenKind.RETURN,
+                TokenKind.INTEGER,
+                TokenKind.EOF,
+            ),
+            tokens.map { it.kind },
+        )
+        assertEquals(2, tokens[0].range.start.line)
     }
 
     @Test
