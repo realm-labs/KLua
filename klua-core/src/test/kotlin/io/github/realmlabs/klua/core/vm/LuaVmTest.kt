@@ -14,6 +14,7 @@ import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.toLuaByteString
+import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -1718,6 +1719,35 @@ class LuaVmTest {
             ),
             result,
         )
+    }
+
+    @Test
+    fun `numeric for loop accepts locale decimal string bounds`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            val result = LuaVm().execute(
+                Compiler.compile(
+                    """
+                    local sum = 0
+                    for i = "1,0", "0x1,8p1" do
+                        sum = sum + i
+                    end
+
+                    local reverse = 0
+                    for i = "3,0", "1,2", "-1,0" do
+                        reverse = reverse + i
+                    end
+
+                    return sum, reverse
+                    """.trimIndent(),
+                ),
+            )
+
+            assertEquals(listOf(LuaFloat(6.0), LuaFloat(5.0)), result)
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
     }
 
     @Test

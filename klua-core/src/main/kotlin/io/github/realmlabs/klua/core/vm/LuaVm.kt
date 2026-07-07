@@ -26,6 +26,8 @@ import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.math.BigInteger
+import java.text.DecimalFormatSymbols
+import java.util.Locale
 
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
@@ -1680,15 +1682,17 @@ private fun luaIntegerFromString(value: String): Long? {
 }
 
 private fun luaIntegerFromTrimmedString(value: String): Long? {
-    return luaHexIntegerFromString(value) ?: value.toLongOrNull()
+    val normalized = value.normalizeLuaNumberDecimalPoint()
+    return luaHexIntegerFromString(value) ?: normalized.toLongOrNull()
 }
 
 private fun luaFloatFromTrimmedString(value: String): Double? {
-    val parsed = if (value.isHexNumeral()) {
-        val parseable = if (value.indexOf('p', ignoreCase = true) < 0) "${value}p0" else value
+    val normalized = value.normalizeLuaNumberDecimalPoint()
+    val parsed = if (normalized.isHexNumeral()) {
+        val parseable = if (normalized.indexOf('p', ignoreCase = true) < 0) "${normalized}p0" else normalized
         parseable.toDoubleOrNull()
     } else {
-        value.toDoubleOrNull()
+        normalized.toDoubleOrNull()
     }
     return parsed?.takeIf { number -> java.lang.Double.isFinite(number) }
 }
@@ -1736,6 +1740,18 @@ private fun String.trimLuaAsciiWhitespace(): String {
 private fun String.isNamedFloatingPointLiteral(): Boolean {
     val unsigned = trimStart('+', '-')
     return unsigned.equals("nan", ignoreCase = true) || unsigned.equals("infinity", ignoreCase = true)
+}
+
+private fun String.normalizeLuaNumberDecimalPoint(): String {
+    val decimalPoint = luaLocaleDecimalPoint()
+    if (decimalPoint == '.' || decimalPoint !in this || '.' in this) {
+        return this
+    }
+    return replace(decimalPoint, '.')
+}
+
+private fun luaLocaleDecimalPoint(): Char {
+    return DecimalFormatSymbols.getInstance(Locale.getDefault()).decimalSeparator
 }
 
 private fun String.isHexNumeral(): Boolean {
