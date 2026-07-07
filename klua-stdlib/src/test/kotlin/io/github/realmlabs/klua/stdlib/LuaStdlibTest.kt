@@ -4069,6 +4069,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io numeric reads accept locale decimal points`() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.GERMANY)
+        val path = Files.createTempFile("klua-io-read-locale-decimal-", ".txt")
+        Files.writeString(path, "1,5 0x1,8p1 2.5")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local decimal = handle:read("n")
+                    local hexFloat = handle:read("n")
+                    local dotFallback = handle:read("n")
+                    handle:close()
+                    return decimal, hexFloat, dotFallback
+                    """.trimIndent(),
+                    "io-read-locale-decimal.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1.5, state.toNumber(1) ?: error("missing decimal result"), 0.0)
+            assertEquals(3.0, state.toNumber(2) ?: error("missing hex float result"), 0.0)
+            assertEquals(2.5, state.toNumber(3) ?: error("missing dot fallback result"), 0.0)
+        } finally {
+            Locale.setDefault(previousLocale)
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io numeric reads reject non ascii hexadecimal digits`() {
         val path = Files.createTempFile("klua-io-read-non-ascii-hex-", ".txt")
         Files.write(path, byteArrayOf('0'.code.toByte(), 'x'.code.toByte(), 0xEF.toByte(), 0xBC.toByte(), 0xA6.toByte()))

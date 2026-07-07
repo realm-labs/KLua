@@ -15,6 +15,7 @@ import java.io.RandomAccessFile
 import java.math.BigInteger
 import java.nio.file.Files
 import java.nio.file.Path
+import java.text.DecimalFormatSymbols
 import java.util.Locale
 
 internal object LuaIoLibrary {
@@ -970,6 +971,7 @@ internal object LuaIoLibrary {
 
         private fun scanLuaNumber(): LuaNumberScan {
             var overflow = false
+            val localeDecimalPoint = localeDecimalPoint()
 
             fun StringBuilder.appendScannedByte(value: Int): Boolean {
                 if (length >= MAX_LUA_NUMBER_LENGTH) {
@@ -1041,14 +1043,21 @@ internal object LuaIoLibrary {
                 return count
             }
 
-            fun StringBuilder.appendChar(expected: Char): Boolean {
+            fun StringBuilder.appendDecimalPoint(): Boolean {
                 if (overflow) {
                     return false
                 }
                 val value = readByte() ?: return false
                 val char = value.toChar()
-                return if (char == expected) {
-                    appendScannedByte(value)
+                return if (char == '.' || char == localeDecimalPoint) {
+                    if (length >= MAX_LUA_NUMBER_LENGTH) {
+                        unreadByte(value)
+                        overflow = true
+                        false
+                    } else {
+                        append('.')
+                        true
+                    }
                 } else {
                     unreadByte(value)
                     false
@@ -1059,7 +1068,7 @@ internal object LuaIoLibrary {
                 appendOptionalSign()
                 if (appendHexPrefix()) {
                     var count = appendDigits(hex = true)
-                    if (appendChar('.')) {
+                    if (appendDecimalPoint()) {
                         count += appendDigits(hex = true)
                     }
                     if (count > 0 && appendAny('p', 'P')) {
@@ -1068,7 +1077,7 @@ internal object LuaIoLibrary {
                     }
                 } else {
                     var count = appendDigits(hex = false)
-                    if (appendChar('.')) {
+                    if (appendDecimalPoint()) {
                         count += appendDigits(hex = false)
                     }
                     if (count > 0 && appendAny('e', 'E')) {
@@ -1131,6 +1140,10 @@ internal object LuaIoLibrary {
 
     private fun Char.isLuaNumberWhitespace(): Boolean {
         return this == ' ' || this in '\t'..'\r'
+    }
+
+    private fun localeDecimalPoint(): Char {
+        return DecimalFormatSymbols.getInstance(Locale.getDefault()).decimalSeparator
     }
 
     private fun String.luaNumber(): Any? {
