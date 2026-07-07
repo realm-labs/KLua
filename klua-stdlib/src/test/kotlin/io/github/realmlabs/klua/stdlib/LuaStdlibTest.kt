@@ -9161,6 +9161,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pairs pads short metamethod results like lua`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, {
+                    __pairs = function()
+                        return function()
+                            return nil
+                        end
+                    end,
+                })
+                local iterator, stateValue, control, closing = pairs(target)
+                return type(iterator), stateValue, control, closing, select("#", pairs(target))
+                """.trimIndent(),
+                "pairs-short-metamethod-results.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("function", state.toString(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.isNil(4))
+        assertEquals(4L, state.toInteger(5))
+    }
+
+    @Test
     fun `pairs uses primitive type pairs metamethod`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
