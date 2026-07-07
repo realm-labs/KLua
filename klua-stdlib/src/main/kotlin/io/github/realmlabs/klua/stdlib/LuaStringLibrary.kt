@@ -307,12 +307,15 @@ internal object LuaStringLibrary {
             val emptyIterator = LuaFunction { LuaReturn.none() }
             return LuaReturn.of(emptyIterator)
         }
-        val compiledPattern = LuaStringPattern.compileGmatch(patternSubject.text)
+        var compiledPattern: LuaStringPattern? = null
         var cursor = (searchStart.bytePosition - 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
         var lastMatchEnd: Int? = null
         val iterator = LuaFunction { _ ->
+            val patternToMatch = compiledPattern ?: LuaStringPattern.compileGmatch(patternSubject.text).also {
+                compiledPattern = it
+            }
             while (cursor <= subject.text.length) {
-                val match = compiledPattern.find(subject.text, cursor)
+                val match = patternToMatch.find(subject.text, cursor)
                 if (match == null) {
                     return@LuaFunction LuaReturn.none()
                 }

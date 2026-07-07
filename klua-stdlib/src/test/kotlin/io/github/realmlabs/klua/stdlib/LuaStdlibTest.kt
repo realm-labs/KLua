@@ -20035,6 +20035,34 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gmatch reports malformed patterns from iterator call`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local createOk, iterator = pcall(string.gmatch, "abc", "[")
+                local callOk, message = pcall(iterator)
+                local pastEnd = string.gmatch("abc", "[", 5)
+                local pastEndCount = select("#", pastEnd())
+                return createOk, type(iterator), callOk, message, pastEndCount
+                """.trimIndent(),
+                "string-gmatch-lazy-pattern-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("function", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("malformed pattern (missing ']')", state.toString(4))
+        assertEquals(0L, state.toInteger(5))
+    }
+
+    @Test
     fun `string gmatch honors init argument`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
