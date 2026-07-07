@@ -5435,6 +5435,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package searchpath uses default separators`() {
+        val root = Files.createTempDirectory("klua-searchpath-default-separators")
+        Files.createDirectories(root.resolve("alpha"))
+        val module = root.resolve("alpha").resolve("beta.lua")
+        Files.writeString(module, "return 42")
+        val separator = java.io.File.separator.replace("\\", "\\\\")
+        val template = "${root.luaPath()}${separator}?.lua"
+
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    return package.searchpath("alpha.beta", "$template")
+                    """.trimIndent(),
+                    "package-searchpath-default-separators.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+            assertEquals(module.toString(), state.toString(1))
+        } finally {
+            Files.deleteIfExists(module)
+            Files.deleteIfExists(root.resolve("alpha"))
+            Files.deleteIfExists(root)
+        }
+    }
+
+    @Test
     fun `package searchpath keeps names unchanged with empty separator`() {
         val root = Files.createTempDirectory("klua-searchpath-empty-separator")
         val module = root.resolve("alpha.beta.lua")
