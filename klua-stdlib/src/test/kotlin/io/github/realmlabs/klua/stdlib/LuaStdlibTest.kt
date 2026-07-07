@@ -20386,6 +20386,37 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codes iterator stops for out of range controls`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator, stateValue = utf8.codes("A" .. utf8.char(128512) .. "Z")
+                local negativeIndex, negativeCode = iterator(stateValue, -1)
+                local pastIndex, pastCode = iterator(stateValue, 999)
+                return select("#", iterator(stateValue, -1)),
+                    negativeIndex, negativeCode,
+                    select("#", iterator(stateValue, 999)),
+                    pastIndex, pastCode
+                """.trimIndent(),
+                "utf8-codes-out-of-range-controls.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertEquals(0L, state.toInteger(4))
+        assertTrue(state.isNil(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `utf8 codes returns generic for iterator triple`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
