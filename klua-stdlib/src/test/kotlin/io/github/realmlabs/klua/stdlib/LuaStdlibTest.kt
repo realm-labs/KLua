@@ -18277,6 +18277,32 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format numeric conversions accept lua numeric strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local fullwidthLetter = "\239\188\166"
+                local ok, message = pcall(string.format, "%d", "0x" .. fullwidthLetter)
+                return string.format("%d|%c|%.1f|%a", "0x10", "65", "1.5", "0x1.8p1"),
+                    ok,
+                    message
+                """.trimIndent(),
+                "string-format-numeric-string.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("16|A|1.5|0x1.8p+1", state.toString(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(3))
+    }
+
+    @Test
     fun `string format applies valid string modifiers`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
