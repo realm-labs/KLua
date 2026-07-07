@@ -4069,6 +4069,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io numeric reads reject non ascii hexadecimal digits`() {
+        val path = Files.createTempFile("klua-io-read-non-ascii-hex-", ".txt")
+        Files.write(path, byteArrayOf('0'.code.toByte(), 'x'.code.toByte(), 0xEF.toByte(), 0xBC.toByte(), 0xA6.toByte()))
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local number = handle:read("n")
+                    local after = handle:read(3)
+                    handle:close()
+                    return number, string.byte(after, 1, -1)
+                    """.trimIndent(),
+                    "io-read-non-ascii-hex.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals(0xEFL, state.toInteger(2))
+            assertEquals(0xBCL, state.toInteger(3))
+            assertEquals(0xA6L, state.toInteger(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read treats numeric strings as formats`() {
         val path = Files.createTempFile("klua-io-read-string-number-", ".txt")
         Files.writeString(path, "abcdef")
