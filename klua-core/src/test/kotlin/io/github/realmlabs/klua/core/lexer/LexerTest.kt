@@ -223,11 +223,19 @@ class LexerTest {
     @Test
     fun `tokenizes unicode string escapes`() {
         val tokens = Lexer(
-            "\"\\u{41}\\u{1F642}\"",
+            "\"\\u{41}\\u{1F642}\\u{D800}\\u{7fffffff}\"",
         ).tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("A" + String(Character.toChars(0x1F642)), tokens[0].literal)
+        assertEquals(
+            (
+                byteArrayOf('A'.code.toByte()) +
+                    byteArrayOf(0xF0.toByte(), 0x9F.toByte(), 0x99.toByte(), 0x82.toByte()) +
+                    byteArrayOf(0xED.toByte(), 0xA0.toByte(), 0x80.toByte()) +
+                    byteArrayOf(0xFD.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte())
+                ).toLuaByteString(),
+            tokens[0].literal,
+        )
     }
 
     @Test
@@ -296,12 +304,12 @@ class LexerTest {
     }
 
     @Test
-    fun `reports surrogate unicode escape errors`() {
+    fun `reports unicode escape range errors`() {
         val error = assertFailsWith<LexerException> {
-            Lexer("return \"\\u{D800}\"", "surrogate-escape.lua").tokenize()
+            Lexer("return \"\\u{80000000}\"", "unicode-range.lua").tokenize()
         }
 
-        assertEquals("surrogate-escape.lua:1:8: unicode escape out of range", error.message)
+        assertEquals("unicode-range.lua:1:8: unicode escape out of range", error.message)
     }
 
     @Test

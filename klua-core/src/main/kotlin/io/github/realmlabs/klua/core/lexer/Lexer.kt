@@ -5,7 +5,6 @@ import io.github.realmlabs.klua.core.source.SourceRange
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.ByteArrayOutputStream
-import java.nio.charset.StandardCharsets
 
 internal class Lexer(
     private val source: String,
@@ -270,7 +269,7 @@ internal class Lexer(
                 throw errorAt(start, "expected hexadecimal digit in unicode escape")
             }
             value = value * 16 + advance().digitToInt(16)
-            if (value > Character.MAX_CODE_POINT) {
+            if (value > MAX_UTF8_ESCAPE_VALUE) {
                 throw errorAt(start, "unicode escape out of range")
             }
         }
@@ -279,12 +278,46 @@ internal class Lexer(
             throw errorAt(start, "unterminated unicode escape")
         }
 
-        val codePoint = value.toInt()
-        if (!Character.isValidCodePoint(codePoint) || codePoint in Character.MIN_SURROGATE.code..Character.MAX_SURROGATE.code) {
-            throw errorAt(start, "unicode escape out of range")
-        }
-        return String(Character.toChars(codePoint)).toByteArray(StandardCharsets.UTF_8)
+        return encodeLuaUtf8Escape(value)
     }
+
+    private fun encodeLuaUtf8Escape(codePoint: Long): ByteArray {
+        return when {
+            codePoint < 0x80L -> byteArrayOf(codePoint.toByte())
+            codePoint <= 0x7FFL -> byteArrayOf(
+                (0xC0 or (codePoint shr 6).toInt()).toByte(),
+                continuationByte(codePoint, 0),
+            )
+            codePoint <= 0xFFFFL -> byteArrayOf(
+                (0xE0 or (codePoint shr 12).toInt()).toByte(),
+                continuationByte(codePoint, 6),
+                continuationByte(codePoint, 0),
+            )
+            codePoint <= 0x1FFFFFL -> byteArrayOf(
+                (0xF0 or (codePoint shr 18).toInt()).toByte(),
+                continuationByte(codePoint, 12),
+                continuationByte(codePoint, 6),
+                continuationByte(codePoint, 0),
+            )
+            codePoint <= 0x3FFFFFFL -> byteArrayOf(
+                (0xF8 or (codePoint shr 24).toInt()).toByte(),
+                continuationByte(codePoint, 18),
+                continuationByte(codePoint, 12),
+                continuationByte(codePoint, 6),
+                continuationByte(codePoint, 0),
+            )
+            else -> byteArrayOf(
+                (0xFC or (codePoint shr 30).toInt()).toByte(),
+                continuationByte(codePoint, 24),
+                continuationByte(codePoint, 18),
+                continuationByte(codePoint, 12),
+                continuationByte(codePoint, 6),
+                continuationByte(codePoint, 0),
+            )
+        }
+    }
+
+    private fun continuationByte(codePoint: Long, shift: Int): Byte = (0x80 or ((codePoint shr shift).toInt() and 0x3F)).toByte()
 
     private fun symbol(start: SourcePosition, char: Char): Token {
         val kind = when (char) {
@@ -527,6 +560,8 @@ internal class Lexer(
     }
 
     private companion object {
+        const val MAX_UTF8_ESCAPE_VALUE = 0x7FFF_FFFFL
+
         val keywords = mapOf(
             "and" to TokenKind.AND,
             "break" to TokenKind.BREAK,

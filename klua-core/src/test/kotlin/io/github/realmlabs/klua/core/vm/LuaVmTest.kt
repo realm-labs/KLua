@@ -13,6 +13,7 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -74,9 +75,21 @@ class LuaVmTest {
 
     @Test
     fun `executes unicode string escapes`() {
-        val result = LuaVm().execute(Compiler.compile("return \"\\u{41}\\u{1F642}\""))
+        val result = LuaVm().execute(Compiler.compile("return \"\\u{41}\\u{1F642}\\u{D800}\\u{7fffffff}\""))
 
-        assertEquals(listOf(LuaString("A" + String(Character.toChars(0x1F642)))), result)
+        assertEquals(
+            listOf(
+                LuaString(
+                    (
+                        byteArrayOf('A'.code.toByte()) +
+                            byteArrayOf(0xF0.toByte(), 0x9F.toByte(), 0x99.toByte(), 0x82.toByte()) +
+                            byteArrayOf(0xED.toByte(), 0xA0.toByte(), 0x80.toByte()) +
+                            byteArrayOf(0xFD.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte())
+                        ).toLuaByteString(),
+                ),
+            ),
+            result,
+        )
     }
 
     @Test
