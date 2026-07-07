@@ -1050,13 +1050,14 @@ public object LuaStdlib {
             return null
         }
         val digits = text.substring(digitsStart + 2)
-        if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
+        if (digits.isEmpty() || digits.any { digit -> digit.asciiDigitToIntOrNull(16) == null }) {
             return null
         }
         var value = BigInteger.ZERO
         val radix = BigInteger.valueOf(16L)
         for (digit in digits) {
-            value = value.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
+            val hexDigit = digit.asciiDigitToIntOrNull(16) ?: return null
+            value = value.multiply(radix).add(BigInteger.valueOf(hexDigit.toLong()))
         }
         if (sign < 0) {
             value = value.negate()

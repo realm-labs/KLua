@@ -6550,6 +6550,29 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `tonumber hexadecimal strings reject non ascii digits`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local arabicIndicDigit = "\217\161"
+                local fullwidthLetter = "\239\188\166"
+                return tonumber("0x" .. arabicIndicDigit),
+                    tonumber("0x" .. fullwidthLetter)
+                """.trimIndent(),
+                "tonumber-hex-ascii.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.isNil(1))
+        assertTrue(state.isNil(2))
+    }
+
+    @Test
     fun `tonumber converts strings with explicit base`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
