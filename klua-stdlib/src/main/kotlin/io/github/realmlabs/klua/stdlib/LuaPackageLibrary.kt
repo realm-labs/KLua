@@ -116,6 +116,7 @@ internal object LuaPackageLibrary {
     private const val DYNAMIC_LIBRARIES_DISABLED_MESSAGE = "dynamic libraries not enabled; check your Lua installation"
 
     private const val REQUIRE_SOURCE: String = """
+        local package = package
         local searcherResultType = package._searcherResultType
         local moduleRoot = package._moduleRoot
         local searcherRawGet = package._rawget

@@ -5735,6 +5735,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require uses original package table after global package replacement`() {
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local originalPackage = package
+                originalPackage.preload.shadowed = function(name, extra)
+                    return "original:" .. name .. ":" .. extra
+                end
+                package = {
+                    loaded = {},
+                    preload = {
+                        shadowed = function()
+                            return "global-preload"
+                        end,
+                    },
+                    searchers = {
+                        function()
+                            return function()
+                                return "global-loader"
+                            end, "global-extra"
+                        end,
+                    },
+                }
+
+                local first, firstExtra = require("shadowed")
+                local second, secondExtra = require("shadowed")
+                return first, firstExtra, originalPackage.loaded.shadowed,
+                    second, secondExtra == nil, package.loaded.shadowed
+                """.trimIndent(),
+                "require-original-package-table.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("original:shadowed::preload:", state.toString(1))
+        assertEquals(":preload:", state.toString(2))
+        assertEquals("original:shadowed::preload:", state.toString(3))
+        assertEquals("original:shadowed::preload:", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `require normalizes numeric module names and rejects non string names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
