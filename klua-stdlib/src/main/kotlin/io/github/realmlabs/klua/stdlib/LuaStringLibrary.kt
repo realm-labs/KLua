@@ -1033,7 +1033,7 @@ internal object LuaStringLibrary {
         if (!value.isFinite()) {
             return formatNonFiniteDecimalFloat(value, parsed, conversion)
         }
-        return parsed.toJavaSpecifier(conversion).formatWith(value)
+        return parsed.toJavaSpecifier(conversion).formatWith(value).localizeFloatDecimalPoint()
     }
 
     private fun formatIntegerValue(
@@ -1119,7 +1119,22 @@ internal object LuaStringLibrary {
             return formatNonFiniteHexFloat(value, parsed, conversion)
         }
         val formatted = parsed.copy(width = null).toJavaSpecifier(conversion).formatWith(value)
-        return applyFloatWidth(canonicalizeHexFloat(formatted, parsed), parsed)
+        return applyFloatWidth(canonicalizeHexFloat(formatted, parsed).localizeFloatDecimalPoint(), parsed)
+    }
+
+    private fun String.localizeFloatDecimalPoint(): String {
+        val decimalPoint = luaLocaleDecimalPoint()
+        if (decimalPoint == '.') {
+            return this
+        }
+        val exponent = indexOfFirst { char -> char == 'e' || char == 'E' || char == 'p' || char == 'P' }
+            .let { index -> if (index < 0) length else index }
+        val dot = indexOf('.')
+        return if (dot in 0 until exponent) {
+            substring(0, dot) + decimalPoint + substring(dot + 1)
+        } else {
+            this
+        }
     }
 
     private fun canonicalizeHexFloat(value: String, parsed: FormatSpecifier): String {

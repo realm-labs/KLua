@@ -18252,6 +18252,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format float conversions use locale decimal point`() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.GERMANY)
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    return string.format("%.2f|%.1e|%a|%A|%#.0a", 1.5, 1.5, 1.5, 1.5, 1.0)
+                    """.trimIndent(),
+                    "string-format-locale-floats.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("1,50|1,5e+00|0x1,8p+0|0X1,8P+0|0x1,p+0", state.toString(1))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `string format applies valid string modifiers`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
