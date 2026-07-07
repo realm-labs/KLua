@@ -18212,6 +18212,7 @@ class LuaStdlibTest {
                     string.format("%q", "a" .. string.char(10) .. "\\" .. '"' .. "b"),
                     string.format("%q", "a" .. string.char(0) .. "1"),
                     string.format("%q", string.char(1) .. "١"),
+                    string.format("%q", string.char(128, 255) .. "7"),
                     string.format("%q|%q|%q|%q|%q|%q|%q|%q",
                         1.5, 0.5, 0.0, -0.0, math.huge, -math.huge, 0 / 0, math.mininteger)
                 """.trimIndent(),
@@ -18227,8 +18228,12 @@ class LuaStdlibTest {
         assertEquals("\"a\\0001\"", state.toString(5))
         assertEquals("\"\\1١\"", state.toString(6))
         assertEquals(
+            listOf(34.toByte(), 128.toByte(), 255.toByte(), 55.toByte(), 34.toByte()),
+            state.toString(7)?.luaRawBytes()?.toList(),
+        )
+        assertEquals(
             "0x1.8p+0|0x1p-1|0x0p+0|-0x0p+0|1e9999|-1e9999|(0/0)|0x8000000000000000",
-            state.toString(7),
+            state.toString(8),
         )
     }
 
