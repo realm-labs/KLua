@@ -6301,6 +6301,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require Lua searcher ignores global loadfile replacement`() {
+        val root = Files.createTempDirectory("klua-require-file-loadfile")
+        Files.writeString(
+            root.resolve("real.lua"),
+            """
+            local name, filename = ...
+            return { source = "file", name = name, filename = filename }
+            """.trimIndent(),
+        )
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.path = "${root.luaPath()}/?.lua"
+                loadfile = function(filename)
+                    return function()
+                        return { source = "global", filename = filename }
+                    end
+                end
+                local loaded, path = require("real")
+                return loaded.source, loaded.name, loaded.filename,
+                    path, package.loaded.real.source, package._loadfile
+                """.trimIndent(),
+                "require-file-loadfile.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("file", state.toString(1))
+        assertEquals("real", state.toString(2))
+        assertTrue(state.toString(3)?.endsWith("real.lua") == true)
+        assertTrue(state.toString(4)?.endsWith("real.lua") == true)
+        assertEquals("file", state.toString(5))
+        assertTrue(state.isNil(6))
+    }
+
+    @Test
     fun `type and tostring report missing argument errors`() {
         val typeState = LuaState.create()
         LuaStdlib.openBase(typeState)

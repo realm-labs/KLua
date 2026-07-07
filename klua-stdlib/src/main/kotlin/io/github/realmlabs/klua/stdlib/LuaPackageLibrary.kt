@@ -6,6 +6,7 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.io.File
+import java.io.IOException
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -26,6 +27,7 @@ internal object LuaPackageLibrary {
         state.setField(-2, "preload")
         setFunctionField(state, "loadlib", ::loadlib)
         setFunctionField(state, "searchpath", ::searchpath)
+        setFunctionField(state, "_loadfile") { context -> loadfile(context, state) }
         setFunctionField(state, "_rawget", ::rawget)
         setFunctionField(state, "_searcherResultType", ::searcherResultType)
         setFunctionField(state, "_moduleRoot", ::moduleRoot)
@@ -38,6 +40,20 @@ internal object LuaPackageLibrary {
         requiredString(context, 1, "loadlib")
         requiredString(context, 2, "loadlib")
         return LuaReturn.of(null, DYNAMIC_LIBRARIES_DISABLED_MESSAGE, "absent")
+    }
+
+    private fun loadfile(context: LuaCallContext, state: LuaState): LuaReturn {
+        val filename = requiredString(context, 1, "loadfile")
+        val bytes = try {
+            Files.readAllBytes(Path.of(filename))
+        } catch (error: IOException) {
+            return LuaReturn.of(null, error.message ?: "cannot read file '$filename'")
+        }
+        return if (isKLuaBinaryChunk(bytes)) {
+            context.loadBytecode(bytes, filename)
+        } else {
+            context.load(bytes.decodeToString(), filename, null, environmentProvided = false)
+        }
     }
 
     private fun searchpath(context: LuaCallContext): LuaReturn {
@@ -84,6 +100,14 @@ internal object LuaPackageLibrary {
         return LuaReturn.of(context.getTableValue(1, context.get(2)))
     }
 
+    private fun isKLuaBinaryChunk(bytes: ByteArray): Boolean {
+        return bytes.size >= 4 &&
+            bytes[0] == 'K'.code.toByte() &&
+            bytes[1] == 'L'.code.toByte() &&
+            bytes[2] == 'u'.code.toByte() &&
+            bytes[3] == 'a'.code.toByte()
+    }
+
     private fun moduleRoot(context: LuaCallContext): LuaReturn {
         val name = requiredString(context, 1, "require")
         val index = name.indexOf('.')
@@ -119,11 +143,13 @@ internal object LuaPackageLibrary {
         local package = package
         local searcherResultType = package._searcherResultType
         local moduleRoot = package._moduleRoot
+        local packageLoadfile = package._loadfile
         local searcherRawGet = package._rawget
         local loadedTable = package.loaded
         local preloadTable = package.preload
         package._searcherResultType = nil
         package._moduleRoot = nil
+        package._loadfile = nil
         package._rawget = nil
 
         local function packagePathString(value, field)
@@ -171,7 +197,7 @@ internal object LuaPackageLibrary {
                 if filename == nil then
                     return searchError
                 end
-                local loader, loadError = loadfile(filename)
+                local loader, loadError = packageLoadfile(filename)
                 if loader == nil then
                     error("error loading module '" .. name .. "' from file '" .. filename .. "':\n\t" .. loadError, 0)
                 end
