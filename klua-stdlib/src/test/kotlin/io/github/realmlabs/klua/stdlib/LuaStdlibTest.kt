@@ -1038,6 +1038,52 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports source integer index name bounds`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local seen = {}
+                local function record()
+                    local info = debug.getinfo(1, "n")
+                    seen[#seen + 1] = info.name
+                    seen[#seen + 1] = info.namewhat
+                end
+
+                local object = {
+                    [-127] = record,
+                    [128] = record,
+                    [129] = record,
+                    [-128] = record,
+                }
+
+                object[-127]()
+                object[128]()
+                object[129]()
+                object[-128]()
+
+                return seen[1], seen[2], seen[3], seen[4],
+                    seen[5], seen[6], seen[7], seen[8]
+                """.trimIndent(),
+                "debug-getinfo-integer-index-bounds.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("integer index", state.toString(1))
+        assertEquals("field", state.toString(2))
+        assertEquals("integer index", state.toString(3))
+        assertEquals("field", state.toString(4))
+        assertEquals("?", state.toString(5))
+        assertEquals("field", state.toString(6))
+        assertEquals("?", state.toString(7))
+        assertEquals("field", state.toString(8))
+    }
+
+    @Test
     fun `debug getinfo reports environment field calls as globals`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
