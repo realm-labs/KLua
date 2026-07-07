@@ -60,117 +60,71 @@ internal class Lexer(
     }
 
     private fun number(start: SourcePosition): Token {
-        if (source[start.offset] == '0' && (peek() == 'x' || peek() == 'X')) {
-            return hexadecimalNumber(start)
-        }
-
-        while (peek().isDigit()) {
-            advance()
-        }
-
-        var isFloat = false
-        if (peek() == '.' && peekNext() != '.') {
-            isFloat = true
-            advance()
-            while (peek().isDigit()) {
-                advance()
-            }
-        }
-
-        if (peek() == 'e' || peek() == 'E') {
-            isFloat = true
-            advance()
-            if (peek() == '+' || peek() == '-') {
-                advance()
-            }
-            if (!peek().isDigit()) {
-                throw errorAt(position(), "expected exponent digits")
-            }
-            while (peek().isDigit()) {
-                advance()
-            }
-        }
-
-        rejectIdentifierSuffix(start)
+        val isHexadecimal = source[start.offset] == '0' && (peek() == 'x' || peek() == 'X')
+        readNumeralSuffix(start, if (isHexadecimal) "pP" else "eE")
         val text = source.substring(start.offset, offset)
-        return if (isFloat) {
-            token(TokenKind.FLOAT, text, start, text.toDouble())
+        return if (isHexadecimal) {
+            hexadecimalNumber(start, text)
         } else {
-            val integer = text.toLongOrNull()
-            if (integer != null) {
-                token(TokenKind.INTEGER, text, start, integer)
-            } else {
-                token(TokenKind.FLOAT, text, start, text.toDouble())
-            }
+            decimalNumber(start, text)
         }
     }
 
     private fun leadingDotNumber(start: SourcePosition): Token {
         advance()
-        while (peek().isDigit()) {
-            advance()
-        }
-
-        if (peek() == 'e' || peek() == 'E') {
-            advance()
-            if (peek() == '+' || peek() == '-') {
-                advance()
-            }
-            if (!peek().isDigit()) {
-                throw errorAt(position(), "expected exponent digits")
-            }
-            while (peek().isDigit()) {
-                advance()
-            }
-        }
-
-        rejectIdentifierSuffix(start)
+        readNumeralSuffix(start, "eE")
         val text = source.substring(start.offset, offset)
-        return token(TokenKind.FLOAT, text, start, text.toDouble())
+        return floatToken(start, text)
     }
 
-    private fun hexadecimalNumber(start: SourcePosition): Token {
-        advance()
-        var digitCount = 0
-        while (peek().isHexDigit()) {
+    private fun readNumeralSuffix(start: SourcePosition, exponentChars: String) {
+        if (source[start.offset] == '0' && (peek() == 'x' || peek() == 'X')) {
             advance()
-            digitCount++
         }
 
-        var isFloat = false
-        if (peek() == '.' && peekNext() != '.') {
-            isFloat = true
+        while (true) {
+            when {
+                peek() in exponentChars -> {
+                    advance()
+                    if (peek() == '+' || peek() == '-') {
+                        advance()
+                    }
+                }
+                peek().isHexDigit() || peek() == '.' -> advance()
+                else -> break
+            }
+        }
+
+        if (peek().isIdentifierStart()) {
             advance()
-            while (peek().isHexDigit()) {
-                advance()
-                digitCount++
-            }
+            throw errorAt(start, "malformed number")
         }
+    }
 
-        if (digitCount == 0) {
-            throw errorAt(start, "malformed hexadecimal numeral")
-        }
-
-        if (peek() == 'p' || peek() == 'P') {
-            isFloat = true
-            advance()
-            if (peek() == '+' || peek() == '-') {
-                advance()
-            }
-            if (!peek().isDigit()) {
-                throw errorAt(position(), "expected exponent digits")
-            }
-            while (peek().isDigit()) {
-                advance()
-            }
-        }
-
-        rejectIdentifierSuffix(start)
-        val text = source.substring(start.offset, offset)
-        return if (isFloat) {
-            token(TokenKind.FLOAT, text, start, parseHexFloat(text))
+    private fun decimalNumber(start: SourcePosition, text: String): Token {
+        val integer = text.toLongOrNull()
+        return if (integer != null) {
+            token(TokenKind.INTEGER, text, start, integer)
         } else {
-            token(TokenKind.INTEGER, text, start, parseHexInteger(text))
+            floatToken(start, text)
+        }
+    }
+
+    private fun floatToken(start: SourcePosition, text: String): Token {
+        val value = text.toDoubleOrNull() ?: throw errorAt(start, "malformed number")
+        return token(TokenKind.FLOAT, text, start, value)
+    }
+
+    private fun hexadecimalNumber(start: SourcePosition, text: String): Token {
+        if (text.drop(2).none { it.isHexDigit() }) {
+            throw errorAt(start, "malformed number")
+        }
+        return if (text.contains('.') || text.contains('p', ignoreCase = true)) {
+            val value = runCatching { parseHexFloat(text) }.getOrElse { throw errorAt(start, "malformed number") }
+            token(TokenKind.FLOAT, text, start, value)
+        } else {
+            runCatching { token(TokenKind.INTEGER, text, start, parseHexInteger(text)) }
+                .getOrElse { throw errorAt(start, "malformed number") }
         }
     }
 

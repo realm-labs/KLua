@@ -109,6 +109,40 @@ class LexerTest {
     }
 
     @Test
+    fun `reports malformed lua numeral candidates`() {
+        val cases = listOf(
+            "1..2" to "concat-without-space.lua",
+            "1.2.3" to "decimal-dots.lua",
+            "1e+" to "decimal-exponent.lua",
+            "0x" to "hex-empty.lua",
+            "0x1p" to "hex-exponent.lua",
+            ".5.6" to "leading-dot-dots.lua",
+        )
+
+        for ((source, name) in cases) {
+            val error = assertFailsWith<LexerException>(source) {
+                Lexer(source, name).tokenize()
+            }
+            assertEquals("$name:1:1: malformed number", error.message)
+        }
+    }
+
+    @Test
+    fun `tokenizes spaced number concatenation`() {
+        val tokens = Lexer("1 .. 2").tokenize()
+
+        assertEquals(
+            listOf(
+                TokenKind.INTEGER,
+                TokenKind.DOT_DOT,
+                TokenKind.INTEGER,
+                TokenKind.EOF,
+            ),
+            tokens.map { it.kind },
+        )
+    }
+
+    @Test
     fun `tokenizes hexadecimal integer and float numbers`() {
         val tokens = Lexer("0xff 0X10 0xffffffffffffffff 0x10000000000000000 0x1.8p1 0x0.1E").tokenize()
 
