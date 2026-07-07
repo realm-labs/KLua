@@ -5580,6 +5580,39 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require reloads modules cached as false`() {
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local calls = 0
+                package.loaded.reloadable = false
+                package.preload.reloadable = function(name, extra)
+                    calls = calls + 1
+                    return name .. ":" .. calls .. ":" .. extra
+                end
+
+                local first, firstExtra = require("reloadable")
+                local second, secondExtra = require("reloadable")
+                return first, firstExtra, second, secondExtra, calls, package.loaded.reloadable
+                """.trimIndent(),
+                "require-loaded-false.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("reloadable:1::preload:", state.toString(1))
+        assertEquals(":preload:", state.toString(2))
+        assertEquals("reloadable:1::preload:", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals("reloadable:1::preload:", state.toString(6))
+    }
+
+    @Test
     fun `require uses original loaded and preload tables after package field replacement`() {
         val state = LuaState.create()
         LuaStdlib.openPackage(state)
