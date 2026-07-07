@@ -12883,6 +12883,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os date validates time before format conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local ok, message = pcall(os.date, "%Q", "bad")
+                return ok, message
+                """.trimIndent(),
+                "os-date-time-before-format.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(2))
+    }
+
+    @Test
     fun `os date local table results roundtrip through os time`() {
         val state = LuaState.create()
         LuaStdlib.openOs(state)
