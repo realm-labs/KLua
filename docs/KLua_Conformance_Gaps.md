@@ -17,7 +17,7 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 ## IO Library
 
-- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration, common file read formats, Lua-style numeric write formatting and capped numeric read scanning, explicit file-backed and standard default input/output routing, non-closing standard handles, no-op buffer-mode validation, and stream-backed read/write-mode `io.popen`, but broader `liolib.c` edge-case and platform-mode parity still needs conformance hardening.
+- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration, common file read formats, Lua-style numeric write formatting and capped numeric read scanning, explicit file-backed and standard default input/output routing, non-closing standard handles, no-op buffer-mode validation, and stream-backed read/write-mode `io.popen`, but broader `liolib.c` edge-case and platform-mode parity still needs conformance hardening. Because generic-for to-be-closed variables are not wired through yet, `io.lines(filename)` closes its owned file at iterator EOF but does not yet provide Lua's early-exit close behavior through the fourth result.
 
 ## Strings And UTF-8
 
