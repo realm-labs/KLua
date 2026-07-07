@@ -388,7 +388,7 @@ public object LuaStdlib {
             } else {
                 val bytes = Files.readAllBytes(Path.of(filename))
                 val content = loadFileContent(bytes)
-                return LoadFileRead(source = LoadFileSource(content.source, filename, content.bytes))
+                return LoadFileRead(source = LoadFileSource(content.source, "@$filename", content.bytes))
             }
         } catch (error: IOException) {
             return LoadFileRead(error = error.message ?: "cannot read file '$filename'")
@@ -954,6 +954,7 @@ public object LuaStdlib {
     private fun argumentValue(context: LuaCallContext, index: Int): Any? {
         return when (context.typeName(index)) {
             "table" -> context.getTable(index)
+            "function" -> context.getLuaValue(index)
             else -> context.get(index)
         }
     }

@@ -6695,7 +6695,8 @@ class LuaStdlibTest {
             """
             #!/usr/bin/env lua
             local name, filename = ...
-            return { name = name, filename = filename, value = 42 }
+            local info = debug.getinfo(1, "S")
+            return { name = name, filename = filename, value = 42, source = info.source, short = info.short_src }
             """.trimIndent().toByteArray(StandardCharsets.UTF_8)
         Files.write(root.resolve("real.lua"), moduleSource)
 
@@ -6708,7 +6709,7 @@ class LuaStdlibTest {
                 """
                 package.path = "${root.luaPath()}/?.lua"
                 local loaded, path = require("real")
-                return loaded.name, loaded.value, loaded.filename, path
+                return loaded.name, loaded.value, loaded.filename, path, loaded.source, loaded.short
                 """.trimIndent(),
                 "require-file-preamble.lua",
             ),
@@ -6719,6 +6720,8 @@ class LuaStdlibTest {
         assertEquals(42L, state.toInteger(2))
         assertTrue(state.toString(3)?.endsWith("real.lua") == true)
         assertTrue(state.toString(4)?.endsWith("real.lua") == true)
+        assertEquals("@$root/real.lua", state.toString(5))
+        assertTrue(state.toString(6)?.endsWith("real.lua") == true)
     }
 
     @Test
@@ -8909,7 +8912,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertTrue(state.isNil(1))
-        assertEquals("=(load):1:1: to-be-closed local variables are not supported", state.toString(2))
+        assertEquals("(load):1:1: to-be-closed local variables are not supported", state.toString(2))
     }
 
     @Test
@@ -9290,6 +9293,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `loadfile reports file chunk source names like luaL_loadfilex`() {
+        val file = Files.createTempFile("klua-loadfile-source", ".lua")
+        try {
+            Files.writeString(
+                file,
+                """
+                return 42
+                """.trimIndent(),
+            )
+            val state = LuaState.create()
+            LuaStdlib.openLibs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local chunk = assert(loadfile("${file.luaPath()}"))
+                    local info = debug.getinfo(chunk, "S")
+                    return info.source, info.short_src, chunk()
+                    """.trimIndent(),
+                    "loadfile-source-name.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("@$file", state.toString(1))
+            assertTrue(state.toString(2)?.endsWith(file.fileName.toString()) == true, state.toString(2))
+            assertEquals(42L, state.toInteger(3))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
     fun `dofile executes configured standard input chunks`() {
         val sources = mutableListOf(
             """return "omitted", 41""",
@@ -9610,7 +9647,7 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
             assertTrue(state.isNil(1))
-            assertEquals("=stdin:1:1: to-be-closed local variables are not supported", state.toString(2))
+            assertEquals("stdin:1:1: to-be-closed local variables are not supported", state.toString(2))
         }
     }
 

@@ -11,3 +11,10 @@ internal data class SourceRange(
     val start: SourcePosition,
     val end: SourcePosition,
 )
+
+internal fun luaSourceNameForError(sourceName: String): String {
+    return when {
+        sourceName.startsWith("=") || sourceName.startsWith("@") -> sourceName.drop(1)
+        else -> sourceName
+    }
+}

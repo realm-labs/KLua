@@ -51,9 +51,9 @@ internal object LuaPackageLibrary {
         }
         val source = loadFileContent(bytes)
         return if (isKLuaBinaryChunk(source.bytes)) {
-            context.loadBytecode(source.bytes, filename)
+            context.loadBytecode(source.bytes, "@$filename")
         } else {
-            context.load(source.source, filename, null, environmentProvided = false)
+            context.load(source.source, "@$filename", null, environmentProvided = false)
         }
     }
 
