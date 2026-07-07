@@ -18848,6 +18848,7 @@ class LuaStdlibTest {
     @Test
     fun `string unpack honors start positions and alignment`() {
         val state = LuaState.create()
+        LuaStdlib.openBase(state)
         LuaStdlib.openString(state)
 
         assertEquals(
@@ -18857,7 +18858,12 @@ class LuaStdlibTest {
                 local packed = string.pack("c2!4xi4", "ab", 0x01020304)
                 local value, nextPosition = string.unpack("!4xi4", packed, 3)
                 local tail, tailNext = string.unpack("c2", packed, -3)
-                return value, nextPosition, tail, tailNext
+                local emptyDefault = string.unpack("", "abc")
+                local emptyAtEnd = string.unpack("", "abc", 4)
+                local emptyCount = select("#", string.unpack("", "abc", 4))
+                local pastEndOk, pastEndMessage = pcall(string.unpack, "", "abc", 5)
+                return value, nextPosition, tail, tailNext,
+                    emptyDefault, emptyAtEnd, emptyCount, pastEndOk, pastEndMessage
                 """.trimIndent(),
                 "string-unpack-position.lua",
             ),
@@ -18868,6 +18874,11 @@ class LuaStdlibTest {
         assertEquals(9L, state.toInteger(2))
         assertEquals("\u0003\u0002", state.toString(3))
         assertEquals(8L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(4L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #3 to 'unpack' (initial position out of string)", state.toString(9))
     }
 
     @Test
