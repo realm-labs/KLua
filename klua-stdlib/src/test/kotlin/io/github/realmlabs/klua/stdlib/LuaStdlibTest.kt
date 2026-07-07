@@ -151,6 +151,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `number to string uses locale decimal point like lua`() {
+        val previousLocale = Locale.getDefault()
+        Locale.setDefault(Locale.GERMANY)
+        val path = Files.createTempFile("klua-number-locale-string-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openIo(state)
+        LuaStdlib.openTable(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    handle:write(1.5, "|", 1.0)
+                    handle:seek("set", 0)
+                    local written = handle:read("a")
+                    handle:close()
+                    local gsubResult, gsubCount = ("x"):gsub("x", 1.5)
+                    return tostring(1.5),
+                        tostring(1.0),
+                        tostring(1e15),
+                        table.concat({1.5, 1.0, 1e15}, "|"),
+                        gsubResult,
+                        gsubCount,
+                        string.format("%s|%s", 1.5, 1.0),
+                        written
+                    """.trimIndent(),
+                    "number-locale-string.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("1,5", state.toString(1))
+            assertEquals("1,0", state.toString(2))
+            assertEquals("1e+15", state.toString(3))
+            assertEquals("1,5|1,0|1e+15", state.toString(4))
+            assertEquals("1,5", state.toString(5))
+            assertEquals(1L, state.toInteger(6))
+            assertEquals("1,5|1,0", state.toString(7))
+            assertEquals("1,5|1,0", state.toString(8))
+        } finally {
+            Locale.setDefault(previousLocale)
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `tostring reports table and function identities`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
