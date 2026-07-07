@@ -20126,6 +20126,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gmatch skips empty matches at previous end`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local iterator = string.gmatch("ab", "a*()")
+                local first = iterator()
+                local second = iterator()
+                local done = iterator()
+                return first, second, done
+                """.trimIndent(),
+                "string-gmatch-lastmatch.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(3L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+    }
+
+    @Test
     fun `string gmatch treats closing bracket outside classes as literal`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

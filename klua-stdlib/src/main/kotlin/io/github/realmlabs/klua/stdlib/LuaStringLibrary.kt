@@ -305,28 +305,30 @@ internal object LuaStringLibrary {
         }
         val compiledPattern = LuaStringPattern.compileGmatch(patternSubject.text)
         var cursor = (searchStart.bytePosition - 1L).coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+        var lastMatchEnd: Int? = null
         val iterator = LuaFunction { _ ->
-            if (cursor > subject.text.length) {
-                LuaReturn.none()
-            } else {
+            while (cursor <= subject.text.length) {
                 val match = compiledPattern.find(subject.text, cursor)
                 if (match == null) {
-                    LuaReturn.none()
-                } else {
-                    cursor = if (match.startIndex == match.endIndex && match.endIndex < subject.text.length) {
-                        match.endIndex + 1
-                    } else if (match.startIndex == match.endIndex) {
+                    return@LuaFunction LuaReturn.none()
+                }
+                if (match.endIndex == lastMatchEnd) {
+                    cursor = if (match.startIndex < subject.text.length) {
+                        match.startIndex + 1
+                    } else {
                         subject.text.length + 1
-                    } else {
-                        match.endIndex
                     }
-                    if (match.captures.isNotEmpty()) {
-                        LuaReturn.ofValues(subject.luaPatternCaptures(match.captures))
-                    } else {
-                        LuaReturn.of(subject.substring(match.startIndex, match.endIndex))
-                    }
+                    continue
+                }
+                cursor = match.endIndex
+                lastMatchEnd = match.endIndex
+                return@LuaFunction if (match.captures.isNotEmpty()) {
+                    LuaReturn.ofValues(subject.luaPatternCaptures(match.captures))
+                } else {
+                    LuaReturn.of(subject.substring(match.startIndex, match.endIndex))
                 }
             }
+            LuaReturn.none()
         }
         return LuaReturn.of(iterator)
     }
