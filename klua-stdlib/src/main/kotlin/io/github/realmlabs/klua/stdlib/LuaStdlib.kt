@@ -82,7 +82,7 @@ public object LuaStdlib {
             garbageCollectorMode = result.mode
             result.returnValue
         }
-        state.register("dofile") { context -> dofile(context, state) }
+        state.register("dofile", LuaYieldableFunction { context -> dofile(context, state) })
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
         state.register("ipairs", ::ipairs)

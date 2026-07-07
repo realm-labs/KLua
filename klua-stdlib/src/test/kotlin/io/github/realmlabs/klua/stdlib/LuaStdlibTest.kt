@@ -9403,6 +9403,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `dofile chunk can yield and resume with final values`() {
+        val file = Files.createTempFile("klua-dofile-yield", ".lua")
+        try {
+            Files.writeString(file, """local value = coroutine.yield("paused"); return value, "done"""")
+            val state = LuaState.create()
+            LuaStdlib.openLibs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local co = coroutine.create(function()
+                        return dofile("${file.luaPath()}")
+                    end)
+                    local firstOk, marker = coroutine.resume(co)
+                    local secondOk, value, done = coroutine.resume(co, "resumed")
+                    return firstOk, marker, secondOk, value, done, coroutine.status(co)
+                    """.trimIndent(),
+                    "dofile-yield.lua",
+                ),
+            )
+            val status = state.pcall(0, -1)
+            assertEquals(LuaStatus.OK, status, state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertEquals("paused", state.toString(2))
+            assertTrue(state.toBoolean(3))
+            assertEquals("resumed", state.toString(4))
+            assertEquals("done", state.toString(5))
+            assertEquals("dead", state.toString(6))
+        } finally {
+            Files.deleteIfExists(file)
+        }
+    }
+
+    @Test
     fun `dofile ignores extra arguments like lua settop before loadfile`() {
         val file = Files.createTempFile("klua-dofile-extra", ".lua")
         try {
