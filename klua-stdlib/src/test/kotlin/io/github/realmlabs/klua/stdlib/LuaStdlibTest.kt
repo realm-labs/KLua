@@ -15076,6 +15076,30 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math fmod float zero divisor follows floating remainder path`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local leftFloat = math.fmod(1.0, 0)
+                local rightFloat = math.fmod(1, 0.0)
+                return leftFloat, math.type(leftFloat), rightFloat, math.type(rightFloat)
+                """.trimIndent(),
+                "math-fmod-float-zero.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toNumber(1)?.isNaN() == true)
+        assertEquals("float", state.toString(2))
+        assertTrue(state.toNumber(3)?.isNaN() == true)
+        assertEquals("float", state.toString(4))
+    }
+
+    @Test
     fun `math frexp splits numbers into mantissa and exponent`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
