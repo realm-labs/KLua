@@ -19,7 +19,9 @@ import io.github.realmlabs.klua.core.KLuaCoreUserDataMethod
 import io.github.realmlabs.klua.core.KLuaCoreUserDataSetter
 import io.github.realmlabs.klua.core.KLuaCoreValue
 import java.math.BigInteger
+import java.text.DecimalFormatSymbols
 import java.util.IdentityHashMap
+import java.util.Locale
 import java.util.function.Consumer
 
 private const val MAX_CALL_METAMETHOD_DEPTH = 16
@@ -1176,9 +1178,10 @@ class LuaState private constructor(
         if (trimmed.isEmpty()) {
             return null
         }
+        val normalized = trimmed.normalizeLuaNumberDecimalPoint()
         return hexIntegerFromString(trimmed)
-            ?: trimmed.toLongOrNull()
-            ?: trimmed.toDoubleOrNull()?.let(::integerFromNumber)
+            ?: normalized.toLongOrNull()
+            ?: normalized.toDoubleOrNull()?.let(::integerFromNumber)
     }
 
     private fun numberFromString(value: String): Double? {
@@ -1186,10 +1189,23 @@ class LuaState private constructor(
         if (trimmed.isEmpty()) {
             return null
         }
+        val normalized = trimmed.normalizeLuaNumberDecimalPoint()
         val parsed = hexIntegerFromString(trimmed)?.toDouble()
-            ?: trimmed.toDoubleOrNull()
+            ?: normalized.toDoubleOrNull()
             ?: return null
         return parsed.takeIf { number -> number.isFinite() }
+    }
+
+    private fun String.normalizeLuaNumberDecimalPoint(): String {
+        val decimalPoint = luaLocaleDecimalPoint()
+        if (decimalPoint == '.' || decimalPoint !in this || '.' in this) {
+            return this
+        }
+        return replace(decimalPoint, '.')
+    }
+
+    private fun luaLocaleDecimalPoint(): Char {
+        return DecimalFormatSymbols.getInstance(Locale.getDefault()).decimalSeparator
     }
 
     private fun String.trimLuaAsciiWhitespace(): String {

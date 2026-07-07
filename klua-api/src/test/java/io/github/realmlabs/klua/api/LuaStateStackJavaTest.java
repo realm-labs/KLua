@@ -2,6 +2,8 @@ package io.github.realmlabs.klua.api;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.Locale;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -58,6 +60,29 @@ class LuaStateStackJavaTest {
     }
 
     @Test
+    void convertsLocaleDecimalNumericStringsToIntegers() {
+        Locale previousLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.GERMANY);
+            LuaState state = LuaState.create();
+
+            state.pushString("3,0");
+            state.pushString("0x1,8p1");
+            state.pushString("3.0");
+            state.pushString("3,5");
+            state.pushString("3,0.0");
+
+            assertEquals(3L, state.toInteger(1));
+            assertEquals(3L, state.toInteger(2));
+            assertEquals(3L, state.toInteger(3));
+            assertNull(state.toInteger(4));
+            assertNull(state.toInteger(5));
+        } finally {
+            Locale.setDefault(previousLocale);
+        }
+    }
+
+    @Test
     void convertsNumericStringsToNumbers() {
         LuaState state = LuaState.create();
 
@@ -76,6 +101,31 @@ class LuaStateStackJavaTest {
         assertNull(state.toNumber(5));
         assertNull(state.toNumber(6));
         assertNull(state.toNumber(7));
+    }
+
+    @Test
+    void convertsLocaleDecimalNumericStringsToNumbers() {
+        Locale previousLocale = Locale.getDefault();
+        try {
+            Locale.setDefault(Locale.GERMANY);
+            LuaState state = LuaState.create();
+
+            state.pushString("3,5");
+            state.pushString("0x1,8p1");
+            state.pushString("3.5");
+            state.pushString("3,5.0");
+
+            assertEquals(3.5, state.toNumber(1));
+            assertEquals(3.0, state.toNumber(2));
+            assertEquals(3.5, state.toNumber(3));
+            assertNull(state.toNumber(4));
+            assertTrue(state.isNumber(1));
+            assertTrue(state.isNumber(2));
+            assertTrue(state.isNumber(3));
+            assertFalse(state.isNumber(4));
+        } finally {
+            Locale.setDefault(previousLocale);
+        }
     }
 
     @Test
