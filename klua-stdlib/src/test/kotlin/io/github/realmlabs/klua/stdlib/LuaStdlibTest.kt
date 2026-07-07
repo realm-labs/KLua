@@ -12950,6 +12950,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time accepts locale decimal string date fields`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local numeric = {year = 2020, month = 1, day = 2, hour = 3, min = 4, sec = 5}
+                    local strings = {year = "2020,0", month = "1,0", day = "2,0", hour = "0x1,8p1", min = "+4,0", sec = "5.0"}
+                    local numericTime = os.time(numeric)
+                    local stringTime = os.time(strings)
+                    local mixedOk, mixedMessage = pcall(os.time, {year = "2020,0.0", month = 1, day = 2})
+                    return os.difftime(stringTime, numericTime),
+                        strings.year, strings.month, strings.day, strings.hour, strings.min, strings.sec,
+                        mixedOk, mixedMessage
+                    """.trimIndent(),
+                    "os-time-locale-decimal-string-fields.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(0.0, state.toNumber(1) ?: error("missing difftime result"), 0.0)
+            assertEquals(2020L, state.toInteger(2))
+            assertEquals(1L, state.toInteger(3))
+            assertEquals(2L, state.toInteger(4))
+            assertEquals(3L, state.toInteger(5))
+            assertEquals(4L, state.toInteger(6))
+            assertEquals(5L, state.toInteger(7))
+            assertFalse(state.toBoolean(8))
+            assertEquals("field 'year' is not an integer", state.toString(9))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `os time date fields trim only lua ascii whitespace`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

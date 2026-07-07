@@ -572,10 +572,19 @@ internal object LuaOsLibrary {
             is Float -> value.toDouble().luaInteger()
             is Double -> value.luaInteger()
             is CharSequence -> value.toString().trimLuaAsciiWhitespace().let { text ->
-                parseHexInteger(text) ?: text.toLongOrNull() ?: text.toDoubleOrNull()?.luaInteger()
+                val normalized = text.normalizeLuaNumberDecimalPoint()
+                parseHexInteger(text) ?: normalized.toLongOrNull() ?: normalized.toDoubleOrNull()?.luaInteger()
             }
             else -> null
         }
+    }
+
+    private fun String.normalizeLuaNumberDecimalPoint(): String {
+        val decimalPoint = luaLocaleDecimalPoint()
+        if (decimalPoint == '.' || decimalPoint !in this || '.' in this) {
+            return this
+        }
+        return replace(decimalPoint, '.')
     }
 
     private fun String.trimLuaAsciiWhitespace(): String {
