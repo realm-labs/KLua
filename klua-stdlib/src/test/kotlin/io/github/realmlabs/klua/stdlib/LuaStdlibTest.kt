@@ -7699,6 +7699,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `warn validates all arguments before applying controls`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                warn("@on")
+                local ok, message = pcall(warn, "@off", {})
+                warn("still enabled")
+                return ok, message
+                """.trimIndent(),
+                "warn-atomic-validation.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'warn' (string expected)", state.toString(2))
+        assertEquals(listOf("Lua warning: still enabled"), output)
+    }
+
+    @Test
     fun `collectgarbage controls and reports collector state`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
