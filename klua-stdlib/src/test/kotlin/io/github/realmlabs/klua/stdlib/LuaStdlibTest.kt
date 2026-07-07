@@ -3855,6 +3855,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read numeric counts return partial final chunks`() {
+        val path = Files.createTempFile("klua-io-read-partial-", ".txt")
+        Files.writeString(path, "abc")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local count, first, second, third = (function(...)
+                        return select("#", ...), ...
+                    end)(handle:read(2, 5, 1))
+                    local eof = handle:read(1)
+                    handle:close()
+                    return count, first, second, third, eof
+                    """.trimIndent(),
+                    "io-read-partial-counts.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(3L, state.toInteger(1))
+            assertEquals("ab", state.toString(2))
+            assertEquals("c", state.toString(3))
+            assertTrue(state.isNil(4))
+            assertTrue(state.isNil(5))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io numeric reads skip only lua ascii spaces`() {
         val path = Files.createTempFile("klua-io-read-ascii-space-", ".txt")
         Files.write(path, byteArrayOf(0x1c, '4'.code.toByte(), '2'.code.toByte()))
