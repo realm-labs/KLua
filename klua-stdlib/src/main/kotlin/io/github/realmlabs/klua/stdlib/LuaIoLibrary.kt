@@ -5,6 +5,8 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
+import io.github.realmlabs.klua.core.value.luaRawBytes
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.EOFException
 import java.io.IOException
 import java.io.OutputStream
@@ -509,7 +511,7 @@ internal object LuaIoLibrary {
                     ?: throw LuaRuntimeException(
                         "bad argument #${firstArgumentIndex + index - 1} to 'write' (string expected)",
                     )
-                handle.write(value.toByteArray(Charsets.UTF_8))
+                handle.write(value.luaRawBytes())
             }
             LuaReturn.of(handle)
         } catch (error: IOException) {
@@ -867,7 +869,7 @@ internal object LuaIoLibrary {
 
         fun readAll(): String {
             inputStream?.let { input ->
-                return input.readAllBytes().toString(Charsets.UTF_8)
+                return input.readAllBytes().toLuaByteString()
             }
             val remaining = file.length() - file.filePointer
             if (remaining <= 0L) {
@@ -878,7 +880,7 @@ internal object LuaIoLibrary {
             }
             val bytes = ByteArray(remaining.toInt())
             file.readFully(bytes)
-            return bytes.toString(Charsets.UTF_8)
+            return bytes.toLuaByteString()
         }
 
         fun readChars(count: Int): String? {
@@ -902,14 +904,14 @@ internal object LuaIoLibrary {
                     bytes[read] = byte.toByte()
                     read++
                 }
-                return if (read == 0) null else bytes.copyOf(read).toString(Charsets.UTF_8)
+                return if (read == 0) null else bytes.copyOf(read).toLuaByteString()
             }
             if (count == 0) {
                 return if (file.filePointer < file.length()) "" else null
             }
             val bytes = ByteArray(count)
             val read = file.read(bytes)
-            return if (read <= 0) null else bytes.copyOf(read).toString(Charsets.UTF_8)
+            return if (read <= 0) null else bytes.copyOf(read).toLuaByteString()
         }
 
         fun readLine(chop: Boolean): String? {
@@ -933,7 +935,7 @@ internal object LuaIoLibrary {
                 return if (bytes.isEmpty() && !sawLineTerminator) {
                     null
                 } else {
-                    bytes.toByteArray().toString(Charsets.UTF_8)
+                    bytes.toByteArray().toLuaByteString()
                 }
             }
             val bytes = mutableListOf<Byte>()
@@ -953,7 +955,7 @@ internal object LuaIoLibrary {
                 }
                 bytes += value.toByte()
             }
-            return if (bytes.isEmpty() && !sawLineTerminator) null else bytes.toByteArray().toString(Charsets.UTF_8)
+            return if (bytes.isEmpty() && !sawLineTerminator) null else bytes.toByteArray().toLuaByteString()
         }
 
         fun readNumber(): Any? {

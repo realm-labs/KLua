@@ -3940,6 +3940,66 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read and write preserve raw bytes`() {
+        val path = Files.createTempFile("klua-io-raw-bytes-", ".bin")
+        Files.write(path, byteArrayOf(255.toByte(), 'A'.code.toByte(), '\n'.code.toByte(), 128.toByte(), 'Z'.code.toByte()))
+        val outputPath = Files.createTempFile("klua-io-write-raw-bytes-", ".bin")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local input = assert(io.open("${path.luaPath()}", "r"))
+                    local first = input:read(2)
+                    local line = input:read("L")
+                    local rest = input:read("a")
+                    input:close()
+
+                    local output = assert(io.open("${outputPath.luaPath()}", "w+"))
+                    output:write(first, line, rest)
+                    output:seek("set", 0)
+                    local roundtrip = output:read("a")
+                    output:close()
+
+                    local firstA, firstB = string.byte(first, 1, -1)
+                    local lineA = string.byte(line, 1, -1)
+                    local restA, restB = string.byte(rest, 1, -1)
+                    local roundtripA, roundtripB, roundtripC, roundtripD, roundtripE =
+                        string.byte(roundtrip, 1, -1)
+                    return firstA, firstB, lineA, restA, restB,
+                        roundtripA, roundtripB, roundtripC, roundtripD, roundtripE
+                    """.trimIndent(),
+                    "io-raw-byte-read-write.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(255L, state.toInteger(1))
+            assertEquals('A'.code.toLong(), state.toInteger(2))
+            assertEquals('\n'.code.toLong(), state.toInteger(3))
+            assertEquals(128L, state.toInteger(4))
+            assertEquals('Z'.code.toLong(), state.toInteger(5))
+            assertEquals(255L, state.toInteger(6))
+            assertEquals('A'.code.toLong(), state.toInteger(7))
+            assertEquals('\n'.code.toLong(), state.toInteger(8))
+            assertEquals(128L, state.toInteger(9))
+            assertEquals('Z'.code.toLong(), state.toInteger(10))
+            assertEquals(
+                listOf(255.toByte(), 'A'.code.toByte(), '\n'.code.toByte(), 128.toByte(), 'Z'.code.toByte()),
+                Files.readAllBytes(outputPath).toList(),
+            )
+        } finally {
+            Files.deleteIfExists(path)
+            Files.deleteIfExists(outputPath)
+        }
+    }
+
+    @Test
     fun `io numeric reads skip only lua ascii spaces`() {
         val path = Files.createTempFile("klua-io-read-ascii-space-", ".txt")
         Files.write(path, byteArrayOf(0x1c, '4'.code.toByte(), '2'.code.toByte()))
