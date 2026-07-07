@@ -9501,6 +9501,31 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `ipairs iterator wraps max integer control like lua`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {
+                    [math.mininteger] = "wrapped"
+                }
+                local iterator, stateValue = ipairs(values)
+                return iterator(stateValue, math.maxinteger)
+                """.trimIndent(),
+                "ipairs-iterator-wrap.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Long.MIN_VALUE, state.toInteger(1))
+        assertEquals("wrapped", state.toString(2))
+    }
+
+    @Test
     fun `next reports table argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
