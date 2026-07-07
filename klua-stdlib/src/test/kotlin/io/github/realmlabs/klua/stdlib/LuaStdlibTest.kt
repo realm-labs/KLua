@@ -3782,7 +3782,7 @@ class LuaStdlibTest {
                 local opened, openMessage, openCode = io.open("${missingPath.luaPath()}", "r")
                 local linesOk, linesMessage = pcall(io.lines, "${missingPath.luaPath()}")
                 local inputOk, inputMessage = pcall(io.input, "${missingPath.luaPath()}")
-                return opened, type(openMessage), type(openCode),
+                return opened, openMessage, type(openCode),
                     linesOk, linesMessage,
                     inputOk, inputMessage
                 """.trimIndent(),
@@ -3792,7 +3792,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertTrue(state.isNil(1))
-        assertEquals("string", state.toString(2))
+        assertTrue(
+            state.toString(2)?.startsWith("$missingPath: ") == true,
+            state.toString(2),
+        )
         assertEquals("number", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertTrue(

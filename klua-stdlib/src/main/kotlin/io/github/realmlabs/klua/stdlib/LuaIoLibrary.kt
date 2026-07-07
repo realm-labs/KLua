@@ -91,9 +91,9 @@ internal object LuaIoLibrary {
             }
             LuaReturn.of(handle)
         } catch (error: IOException) {
-            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+            LuaReturn.of(null, fileOpenResultMessage(filename, error), 1L)
         } catch (error: SecurityException) {
-            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+            LuaReturn.of(null, fileOpenResultMessage(filename, error), 1L)
         }
     }
 
@@ -231,10 +231,34 @@ internal object LuaIoLibrary {
 
     private fun openFileError(filename: String, result: LuaReturn): String {
         val message = result.get(2)?.toString() ?: "(no extra info)"
+        if (message.startsWith("$filename: ")) {
+            return "cannot open file '$filename' (${message.removePrefix("$filename: ")})"
+        }
         if (message.startsWith(filename)) {
-            return "cannot open file '$filename'${message.removePrefix(filename)}"
+            val reason = message.removePrefix(filename).trim().trimStart(':').trim()
+            return if (reason.startsWith("(")) {
+                "cannot open file '$filename' $reason"
+            } else {
+                "cannot open file '$filename' ($reason)"
+            }
         }
         return "cannot open file '$filename' ($message)"
+    }
+
+    private fun fileOpenResultMessage(filename: String, error: IOException): String {
+        return "$filename: ${fileOpenReason(filename, error.message ?: error::class.java.simpleName)}"
+    }
+
+    private fun fileOpenResultMessage(filename: String, error: SecurityException): String {
+        return "$filename: ${fileOpenReason(filename, error.message ?: error::class.java.simpleName)}"
+    }
+
+    private fun fileOpenReason(filename: String, message: String): String {
+        if (!message.startsWith(filename)) {
+            return message
+        }
+        val reason = message.removePrefix(filename).trim().trimStart(':').trim()
+        return reason.removeSurrounding("(", ")").ifEmpty { "(no extra info)" }
     }
 
     private fun ioType(context: LuaCallContext): LuaReturn {
