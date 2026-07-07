@@ -4437,6 +4437,58 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io filename arguments accept numeric values like lua`() {
+        val numericFilename = (
+            100_000_000_000L + (System.nanoTime() and Long.MAX_VALUE) % 800_000_000_000L
+        ).toString()
+        val path = Path.of(numericFilename)
+        Files.deleteIfExists(path)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local filename = $numericFilename
+                    local opened = assert(io.open(filename, "w"))
+                    opened:write("alpha\nbeta")
+                    opened:close()
+
+                    local input = io.input(filename)
+                    local first = io.read("l")
+                    input:close()
+
+                    local output = io.output(filename)
+                    io.write("gamma")
+                    io.close()
+
+                    local reader = assert(io.open(filename, "r"))
+                    local rewritten = reader:read("a")
+                    reader:close()
+
+                    local iterator, stateValue, control, closeFile = io.lines(filename)
+                    local iterLine = iterator(stateValue, control)
+                    iterator(stateValue, iterLine)
+                    return first, rewritten, iterLine, io.type(closeFile)
+                    """.trimIndent(),
+                    "io-numeric-filenames.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("alpha", state.toString(1))
+            assertEquals("gamma", state.toString(2))
+            assertEquals("gamma", state.toString(3))
+            assertEquals("closed file", state.toString(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io default stream operations report closed default files`() {
         val inputPath = Files.createTempFile("klua-io-default-input-closed-", ".txt")
         val outputPath = Files.createTempFile("klua-io-default-output-closed-", ".txt")
