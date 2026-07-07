@@ -13084,6 +13084,33 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time date field bounds follow source adjusted fields`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local representableOk, representableMessage =
+                    pcall(os.time, {year = "2147483648", month = 1, day = 1})
+                local outOfBoundOk, outOfBoundMessage =
+                    pcall(os.time, {year = "2147485548", month = 1, day = 1})
+                return representableOk, representableMessage, outOfBoundOk, outOfBoundMessage
+                """.trimIndent(),
+                "os-time-adjusted-field-bounds.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("time result cannot be represented in this installation", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("field 'year' is out-of-bound", state.toString(4))
+    }
+
+    @Test
     fun `os time rejects non ascii hexadecimal string date fields`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

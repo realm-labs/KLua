@@ -226,16 +226,16 @@ internal object LuaOsLibrary {
             throw LuaRuntimeException("bad argument #1 to 'os.time' (table expected)")
         }
 
-        val year = requiredDateField(context, "year").toInt()
-        val month = requiredDateField(context, "month")
-        val day = requiredDateField(context, "day")
-        val hour = optionalDateField(context, "hour", 12L)
-        val minute = optionalDateField(context, "min", 0L)
-        val second = optionalDateField(context, "sec", 0L)
+        val year = requiredDateField(context, "year", 1900)
+        val month = requiredDateField(context, "month", 1)
+        val day = requiredDateField(context, "day", 0)
+        val hour = optionalDateField(context, "hour", 12L, 0)
+        val minute = optionalDateField(context, "min", 0L, 0)
+        val second = optionalDateField(context, "sec", 0L, 0)
         val requestedIsDst = optionalDateBooleanField(context, "isdst")
 
         val normalized = try {
-            val localDateTime = LocalDateTime.of(year, 1, 1, 0, 0, 0)
+            val localDateTime = LocalDateTime.of(javaYear(year), 1, 1, 0, 0, 0)
                 .plusMonths(month - 1L)
                 .plusDays(day - 1L)
                 .plusHours(hour)
@@ -450,19 +450,19 @@ internal object LuaOsLibrary {
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
     }
 
-    private fun requiredDateField(context: LuaCallContext, key: String): Long {
+    private fun requiredDateField(context: LuaCallContext, key: String, delta: Int): Long {
         val value = dateTableField(context, key)
             ?: throw LuaRuntimeException("field '$key' missing in date table")
         val integer = luaInteger(value)
             ?: throw LuaRuntimeException("field '$key' is not an integer")
-        return checkedDateField(key, integer)
+        return checkedDateField(key, integer, delta)
     }
 
-    private fun optionalDateField(context: LuaCallContext, key: String, defaultValue: Long): Long {
+    private fun optionalDateField(context: LuaCallContext, key: String, defaultValue: Long, delta: Int): Long {
         val value = dateTableField(context, key) ?: return defaultValue
         val integer = luaInteger(value)
             ?: throw LuaRuntimeException("field '$key' is not an integer")
-        return checkedDateField(key, integer)
+        return checkedDateField(key, integer, delta)
     }
 
     private fun optionalDateBooleanField(context: LuaCallContext, key: String): Boolean? {
@@ -554,13 +554,24 @@ internal object LuaOsLibrary {
         }
     }
 
-    private fun checkedDateField(key: String, value: Long): Long {
-        try {
-            java.lang.Math.toIntExact(value)
-        } catch (_: ArithmeticException) {
+    private fun checkedDateField(key: String, value: Long, delta: Int): Long {
+        val fitsAdjustedInt = if (value >= 0) {
+            value - delta <= Int.MAX_VALUE
+        } else {
+            Int.MIN_VALUE.toLong() + delta <= value
+        }
+        if (!fitsAdjustedInt) {
             throw LuaRuntimeException("field '$key' is out-of-bound")
         }
         return value
+    }
+
+    private fun javaYear(year: Long): Int {
+        return try {
+            java.lang.Math.toIntExact(year)
+        } catch (_: ArithmeticException) {
+            throw LuaRuntimeException("time result cannot be represented in this installation")
+        }
     }
 
     private fun luaInteger(value: Any?): Long? {
