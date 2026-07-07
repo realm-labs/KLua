@@ -4620,6 +4620,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io write with no arguments returns handle without writing`() {
+        val path = Files.createTempFile("klua-io-write-empty-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    local fileReturned = handle:write()
+                    handle:write("x")
+                    handle:seek("set", 0)
+                    local fileText = handle:read("a")
+                    handle:close()
+
+                    local output = assert(io.open("${path.luaPath()}", "w+"))
+                    io.output(output)
+                    local moduleReturned = io.write()
+                    io.write("y")
+                    io.close(output)
+                    local readback = assert(io.open("${path.luaPath()}", "r"))
+                    local moduleText = readback:read("a")
+                    readback:close()
+                    return fileReturned == handle, fileText, moduleReturned == output, moduleText
+                    """.trimIndent(),
+                    "io-write-no-args.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertEquals("x", state.toString(2))
+            assertTrue(state.toBoolean(3))
+            assertEquals("y", state.toString(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io write formats numeric arguments like lua`() {
         val path = Files.createTempFile("klua-io-write-numbers-", ".txt")
         val state = LuaState.create()
