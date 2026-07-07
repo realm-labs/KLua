@@ -4019,6 +4019,43 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read zero count probes eof without consuming input`() {
+        val path = Files.createTempFile("klua-io-read-zero-", ".txt")
+        Files.writeString(path, "abc")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local before = handle:read(0)
+                    local first = handle:read(2)
+                    local middle = handle:read(0)
+                    local second = handle:read(1)
+                    local after = handle:read(0)
+                    handle:close()
+                    return before, first, middle, second, after
+                    """.trimIndent(),
+                    "io-read-zero-count.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("", state.toString(1))
+            assertEquals("ab", state.toString(2))
+            assertEquals("", state.toString(3))
+            assertEquals("c", state.toString(4))
+            assertTrue(state.isNil(5))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read and write preserve raw bytes`() {
         val path = Files.createTempFile("klua-io-raw-bytes-", ".bin")
         Files.write(path, byteArrayOf(255.toByte(), 'A'.code.toByte(), '\n'.code.toByte(), 128.toByte(), 'Z'.code.toByte()))
