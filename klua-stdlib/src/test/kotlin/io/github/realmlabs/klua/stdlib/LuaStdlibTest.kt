@@ -22514,6 +22514,61 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table integer arguments accept locale decimal numeric strings`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openTable(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local concat = table.concat({"a", "b", "c", "d"}, "", "0x1,0p1", "3,0")
+                    local created = table.create("2,0", "1,0")
+                    local values = {"a", "c"}
+                    table.insert(values, "2,0", "b")
+                    local moved = {}
+                    table.move(values, "1,0", "0x1,8p1", "1,0", moved)
+                    local removed = table.remove(moved, "2,0")
+                    local first, second = table.unpack(moved, "1,0", "0x1,0p1")
+                    local fallback = setmetatable({}, {
+                        __len = function()
+                            return "2,0"
+                        end,
+                        __index = function(_, index)
+                            return ({ "m", "n" })[index]
+                        end,
+                    })
+                    local mixedOk, mixedMessage = pcall(table.concat, {"a"}, "", "1,0.0", 1)
+                    local fractionalOk, fractionalMessage = pcall(table.concat, {"a"}, "", "1,5", 1)
+                    return concat, type(created), table.concat(values, ""), removed, first, second,
+                        table.concat(fallback, ""), mixedOk, mixedMessage, fractionalOk, fractionalMessage
+                    """.trimIndent(),
+                    "table-locale-decimal-integer-arguments.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("bc", state.toString(1))
+            assertEquals("table", state.toString(2))
+            assertEquals("abc", state.toString(3))
+            assertEquals("b", state.toString(4))
+            assertEquals("a", state.toString(5))
+            assertEquals("c", state.toString(6))
+            assertEquals("mn", state.toString(7))
+            assertFalse(state.toBoolean(8))
+            assertEquals("bad argument #3 to 'concat' (number expected)", state.toString(9))
+            assertFalse(state.toBoolean(10))
+            assertEquals("bad argument #3 to 'concat' (number has no integer representation)", state.toString(11))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `table integer arguments report fractional number errors`() {
         fun assertFractionalIntegerError(source: String, chunkName: String, expected: String) {
             val state = LuaState.create()

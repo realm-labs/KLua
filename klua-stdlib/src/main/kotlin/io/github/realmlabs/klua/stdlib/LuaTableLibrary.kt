@@ -766,8 +766,9 @@ internal object LuaTableLibrary {
     }
 
     private fun requiredInteger(context: LuaCallContext, index: Int, functionName: String): Long {
-        return context.toInteger(index)
-            ?: if (context.toNumber(index) != null || context.typeName(index) == "number") {
+        val value = argumentValue(context, index)
+        return luaInteger(value)
+            ?: if (luaNumber(value) != null || context.typeName(index) == "number") {
                 throw LuaRuntimeException("bad argument #$index to '$functionName' (number has no integer representation)")
             } else {
                 throw LuaRuntimeException("bad argument #$index to '$functionName' (number expected)")
@@ -789,10 +790,44 @@ internal object LuaTableLibrary {
             is Float -> value.toDouble().luaInteger()
             is Double -> value.luaInteger()
             is CharSequence -> value.toString().trimLuaAsciiWhitespace().let { text ->
-                parseHexInteger(text) ?: text.toLongOrNull() ?: text.toDoubleOrNull()?.luaInteger()
+                val normalized = text.normalizeLuaNumberDecimalPoint()
+                parseHexInteger(text) ?: normalized.toLongOrNull() ?: normalized.toDoubleOrNull()?.luaInteger()
             }
             else -> null
         }
+    }
+
+    private fun luaNumber(value: Any?): Double? {
+        return when (value) {
+            is Byte -> value.toDouble()
+            is Short -> value.toDouble()
+            is Int -> value.toDouble()
+            is Long -> value.toDouble()
+            is Float -> value.toDouble().takeIf { number -> number.isFinite() }
+            is Double -> value.takeIf { number -> number.isFinite() }
+            is CharSequence -> value.toString().trimLuaAsciiWhitespace().let { text ->
+                if (text.isEmpty() || text.isNamedFloatingPointLiteral()) {
+                    null
+                } else {
+                    val normalized = text.normalizeLuaNumberDecimalPoint()
+                    parseHexInteger(text)?.toDouble() ?: normalized.toDoubleOrNull()?.takeIf { number -> number.isFinite() }
+                }
+            }
+            else -> null
+        }
+    }
+
+    private fun String.normalizeLuaNumberDecimalPoint(): String {
+        val decimalPoint = luaLocaleDecimalPoint()
+        if (decimalPoint == '.' || decimalPoint !in this || '.' in this) {
+            return this
+        }
+        return replace(decimalPoint, '.')
+    }
+
+    private fun String.isNamedFloatingPointLiteral(): Boolean {
+        val unsigned = trimStart('+', '-')
+        return unsigned.equals("nan", ignoreCase = true) || unsigned.equals("infinity", ignoreCase = true)
     }
 
     private fun String.trimLuaAsciiWhitespace(): String {
