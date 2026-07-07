@@ -12876,6 +12876,28 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time rejects non ascii hexadecimal string date fields`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local fullwidthLetter = "\239\188\166"
+                return pcall(os.time, {year = "0x" .. fullwidthLetter, month = 1, day = 1})
+                """.trimIndent(),
+                "os-time-non-ascii-hex-field.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("field 'year' is not an integer", state.toString(2))
+    }
+
+    @Test
     fun `os time reads date fields through index metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -24611,9 +24633,17 @@ class LuaStdlibTest {
                 local okStartString, startStringMessage = pcall(table.unpack, {"a"}, "x", 1)
                 local okStartFraction, startFractionMessage = pcall(table.unpack, {"a"}, 1.5, 1)
                 local okEndFraction, endFractionMessage = pcall(table.unpack, {"a"}, 1, "1.5")
+                local fullwidthLetter = "\239\188\166"
+                local arabicIndicDigit = "\217\161"
+                local okStartUnicodeHex, startUnicodeHexMessage =
+                    pcall(table.unpack, {"a"}, "0x" .. fullwidthLetter, 1)
+                local okEndUnicodeHex, endUnicodeHexMessage =
+                    pcall(table.unpack, {"a"}, 1, "0x" .. arabicIndicDigit)
                 return okStartString, startStringMessage,
                     okStartFraction, startFractionMessage,
-                    okEndFraction, endFractionMessage
+                    okEndFraction, endFractionMessage,
+                    okStartUnicodeHex, startUnicodeHexMessage,
+                    okEndUnicodeHex, endUnicodeHexMessage
                 """.trimIndent(),
                 "table-unpack-range-error.lua",
             ),
@@ -24626,6 +24656,10 @@ class LuaStdlibTest {
         assertEquals("bad argument #2 to 'unpack' (number has no integer representation)", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("bad argument #3 to 'unpack' (number has no integer representation)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'unpack' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #3 to 'unpack' (number expected)", state.toString(10))
     }
 
     @Test

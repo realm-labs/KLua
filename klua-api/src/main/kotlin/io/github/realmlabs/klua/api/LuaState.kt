@@ -1207,18 +1207,29 @@ class LuaState private constructor(
             return null
         }
         val digits = value.substring(digitsStart + 2)
-        if (digits.isEmpty() || digits.any { digit -> digit.digitToIntOrNull(16) == null }) {
+        if (digits.isEmpty() || digits.any { digit -> digit.asciiDigitToIntOrNull(16) == null }) {
             return null
         }
         var parsed = BigInteger.ZERO
         val radix = BigInteger.valueOf(16L)
         for (digit in digits) {
-            parsed = parsed.multiply(radix).add(BigInteger.valueOf(digit.digitToInt(16).toLong()))
+            val hexDigit = digit.asciiDigitToIntOrNull(16) ?: return null
+            parsed = parsed.multiply(radix).add(BigInteger.valueOf(hexDigit.toLong()))
         }
         if (sign < 0) {
             parsed = parsed.negate()
         }
         return parsed.mod(UINT64_MODULUS).toLong()
+    }
+
+    private fun Char.asciiDigitToIntOrNull(base: Int): Int? {
+        val value = when (this) {
+            in '0'..'9' -> code - '0'.code
+            in 'a'..'z' -> code - 'a'.code + 10
+            in 'A'..'Z' -> code - 'A'.code + 10
+            else -> return null
+        }
+        return value.takeIf { it < base }
     }
 
     private fun stackTypeName(value: LuaStackValue?): String {
