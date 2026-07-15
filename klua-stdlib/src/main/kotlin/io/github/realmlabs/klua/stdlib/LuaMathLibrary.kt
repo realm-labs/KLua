@@ -95,7 +95,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathDeg(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredNumber(context, 1, "deg") * 180.0 / Math.PI)
+        return LuaReturn.of(requiredNumber(context, 1, "deg") * (180.0 / Math.PI))
     }
 
     private fun mathExp(context: LuaCallContext): LuaReturn {
@@ -284,7 +284,7 @@ internal object LuaMathLibrary {
     }
 
     private fun mathRad(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredNumber(context, 1, "rad") * Math.PI / 180.0)
+        return LuaReturn.of(requiredNumber(context, 1, "rad") * (Math.PI / 180.0))
     }
 
     private fun mathRandom(context: LuaCallContext, randomState: MathRandomState): LuaReturn {

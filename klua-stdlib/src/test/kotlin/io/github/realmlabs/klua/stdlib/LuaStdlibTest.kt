@@ -19478,6 +19478,147 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math exp follows ieee underflow and overflow behavior`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local maximumFinite = 0x1.fffffffffffffp1023
+                local typed = math.exp(0)
+                return math.exp(0.0), math.exp(-0.0),
+                    1 / math.exp(-infinity), math.exp(infinity), math.exp(nan),
+                    math.exp(709), math.exp(710),
+                    math.exp(-744), math.exp(-745), math.exp(-746),
+                    math.exp(maximumFinite), math.exp(-maximumFinite),
+                    math.type(typed), select("#", math.exp(0))
+                """.trimIndent(),
+                "math-exp-ieee.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1.0, state.toNumber(1))
+        assertEquals(1.0, state.toNumber(2))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(3))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(4))
+        assertTrue(state.toNumber(5)?.isNaN() == true)
+        assertEquals(kotlin.math.exp(709.0), state.toNumber(6))
+        assertEquals(kotlin.math.exp(710.0), state.toNumber(7))
+        assertEquals(kotlin.math.exp(-744.0), state.toNumber(8))
+        assertEquals(kotlin.math.exp(-745.0), state.toNumber(9))
+        assertEquals(kotlin.math.exp(-746.0), state.toNumber(10))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(11))
+        assertEquals(0.0, state.toNumber(12))
+        assertEquals("float", state.toString(13))
+        assertEquals(1L, state.toInteger(14))
+    }
+
+    @Test
+    fun `math deg and rad apply source ratios before large inputs`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local maximumFinite = 0x1.fffffffffffffp1023
+                local largeDegrees = math.deg(0x1p1018)
+                local largeRadians = math.rad(maximumFinite)
+                local degTyped = math.deg(0)
+                local radTyped = math.rad(0)
+                return 1 / math.deg(0.0), 1 / math.deg(-0.0),
+                    1 / math.rad(0.0), 1 / math.rad(-0.0),
+                    math.deg(math.pi), math.rad(180),
+                    largeDegrees, largeRadians,
+                    math.deg(infinity), math.deg(-infinity),
+                    math.rad(infinity), math.rad(-infinity),
+                    math.deg(nan), math.rad(nan),
+                    math.deg(math.rad(123.5)), math.rad(math.deg(1.25)),
+                    math.type(degTyped), math.type(radTyped),
+                    select("#", math.deg(0)), select("#", math.rad(0))
+                """.trimIndent(),
+                "math-angle-scaling.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(1))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(2))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(3))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(4))
+        assertEquals(Math.PI * (180.0 / Math.PI), state.toNumber(5))
+        assertEquals(180.0 * (Math.PI / 180.0), state.toNumber(6))
+        assertEquals(Math.scalb(1.0, 1018) * (180.0 / Math.PI), state.toNumber(7))
+        assertEquals(Double.MAX_VALUE * (Math.PI / 180.0), state.toNumber(8))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(9))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(10))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(11))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(12))
+        assertTrue(state.toNumber(13)?.isNaN() == true)
+        assertTrue(state.toNumber(14)?.isNaN() == true)
+        assertEquals((123.5 * (Math.PI / 180.0)) * (180.0 / Math.PI), state.toNumber(15))
+        assertEquals((1.25 * (180.0 / Math.PI)) * (Math.PI / 180.0), state.toNumber(16))
+        assertEquals("float", state.toString(17))
+        assertEquals("float", state.toString(18))
+        assertEquals(1L, state.toInteger(19))
+        assertEquals(1L, state.toInteger(20))
+    }
+
+    @Test
+    fun `math exp deg and rad validate and coerce their first argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local expMissingOk, expMissingError = pcall(math.exp)
+                local expTypeOk, expTypeError = pcall(math.exp, false)
+                local degMissingOk, degMissingError = pcall(math.deg)
+                local degTypeOk, degTypeError = pcall(math.deg, false)
+                local radMissingOk, radMissingError = pcall(math.rad)
+                local radTypeOk, radTypeError = pcall(math.rad, false)
+                return expMissingOk, expMissingError, expTypeOk, expTypeError,
+                    degMissingOk, degMissingError, degTypeOk, degTypeError,
+                    radMissingOk, radMissingError, radTypeOk, radTypeError,
+                    math.exp("0x0p0", false), math.deg("0x1p0", false),
+                    math.rad("0x1p0", false)
+                """.trimIndent(),
+                "math-exp-angle-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'exp' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'exp' (number expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'deg' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'deg' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'rad' (number expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #1 to 'rad' (number expected)", state.toString(12))
+        assertEquals(1.0, state.toNumber(13))
+        assertEquals(180.0 / Math.PI, state.toNumber(14))
+        assertEquals(Math.PI / 180.0, state.toNumber(15))
+    }
+
+    @Test
     fun `math log follows source base branches and ieee domains`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
