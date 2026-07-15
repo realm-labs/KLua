@@ -16612,6 +16612,7 @@ class LuaStdlibTest {
     fun `os execute reports shell command statuses`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openOs(state)
 
         assertEquals(
@@ -16630,11 +16631,19 @@ class LuaStdlibTest {
                 local missing, missingKind, missingCode =
                     os.execute("KLUA_COMMAND_THAT_DOES_NOT_EXIST_0123456789")
                 local typeOk, typeMessage = pcall(os.execute, {})
+                local cStringCount, cStringOk, cStringKind, cStringCode = (function(...)
+                    return select("#", ...), ...
+                end)(os.execute("exit 0" .. string.char(0) .. "exit 9", "ignored"))
+                local numericCount, numericOk, numericKind, numericCode = (function(...)
+                    return select("#", ...), ...
+                end)(os.execute(9223372036854775807))
                 return shellCount, shellAvailable,
                     okCount, ok, okKind, okCode,
                     failedCount, failed, failedKind, failedCode,
                     missing, missingKind, missingCode,
-                    typeOk, typeMessage
+                    typeOk, typeMessage,
+                    cStringCount, cStringOk, cStringKind, cStringCode,
+                    numericCount, numericOk, numericKind, numericCode
                 """.trimIndent(),
                 "os-execute.lua",
             ),
@@ -16656,6 +16665,41 @@ class LuaStdlibTest {
         assertTrue((state.toInteger(13) ?: 0L) != 0L)
         assertFalse(state.toBoolean(14))
         assertEquals("bad argument #1 to 'os.execute' (string expected)", state.toString(15))
+        assertEquals(3L, state.toInteger(16))
+        assertTrue(state.toBoolean(17))
+        assertEquals("exit", state.toString(18))
+        assertEquals(0L, state.toInteger(19))
+        assertEquals(3L, state.toInteger(20))
+        assertTrue(state.isNil(21))
+        assertEquals("exit", state.toString(22))
+        assertTrue((state.toInteger(23) ?: 0L) != 0L)
+    }
+
+    @Test
+    fun `os execute maps shell launch failures`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function inspect(...)
+                    return select("#", ...), ...
+                end
+                return inspect(os.execute(string.rep("x", 1024 * 1024), "ignored"))
+                """.trimIndent(),
+                "os-execute-launch-failure.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.toString(3).orEmpty().isNotEmpty())
+        assertEquals(1L, state.toInteger(4))
     }
 
     @Test
@@ -16826,12 +16870,21 @@ class LuaStdlibTest {
         assertEquals(1 to false, invoke("false"))
         assertEquals(7 to true, invoke("\"7\", 0, \"ignored\""))
         assertEquals(1 to false, invoke("4294967297, false"))
+        assertEquals(-1 to true, invoke("9223372036854775807, \"close\""))
+        assertEquals(0 to false, invoke("-9223372036854775808, nil"))
         assertEquals(0 to true, invoke("nil, {}"))
     }
 
     @Test
     fun `os exit reports invalid status arguments`() {
-        val state = LuaState.create()
+        val exits = mutableListOf<Pair<Int, Boolean>>()
+        val state = LuaState.create(
+            LuaConfig(
+                exitHandler = LuaExitHandler { status, closeState ->
+                    exits += status to closeState
+                },
+            ),
+        )
         LuaStdlib.openBase(state)
         LuaStdlib.openOs(state)
 
@@ -16839,7 +16892,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                return pcall(os.exit, {})
+                local tableOk, tableMessage = pcall(os.exit, {}, true)
+                local floatOk, floatMessage = pcall(os.exit, 1.5, true)
+                return tableOk, tableMessage, floatOk, floatMessage
                 """.trimIndent(),
                 "os-exit-invalid.lua",
             ),
@@ -16848,6 +16903,12 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #1 to 'os.exit' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals(
+            "bad argument #1 to 'os.exit' (number has no integer representation)",
+            state.toString(4),
+        )
+        assertTrue(exits.isEmpty())
     }
 
     @Test

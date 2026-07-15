@@ -76,7 +76,7 @@ internal object LuaOsLibrary {
         if (context.isNone(1) || context.isNil(1)) {
             return LuaReturn.of(shellAvailable())
         }
-        val command = requiredString(context, 1, "os.execute")
+        val command = requiredString(context, 1, "os.execute").substringBefore('\u0000')
         val exitCode = try {
             ProcessBuilder(shellCommand(command))
                 .inheritIO()
