@@ -1134,16 +1134,16 @@ class LuaStdlibTest {
                 end
 
                 local object = {
-                    [-127] = record,
-                    [128] = record,
-                    [129] = record,
-                    [-128] = record,
+                    [-1] = record,
+                    [0] = record,
+                    [255] = record,
+                    [256] = record,
                 }
 
-                object[-127]()
-                object[128]()
-                object[129]()
-                object[-128]()
+                object[-1]()
+                object[0]()
+                object[255]()
+                object[256]()
 
                 return seen[1], seen[2], seen[3], seen[4],
                     seen[5], seen[6], seen[7], seen[8]
@@ -1153,11 +1153,11 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals("integer index", state.toString(1))
+        assertEquals("?", state.toString(1))
         assertEquals("field", state.toString(2))
         assertEquals("integer index", state.toString(3))
         assertEquals("field", state.toString(4))
-        assertEquals("?", state.toString(5))
+        assertEquals("integer index", state.toString(5))
         assertEquals("field", state.toString(6))
         assertEquals("?", state.toString(7))
         assertEquals("field", state.toString(8))

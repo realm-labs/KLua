@@ -1006,11 +1006,11 @@ internal class Compiler private constructor(
     private fun indexCallSiteKeyName(key: Expression): String {
         return when (key) {
             is StringExpression -> key.value
-            is IntegerExpression -> if (key.value.fitsSignedCOperand()) "integer index" else "?"
+            is IntegerExpression -> if (key.value.fitsUnsignedCOperand()) "integer index" else "?"
             is UnaryExpression -> {
                 if (key.operator == UnaryOperator.NEGATE && key.expression is IntegerExpression) {
                     val value = key.expression.value
-                    if (value != Long.MIN_VALUE && (-value).fitsSignedCOperand()) "integer index" else "?"
+                    if (value != Long.MIN_VALUE && (-value).fitsUnsignedCOperand()) "integer index" else "?"
                 } else {
                     "?"
                 }
@@ -1019,8 +1019,8 @@ internal class Compiler private constructor(
         }
     }
 
-    private fun Long.fitsSignedCOperand(): Boolean {
-        return this in SIGNED_C_OPERAND_MIN..SIGNED_C_OPERAND_MAX
+    private fun Long.fitsUnsignedCOperand(): Boolean {
+        return this in 0L..UNSIGNED_C_OPERAND_MAX
     }
 
     private fun callSiteNameWhat(name: String): String {
@@ -1581,8 +1581,7 @@ internal class Compiler private constructor(
 
     companion object {
         private const val LUA_ENV_NAME = "_ENV"
-        private const val SIGNED_C_OPERAND_MIN = -127L
-        private const val SIGNED_C_OPERAND_MAX = 128L
+        private const val UNSIGNED_C_OPERAND_MAX = 255L
 
         fun compile(
             source: String,
