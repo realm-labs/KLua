@@ -22993,6 +22993,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 len and codepoint reject structurally malformed bytes in strict and lax modes`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local malformed = {
+                    string.char(0x80),
+                    string.char(0xc0, 0x80),
+                    string.char(0xe0, 0x9f, 0xbf),
+                    string.char(0xe2, 0x82),
+                    string.char(0xe2, 0x41, 0x80),
+                    string.char(0xfe, 0x80, 0x80, 0x80, 0x80, 0x80, 0x80),
+                }
+
+                for _, bytes in ipairs(malformed) do
+                    local strictLength, strictPosition = utf8.len("A" .. bytes)
+                    local laxLength, laxPosition = utf8.len("A" .. bytes, 1, -1, true)
+                    assert(strictLength == nil and strictPosition == 2)
+                    assert(laxLength == nil and laxPosition == 2)
+
+                    local strictOk, strictMessage = pcall(utf8.codepoint, bytes)
+                    local laxOk, laxMessage = pcall(utf8.codepoint, bytes, 1, -1, true)
+                    assert(not strictOk and strictMessage == "invalid UTF-8 code")
+                    assert(not laxOk and laxMessage == "invalid UTF-8 code")
+                end
+
+                return #malformed
+                """.trimIndent(),
+                "utf8-malformed-decode.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(6L, state.toInteger(1))
+    }
+
+    @Test
     fun `utf8 len reports range position errors`() {
         val startState = LuaState.create()
         LuaStdlib.openUtf8(startState)
