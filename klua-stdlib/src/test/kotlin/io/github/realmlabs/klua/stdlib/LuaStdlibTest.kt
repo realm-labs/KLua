@@ -2132,6 +2132,69 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug thread arguments expose failed coroutine stacks until close`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local fresh = coroutine.create(function() end)
+                local freshInfo = debug.getinfo(fresh, 0)
+                local freshTrace = debug.traceback(fresh, "fresh", 0)
+
+                local co = coroutine.create(function()
+                    local outer = "outer"
+                    local function inner()
+                        local value = "before"
+                        error("boom")
+                    end
+                    inner()
+                    return outer
+                end)
+                local resumeOk, resumeError = coroutine.resume(co)
+                local innerInfo = debug.getinfo(co, 0, "Sl")
+                local outerInfo = debug.getinfo(co, 1, "Sl")
+                local localName, localValue = debug.getlocal(co, 0, 1)
+                local setName = debug.setlocal(co, 0, 1, "after")
+                local _, changedValue = debug.getlocal(co, 0, 1)
+                local trace = debug.traceback(co, "failed", 0)
+                local traceHasFrames = trace:find("debug%-error%-thread%.lua", 1) ~= nil
+
+                local closeOk, closeError = coroutine.close(co)
+                local afterInfo = debug.getinfo(co, 0)
+                local afterTrace = debug.traceback(co, "closed", 0)
+                local afterLocalOk = pcall(debug.getlocal, co, 0, 1)
+                return freshInfo, freshTrace,
+                    resumeOk, coroutine.status(co), innerInfo.short_src, outerInfo.short_src,
+                    localName, localValue, setName, changedValue, traceHasFrames,
+                    closeOk, closeError == resumeError, afterInfo, afterTrace, afterLocalOk
+                """.trimIndent(),
+                "debug-error-thread.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("fresh\nstack traceback:", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("dead", state.toString(4))
+        assertEquals("[string \"debug-error-thread.lua\"]", state.toString(5))
+        assertEquals("[string \"debug-error-thread.lua\"]", state.toString(6))
+        assertEquals("value", state.toString(7))
+        assertEquals("before", state.toString(8))
+        assertEquals("value", state.toString(9))
+        assertEquals("after", state.toString(10))
+        assertTrue(state.toBoolean(11))
+        assertFalse(state.toBoolean(12))
+        assertTrue(state.toBoolean(13))
+        assertTrue(state.isNil(14))
+        assertEquals("closed\nstack traceback:", state.toString(15))
+        assertFalse(state.toBoolean(16))
+    }
+
+    @Test
     fun `debug getlocal returns active lua local names and values`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

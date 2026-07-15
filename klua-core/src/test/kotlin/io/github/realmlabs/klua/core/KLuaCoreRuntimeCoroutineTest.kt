@@ -153,6 +153,76 @@ class KLuaCoreRuntimeCoroutineTest {
     }
 
     @Test
+    fun `failed core coroutine retains debug frames and defers closing until close`() {
+        val globals = KLuaCoreGlobals.create()
+        var closeArguments: List<KLuaCoreValue>? = null
+        val closeFunction = KLuaCoreRuntime.createFunctionValue(
+            function = { arguments ->
+                closeArguments = arguments
+                KLuaCoreCallResult.RuntimeError(
+                    "close boom",
+                    errorObject = KLuaCoreValue.StringValue("close boom"),
+                )
+            },
+        )
+        val resource = KLuaCoreValue.TableValue(mutableMapOf()).also { value ->
+            value.metatable = KLuaCoreValue.TableValue(
+                mutableMapOf(KLuaCoreValue.StringValue("__close") to closeFunction),
+            )
+        }
+        globals.set("resource", resource)
+        globals.set(
+            "fail",
+            KLuaCoreRuntime.createFunctionValue(
+                function = {
+                    KLuaCoreCallResult.RuntimeError(
+                        "boom",
+                        errorObject = KLuaCoreValue.StringValue("boom"),
+                    )
+                },
+            ),
+        )
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile(
+                """
+                return function()
+                    local resourceValue <close> = resource
+                    local value = "before"
+                    fail()
+                    return value
+                end
+                """.trimIndent(),
+                "core-coroutine-failed-stack.lua",
+            ),
+        ).chunk
+        val function = assertIs<KLuaCoreValue.FunctionValue>(
+            assertIs<KLuaCoreExecution.Success>(
+                KLuaCoreRuntime.execute(chunk, emptyList(), globals),
+            ).values.single(),
+        )
+        val coroutine = assertNotNull(KLuaCoreRuntime.createCoroutine(function, globals))
+
+        val resumeError = assertIs<KLuaCoreCoroutineExecution.RuntimeError>(coroutine.resume(emptyList()))
+
+        assertEquals("boom", resumeError.message)
+        assertEquals(null, closeArguments)
+        assertEquals(listOf("resourceValue", "value"), coroutine.luaFrames.single().locals.map { it.name })
+        assertEquals("value", coroutine.setLocal(0, 2, KLuaCoreValue.StringValue("after")))
+        assertEquals(
+            KLuaCoreValue.StringValue("after"),
+            coroutine.luaFrames.single().locals.single { it.name == "value" }.value,
+        )
+
+        val closeError = assertIs<KLuaCoreCoroutineExecution.RuntimeError>(coroutine.close())
+
+        assertEquals("close boom", closeError.message)
+        assertEquals(KLuaCoreValue.StringValue("close boom"), closeError.errorObject)
+        assertEquals(listOf(resource, KLuaCoreValue.StringValue("boom")), closeArguments)
+        assertEquals(emptyList(), coroutine.luaFrames)
+        assertEquals(KLuaCoreCoroutineExecution.Returned(emptyList()), coroutine.close())
+    }
+
+    @Test
     fun `core coroutine close unwinds suspended to be closed locals without continuing`() {
         val globals = KLuaCoreGlobals.create()
         var closed = 0

@@ -47,6 +47,7 @@ internal class LuaVm(
     private val stringMetatableConfigured: Boolean = false,
     private val metatables: LuaVmMetatableProvider? = null,
     private val instructionLimit: Long = 0,
+    private val retainFramesOnUnhandledError: Boolean = false,
 ) {
     private val thread = LuaThread()
     private val rootEnvironment = LuaUpvalue(environment)
@@ -171,13 +172,17 @@ internal class LuaVm(
                 }
             }
         } catch (error: LuaVmException) {
+            debugSuspended = false
+            if (retainFramesOnUnhandledError) {
+                throw error
+            }
             throw closeSuspendedFrames(error)
         }
     }
 
-    internal fun closeSuspended() {
+    internal fun closeSuspended(initialError: LuaVmException? = null) {
         debugSuspended = false
-        var activeError: LuaVmException? = null
+        var activeError = initialError
         while (true) {
             val frame = thread.currentFrame ?: break
             activeError = closeFrame(frame, activeError)
@@ -268,6 +273,7 @@ internal class LuaVm(
     ): LuaExecutionResult? {
         val stack = frame.stack
         var suspended = false
+        var failed = false
         try {
             dispatchDebugCall(frame)
             while (frame.pc < frame.prototype.code.size) {
@@ -444,9 +450,13 @@ internal class LuaVm(
             if (suspended) {
                 throw error
             }
+            if (retainFramesOnUnhandledError) {
+                failed = true
+                throw error
+            }
             throw closeFrameOnError(frame, error)
         } finally {
-            if (!suspended) {
+            if (!suspended && !failed) {
                 thread.popFrame(frame)
             }
         }

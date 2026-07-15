@@ -849,17 +849,20 @@ public class KLuaCoreCoroutine internal constructor(
         globals.environment,
         metatables = globals.vmMetatableProvider,
         instructionLimit = limits.instructionLimit,
+        retainFramesOnUnhandledError = true,
     )
     private var started = false
     private var dead = false
     private var pendingContinuation: LuaYieldContinuation? = null
     private var terminalError: KLuaCoreCoroutineExecution.RuntimeError? = null
+    private var terminalVmError: LuaVmException? = null
 
     public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCoroutineExecution {
         if (dead) {
             return KLuaCoreCoroutineExecution.RuntimeError("cannot resume dead coroutine")
         }
         terminalError = null
+        terminalVmError = null
         val luaArguments = arguments.map { value ->
             value.toLuaValueOrNull(globals)
                 ?: return KLuaCoreCoroutineExecution.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
@@ -892,9 +895,12 @@ public class KLuaCoreCoroutine internal constructor(
                 error.sourceName,
                 error.line,
                 error.rootCause(),
-                error.luaFrames.toCoreStackFrames(),
+                vm.stackFrames().toCoreStackFramesFromNative(globals),
                 error.errorObject?.let { toPublicValue(it, globals) },
-            ).also { terminalError = it }
+            ).also {
+                terminalError = it
+                terminalVmError = error
+            }
         } finally {
             started = true
         }
@@ -902,8 +908,20 @@ public class KLuaCoreCoroutine internal constructor(
 
     public fun close(): KLuaCoreCoroutineExecution {
         if (dead) {
-            return terminalError?.also { terminalError = null }
-                ?: KLuaCoreCoroutineExecution.Returned(emptyList())
+            val vmError = terminalVmError ?: return KLuaCoreCoroutineExecution.Returned(emptyList())
+            val retainedError = terminalError
+            terminalVmError = null
+            terminalError = null
+            return try {
+                vm.closeSuspended(vmError)
+                KLuaCoreCoroutineExecution.Returned(emptyList())
+            } catch (error: LuaVmException) {
+                if (error === vmError && retainedError != null) {
+                    retainedError
+                } else {
+                    error.toCoroutineRuntimeError(globals)
+                }
+            }
         }
         pendingContinuation = null
         dead = true
@@ -911,14 +929,7 @@ public class KLuaCoreCoroutine internal constructor(
             vm.closeSuspended()
             KLuaCoreCoroutineExecution.Returned(emptyList())
         } catch (error: LuaVmException) {
-            KLuaCoreCoroutineExecution.RuntimeError(
-                error.message ?: "runtime error",
-                error.sourceName,
-                error.line,
-                error.rootCause(),
-                error.luaFrames.toCoreStackFrames(),
-                error.errorObject?.let { toPublicValue(it, globals) },
-            )
+            error.toCoroutineRuntimeError(globals)
         }
     }
 
@@ -954,6 +965,17 @@ public class KLuaCoreCoroutine internal constructor(
             )
         }
     }
+}
+
+private fun LuaVmException.toCoroutineRuntimeError(globals: KLuaCoreGlobals): KLuaCoreCoroutineExecution.RuntimeError {
+    return KLuaCoreCoroutineExecution.RuntimeError(
+        message ?: "runtime error",
+        sourceName,
+        line,
+        rootCause(),
+        luaFrames.toCoreStackFrames(),
+        errorObject?.let { toPublicValue(it, globals) },
+    )
 }
 
 private fun LuaExecutionResult.toCoroutineExecution(globals: KLuaCoreGlobals): KLuaCoreCoroutineExecution {
