@@ -96,3 +96,33 @@ The full suite after the change measured:
 | Execute 10,000 table writes and reads | 2,365.362 | ±405.078 |
 
 The table score is 10.0% below the initial 2,626.994 µs/op baseline, and the host-call improvement remains intact. The complete Gradle test suite passes. With the two baseline-selected hotspots improved, the next M19 package should expand coverage with metamethod and JVM-to-Lua call controls before selecting another optimization.
+
+## 2026-07-15 Metamethod and JVM-to-Lua Coverage
+
+The runtime workload suite now includes two verified controls:
+
+- 10,000 function-valued `__index` calls from one compiled Lua chunk;
+- 10,000 calls from the low-level JVM API into one compiled Lua closure retained on the `LuaState` stack.
+
+Both setup paths execute the workload and reject an unexpected result before JMH measurement. The metamethod control opens only the base library needed for `setmetatable`; neither control includes parse or compile time in a measured operation.
+
+The expanded seven-workload suite measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 8.238 | ±0.946 |
+| Execute numeric loop | 1,237.312 | ±313.188 |
+| Execute 10,000 Lua calls | 2,813.719 | ±979.873 |
+| Execute 10,000 host calls | 5,552.540 | ±2,243.971 |
+| Execute 10,000 `__index` metamethod calls | 4,516.945 | ±666.206 |
+| Execute 10,000 JVM-to-Lua calls | 4,461.456 | ±1,409.221 |
+| Execute 10,000 table writes and reads | 3,897.642 | ±1,166.221 |
+
+This full run was noisier than the targeted checkpoints, so it establishes coverage rather than a regression claim. A matched GC-profiler run provides the selection evidence:
+
+| Benchmark | Average time | Allocation |
+| --- | ---: | ---: |
+| 10,000 `__index` metamethod calls | 4,578.365 µs/op | 12,009,101.652 B/op |
+| 10,000 JVM-to-Lua calls | 4,044.512 µs/op | 21,113,883.216 B/op |
+
+The JVM-to-Lua control has the larger allocation cost at roughly 2,111 B per call. It is the next bounded profiling target; a code change requires stack or allocation-site evidence and a matched control rerun.
