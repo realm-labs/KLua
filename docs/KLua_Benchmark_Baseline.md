@@ -154,3 +154,35 @@ The full seven-workload suite after the change measured:
 | Execute 10,000 table writes and reads | 2,379.362 | ±135.692 |
 
 The full correctness suite passes. The next M19 package should continue the benchmark matrix with string concatenation and coroutine yield/resume controls before selecting another optimization target.
+
+## 2026-07-15 String and Coroutine Coverage
+
+The runtime workload suite now adds two setup-verified controls:
+
+- 1,000 repeated `value = value .. "x"` operations, returning the final byte length;
+- 10,000 `coroutine.yield`/`coroutine.resume` transfers plus the completion resume, returning a checksum of the last yielded and final values.
+
+The concat control exercises the growing-string case governed by Lua 5.5's `lvm.c` `luaV_concat`. The coroutine control uses the standard-library create/yield/resume path modeled by `lcorolib.c` `auxresume`, `luaB_coresume`, and `luaB_yield`, including the leading success boolean and yielded/result transfer.
+
+The matched GC-profiler checkpoint measured:
+
+| Benchmark | Average time | Allocation | Normalized unit |
+| --- | ---: | ---: | ---: |
+| 1,000 growing string concatenations | 4,251.075 µs/op | 16,633,514.487 B/op | 16,634 B/concat |
+| 10,000 coroutine yield/resume cycles | 24,746.339 µs/op | 89,285,731.446 B/op | 8,929 B/cycle |
+
+The expanded nine-workload suite measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 7.625 | ±0.304 |
+| Execute numeric loop | 1,052.539 | ±156.414 |
+| Execute 10,000 Lua calls | 2,499.627 | ±204.112 |
+| Execute 10,000 host calls | 6,337.259 | ±1,138.405 |
+| Execute 10,000 `__index` metamethod calls | 4,449.858 | ±307.897 |
+| Execute 10,000 JVM-to-Lua calls | 3,342.372 | ±236.741 |
+| Execute 10,000 table writes and reads | 2,970.459 | ±700.930 |
+| Execute 1,000 growing string concatenations | 4,475.131 | ±1,347.879 |
+| Execute 10,000 coroutine yield/resume cycles | 26,011.328 | ±1,975.760 |
+
+The complete Gradle test suite passes. Growing concatenation intentionally copies an increasing result and therefore needs a differently shaped control before any representation conclusion. Coroutine transfer has the largest total measured allocation and a directly comparable per-cycle cost, so coroutine yield/resume is the next bounded profiling target.

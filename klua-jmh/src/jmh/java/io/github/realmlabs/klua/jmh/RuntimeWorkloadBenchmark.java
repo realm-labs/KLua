@@ -29,6 +29,7 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 public class RuntimeWorkloadBenchmark {
     private static final List<Object> ARGUMENTS = List.of(10_000L);
+    private static final List<Object> CONCAT_ARGUMENTS = List.of(1_000L);
     private static final String LUA_CALL_SOURCE = """
             local iterations = ...
             local function increment(value)
@@ -78,12 +79,44 @@ public class RuntimeWorkloadBenchmark {
                 return value + 1
             end
             """;
+    private static final String STRING_CONCAT_SOURCE = """
+            local iterations = ...
+            local value = ""
+            for index = 1, iterations do
+                value = value .. "x"
+            end
+            return #value
+            """;
+    private static final String COROUTINE_YIELD_RESUME_SOURCE = """
+            local iterations = ...
+            local thread = coroutine.create(function()
+                for index = 1, iterations do
+                    coroutine.yield(index)
+                end
+                return iterations
+            end)
+            local last = 0
+            for index = 1, iterations do
+                local ok, value = coroutine.resume(thread)
+                if not ok then
+                    return -1
+                end
+                last = value
+            end
+            local ok, result = coroutine.resume(thread)
+            if not ok then
+                return -2
+            end
+            return last + result
+            """;
 
     private LuaCoroutineFunction luaCalls;
     private LuaCoroutineFunction hostCalls;
     private LuaCoroutineFunction tableReadWrite;
+    private LuaCoroutineFunction stringConcatenation;
     private LuaState indexMetamethodState;
     private LuaState jvmToLuaState;
+    private LuaState coroutineYieldResumeState;
 
     @Setup
     public void setUp() {
@@ -92,9 +125,11 @@ public class RuntimeWorkloadBenchmark {
         luaCalls = lua.load(LUA_CALL_SOURCE, "benchmark-lua-calls.lua").asCoroutineFunction();
         hostCalls = lua.load(HOST_CALL_SOURCE, "benchmark-host-calls.lua").asCoroutineFunction();
         tableReadWrite = lua.load(TABLE_SOURCE, "benchmark-table.lua").asCoroutineFunction();
+        stringConcatenation = lua.load(STRING_CONCAT_SOURCE, "benchmark-string-concat.lua").asCoroutineFunction();
         verify(luaCalls, 10_000L);
         verify(hostCalls, 10_000L);
         verify(tableReadWrite, 50_005_000L);
+        verify(stringConcatenation, CONCAT_ARGUMENTS, 1_000L);
 
         indexMetamethodState = LuaState.create();
         LuaStdlib.openBase(indexMetamethodState);
@@ -110,6 +145,17 @@ public class RuntimeWorkloadBenchmark {
         long jvmToLuaVerification = callLuaFromJvm();
         if (jvmToLuaVerification != 10_000L) {
             throw new IllegalStateException("JVM-to-Lua benchmark setup produced " + jvmToLuaVerification);
+        }
+
+        coroutineYieldResumeState = LuaState.create();
+        LuaStdlib.openCoroutine(coroutineYieldResumeState);
+        requireStatus(coroutineYieldResumeState.load(
+                COROUTINE_YIELD_RESUME_SOURCE,
+                "benchmark-coroutine-yield-resume.lua"
+        ));
+        long coroutineVerification = runCoroutineYieldResume();
+        if (coroutineVerification != 20_000L) {
+            throw new IllegalStateException("coroutine benchmark setup produced " + coroutineVerification);
         }
     }
 
@@ -129,6 +175,11 @@ public class RuntimeWorkloadBenchmark {
     }
 
     @Benchmark
+    public LuaCoroutineResult executeStringConcatenation() {
+        return stringConcatenation.createCoroutine().resume(CONCAT_ARGUMENTS);
+    }
+
+    @Benchmark
     public long executeIndexMetamethodCalls() {
         return callIndexMetamethods();
     }
@@ -136,6 +187,11 @@ public class RuntimeWorkloadBenchmark {
     @Benchmark
     public long executeJvmToLuaCalls() {
         return callLuaFromJvm();
+    }
+
+    @Benchmark
+    public long executeCoroutineYieldResume() {
+        return runCoroutineYieldResume();
     }
 
     private long callIndexMetamethods() {
@@ -159,8 +215,21 @@ public class RuntimeWorkloadBenchmark {
         return value;
     }
 
+    private long runCoroutineYieldResume() {
+        coroutineYieldResumeState.pushValue(1);
+        coroutineYieldResumeState.pushInteger(10_000L);
+        requireStatus(coroutineYieldResumeState.pcall(1, 1));
+        long result = coroutineYieldResumeState.toInteger(-1);
+        coroutineYieldResumeState.pop();
+        return result;
+    }
+
     private static void verify(LuaCoroutineFunction function, long expected) {
-        LuaCoroutineResult verification = function.createCoroutine().resume(ARGUMENTS);
+        verify(function, ARGUMENTS, expected);
+    }
+
+    private static void verify(LuaCoroutineFunction function, List<Object> arguments, long expected) {
+        LuaCoroutineResult verification = function.createCoroutine().resume(arguments);
         if (!(verification instanceof LuaCoroutineResult.Returned returned)
                 || !returned.getValues().equals(List.of(expected))) {
             throw new IllegalStateException("runtime benchmark setup produced " + verification);
