@@ -342,10 +342,14 @@ internal object LuaTableLibrary {
         val count = tableMoveCount(first, last)
         tableMoveLastTarget(target, count)
 
-        val equalDestination = context.equal(1, destinationIndex)
-            ?: (context.luaEquals(1, destinationIndex) == true)
-        val sameTable = destinationIndex == 1 || equalDestination
-        if (sameTable && target > first && target <= last) {
+        val overlapsSource = target > first && target <= last
+        val copyBackwards = when {
+            !overlapsSource -> false
+            destinationIndex == 1 -> true
+            else -> context.equal(1, destinationIndex)
+                ?: (context.luaEquals(1, destinationIndex) == true)
+        }
+        if (copyBackwards) {
             var offset = count - 1L
             while (offset >= 0L) {
                 tableSetValue(

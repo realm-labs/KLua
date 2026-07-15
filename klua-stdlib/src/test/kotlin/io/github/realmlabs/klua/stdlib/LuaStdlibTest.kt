@@ -15893,7 +15893,7 @@ class LuaStdlibTest {
                 end)
                 local orderOk, orderMessage = coroutine.resume(orderCo)
 
-                local storage = { "value" }
+                local storage = { "first", "second" }
                 local moveMetatable = {
                     __eq = function()
                         coroutine.yield("equality-boundary")
@@ -15908,7 +15908,7 @@ class LuaStdlibTest {
                 local source = setmetatable({}, moveMetatable)
                 local destination = setmetatable({}, moveMetatable)
                 local equalityCo = coroutine.create(function()
-                    return table.move(source, 1, 1, 1, destination)
+                    return table.move(source, 1, 2, 2, destination)
                 end)
                 local equalityOk, equalityMessage = coroutine.resume(equalityCo)
 
@@ -25425,6 +25425,49 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals("read:3|write:4:c|read:2|write:3:b|read:1|write:2:a", state.toString(1))
+    }
+
+    @Test
+    fun `table move skips equality outside the overlapping range`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {"a", "b", "c"}
+                local writes = {}
+                local equalityCalls = 0
+                local metatable = {
+                    __eq = function()
+                        equalityCalls = equalityCalls + 1
+                        error("equality should be short-circuited")
+                    end,
+                    __index = function(_, key)
+                        return values[key]
+                    end,
+                    __newindex = function(_, key, value)
+                        writes[#writes + 1] = key .. ":" .. value
+                    end,
+                }
+                local source = setmetatable({}, metatable)
+                local destination = setmetatable({}, metatable)
+
+                local beforeOk = pcall(table.move, source, 2, 3, 1, destination)
+                local afterOk = pcall(table.move, source, 1, 2, 3, destination)
+                return beforeOk, afterOk, equalityCalls, table.concat(writes, "|")
+                """.trimIndent(),
+                "table-move-equality-short-circuit.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals("1:b|2:c|3:a|4:b", state.toString(4))
     }
 
     @Test
