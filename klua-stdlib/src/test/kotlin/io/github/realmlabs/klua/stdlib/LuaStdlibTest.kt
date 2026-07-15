@@ -22024,6 +22024,65 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string nested captures preserve raw bytes and source result order`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local raw = string.char(255, 0, 128)
+                local subject = raw .. raw
+                local first, last, findOuter, findFirst, findNul, findLast =
+                    string.find(subject, "((.)(%z)(.))%1")
+                local matchOuter, matchFirst, matchNul, matchLast =
+                    string.match(subject, "((.)(%z)(.))%1")
+                local iterator = string.gmatch(subject, "((.)(%z)(.))")
+                local firstOuter, firstByte, firstNul, firstLast = iterator()
+                local secondOuter, secondByte, secondNul, secondLast = iterator()
+                local done = iterator()
+                local replaced, count = string.gsub(subject, "((.)(%z)(.))", "%4%3%2")
+                local positionedOuter, before, after = string.match("a", "(()a())")
+                return first, last, findOuter, findFirst, findNul, findLast,
+                    matchOuter, matchFirst, matchNul, matchLast,
+                    firstOuter, firstByte, firstNul, firstLast,
+                    secondOuter, secondByte, secondNul, secondLast, done,
+                    replaced, count, positionedOuter, before, after
+                """.trimIndent(),
+                "string-pattern-nested-raw-captures.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val raw = listOf(255, 0, 128).map(Int::toByte)
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(6L, state.toInteger(2))
+        assertEquals(raw, state.toString(3)?.luaRawBytes()?.toList())
+        assertEquals(listOf(255.toByte()), state.toString(4)?.luaRawBytes()?.toList())
+        assertEquals(listOf(0.toByte()), state.toString(5)?.luaRawBytes()?.toList())
+        assertEquals(listOf(128.toByte()), state.toString(6)?.luaRawBytes()?.toList())
+        assertEquals(raw, state.toString(7)?.luaRawBytes()?.toList())
+        assertEquals(listOf(255.toByte()), state.toString(8)?.luaRawBytes()?.toList())
+        assertEquals(listOf(0.toByte()), state.toString(9)?.luaRawBytes()?.toList())
+        assertEquals(listOf(128.toByte()), state.toString(10)?.luaRawBytes()?.toList())
+        assertEquals(raw, state.toString(11)?.luaRawBytes()?.toList())
+        assertEquals(listOf(255.toByte()), state.toString(12)?.luaRawBytes()?.toList())
+        assertEquals(listOf(0.toByte()), state.toString(13)?.luaRawBytes()?.toList())
+        assertEquals(listOf(128.toByte()), state.toString(14)?.luaRawBytes()?.toList())
+        assertEquals(raw, state.toString(15)?.luaRawBytes()?.toList())
+        assertEquals(listOf(255.toByte()), state.toString(16)?.luaRawBytes()?.toList())
+        assertEquals(listOf(0.toByte()), state.toString(17)?.luaRawBytes()?.toList())
+        assertEquals(listOf(128.toByte()), state.toString(18)?.luaRawBytes()?.toList())
+        assertTrue(state.isNil(19))
+        assertEquals(listOf(128, 0, 255, 128, 0, 255).map(Int::toByte), state.toString(20)?.luaRawBytes()?.toList())
+        assertEquals(2L, state.toInteger(21))
+        assertEquals("a", state.toString(22))
+        assertEquals(1L, state.toInteger(23))
+        assertEquals(2L, state.toInteger(24))
+    }
+
+    @Test
     fun `string patterns enforce lua 55 capture limit`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -22198,6 +22257,63 @@ class LuaStdlibTest {
         assertEquals("invalid pattern capture", state.toString(12))
         assertFalse(state.toBoolean(13))
         assertEquals("unfinished capture", state.toString(14))
+    }
+
+    @Test
+    fun `string capture errors remain lazy across search consumers`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tooMany = "a" .. string.rep("()", 33)
+                local skippedLimitOk, skippedLimit = pcall(string.match, "b", tooMany)
+                local reachedLimitOk, reachedLimit = pcall(string.match, "a", tooMany)
+                local skippedReferenceOk, skippedReference = pcall(string.match, "b", "a%1")
+                local reachedReferenceOk, reachedReference = pcall(string.match, "a", "a%1")
+
+                local missedIterator = string.gmatch("b", "(a")
+                local missedCapture = missedIterator()
+                local reachedIterator = string.gmatch("a", "(a")
+                local iteratorOk, iteratorMessage = pcall(reachedIterator)
+
+                local missedSubstitution, missedCount = string.gsub("b", "(a", "x")
+                local substitutionOk, substitutionMessage = pcall(string.gsub, "a", "(a", "x")
+                local beyondOk, beyondResult = pcall(string.match, "a", ")", 3)
+                local plainFirst, plainLast = string.find(")", ")", 1, true)
+                return skippedLimitOk, skippedLimit, reachedLimitOk, reachedLimit,
+                    skippedReferenceOk, skippedReference, reachedReferenceOk, reachedReference,
+                    missedCapture, iteratorOk, iteratorMessage,
+                    missedSubstitution, missedCount, substitutionOk, substitutionMessage,
+                    beyondOk, beyondResult, plainFirst, plainLast
+                """.trimIndent(),
+                "string-pattern-lazy-capture-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.isNil(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("too many captures", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("invalid capture index %1", state.toString(8))
+        assertTrue(state.isNil(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("unfinished capture", state.toString(11))
+        assertEquals("b", state.toString(12))
+        assertEquals(0L, state.toInteger(13))
+        assertFalse(state.toBoolean(14))
+        assertEquals("unfinished capture", state.toString(15))
+        assertTrue(state.toBoolean(16))
+        assertTrue(state.isNil(17))
+        assertEquals(1L, state.toInteger(18))
+        assertEquals(1L, state.toInteger(19))
     }
 
     @Test
