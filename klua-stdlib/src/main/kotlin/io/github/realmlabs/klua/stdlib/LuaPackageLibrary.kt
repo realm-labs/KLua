@@ -31,6 +31,7 @@ internal object LuaPackageLibrary {
         setFunctionField(state, "_loadfile") { context -> loadfile(context, state) }
         setFunctionField(state, "_rawget", ::rawget)
         setFunctionField(state, "_searcherResultType", ::searcherResultType)
+        setFunctionField(state, "_cString", ::cString)
         setFunctionField(state, "_moduleRoot", ::moduleRoot)
         state.setGlobal("package")
         installLuaSource(state, REQUIRE_SOURCE, "stdlib-package.lua")
@@ -115,6 +116,10 @@ internal object LuaPackageLibrary {
         return LuaReturn.of(context.getTableValue(1, context.get(2)))
     }
 
+    private fun cString(context: LuaCallContext): LuaReturn {
+        return LuaReturn.of(requiredString(context, 1, "require").substringBefore('\u0000'))
+    }
+
     private fun isKLuaBinaryChunk(bytes: ByteArray): Boolean {
         return bytes.size >= 4 &&
             bytes[0] == 'K'.code.toByte() &&
@@ -124,7 +129,7 @@ internal object LuaPackageLibrary {
     }
 
     private fun moduleRoot(context: LuaCallContext): LuaReturn {
-        val name = requiredString(context, 1, "require")
+        val name = requiredString(context, 1, "require").substringBefore('\u0000')
         val index = name.indexOf('.')
         return if (index < 0) {
             LuaReturn.of(null)
@@ -160,12 +165,14 @@ internal object LuaPackageLibrary {
         local moduleRoot = package._moduleRoot
         local packageLoadfile = package._loadfile
         local searcherRawGet = package._rawget
+        local cString = package._cString
         local loadedTable = package.loaded
         local preloadTable = package.preload
         package._searcherResultType = nil
         package._moduleRoot = nil
         package._loadfile = nil
         package._rawget = nil
+        package._cString = nil
 
         local function packagePathString(value, field)
             local valueType = searcherResultType(value)
@@ -199,6 +206,7 @@ internal object LuaPackageLibrary {
 
         package.searchers = {
             function(name)
+                name = cString(name)
                 local loader = preloadTable[name]
                 if loader ~= nil then
                     return loader, ":preload:"
@@ -207,6 +215,7 @@ internal object LuaPackageLibrary {
             end,
 
             function(name)
+                name = cString(name)
                 local path = packagePathString(package.path, "path")
                 local filename, searchError = package.searchpath(name, path)
                 if filename == nil then
@@ -220,6 +229,7 @@ internal object LuaPackageLibrary {
             end,
 
             function(name)
+                name = cString(name)
                 local cpath = packagePathString(package.cpath, "cpath")
                 local filename, searchError = package.searchpath(name, cpath)
                 if filename == nil then
@@ -233,6 +243,7 @@ internal object LuaPackageLibrary {
             end,
 
             function(name)
+                name = cString(name)
                 local rootName = moduleRoot(name)
                 if rootName == nil then
                     return
@@ -261,6 +272,9 @@ internal object LuaPackageLibrary {
                 error("bad argument #1 to 'require' (string expected)", 2)
             end
 
+            local loaderName = name
+            name = cString(name)
+
             local loaded = loadedTable
             local value = loaded[name]
             if value ~= nil and value ~= false then
@@ -282,7 +296,7 @@ internal object LuaPackageLibrary {
                 local loader, extra = searcher(name)
                 local loaderType = searcherResultType(loader)
                 if loaderType == "function" then
-                    local result = loader(name, extra)
+                    local result = loader(loaderName, extra)
                     if result ~= nil then
                         loaded[name] = result
                     end

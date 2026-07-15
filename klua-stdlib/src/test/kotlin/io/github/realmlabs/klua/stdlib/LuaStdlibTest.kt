@@ -7114,6 +7114,127 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require uses c string module keys while preserving the loader argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local rawName = "boundary" .. zero .. "ignored"
+                local loaderName
+                local loaderData
+                package.preload.boundary = function(name, data)
+                    loaderName = name
+                    loaderData = data
+                    return { source = "prefix" }
+                end
+                package.preload[rawName] = function()
+                    return { source = "full" }
+                end
+
+                local first, firstData = require(rawName)
+                local second, secondData = require(rawName)
+                local prefix, prefixData = require("boundary")
+                local missingOk, missingMessage = pcall(require, "absent" .. zero .. "suffix")
+                return first.source, firstData, loaderName == rawName, #loaderName, loaderData,
+                    package.loaded.boundary == first, package.loaded[rawName],
+                    second == first, secondData, prefix == first, prefixData,
+                    missingOk, missingMessage, package._cString
+                """.trimIndent(),
+                "require-c-string-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("prefix", state.toString(1))
+        assertEquals(":preload:", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals(16L, state.toInteger(4))
+        assertEquals(":preload:", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.isNil(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.isNil(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.isNil(11))
+        assertFalse(state.toBoolean(12))
+        val missingMessage = state.toString(13) ?: ""
+        assertTrue(missingMessage.contains("module 'absent' not found"), missingMessage)
+        assertTrue(missingMessage.contains("package.preload['absent']"), missingMessage)
+        assertFalse(missingMessage.contains("suffix"), missingMessage)
+        assertTrue(state.isNil(14))
+    }
+
+    @Test
+    fun `package searchers apply c string boundaries to direct calls`() {
+        val root = Files.createTempDirectory("klua-searcher-name-boundary")
+        Files.writeString(root.resolve("prefix.lua"), "return { source = 'lua-prefix' }")
+        Files.writeString(root.resolve("prefix.dll"), "not really a dynamic library")
+        Files.writeString(root.resolve("root.dll"), "not really a dynamic library")
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local rawName = "prefix" .. zero .. ".ignored"
+                local prefixLoader = function() return "prefix-preload" end
+                package.preload.prefix = prefixLoader
+                package.preload[rawName] = function() return "full-preload" end
+                package.preload["1"] = function() return "numeric-preload" end
+
+                local preloadLoader, preloadData = package.searchers[1](rawName)
+                local numericLoader, numericData = package.searchers[1](1)
+
+                package.path = "${root.luaPath()}/?.lua"
+                local luaLoader, luaFile = package.searchers[2](rawName)
+                local luaValue = luaLoader()
+
+                package.cpath = "${root.luaPath()}/?.dll"
+                local attempts = {}
+                package.loadlib = function(filename, init)
+                    attempts[#attempts + 1] = filename .. "|" .. init
+                    return function() return init end
+                end
+                local cLoader, cFile = package.searchers[3](rawName)
+                local cValue = cLoader()
+                local postBoundaryRootCount = select("#", package.searchers[4](rawName))
+                local rootLoader, rootFile = package.searchers[4]("root.child" .. zero .. ".ignored")
+                local rootValue = rootLoader()
+
+                return preloadLoader == prefixLoader, preloadData,
+                    numericLoader(), numericData,
+                    luaValue.source, luaFile,
+                    cValue, cFile, attempts[1],
+                    postBoundaryRootCount, rootValue, rootFile, attempts[2]
+                """.trimIndent(),
+                "package-searcher-name-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(":preload:", state.toString(2))
+        assertEquals("numeric-preload", state.toString(3))
+        assertEquals(":preload:", state.toString(4))
+        assertEquals("lua-prefix", state.toString(5))
+        assertEquals("$root/prefix.lua", state.toString(6))
+        assertEquals("luaopen_prefix", state.toString(7))
+        assertEquals("$root/prefix.dll", state.toString(8))
+        assertEquals("$root/prefix.dll|luaopen_prefix", state.toString(9))
+        assertEquals(0L, state.toInteger(10))
+        assertEquals("luaopen_root_child", state.toString(11))
+        assertEquals("$root/root.dll", state.toString(12))
+        assertEquals("$root/root.dll|luaopen_root_child", state.toString(13))
+    }
+
+    @Test
     fun `require reports missing preload modules`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
