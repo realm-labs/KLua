@@ -637,14 +637,35 @@ public fun interface KLuaCoreContextFunction {
     public fun call(context: KLuaCoreCallContext): KLuaCoreCallResult
 }
 
-public class KLuaCoreCallContext(
+public class KLuaCoreCallContext internal constructor(
     public val arguments: List<KLuaCoreValue>,
-    public val luaFrames: List<KLuaCoreStackFrame>,
-    public val isYieldable: Boolean = false,
-    private val setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String? = { _, _, _ -> null },
-    private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
-    private val getDebugHookValue: () -> KLuaCoreDebugHook? = { null },
+    private val luaFramesProvider: () -> List<KLuaCoreStackFrame>,
+    public val isYieldable: Boolean,
+    private val setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String?,
+    private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean,
+    private val getDebugHookValue: () -> KLuaCoreDebugHook?,
 ) {
+    private var cachedLuaFrames: List<KLuaCoreStackFrame>? = null
+
+    public constructor(
+        arguments: List<KLuaCoreValue>,
+        luaFrames: List<KLuaCoreStackFrame>,
+        isYieldable: Boolean = false,
+        setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String? = { _, _, _ -> null },
+        setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
+        getDebugHookValue: () -> KLuaCoreDebugHook? = { null },
+    ) : this(
+        arguments,
+        luaFramesProvider = { luaFrames },
+        isYieldable,
+        setLocalValue,
+        setDebugHookValue,
+        getDebugHookValue,
+    )
+
+    public val luaFrames: List<KLuaCoreStackFrame>
+        get() = cachedLuaFrames ?: luaFramesProvider().also { frames -> cachedLuaFrames = frames }
+
     public fun setLocal(level: Int, index: Int, value: KLuaCoreValue): String? {
         return setLocalValue(level, index, value)
     }
@@ -1301,7 +1322,7 @@ private fun callCoreContextFunction(
         function.call(
             KLuaCoreCallContext(
                 publicArguments,
-                context.luaFrames.toCoreStackFramesFromNative(globals),
+                luaFramesProvider = { context.luaFrames.toCoreStackFramesFromNative(globals) },
                 isYieldable = context.isYieldable,
                 setLocalValue = { level, index, value ->
                     value.toLuaValueOrNull(globals)?.let { luaValue ->

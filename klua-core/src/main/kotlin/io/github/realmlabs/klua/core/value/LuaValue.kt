@@ -77,14 +77,19 @@ internal class LuaNativeFunction(
     }
 }
 
-internal data class LuaNativeCallContext(
+internal class LuaNativeCallContext(
     val arguments: List<LuaValue>,
-    val luaFrames: List<LuaNativeStackFrame>,
+    private val luaFramesProvider: () -> List<LuaNativeStackFrame>,
     val isYieldable: Boolean = false,
     private val setLocalValue: (level: Int, index: Int, value: LuaValue) -> String? = { _, _, _ -> null },
     private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
     private val getDebugHookValue: () -> LuaNativeDebugHook? = { null },
 ) {
+    private var cachedLuaFrames: List<LuaNativeStackFrame>? = null
+
+    val luaFrames: List<LuaNativeStackFrame>
+        get() = cachedLuaFrames ?: luaFramesProvider().also { frames -> cachedLuaFrames = frames }
+
     fun setLocal(level: Int, index: Int, value: LuaValue): String? {
         return setLocalValue(level, index, value)
     }

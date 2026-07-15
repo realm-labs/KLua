@@ -302,13 +302,14 @@ This proof point should remain covered by tests while later milestones evolve th
 
 ## Next Implementation Focus
 
-The closure audit above closes M13 through M18 against their success criteria. M19 is active: compile, numeric-loop, Lua-call, host-call, and table read/write baselines now exist, and the first recorded run selects the high-cost Lua-to-JVM host-call bridge for profiling.
+The closure audit above closes M13 through M18 against their success criteria. M19 is active. Compile, numeric-loop, Lua-call, host-call, and table read/write baselines now exist. Profiling the first selected hotspot showed that eager Lua debug-frame snapshots dominated the host-call bridge; lazy on-access frame materialization reduced profiled allocation by 65.4% and the matched full-suite host-call score by 55.5% with the correctness suite intact. Table access is the next benchmark-selected optimization target.
 
 Use this work-package order:
 
 | Order | Work package | Outcome and exit criteria | Expected commit shape |
 | --- | --- | --- | --- |
-| 1 | M19 host-call profiling and optimization | Profile the 10,000-host-call workload, isolate its dominant allocation/dispatch cost, make one maintainable optimization, then rerun the recorded full suite and all correctness tests. | One evidence/optimization commit with before/after results; do not mix unrelated VM tuning. |
+| 1 | M19 table-access profiling and optimization | Profile the existing table read/write workload, add a narrower control only if the combined workload cannot identify the dominant cost, make one maintainable representation or dispatch improvement, then rerun the recorded full suite and all correctness tests. | One evidence/optimization commit with before/after results; do not mix unrelated VM tuning. |
+| 2 | M19 benchmark coverage expansion | Add the next coherent missing workload group from the M19 matrix, starting with metamethod and JVM-to-Lua call controls, and record a stable checkpoint that selects or rejects a follow-up optimization. | One benchmark/evidence commit; optimization belongs in a separate bounded package. |
 
 M20 conformance remains important throughout development, but broad hardening should run as an explicitly selected campaign rather than an open-ended stream of unrelated probes. A campaign should name one subsystem or semantic invariant, list the affected entry points and reference-source functions, define its case matrix, and finish by updating the gap snapshot. Regression, data-integrity, security, or active-milestone blocking fixes may interrupt the order above; incidental edge cases should be queued for the next campaign.
 

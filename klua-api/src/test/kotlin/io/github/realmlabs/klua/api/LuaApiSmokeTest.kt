@@ -45,6 +45,35 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `host call contexts materialize live lua frames on access`() {
+        val lua = Lua.create()
+        var capturedFrames = emptyList<LuaStackFrame>()
+        lua.globals().setFunction("capture") { context ->
+            capturedFrames = context.luaFrames
+            LuaReturn.none()
+        }
+
+        val result = lua.load(
+            """
+            local value = 42
+            capture()
+            return value
+            """.trimIndent(),
+            "api-host-frames.lua",
+        ).evalLong()
+
+        assertEquals(42L, result)
+        assertEquals(
+            listOf("api-host-frames.lua" to 2),
+            capturedFrames.map { frame -> frame.sourceName to frame.line },
+        )
+        assertEquals(
+            listOf(LuaLocalVariable("value", 42L)),
+            capturedFrames.single().locals,
+        )
+    }
+
+    @Test
     fun `facade compiles and evaluates bytecode chunks`() {
         val lua = Lua.create()
         val bytecode = lua.compileBytecode("return ... + 1", "api-bytecode.lua")

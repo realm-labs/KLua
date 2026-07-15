@@ -528,12 +528,15 @@ internal class LuaVm(
     }
 
     private fun nativeCallContext(function: LuaNativeFunction, arguments: List<LuaValue>): LuaNativeCallContext {
-        val frames = thread.stackFrames()
+        var frames: List<CallFrame>? = null
+        fun frames(): List<CallFrame> {
+            return frames ?: thread.stackFrames().also { currentFrames -> frames = currentFrames }
+        }
         return LuaNativeCallContext(
             arguments,
-            luaStackFrames(frames),
+            luaFramesProvider = { luaStackFrames(frames()) },
             isYieldable = thread.isYieldable && function.yieldable,
-            setLocalValue = { level, index, value -> setLocal(frames, level, index, value) },
+            setLocalValue = { level, index, value -> setLocal(frames(), level, index, value) },
             setDebugHookValue = { index, mask, count -> setDebugHook(arguments, index, mask, count) },
             getDebugHookValue = { debugHook?.toNativeHook() },
         )

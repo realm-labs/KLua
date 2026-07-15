@@ -589,7 +589,7 @@ class LuaState private constructor(
                     callHostFunction(
                         function.function,
                         context.arguments,
-                        context.luaFrames,
+                        luaFramesProvider = { context.luaFrames },
                         nativeFrameName = name,
                         setLocal = { level, index, value ->
                             context.setLocal(level, index, value.toCoreReturnValue())
@@ -613,7 +613,7 @@ class LuaState private constructor(
     private fun callHostFunction(
         function: LuaFunction,
         arguments: List<KLuaCoreValue>,
-        luaFrames: List<KLuaCoreStackFrame> = emptyList(),
+        luaFramesProvider: () -> List<KLuaCoreStackFrame> = { emptyList() },
         nativeFrameName: String? = null,
         setLocal: ((level: Int, index: Int, value: Any?) -> String?)? = null,
         setDebugHook: ((index: Int, mask: String, count: Int) -> Boolean)? = null,
@@ -626,7 +626,7 @@ class LuaState private constructor(
             val result = function.call(
                 DefaultLuaCallContext(
                     stackArguments,
-                    toApiStackFrames(luaFrames),
+                    { toApiStackFrames(luaFramesProvider()) },
                     setLocal,
                     setDebugHook,
                     getDebugHook,
@@ -893,7 +893,7 @@ class LuaState private constructor(
                 callHostFunction(
                     this,
                     context.arguments,
-                    context.luaFrames,
+                    luaFramesProvider = { context.luaFrames },
                     setLocal = { level, index, value ->
                         context.setLocal(level, index, value.toCoreReturnValue())
                     },
@@ -1530,12 +1530,17 @@ class LuaState private constructor(
 
     private inner class DefaultLuaCallContext(
         private val arguments: List<LuaStackValue>,
-        override val luaFrames: List<LuaStackFrame> = emptyList(),
+        private val luaFramesProvider: () -> List<LuaStackFrame> = { emptyList() },
         private val setLocalValue: ((level: Int, index: Int, value: Any?) -> String?)? = null,
         private val setDebugHookValue: ((index: Int, mask: String, count: Int) -> Boolean)? = null,
         private val getDebugHookValue: (() -> LuaReturn)? = null,
         override val isYieldable: Boolean = false,
     ) : LuaCallContext {
+        private var cachedLuaFrames: List<LuaStackFrame>? = null
+
+        override val luaFrames: List<LuaStackFrame>
+            get() = cachedLuaFrames ?: luaFramesProvider().also { frames -> cachedLuaFrames = frames }
+
         override val argumentCount: Int = arguments.size
 
         override fun isNil(index: Int): Boolean = valueAt(index) == LuaStackValue.Nil
@@ -1793,7 +1798,7 @@ class LuaState private constructor(
                     coreFunction,
                     DefaultLuaCallContext(
                         arguments.map { argument -> argument.toStackValue() },
-                        luaFrames,
+                        { luaFrames },
                         setLocalValue,
                         setDebugHookValue,
                         getDebugHookValue,
@@ -1804,7 +1809,7 @@ class LuaState private constructor(
             return function.function.call(
                 DefaultLuaCallContext(
                     arguments.map { argument -> argument.toStackValue() },
-                    luaFrames,
+                    { luaFrames },
                     setLocalValue,
                     setDebugHookValue,
                     getDebugHookValue,
