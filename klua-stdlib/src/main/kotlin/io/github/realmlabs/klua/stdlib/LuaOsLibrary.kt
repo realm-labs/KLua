@@ -128,7 +128,14 @@ internal object LuaOsLibrary {
     }
 
     private fun getenv(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(System.getenv(requiredString(context, 1, "os.getenv")))
+        val name = requiredString(context, 1, "os.getenv").substringBefore('\u0000')
+        return try {
+            LuaReturn.of(System.getenv(name))
+        } catch (_: IllegalArgumentException) {
+            LuaReturn.of(null)
+        } catch (_: SecurityException) {
+            LuaReturn.of(null)
+        }
     }
 
     private fun remove(context: LuaCallContext): LuaReturn {

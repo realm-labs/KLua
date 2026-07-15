@@ -15239,6 +15239,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os getenv preserves c string lookup boundaries`() {
+        val expectedPath = System.getenv("PATH") ?: System.getenv("Path") ?: error("PATH is unavailable")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function inspect(...)
+                    return select("#", ...), ...
+                end
+                local zero = string.char(0)
+                local pathCount, path = inspect(os.getenv("PATH" .. zero .. "ignored", "ignored"))
+                local missingCount, missing = inspect(os.getenv("KLUA_ENV_DOES_NOT_EXIST_0123456789"))
+                local invalidCount, invalid = inspect(os.getenv("PATH=invalid"))
+                local numericCount, numeric = inspect(os.getenv(9223372036854775807))
+                local nilOk, nilMessage = pcall(os.getenv, nil)
+                return pathCount, path, missingCount, missing,
+                    invalidCount, invalid, numericCount, numeric, nilOk, nilMessage
+                """.trimIndent(),
+                "os-getenv-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(expectedPath, state.toString(2))
+        assertEquals(1L, state.toInteger(3))
+        assertTrue(state.isNil(4))
+        assertEquals(1L, state.toInteger(5))
+        assertTrue(state.isNil(6))
+        assertEquals(1L, state.toInteger(7))
+        assertTrue(state.isNil(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'os.getenv' (string expected)", state.toString(10))
+    }
+
+    @Test
     fun `os exit signals configured process exit without returning`() {
         val exits = mutableListOf<Pair<Int, Boolean>>()
         val state = LuaState.create(
