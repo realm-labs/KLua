@@ -8427,7 +8427,11 @@ class LuaStdlibTest {
                     tonumber("NaN"),
                     tonumber("Infinity"),
                     tonumber("-Infinity"),
-                    tonumber(7)
+                    tonumber(7),
+                    tonumber("1e9999"),
+                    tonumber("-1e-9999"),
+                    tonumber("1.5f"),
+                    tonumber("0x1p0d")
                 """.trimIndent(),
                 "tonumber.lua",
             ),
@@ -8444,6 +8448,13 @@ class LuaStdlibTest {
         assertTrue(state.isNil(8))
         assertTrue(state.isNil(9))
         assertEquals(7L, state.toInteger(10))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(11))
+        assertEquals(
+            java.lang.Double.doubleToRawLongBits(-0.0),
+            java.lang.Double.doubleToRawLongBits(state.toNumber(12) ?: error("missing underflow result")),
+        )
+        assertTrue(state.isNil(13))
+        assertTrue(state.isNil(14))
     }
 
     @Test
@@ -25605,6 +25616,246 @@ class LuaStdlibTest {
         assertEquals(9L, state.toInteger(5))
         assertEquals(0.25, state.toNumber(6) ?: error("missing number result"), 0.0)
         assertEquals(9L, state.toInteger(7))
+    }
+
+    @Test
+    fun `string floating layouts preserve ieee boundaries and narrowing`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function fbits(value)
+                    return string.unpack(">I4", string.pack(">f", value))
+                end
+                local function dbits(value)
+                    return string.unpack(">I8", string.pack(">d", value))
+                end
+                local function floatNanRoundTrip(bits)
+                    local raw = string.pack(">I4", bits)
+                    local value = string.unpack(">f", raw)
+                    return string.pack(">f", value) == raw
+                end
+                local function doubleNanRoundTrip(format, bits)
+                    local raw = string.pack(">I8", bits)
+                    local value = string.unpack(">" .. format, raw)
+                    return string.pack(">" .. format, value) == raw
+                end
+                return fbits(0.0), fbits(-0.0),
+                    fbits(0x1p-149), fbits(0x1p-150), fbits(-0x1p-150),
+                    fbits(0x1.0000000000001p-150),
+                    fbits(0x1p-126), fbits(0x1.fffffep127), fbits(0x1.ffffffp127),
+                    fbits(0x1.000001p0), fbits(0x1.000003p0),
+                    floatNanRoundTrip(0x7fc00001), floatNanRoundTrip(0xffc00001),
+                    dbits(0.0), dbits(-0.0), dbits(0x1p-1074), dbits(0x1p-1022),
+                    dbits(0x1.fffffffffffffp1023), dbits(math.huge), dbits(-math.huge),
+                    doubleNanRoundTrip("d", 0x7ff8000000000001),
+                    doubleNanRoundTrip("d", 0xfff8000000000001),
+                    doubleNanRoundTrip("n", 0x7ff8000000000001),
+                    doubleNanRoundTrip("n", 0xfff8000000000001)
+                """.trimIndent(),
+                "string-pack-floating-ieee.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(0x80000000L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(0x80000000L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(0x00800000L, state.toInteger(7))
+        assertEquals(0x7f7fffffL, state.toInteger(8))
+        assertEquals(0x7f800000L, state.toInteger(9))
+        assertEquals(0x3f800000L, state.toInteger(10))
+        assertEquals(0x3f800002L, state.toInteger(11))
+        assertTrue(state.toBoolean(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals(0L, state.toInteger(14))
+        assertEquals(Long.MIN_VALUE, state.toInteger(15))
+        assertEquals(1L, state.toInteger(16))
+        assertEquals(0x0010000000000000L, state.toInteger(17))
+        assertEquals(0x7fefffffffffffffL, state.toInteger(18))
+        assertEquals(0x7ff0000000000000L, state.toInteger(19))
+        assertEquals(-0x0010000000000000L, state.toInteger(20))
+        for (index in 21..24) {
+            assertTrue(state.toBoolean(index))
+        }
+    }
+
+    @Test
+    fun `string floating layouts honor endian alignment and result shape`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local alignedFloat = string.pack(">!4B Xf f", 7, 1.5)
+                local floatByte, floatValue, floatNext = string.unpack(">!4B Xf f", alignedFloat)
+                local alignedDouble = string.pack("<!8B Xd d", 9, -13.5)
+                local doubleByte, doubleValue, doubleNext = string.unpack("<!8B Xd d", alignedDouble)
+                local native = string.pack("=d", 1.0)
+                local big = string.pack(">f", 1.0)
+                local little = string.pack("<f", 1.0)
+                local doubleEndian =
+                    string.pack(">d", 1.0) == string.pack(">I8", 0x3ff0000000000000) and
+                    string.pack("<d", 1.0) == string.pack("<I8", 0x3ff0000000000000)
+                local numberEndian =
+                    string.pack(">n", 1.0) == string.pack(">I8", 0x3ff0000000000000) and
+                    string.pack("<n", 1.0) == string.pack("<I8", 0x3ff0000000000000)
+                local big1, big2, big3, big4 = string.byte(big, 1, 4)
+                local little1, little2, little3, little4 = string.byte(little, 1, 4)
+                local first, second, third, nextPosition =
+                    string.unpack("fdn", string.pack("fdn", 1.0, 2.0, 3.0, "ignored"))
+                return string.packsize("fdn"),
+                    string.packsize("!4B Xf f"), string.packsize("!8B Xd d"),
+                    floatByte, floatValue, floatNext,
+                    doubleByte, doubleValue, doubleNext,
+                    native == string.pack("<d", 1.0) or native == string.pack(">d", 1.0),
+                    doubleEndian, numberEndian,
+                    big1, big2, big3, big4, little1, little2, little3, little4,
+                    math.type(first), math.type(second), math.type(third), nextPosition,
+                    select("#", string.unpack("fdn", string.pack("fdn", 1, 2, 3))),
+                    select("#", string.pack("f", 1, "ignored"))
+                """.trimIndent(),
+                "string-pack-floating-layout.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(20L, state.toInteger(1))
+        assertEquals(8L, state.toInteger(2))
+        assertEquals(16L, state.toInteger(3))
+        assertEquals(7L, state.toInteger(4))
+        assertEquals(1.5, state.toNumber(5))
+        assertEquals(9L, state.toInteger(6))
+        assertEquals(9L, state.toInteger(7))
+        assertEquals(-13.5, state.toNumber(8))
+        assertEquals(17L, state.toInteger(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.toBoolean(11))
+        assertTrue(state.toBoolean(12))
+        assertEquals(listOf(0x3fL, 0x80L, 0L, 0L), (13..16).map(state::toInteger))
+        assertEquals(listOf(0L, 0L, 0x80L, 0x3fL), (17..20).map(state::toInteger))
+        assertEquals("float", state.toString(21))
+        assertEquals("float", state.toString(22))
+        assertEquals("float", state.toString(23))
+        assertEquals(21L, state.toInteger(24))
+        assertEquals(4L, state.toInteger(25))
+        assertEquals(1L, state.toInteger(26))
+    }
+
+    @Test
+    fun `string floating pack accepts only lua numeric strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local decimal = string.unpack(">f", string.pack(">f", "1.5"))
+                local hex = string.unpack(">d", string.pack(">d", "0x1.8p1"))
+                local overflowFloat = string.unpack(">f", string.pack(">f", "1e9999"))
+                local overflowDouble = string.unpack(">d", string.pack(">d", "-1e9999"))
+                local underflowBits = string.unpack(">I4", string.pack(">f", "-1e-9999"))
+                local suffixOk, suffixMessage = pcall(string.pack, "f", "1.5f")
+                local nanOk, nanMessage = pcall(string.pack, "d", "NaN")
+                local infinityOk, infinityMessage = pcall(string.pack, "n", "Infinity")
+                local number, nextPosition = string.unpack(">n", string.pack(">n", "0x1.8"))
+                return decimal, hex,
+                    overflowFloat == math.huge, overflowDouble == -math.huge, underflowBits,
+                    suffixOk, suffixMessage, nanOk, nanMessage, infinityOk, infinityMessage,
+                    number, nextPosition
+                """.trimIndent(),
+                "string-pack-floating-numeric-strings.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1.5, state.toNumber(1))
+        assertEquals(3.0, state.toNumber(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals(0x80000000L, state.toInteger(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("bad argument #2 to 'pack' (number expected)", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #2 to 'pack' (number expected)", state.toString(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("bad argument #2 to 'pack' (number expected)", state.toString(11))
+        assertEquals(1.5, state.toNumber(12))
+        assertEquals(9L, state.toInteger(13))
+
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.GERMANY)
+            val localeState = LuaState.create()
+            LuaStdlib.openString(localeState)
+            assertEquals(
+                LuaStatus.OK,
+                localeState.load(
+                    """
+                    return string.unpack("f", string.pack("f", "1,5")),
+                        string.unpack("d", string.pack("d", "0x1,8p1"))
+                    """.trimIndent(),
+                    "string-pack-floating-locale-numeric-strings.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, localeState.pcall(0, -1), localeState.toString(-1))
+            assertEquals(1.5, localeState.toNumber(1))
+            assertEquals(3.0, localeState.toNumber(2))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
+    fun `string floating pack preserves source diagnostic order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missingOk, missingMessage = pcall(string.pack, "f")
+                local valueOk, valueMessage = pcall(string.pack, "f?", {})
+                local laterFormatOk, laterFormatMessage = pcall(string.pack, "f?", 1)
+                local shortOk, shortMessage = pcall(string.unpack, "f?", string.rep("\0", 3))
+                local unpackFormatOk, unpackFormatMessage =
+                    pcall(string.unpack, "f?", string.rep("\0", 4))
+                local alignedShortOk, alignedShortMessage =
+                    pcall(string.unpack, "!8B Xd d", string.rep("\0", 15))
+                return missingOk, missingMessage, valueOk, valueMessage,
+                    laterFormatOk, laterFormatMessage, shortOk, shortMessage,
+                    unpackFormatOk, unpackFormatMessage, alignedShortOk, alignedShortMessage
+                """.trimIndent(),
+                "string-pack-floating-diagnostic-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for (index in listOf(1, 3, 5, 7, 9, 11)) {
+            assertFalse(state.toBoolean(index))
+        }
+        assertEquals("bad argument #2 to 'pack' (number expected)", state.toString(2))
+        assertEquals("bad argument #2 to 'pack' (number expected)", state.toString(4))
+        assertEquals("invalid format option '?'", state.toString(6))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(8))
+        assertEquals("invalid format option '?'", state.toString(10))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(12))
     }
 
     @Test

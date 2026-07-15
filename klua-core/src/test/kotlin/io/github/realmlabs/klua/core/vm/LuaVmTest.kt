@@ -2014,6 +2014,39 @@ class LuaVmTest {
     }
 
     @Test
+    fun `numeric for loop follows lua float string grammar at range boundaries`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local highCount = 0
+                for i = 1, "1e9999", -1 do
+                    highCount = highCount + 1
+                end
+
+                local lowCount = 0
+                for i = -1, "-1e9999", 1 do
+                    lowCount = lowCount + 1
+                end
+                return highCount, lowCount
+                """.trimIndent(),
+            ),
+        )
+        val suffixError = assertFailsWith<LuaVmException> {
+            LuaVm().execute(
+                Compiler.compile(
+                    """
+                    for i = "1.0f", 1 do
+                    end
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals(listOf(LuaInteger(0), LuaInteger(0)), result)
+        assertEquals("numeric for index must be a number", suffixError.message)
+    }
+
+    @Test
     fun `numeric for loop rejects non ascii hexadecimal string bounds`() {
         val initialError = assertFailsWith<LuaVmException> {
             LuaVm().execute(

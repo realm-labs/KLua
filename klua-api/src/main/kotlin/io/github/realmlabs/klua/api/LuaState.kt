@@ -27,6 +27,10 @@ import java.util.Locale
 import java.util.function.Consumer
 
 private const val MAX_CALL_METAMETHOD_DEPTH = 16
+private val LUA_DECIMAL_FLOAT_PATTERN =
+    Regex("""[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?""")
+private val LUA_HEXADECIMAL_FLOAT_PATTERN =
+    Regex("""[+-]?0[xX](?:(?:[0-9a-fA-F]+(?:\.[0-9a-fA-F]*)?)|(?:\.[0-9a-fA-F]+))(?:[pP][+-]?[0-9]+)?""")
 
 class LuaState private constructor(
     val config: LuaConfig,
@@ -1335,11 +1339,16 @@ class LuaState private constructor(
         val parsed = hexIntegerFromString(trimmed)?.toDouble()
             ?: normalized.luaFloatFromString()
             ?: return null
-        return parsed.takeIf { number -> number.isFinite() }
+        return parsed
     }
 
     private fun String.luaFloatFromString(): Double? {
-        val parseable = if (isHexNumeral() && indexOf('p', ignoreCase = true) < 0) "${this}p0" else this
+        val hexadecimal = isHexNumeral()
+        val pattern = if (hexadecimal) LUA_HEXADECIMAL_FLOAT_PATTERN else LUA_DECIMAL_FLOAT_PATTERN
+        if (!pattern.matches(this)) {
+            return null
+        }
+        val parseable = if (hexadecimal && indexOf('p', ignoreCase = true) < 0) "${this}p0" else this
         return parseable.toDoubleOrNull()
     }
 

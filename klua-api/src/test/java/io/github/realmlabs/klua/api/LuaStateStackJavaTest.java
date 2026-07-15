@@ -101,6 +101,11 @@ class LuaStateStackJavaTest {
         state.pushString("\u20033.5");
         state.pushString("0x1.8");
         state.pushString("0x.8");
+        state.pushString("1e9999");
+        state.pushString("-1e9999");
+        state.pushString("-1e-9999");
+        state.pushString("1.5f");
+        state.pushString("0x1p0d");
 
         assertEquals(3.5, state.toNumber(1));
         assertEquals(3.5, state.toNumber(2));
@@ -111,6 +116,14 @@ class LuaStateStackJavaTest {
         assertNull(state.toNumber(7));
         assertEquals(1.5, state.toNumber(8));
         assertEquals(0.5, state.toNumber(9));
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(10));
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(11));
+        assertEquals(
+            Double.doubleToRawLongBits(-0.0),
+            Double.doubleToRawLongBits(state.toNumber(12))
+        );
+        assertNull(state.toNumber(13));
+        assertNull(state.toNumber(14));
     }
 
     @Test
@@ -161,12 +174,16 @@ class LuaStateStackJavaTest {
         state.pushString("0x1.8p1");
         state.pushString("bad");
         state.pushString("NaN");
+        state.pushString("1e9999");
+        state.pushString("1.5f");
 
         assertTrue(state.isNumber(1));
         assertTrue(state.isNumber(2));
         assertTrue(state.isNumber(3));
         assertFalse(state.isNumber(4));
         assertFalse(state.isNumber(5));
+        assertTrue(state.isNumber(6));
+        assertFalse(state.isNumber(7));
     }
 
     @Test

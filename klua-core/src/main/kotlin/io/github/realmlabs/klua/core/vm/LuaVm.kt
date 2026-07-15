@@ -2375,13 +2375,17 @@ private fun luaIntegerFromTrimmedString(value: String): Long? {
 
 private fun luaFloatFromTrimmedString(value: String): Double? {
     val normalized = value.normalizeLuaNumberDecimalPoint()
-    val parsed = if (normalized.isHexNumeral()) {
+    val hexadecimal = normalized.isHexNumeral()
+    val pattern = if (hexadecimal) LUA_HEXADECIMAL_FLOAT_PATTERN else LUA_DECIMAL_FLOAT_PATTERN
+    if (!pattern.matches(normalized)) {
+        return null
+    }
+    return if (hexadecimal) {
         val parseable = if (normalized.indexOf('p', ignoreCase = true) < 0) "${normalized}p0" else normalized
         parseable.toDoubleOrNull()
     } else {
         normalized.toDoubleOrNull()
     }
-    return parsed?.takeIf { number -> java.lang.Double.isFinite(number) }
 }
 
 private fun luaHexIntegerFromString(value: String): Long? {
@@ -2564,6 +2568,10 @@ private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 200
 private const val TRUTHY_PENDING_RESULT_COUNT = -2
 private const val VARARG_LOCAL_NAME = "(vararg)"
+private val LUA_DECIMAL_FLOAT_PATTERN =
+    Regex("""[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?""")
+private val LUA_HEXADECIMAL_FLOAT_PATTERN =
+    Regex("""[+-]?0[xX](?:(?:[0-9a-fA-F]+(?:\.[0-9a-fA-F]*)?)|(?:\.[0-9a-fA-F]+))(?:[pP][+-]?[0-9]+)?""")
 
 private fun metamethodCallSiteInfo(name: String): CallSiteInfo {
     return CallSiteInfo(0, name, "metamethod")
