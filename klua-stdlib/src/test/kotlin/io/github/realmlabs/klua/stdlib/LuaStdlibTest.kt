@@ -6854,20 +6854,28 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local handle = assert(io.popen("$command\0ignored", "r\0ignored", "extra"))
+                local function capture(...)
+                    return select("#", ...), ...
+                end
+                local openCount, handle = capture(
+                    io.popen("$command\0ignored", "r\0ignored", "extra")
+                )
+                assert(handle)
                 local data = handle:read("a")
-                local closeOk, kind, code = handle:close()
-                return data, closeOk, kind, code
+                local closeCount, closeOk, kind, code = capture(handle:close())
+                return openCount, data, closeCount, closeOk, kind, code
                 """.trimIndent(),
                 "io-popen-c-string-boundaries.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertTrue(state.toString(1)?.contains("KLua") == true, state.toString(1))
-        assertTrue(state.toBoolean(2))
-        assertEquals("exit", state.toString(3))
-        assertEquals(0L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(1))
+        assertTrue(state.toString(2)?.contains("KLua") == true, state.toString(2))
+        assertEquals(3L, state.toInteger(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("exit", state.toString(5))
+        assertEquals(0L, state.toInteger(6))
     }
 
     @Test
