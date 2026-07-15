@@ -6,7 +6,7 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 ## Package Library
 
-- Native C module loading is intentionally unavailable in the pure Kotlin runtime. `package.loadlib` exposes the Lua fallback-style unsupported result, and the C/C-root searcher slots can report `package.cpath` misses or dynamic-loading failures but cannot create native loaders. `package.searchpath` follows Lua's C-string substitution, empty-template diagnostics, and host openability probe; Java invalid-path and security failures are treated as unreadable candidates.
+- Native C module loading is intentionally unavailable in the pure Kotlin runtime. `package.loadlib` exposes the source fallback's exact C-string-checked `nil, message, "absent"` result, and the C/C-root searcher slots can report `package.cpath` misses or dynamic-loading failures but cannot create native loaders. `package.searchpath` follows Lua's C-string substitution, empty-template diagnostics, and host openability probe; Java invalid-path and security failures are treated as unreadable candidates.
 
 ## IO Library
 

@@ -6854,31 +6854,48 @@ class LuaStdlibTest {
     fun `package loadlib reports disabled native libraries`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
         LuaStdlib.openPackage(state)
 
         assertEquals(
             LuaStatus.OK,
             state.load(
                 """
-                local result, message, where = package.loadlib("missing.so", "luaopen_missing")
-                local badPathOk, badPathMessage = pcall(package.loadlib, false, "luaopen_missing")
-                local badInitOk, badInitMessage = pcall(package.loadlib, "missing.so", false)
-                return result, message, where,
-                    badPathOk, badPathMessage,
-                    badInitOk, badInitMessage
+                    local function inspect(...)
+                        return select("#", ...), ...
+                    end
+                    local zero = string.char(0)
+                    local count, result, message, where = inspect(package.loadlib(
+                        "missing.so" .. zero .. "ignored",
+                        "luaopen_missing" .. zero .. "ignored",
+                        "ignored"
+                    ))
+                    local numericCount, numericResult, numericMessage, numericWhere =
+                        inspect(package.loadlib(123, 456))
+                    local badPathOk, badPathMessage = pcall(package.loadlib, false, "luaopen_missing")
+                    local badInitOk, badInitMessage = pcall(package.loadlib, "missing.so", false)
+                    return count, result, message, where,
+                        numericCount, numericResult, numericMessage, numericWhere,
+                        badPathOk, badPathMessage,
+                        badInitOk, badInitMessage
                 """.trimIndent(),
                 "package-loadlib-disabled.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertTrue(state.isNil(1))
-        assertEquals("dynamic libraries not enabled; check your Lua installation", state.toString(2))
-        assertEquals("absent", state.toString(3))
-        assertFalse(state.toBoolean(4))
-        assertEquals("bad argument #1 to 'loadlib' (string expected)", state.toString(5))
-        assertFalse(state.toBoolean(6))
-        assertEquals("bad argument #2 to 'loadlib' (string expected)", state.toString(7))
+        assertEquals(3L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertEquals("dynamic libraries not enabled; check your Lua installation", state.toString(3))
+        assertEquals("absent", state.toString(4))
+        assertEquals(3L, state.toInteger(5))
+        assertTrue(state.isNil(6))
+        assertEquals("dynamic libraries not enabled; check your Lua installation", state.toString(7))
+        assertEquals("absent", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'loadlib' (string expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #2 to 'loadlib' (string expected)", state.toString(12))
     }
 
     @Test

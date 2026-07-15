@@ -38,8 +38,8 @@ internal object LuaPackageLibrary {
     }
 
     private fun loadlib(context: LuaCallContext): LuaReturn {
-        requiredString(context, 1, "loadlib")
-        requiredString(context, 2, "loadlib")
+        requiredString(context, 1, "loadlib").substringBefore('\u0000')
+        requiredString(context, 2, "loadlib").substringBefore('\u0000')
         return LuaReturn.of(null, DYNAMIC_LIBRARIES_DISABLED_MESSAGE, "absent")
     }
 
