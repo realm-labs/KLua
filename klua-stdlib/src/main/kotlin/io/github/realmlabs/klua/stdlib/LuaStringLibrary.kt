@@ -911,7 +911,7 @@ internal object LuaStringLibrary {
     }
 
     private fun invalidFormatConversion(specifier: String): LuaRuntimeException {
-        return LuaRuntimeException("invalid conversion '$specifier' to 'format'")
+        return LuaRuntimeException("invalid conversion '${specifier.substringBefore('\u0000')}' to 'format'")
     }
 
     private fun String.formatWith(value: Any): String {
@@ -1276,7 +1276,7 @@ internal object LuaStringLibrary {
     }
 
     private fun invalidConversionSpecification(specifier: String): LuaRuntimeException {
-        return LuaRuntimeException("invalid conversion specification: '$specifier'")
+        return LuaRuntimeException("invalid conversion specification: '${specifier.substringBefore('\u0000')}'")
     }
 
     private fun unsignedIntegerValue(value: Long): BigInteger {

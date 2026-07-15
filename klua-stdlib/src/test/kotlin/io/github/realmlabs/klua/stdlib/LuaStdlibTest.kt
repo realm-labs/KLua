@@ -22200,6 +22200,73 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string format preserves raw bytes across format and value boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local format = string.char(255) .. "%3.1s" .. string.char(0) .. "%q" .. string.char(128)
+                local result = string.format(format, string.char(254, 65), string.char(1) .. "7")
+                local long = string.rep("x", 99) .. string.char(0, 255)
+                local longFormatted = string.format("%s", long)
+                local zeroPrecision = string.format("%.0s", "abc")
+                local zeroOk, zeroMessage = pcall(string.format, "%.0s", "a" .. string.char(0) .. "b")
+                return result, longFormatted == long, string.len(longFormatted),
+                    zeroPrecision, zeroOk, zeroMessage
+                """.trimIndent(),
+                "string-format-raw-byte-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            listOf(255, 32, 32, 254, 0, 34, 92, 48, 48, 49, 55, 34, 128),
+            state.toString(1)?.luaRawBytes()?.map { byte -> byte.toInt() and 0xff },
+        )
+        assertTrue(state.toBoolean(2))
+        assertEquals(101L, state.toInteger(3))
+        assertEquals("", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'format' (string contains zeros)", state.toString(6))
+    }
+
+    @Test
+    fun `string format diagnostics stop at c string conversion boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local invalidOk, invalidMessage = pcall(string.format, "%" .. string.char(0) .. "d", 1)
+                local widthOk, widthMessage = pcall(string.format, "%1" .. string.char(0) .. "d", 1)
+                local flagOk, flagMessage = pcall(string.format, "%+" .. string.char(0) .. "s", "x")
+                local missingOk, missingMessage = pcall(string.format, "%" .. string.char(0) .. "d")
+                return invalidOk, invalidMessage, widthOk, widthMessage,
+                    flagOk, flagMessage, missingOk, missingMessage
+                """.trimIndent(),
+                "string-format-c-string-diagnostics.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("invalid conversion '%' to 'format'", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("invalid conversion '%1' to 'format'", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("invalid conversion '%+' to 'format'", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'format' (no value)", state.toString(8))
+    }
+
+    @Test
     fun `string format applies printf flag precedence`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
