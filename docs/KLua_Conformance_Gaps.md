@@ -14,5 +14,5 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 ## Strings And UTF-8
 
-- KLua strings are still JVM-string-backed rather than byte-string-faithful in all standard-library paths. This leaves Lua 5.5 byte-level behavior incomplete for cases such as validating or iterating broader malformed byte sequences.
+- KLua strings are still JVM-string-backed rather than byte-string-faithful in all standard-library paths. This leaves Lua 5.5 byte-level behavior incomplete for cases such as validating or iterating broader malformed byte sequences. The raw-byte `utf8.offset` path is source-backed for representable malformed layouts and is not part of this remaining decoder/iterator gap.
 - `string.dump`, binary `load`, and binary `loadfile` can round-trip Lua functions through KLua's internal bytecode package format using the stdlib raw-byte string helpers, and the `strip` flag removes KLua debug metadata from dumped packages. General Lua byte-string fidelity remains incomplete, so dumped chunks are not yet portable Lua byte strings.

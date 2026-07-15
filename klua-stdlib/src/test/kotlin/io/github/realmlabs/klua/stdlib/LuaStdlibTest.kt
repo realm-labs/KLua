@@ -23151,6 +23151,62 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 offset follows continuation layout without decoding code points`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openUtf8(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local truncated = string.char(0xC2)
+                local truncatedStart, truncatedEnd = utf8.offset(truncated, 1)
+
+                local extendedLead = string.char(0xFF, 0x80, 0x80)
+                local extendedStart, extendedEnd = utf8.offset(extendedLead, 1)
+                local containingStart, containingEnd = utf8.offset(extendedLead, 0, 2)
+                local extendedAfterStart, extendedAfterEnd = utf8.offset(extendedLead, 2)
+                local extendedMissing = utf8.offset(extendedLead, 3)
+
+                local orphan = "A" .. string.char(0x80)
+                local orphanStart, orphanEnd = utf8.offset(orphan, 0, 2)
+                local orphanNext = utf8.offset(orphan, 2)
+
+                local continuation = string.char(0x80)
+                local zeroOk, zeroMessage = pcall(utf8.offset, continuation, 0, 1)
+                local nonzeroOk, nonzeroMessage = pcall(utf8.offset, continuation, 1, 1)
+                return truncatedStart, truncatedEnd,
+                    extendedStart, extendedEnd, containingStart, containingEnd,
+                    extendedAfterStart, extendedAfterEnd, extendedMissing,
+                    orphanStart, orphanEnd, orphanNext,
+                    zeroOk, zeroMessage, nonzeroOk, nonzeroMessage
+                """.trimIndent(),
+                "utf8-offset-byte-layout.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(3L, state.toInteger(6))
+        assertEquals(4L, state.toInteger(7))
+        assertEquals(4L, state.toInteger(8))
+        assertTrue(state.isNil(9))
+        assertEquals(1L, state.toInteger(10))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals(3L, state.toInteger(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("initial position is a continuation byte", state.toString(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("initial position is a continuation byte", state.toString(16))
+    }
+
+    @Test
     fun `utf8 offset reports position errors`() {
         val state = LuaState.create()
         LuaStdlib.openUtf8(state)
