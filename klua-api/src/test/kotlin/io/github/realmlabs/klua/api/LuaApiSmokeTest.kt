@@ -129,6 +129,26 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `state preserves cyclic tables across core conversion boundaries`() {
+        val state = LuaState.create()
+        state.newTable()
+        state.pushValue(-1)
+        state.setField(-2, "self")
+        state.setGlobal("cycle")
+
+        assertEquals(LuaStatus.OK, state.load("return cycle == cycle.self", "api-cycle-to-core.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, 1))
+        assertTrue(state.toBoolean(-1))
+
+        state.setTop(0)
+        state.getGlobal("cycle")
+        state.setGlobal("roundTrip")
+        assertEquals(LuaStatus.OK, state.load("return roundTrip == roundTrip.self", "api-cycle-to-stack.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, 1))
+        assertTrue(state.toBoolean(-1))
+    }
+
+    @Test
     fun `state loads bytecode resources`() {
         val state = LuaState.create()
         val bytecode = state.compileBytecode("return 21 * 2", "api-state-resource-bytecode.lua")

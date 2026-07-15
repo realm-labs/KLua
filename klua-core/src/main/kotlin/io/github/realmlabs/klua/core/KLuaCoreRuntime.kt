@@ -1084,12 +1084,12 @@ private fun Double.luaInteger(): Long? {
 }
 
 private fun KLuaCoreValue.toLuaValueOrNull(globals: KLuaCoreGlobals): LuaValue? {
-    return toLuaValueOrNull(globals, IdentityHashMap())
+    return toLuaValueOrNull(globals, null)
 }
 
 private fun KLuaCoreValue.toLuaValueOrNull(
     globals: KLuaCoreGlobals,
-    tableCache: MutableMap<KLuaCoreValue.TableValue, LuaTable>,
+    tableCache: MutableMap<KLuaCoreValue.TableValue, LuaTable>?,
 ): LuaValue? {
     return when (this) {
         KLuaCoreValue.Nil -> LuaNil
@@ -1107,23 +1107,24 @@ private fun KLuaCoreValue.toLuaValueOrNull(
                 },
             )
         is KLuaCoreValue.TableValue -> {
-            val cached = tableCache[this]
+            val resolvedTableCache = tableCache ?: IdentityHashMap()
+            val cached = resolvedTableCache[this]
             if (cached != null) {
                 return cached
             }
             val originalTable = this.sourceTable
             if (originalTable != null) {
-                syncPublicTableToLua(originalTable, this, globals, tableCache)
+                syncPublicTableToLua(originalTable, this, globals, resolvedTableCache)
                 return originalTable
             }
             val table = LuaTable()
-            tableCache[this] = table
+            resolvedTableCache[this] = table
             for ((fieldKey, fieldValue) in fields) {
-                val luaKey = fieldKey.toLuaValueOrNull(globals, tableCache) ?: return null
-                val luaValue = fieldValue.toLuaValueOrNull(globals, tableCache) ?: return null
+                val luaKey = fieldKey.toLuaValueOrNull(globals, resolvedTableCache) ?: return null
+                val luaValue = fieldValue.toLuaValueOrNull(globals, resolvedTableCache) ?: return null
                 table.rawSet(luaKey, luaValue)
             }
-            table.metatable = metatable?.toLuaValueOrNull(globals, tableCache) as? LuaTable
+            table.metatable = metatable?.toLuaValueOrNull(globals, resolvedTableCache) as? LuaTable
             table
         }
         is KLuaCoreValue.UserDataValue -> LuaUserData(value) { hostValue -> globals.userDataType(hostValue) }
@@ -1131,12 +1132,13 @@ private fun KLuaCoreValue.toLuaValueOrNull(
     }
 }
 
-private fun toPublicValue(value: LuaValue, globals: KLuaCoreGlobals): KLuaCoreValue = toPublicValue(value, globals, IdentityHashMap())
+private fun toPublicValue(value: LuaValue, globals: KLuaCoreGlobals): KLuaCoreValue =
+    toPublicValue(value, globals, null)
 
 private fun toPublicValue(
     value: LuaValue,
     globals: KLuaCoreGlobals,
-    tableCache: MutableMap<LuaTable, KLuaCoreValue.TableValue>,
+    tableCache: MutableMap<LuaTable, KLuaCoreValue.TableValue>?,
 ): KLuaCoreValue {
     return when (value) {
         LuaNil -> KLuaCoreValue.Nil
@@ -1145,18 +1147,24 @@ private fun toPublicValue(
         is LuaFloat -> KLuaCoreValue.NumberValue(value.value)
         is LuaString -> KLuaCoreValue.StringValue(value.value)
         is LuaTable -> {
-            val cached = tableCache[value]
+            val resolvedTableCache = tableCache ?: IdentityHashMap()
+            val cached = resolvedTableCache[value]
             if (cached != null) {
                 return cached
             }
             val tableValue = KLuaCoreValue.TableValue(mutableMapOf())
-            tableCache[value] = tableValue
+            resolvedTableCache[value] = tableValue
             tableValue.sourceTable = value
             tableValue.fields.putAll(
                 value.rawEntries()
-                    .map { (key, fieldValue) -> toPublicValue(key, globals, tableCache) to toPublicValue(fieldValue, globals, tableCache) },
+                    .map { (key, fieldValue) ->
+                        toPublicValue(key, globals, resolvedTableCache) to
+                            toPublicValue(fieldValue, globals, resolvedTableCache)
+                    },
             )
-            tableValue.metatable = value.metatable?.let { metatable -> toPublicValue(metatable, globals, tableCache) as KLuaCoreValue.TableValue }
+            tableValue.metatable = value.metatable?.let { metatable ->
+                toPublicValue(metatable, globals, resolvedTableCache) as KLuaCoreValue.TableValue
+            }
             tableValue
         }
         is LuaUserData -> KLuaCoreValue.UserDataValue(value.value)

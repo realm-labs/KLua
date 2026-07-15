@@ -126,3 +126,31 @@ This full run was noisier than the targeted checkpoints, so it establishes cover
 | 10,000 JVM-to-Lua calls | 4,044.512 µs/op | 21,113,883.216 B/op |
 
 The JVM-to-Lua control has the larger allocation cost at roughly 2,111 B per call. It is the next bounded profiling target; a code change requires stack or allocation-site evidence and a matched control rerun.
+
+## 2026-07-15 JVM-to-Lua Conversion-Cache Checkpoint
+
+JFR allocation-by-site profiling attributed about 60% of JVM-to-Lua allocation pressure to `IdentityHashMap.init`, led by core argument conversion and followed by core/API result conversion. Each scalar crossing created empty graph-identity caches even though those caches are only required when converting tables. Lua 5.5's `lapi.c` primitive push operations place scalar values directly on the stack; they do not initialize table-graph traversal state.
+
+Core public/VM conversion and API core/stack conversion now initialize an identity cache only when the value being converted is a table. Recursive table conversion continues to share one cache, preserving aliases and cycles. A focused API test round-trips a self-referential table through both conversion directions and verifies its identity from Lua.
+
+The matched GC-profiler results were:
+
+| Benchmark | Metric | Before | After | Delta |
+| --- | --- | ---: | ---: | ---: |
+| 10,000 JVM-to-Lua calls | Average time | 4,044.512 µs/op | 3,396.782 µs/op | -16.0% |
+| 10,000 JVM-to-Lua calls | Allocation | 21,113,883.216 B/op | 11,753,882.719 B/op | -44.3% |
+| 10,000 `__index` metamethod calls | Allocation | 12,009,101.652 B/op | 12,008,163.902 B/op | effectively unchanged |
+
+The full seven-workload suite after the change measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 7.689 | ±0.667 |
+| Execute numeric loop | 978.447 | ±77.953 |
+| Execute 10,000 Lua calls | 3,082.074 | ±2,166.965 |
+| Execute 10,000 host calls | 5,216.088 | ±397.044 |
+| Execute 10,000 `__index` metamethod calls | 4,563.055 | ±997.662 |
+| Execute 10,000 JVM-to-Lua calls | 3,837.488 | ±1,120.497 |
+| Execute 10,000 table writes and reads | 2,379.362 | ±135.692 |
+
+The full correctness suite passes. The next M19 package should continue the benchmark matrix with string concatenation and coroutine yield/resume controls before selecting another optimization target.
