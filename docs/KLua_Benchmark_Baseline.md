@@ -251,3 +251,37 @@ The expanded twelve-workload suite measured:
 | Execute 10,000 coroutine yield/resume cycles | 25,956.554 | ±3,915.871 |
 
 The full run remains a local selection aid rather than a regression claim, especially where confidence intervals are wide. Method dispatch is the next bounded profiling target because it is the slowest new control and allocates roughly 7.2× as many bytes per 10,000 operations as the closure-counter control. A code change requires stack or allocation-site evidence and a matched GC-profiler rerun. The complete Gradle test suite passes.
+
+## 2026-07-15 Lua-String Hash Checkpoint
+
+Stack profiling of the method control attributed 19.0% of runnable samples to `luaRawBytes`, with additional `HashMap` lookup/update samples absent from the plain Lua-call and closure-counter controls. JFR allocation sampling then identified byte arrays created by `LuaString.hashCode` and `LuaString.equals` during receiver-field `rawGet`/`rawSet` as the dominant allocation site. KLua was reconstructing a string's Lua byte sequence for every JVM hash-table probe.
+
+Lua 5.5 stores byte contents and a hash in each `TString`; `lstring.c` computes short-string hashes when interning and `luaS_hashlongstr` caches a long string's hash on first use. KLua now follows that stable-representation rule by lazily memoizing each immutable `LuaString`'s raw bytes and hash. Lazy materialization matters for transient strings such as growing concatenation results that are never table keys. A focused core regression verifies that two distinct JVM strings encoding the same invalid UTF-8 Lua byte sequence retain bytewise equality, equal hashes, and interchangeable table-key behavior.
+
+The matched GC-profiler checkpoint measured:
+
+| Benchmark | Metric | Before | After | Delta |
+| --- | --- | ---: | ---: | ---: |
+| 10,000 method calls | Average time | 16,814.452 µs/op | 5,883.130 µs/op | -65.0% |
+| 10,000 method calls | Allocation | 30,642,653.284 B/op | 4,641,884.703 B/op | -84.9% |
+| 10,000 closure-counter calls | Allocation | 4,242,278.300 B/op | 4,242,289.931 B/op | effectively unchanged |
+| 1,000 growing string concatenations | Allocation | 16,633,331.532 B/op | 16,649,330.899 B/op | +0.1% |
+
+The full twelve-workload suite after the change measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 7.723 | ±0.889 |
+| Execute numeric loop | 998.189 | ±36.138 |
+| Execute 10,000 Lua calls | 2,388.556 | ±262.762 |
+| Execute 10,000 closure-counter calls | 2,446.613 | ±625.095 |
+| Execute 10,000 host calls | 4,339.472 | ±1,044.964 |
+| Execute 10,000 `__index` metamethod calls | 3,789.281 | ±1,613.509 |
+| Execute 10,000 JVM-to-Lua calls | 3,775.159 | ±2,115.900 |
+| Execute 10,000 method calls | 4,906.335 | ±593.014 |
+| Execute recursive `fib(20)` | 6,486.125 | ±855.812 |
+| Execute 10,000 table writes and reads | 2,394.570 | ±247.126 |
+| Execute 1,000 growing string concatenations | 3,898.804 | ±1,638.532 |
+| Execute 10,000 coroutine yield/resume cycles | 20,698.180 | ±3,602.873 |
+
+The full-suite method score is 64.2% below its 13,690.815 µs/op coverage baseline. Growing concatenation remains within its established range because non-key strings do not materialize the cache. The complete Gradle test suite passes. Coroutine yield/resume remains the largest runtime workload after its first optimization and is the next residual profiling target.

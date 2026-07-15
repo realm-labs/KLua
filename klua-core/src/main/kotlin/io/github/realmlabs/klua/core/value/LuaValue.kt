@@ -21,12 +21,24 @@ internal data class LuaFloat(
 internal data class LuaString(
     val value: String,
 ) : LuaValue {
+    private var cachedRawBytes: ByteArray? = null
+    private var cachedRawHashCode: Int = 0
+    private var hasCachedRawHashCode: Boolean = false
+
     override fun equals(other: Any?): Boolean {
-        return other is LuaString && value.luaRawBytes().contentEquals(other.value.luaRawBytes())
+        return other is LuaString && rawBytes().contentEquals(other.rawBytes())
     }
 
     override fun hashCode(): Int {
-        return value.luaRawBytes().contentHashCode()
+        if (!hasCachedRawHashCode) {
+            cachedRawHashCode = rawBytes().contentHashCode()
+            hasCachedRawHashCode = true
+        }
+        return cachedRawHashCode
+    }
+
+    private fun rawBytes(): ByteArray {
+        return cachedRawBytes ?: value.luaRawBytes().also { bytes -> cachedRawBytes = bytes }
     }
 }
 

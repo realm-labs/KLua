@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.core.value
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertNotEquals
 import kotlin.test.assertSame
 
 class LuaTableTest {
@@ -25,6 +26,23 @@ class LuaTableTest {
 
         assertEquals(LuaInteger(42), table.rawGet(LuaString("é")))
         assertEquals(LuaInteger(42), table.get(LuaString("é")))
+    }
+
+    @Test
+    fun `matches distinct JVM strings that encode the same raw Lua bytes`() {
+        val table = LuaTable()
+        val surrogateCodeUnit = "\uD800"
+        val rawSurrogateBytes = byteArrayOf(0xED.toByte(), 0xA0.toByte(), 0x80.toByte()).toLuaByteString()
+        val codeUnitKey = LuaString(surrogateCodeUnit)
+        val rawBytesKey = LuaString(rawSurrogateBytes)
+
+        assertNotEquals(surrogateCodeUnit, rawSurrogateBytes)
+        assertEquals(codeUnitKey, rawBytesKey)
+        assertEquals(codeUnitKey.hashCode(), rawBytesKey.hashCode())
+
+        table.rawSet(codeUnitKey, LuaInteger(42))
+
+        assertEquals(LuaInteger(42), table.rawGet(rawBytesKey))
     }
 
     @Test
