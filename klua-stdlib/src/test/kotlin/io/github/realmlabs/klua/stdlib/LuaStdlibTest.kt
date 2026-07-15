@@ -7588,6 +7588,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `package searchpath splits candidates after name substitution`() {
+        val root = Files.createTempDirectory("klua-searchpath-substitution-separator")
+        val selected = root.resolve("selected")
+        Files.writeString(selected, "return {source = 'substituted-separator'}")
+
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function inspect(...)
+                    return select("#", ...), ...
+                end
+                package.path = "${root.luaPath()}/?.lua"
+                local directCount, direct = inspect(
+                    package.searchpath("selected;missing", package.path, "", "/", "ignored")
+                )
+                local loader, loaderData = package.searchers[2]("selected;missing")
+                local loaded = loader("selected;missing", loaderData)
+                return directCount, direct, loaded.source, loaderData
+                """.trimIndent(),
+                "package-searchpath-substitution-separator.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("$root/selected", state.toString(2))
+        assertEquals("substituted-separator", state.toString(3))
+        assertEquals("$root/selected", state.toString(4))
+    }
+
+    @Test
     fun `package searchpath uses default separators`() {
         val root = Files.createTempDirectory("klua-searchpath-default-separators")
         Files.createDirectories(root.resolve("alpha"))

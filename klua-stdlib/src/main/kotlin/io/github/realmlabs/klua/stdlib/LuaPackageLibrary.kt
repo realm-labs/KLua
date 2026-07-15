@@ -156,9 +156,9 @@ internal object LuaPackageLibrary {
         } else {
             name.replace(separator, replacement)
         }
+        val expandedPath = path.replace("?", normalizedName)
         val missingPaths = mutableListOf<String>()
-        for (template in searchPathTemplates(path)) {
-            val candidate = template.replace("?", normalizedName)
+        for (candidate in searchPathTemplates(expandedPath)) {
             if (candidate.isNotEmpty() && isReadablePath(candidate)) {
                 return LuaReturn.of(candidate)
             }
