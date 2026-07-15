@@ -15,6 +15,7 @@ import java.io.PushbackInputStream
 import java.io.RandomAccessFile
 import java.math.BigInteger
 import java.nio.file.Files
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.util.Locale
 
@@ -78,12 +79,14 @@ internal object LuaIoLibrary {
     }
 
     private fun ioOpenValue(filename: String, mode: String): LuaReturn {
-        val parsed = parseMode(mode)
+        val cFilename = filename.substringBefore('\u0000')
+        val cMode = mode.substringBefore('\u0000')
+        val parsed = parseMode(cMode)
             ?: throw LuaRuntimeException("bad argument #2 to 'io.open' (invalid mode)")
         return try {
             val handle = IoFileHandle(
-                Path.of(filename),
-                RandomAccessFile(filename, parsed.randomAccessMode),
+                Path.of(cFilename),
+                RandomAccessFile(cFilename, parsed.randomAccessMode),
                 readable = parsed.readable,
                 writable = parsed.writable,
                 appendWrites = parsed.append,
@@ -96,9 +99,11 @@ internal object LuaIoLibrary {
             }
             LuaReturn.of(handle)
         } catch (error: IOException) {
-            LuaReturn.of(null, fileOpenResultMessage(filename, error), 1L)
+            LuaReturn.of(null, fileOpenResultMessage(cFilename, error), 1L)
         } catch (error: SecurityException) {
-            LuaReturn.of(null, fileOpenResultMessage(filename, error), 1L)
+            LuaReturn.of(null, fileOpenResultMessage(cFilename, error), 1L)
+        } catch (error: InvalidPathException) {
+            LuaReturn.of(null, fileOpenResultMessage(cFilename, error), 1L)
         }
     }
 
@@ -122,11 +127,11 @@ internal object LuaIoLibrary {
     }
 
     private fun ioPopen(context: LuaCallContext): LuaReturn {
-        val command = requiredString(context, 1, "io.popen")
+        val command = requiredString(context, 1, "io.popen").substringBefore('\u0000')
         val mode = if (context.isNone(2) || context.isNil(2)) {
             "r"
         } else {
-            requiredString(context, 2, "io.popen")
+            requiredString(context, 2, "io.popen").substringBefore('\u0000')
         }
         val parsedMode = parsePopenMode(mode)
         if (parsedMode == null) {
@@ -147,9 +152,9 @@ internal object LuaIoLibrary {
                 LuaReturn.of(IoFileHandle.output(process.outputStream) { waitForProcessClose(process) })
             }
         } catch (error: IOException) {
-            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+            LuaReturn.of(null, fileOpenResultMessage(command, error), 1L)
         } catch (error: SecurityException) {
-            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+            LuaReturn.of(null, fileOpenResultMessage(command, error), 1L)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             throw LuaRuntimeException("interrupted while opening process")
@@ -194,7 +199,7 @@ internal object LuaIoLibrary {
         mode: String,
         functionName: String,
     ): IoFileHandle {
-        val filename = context.toString(index)
+        val filename = context.toString(index)?.substringBefore('\u0000')
         if (filename != null) {
             val result = ioOpenValue(filename, mode)
             return result.values.firstOrNull() as? IoFileHandle
@@ -217,7 +222,7 @@ internal object LuaIoLibrary {
             val arguments = readFormatArgumentsFromContext(context, 2)
             return LuaReturn.of(lineIterator(handle, arguments, firstArgumentIndex = 2, "io.lines", closeOnEnd = false))
         }
-        val filename = requiredString(context, 1, "io.lines")
+        val filename = requiredString(context, 1, "io.lines").substringBefore('\u0000')
         val openResult = ioOpenValue(filename, "r")
         val handle = openResult.values.firstOrNull() as? IoFileHandle
             ?: throw LuaRuntimeException(openFileError(filename, openResult))
@@ -253,6 +258,10 @@ internal object LuaIoLibrary {
     }
 
     private fun fileOpenResultMessage(filename: String, error: SecurityException): String {
+        return "$filename: ${fileOpenReason(filename, error.message ?: error::class.java.simpleName)}"
+    }
+
+    private fun fileOpenResultMessage(filename: String, error: InvalidPathException): String {
         return "$filename: ${fileOpenReason(filename, error.message ?: error::class.java.simpleName)}"
     }
 

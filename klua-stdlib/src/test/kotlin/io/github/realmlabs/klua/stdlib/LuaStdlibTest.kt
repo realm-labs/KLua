@@ -3914,6 +3914,88 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io open entry points use source c string boundaries`() {
+        val directory = Files.createTempDirectory("klua-io-open-c-string-")
+        val inputPath = directory.resolve("input.txt")
+        val outputPath = directory.resolve("output.txt")
+        val missingPath = directory.resolve("missing.txt")
+        Files.writeString(inputPath, "first\nsecond\n")
+        Files.writeString(outputPath, "old")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local suffix = "\0ignored"
+                    local direct = assert(io.open("${inputPath.luaPath()}" .. suffix, "r" .. suffix))
+                    local directText = direct:read("a")
+                    direct:close()
+
+                    local repeatedBinary = assert(io.open("${inputPath.luaPath()}", "rbb" .. suffix))
+                    local repeatedText = repeatedBinary:read("a")
+                    repeatedBinary:close()
+
+                    local selectedInput = io.input("${inputPath.luaPath()}" .. suffix)
+                    local defaultFirst = io.read("l")
+                    selectedInput:close()
+
+                    local selectedOutput = io.output("${outputPath.luaPath()}" .. suffix)
+                    io.write("rewritten")
+                    io.close()
+
+                    local iterator, iteratorState, iteratorControl, owned =
+                        io.lines("${inputPath.luaPath()}" .. suffix)
+                    local first = iterator(iteratorState, iteratorControl)
+                    local second = iterator(iteratorState, first)
+                    local done = iterator(iteratorState, second)
+
+                    local missingValue, missingMessage, missingCode =
+                        io.open("${missingPath.luaPath()}" .. suffix, "r" .. suffix)
+                    local function openCount(...)
+                        local count = select("#", ...)
+                        local opened = (...)
+                        opened:close()
+                        return count
+                    end
+                    local defaultOpenCount = openCount(
+                        io.open("${inputPath.luaPath()}" .. suffix, nil, "ignored")
+                    )
+                    return directText, repeatedText, defaultFirst, selectedOutput ~= nil,
+                        first, second, done, io.type(owned),
+                        missingValue, missingMessage, missingCode, defaultOpenCount
+                    """.trimIndent(),
+                    "io-open-c-string-boundaries.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("first\nsecond\n", state.toString(1)?.replace("\r\n", "\n"))
+            assertEquals("first\nsecond\n", state.toString(2)?.replace("\r\n", "\n"))
+            assertEquals("first", state.toString(3))
+            assertTrue(state.toBoolean(4))
+            assertEquals("first", state.toString(5))
+            assertEquals("second", state.toString(6))
+            assertTrue(state.isNil(7))
+            assertEquals("closed file", state.toString(8))
+            assertTrue(state.isNil(9))
+            assertTrue(state.toString(10)?.startsWith(missingPath.toString()) == true, state.toString(10))
+            assertFalse(state.toString(10)?.contains("ignored") == true, state.toString(10))
+            assertEquals(1L, state.toInteger(11))
+            assertEquals(1L, state.toInteger(12))
+            assertEquals("rewritten", Files.readString(outputPath))
+        } finally {
+            Files.deleteIfExists(inputPath)
+            Files.deleteIfExists(outputPath)
+            Files.deleteIfExists(missingPath)
+            Files.deleteIfExists(directory)
+        }
+    }
+
+    @Test
     fun `io regular file modes enforce direction and append writes`() {
         val path = Files.createTempFile("klua-io-direction-", ".txt")
         Files.writeString(path, "seed")
@@ -5977,7 +6059,7 @@ class LuaStdlibTest {
                 LuaStatus.OK,
                 state.load(
                     """
-                local handle = assert(io.popen('$command', 'w'))
+                local handle = assert(io.popen('$command\0ignored', 'w\0ignored'))
                 local buffered = handle:setvbuf("full", 128)
                 local writeResult = handle:write("alpha\n", "beta\n")
                 local closeOk, kind, code = handle:close()
@@ -6154,6 +6236,37 @@ class LuaStdlibTest {
         } finally {
             Files.deleteIfExists(outputPath)
         }
+    }
+
+    @Test
+    fun `io popen reads source c string command and mode prefixes`() {
+        val command = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "echo KLua"
+        } else {
+            "printf KLua"
+        }
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local handle = assert(io.popen("$command\0ignored", "r\0ignored", "extra"))
+                local data = handle:read("a")
+                local closeOk, kind, code = handle:close()
+                return data, closeOk, kind, code
+                """.trimIndent(),
+                "io-popen-c-string-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toString(1)?.contains("KLua") == true, state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("exit", state.toString(3))
+        assertEquals(0L, state.toInteger(4))
     }
 
     @Test
