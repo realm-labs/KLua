@@ -68,6 +68,10 @@ internal object LuaIoLibrary {
         return state
     }
 
+    internal fun pushOutputHandle(state: LuaState, outputStream: OutputStream) {
+        state.pushUserData(IoFileHandle.output(outputStream))
+    }
+
     private fun ioOpen(context: LuaCallContext): LuaReturn {
         val filename = requiredString(context, 1, "io.open")
         val mode = if (context.isNone(2) || context.isNil(2)) {
@@ -525,10 +529,9 @@ internal object LuaIoLibrary {
             if (!handle.writable) {
                 return LuaReturn.of(null, "Bad file descriptor", 1L, totalBytes)
             }
-            try {
-                handle.write(bytes)
-                totalBytes += bytes.size
-            } catch (error: IOException) {
+            val result = handle.write(bytes)
+            totalBytes += result.bytesWritten
+            result.error?.let { error ->
                 return LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L, totalBytes)
             }
         }
@@ -812,7 +815,7 @@ internal object LuaIoLibrary {
             fun output(
                 outputStream: OutputStream,
                 nonClosing: Boolean = false,
-                closeResult: () -> LuaReturn,
+                closeResult: () -> LuaReturn = { LuaReturn.of(true) },
             ): IoFileHandle {
                 return IoFileHandle(
                     path = null,
@@ -855,17 +858,19 @@ internal object LuaIoLibrary {
             file.fd.sync()
         }
 
-        fun write(bytes: ByteArray) {
-            when (bufferMode) {
+        fun write(bytes: ByteArray): IoWriteResult {
+            return when (bufferMode) {
                 IoBufferMode.NONE -> writeDirect(bytes)
                 IoBufferMode.FULL -> {
                     if (bufferSize == 0) {
-                        writeDirect(bytes)
-                        return
+                        return writeDirect(bytes)
                     }
+                    val priorSize = writeBuffer.size()
                     writeBuffer.write(bytes)
                     if (writeBuffer.size() >= bufferSize) {
-                        drainWriteBuffer()
+                        flushCurrentBufferedWrite(bytes.size, priorSize, writeBuffer.size())
+                    } else {
+                        IoWriteResult.success(bytes.size)
                     }
                 }
                 IoBufferMode.LINE -> writeLineBuffered(bytes)
@@ -882,22 +887,65 @@ internal object LuaIoLibrary {
             drainWriteBuffer()
         }
 
-        private fun writeLineBuffered(bytes: ByteArray) {
+        private fun writeLineBuffered(bytes: ByteArray): IoWriteResult {
             if (bufferSize == 0) {
-                writeDirect(bytes)
-                return
+                return writeDirect(bytes)
             }
+            val priorSize = writeBuffer.size()
             writeBuffer.write(bytes)
             val pending = writeBuffer.toByteArray()
             val newlineIndex = pending.indexOfLast { byte -> byte == '\n'.code.toByte() }
             if (newlineIndex >= 0) {
-                writeDirect(pending, 0, newlineIndex + 1)
+                val prefixLength = newlineIndex + 1
+                val prefixResult = writeDirect(pending, 0, prefixLength)
+                if (prefixResult.error != null) {
+                    retainPreviouslyAcceptedBytes(pending, prefixResult.bytesWritten, priorSize)
+                    val accepted = (prefixResult.bytesWritten - priorSize).coerceIn(0, bytes.size)
+                    return IoWriteResult.failure(accepted, prefixResult.error)
+                }
                 writeBuffer.reset()
-                writeBuffer.write(pending, newlineIndex + 1, pending.size - newlineIndex - 1)
+                writeBuffer.write(pending, prefixLength, pending.size - prefixLength)
+                if (writeBuffer.size() >= bufferSize) {
+                    val suffix = writeBuffer.toByteArray()
+                    val suffixResult = writeDirect(suffix)
+                    writeBuffer.reset()
+                    if (suffixResult.error != null) {
+                        val prefixBytes = (prefixLength - priorSize).coerceIn(0, bytes.size)
+                        return IoWriteResult.failure(
+                            prefixBytes + suffixResult.bytesWritten,
+                            suffixResult.error,
+                        )
+                    }
+                }
+                return IoWriteResult.success(bytes.size)
             }
             if (writeBuffer.size() >= bufferSize) {
-                drainWriteBuffer()
+                return flushCurrentBufferedWrite(bytes.size, priorSize, writeBuffer.size())
             }
+            return IoWriteResult.success(bytes.size)
+        }
+
+        private fun flushCurrentBufferedWrite(
+            currentSize: Int,
+            priorSize: Int,
+            flushLength: Int,
+        ): IoWriteResult {
+            val pending = writeBuffer.toByteArray()
+            val result = writeDirect(pending, 0, flushLength)
+            if (result.error != null) {
+                retainPreviouslyAcceptedBytes(pending, result.bytesWritten, priorSize)
+                val accepted = (result.bytesWritten - priorSize).coerceIn(0, currentSize)
+                return IoWriteResult.failure(accepted, result.error)
+            }
+            writeBuffer.reset()
+            writeBuffer.write(pending, flushLength, pending.size - flushLength)
+            return IoWriteResult.success(currentSize)
+        }
+
+        private fun retainPreviouslyAcceptedBytes(pending: ByteArray, written: Int, priorSize: Int) {
+            writeBuffer.reset()
+            val firstUnwritten = written.coerceAtMost(priorSize)
+            writeBuffer.write(pending, firstUnwritten, priorSize - firstUnwritten)
         }
 
         private fun drainWriteBuffer() {
@@ -905,19 +953,42 @@ internal object LuaIoLibrary {
                 return
             }
             val bytes = writeBuffer.toByteArray()
-            writeDirect(bytes)
+            val result = writeDirect(bytes)
             writeBuffer.reset()
+            if (result.error != null) {
+                writeBuffer.write(bytes, result.bytesWritten, bytes.size - result.bytesWritten)
+                throw result.error
+            }
         }
 
-        private fun writeDirect(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size) {
+        private fun writeDirect(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size): IoWriteResult {
             outputStream?.let { output ->
-                output.write(bytes, offset, length)
-                return
+                var written = 0
+                return try {
+                    while (written < length) {
+                        output.write(bytes[offset + written].toInt() and 0xff)
+                        written++
+                    }
+                    IoWriteResult.success(written)
+                } catch (error: IOException) {
+                    IoWriteResult.failure(written, error)
+                }
             }
-            if (appendWrites) {
-                file.seek(file.length())
+            return try {
+                if (appendWrites) {
+                    file.seek(file.length())
+                }
+                val start = file.filePointer
+                try {
+                    file.write(bytes, offset, length)
+                    IoWriteResult.success(length)
+                } catch (error: IOException) {
+                    val written = (file.filePointer - start).coerceIn(0L, length.toLong()).toInt()
+                    IoWriteResult.failure(written, error)
+                }
+            } catch (error: IOException) {
+                IoWriteResult.failure(0, error)
             }
-            file.write(bytes, offset, length)
         }
 
         fun readAll(): String {
@@ -1187,6 +1258,17 @@ internal object LuaIoLibrary {
 
         companion object {
             fun fromLuaName(name: String): IoBufferMode? = entries.firstOrNull { mode -> mode.luaName == name }
+        }
+    }
+
+    private data class IoWriteResult(
+        val bytesWritten: Int,
+        val error: IOException?,
+    ) {
+        companion object {
+            fun success(bytesWritten: Int): IoWriteResult = IoWriteResult(bytesWritten, null)
+
+            fun failure(bytesWritten: Int, error: IOException): IoWriteResult = IoWriteResult(bytesWritten, error)
         }
     }
 

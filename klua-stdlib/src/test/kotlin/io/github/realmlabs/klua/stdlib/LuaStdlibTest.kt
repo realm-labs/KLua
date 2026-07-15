@@ -15,6 +15,8 @@ import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
+import java.io.IOException
+import java.io.OutputStream
 import java.io.PrintStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -4150,6 +4152,152 @@ class LuaStdlibTest {
             Files.deleteIfExists(path)
             Files.deleteIfExists(partialPath)
         }
+    }
+
+    @Test
+    fun `io write counts bytes accepted by failing stream arguments`() {
+        val zeroSink = ByteLimitOutputStream(0)
+        val partialSink = ByteLimitOutputStream(7)
+        val fullSink = ByteLimitOutputStream(Int.MAX_VALUE)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+        LuaIoLibrary.pushOutputHandle(state, zeroSink)
+        state.setGlobal("zeroSink")
+        LuaIoLibrary.pushOutputHandle(state, partialSink)
+        state.setGlobal("partialSink")
+        LuaIoLibrary.pushOutputHandle(state, fullSink)
+        state.setGlobal("fullSink")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local zeroCount, zeroValue, zeroMessage, zeroCode, zeroBytes =
+                    pack(zeroSink:write("x"))
+
+                io.output(partialSink)
+                local partialCount, partialValue, partialMessage, partialCode, partialBytes =
+                    pack(io.write("abc", "\0de", 42, "tail"))
+                local flushCount, flushValue, flushMessage, flushCode = pack(partialSink:flush())
+                local closeCount, closeValue, closeMessage, closeCode = pack(partialSink:close())
+
+                local emptyReturned = fullSink:write() == fullSink
+                local fullReturned = fullSink:write("", 1.5, "ok") == fullSink
+                local fullFlush = fullSink:flush()
+                local fullClose = fullSink:close()
+
+                return zeroCount, zeroValue, zeroMessage, zeroCode, zeroBytes,
+                    partialCount, partialValue, partialMessage, partialCode, partialBytes,
+                    flushCount, flushValue, flushMessage, flushCode,
+                    closeCount, closeValue, closeMessage, closeCode, io.type(partialSink),
+                    emptyReturned, fullReturned, fullFlush, fullClose
+                """.trimIndent(),
+                "io-write-partial-stream.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(4L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertEquals("forced write failure", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(4L, state.toInteger(6))
+        assertTrue(state.isNil(7))
+        assertEquals("forced write failure", state.toString(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(7L, state.toInteger(10))
+        assertEquals(3L, state.toInteger(11))
+        assertTrue(state.isNil(12))
+        assertEquals("forced write failure", state.toString(13))
+        assertEquals(1L, state.toInteger(14))
+        assertEquals(3L, state.toInteger(15))
+        assertTrue(state.isNil(16))
+        assertEquals("forced write failure", state.toString(17))
+        assertEquals(1L, state.toInteger(18))
+        assertEquals("closed file", state.toString(19))
+        (20..23).forEach { index -> assertTrue(state.toBoolean(index)) }
+
+        assertEquals(emptyList(), zeroSink.acceptedBytes.toList())
+        assertEquals(
+            listOf('a'.code, 'b'.code, 'c'.code, 0, 'd'.code, 'e'.code, '4'.code),
+            partialSink.acceptedBytes.map { byte -> byte.toInt() and 0xff },
+        )
+        assertEquals("1.5ok", fullSink.acceptedBytes.toString(StandardCharsets.ISO_8859_1))
+    }
+
+    @Test
+    fun `io buffered writes attribute drain failures to current arguments`() {
+        val fullSink = ByteLimitOutputStream(5)
+        val linePrefixSink = ByteLimitOutputStream(3)
+        val lineSuffixSink = ByteLimitOutputStream(3)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+        LuaIoLibrary.pushOutputHandle(state, fullSink)
+        state.setGlobal("fullFailure")
+        LuaIoLibrary.pushOutputHandle(state, linePrefixSink)
+        state.setGlobal("linePrefixFailure")
+        LuaIoLibrary.pushOutputHandle(state, lineSuffixSink)
+        state.setGlobal("lineSuffixFailure")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                assert(fullFailure:setvbuf("full", 6))
+                local fullFirst = fullFailure:write("abc") == fullFailure
+                local fullCount, fullValue, fullMessage, fullCode, fullBytes =
+                    pack(fullFailure:write("defg"))
+
+                assert(linePrefixFailure:setvbuf("line", 64))
+                local linePrefixFirst = linePrefixFailure:write("ab") == linePrefixFailure
+                local prefixCount, prefixValue, prefixMessage, prefixCode, prefixBytes =
+                    pack(linePrefixFailure:write("c\ndef"))
+
+                assert(lineSuffixFailure:setvbuf("line", 2))
+                local suffixCount, suffixValue, suffixMessage, suffixCode, suffixBytes =
+                    pack(lineSuffixFailure:write("a\nbc"))
+
+                return fullFirst, fullCount, fullValue, fullMessage, fullCode, fullBytes,
+                    linePrefixFirst, prefixCount, prefixValue, prefixMessage, prefixCode, prefixBytes,
+                    suffixCount, suffixValue, suffixMessage, suffixCode, suffixBytes
+                """.trimIndent(),
+                "io-write-buffered-partial-stream.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(4L, state.toInteger(2))
+        assertTrue(state.isNil(3))
+        assertEquals("forced write failure", state.toString(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals(2L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals(4L, state.toInteger(8))
+        assertTrue(state.isNil(9))
+        assertEquals("forced write failure", state.toString(10))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals(1L, state.toInteger(12))
+        assertEquals(4L, state.toInteger(13))
+        assertTrue(state.isNil(14))
+        assertEquals("forced write failure", state.toString(15))
+        assertEquals(1L, state.toInteger(16))
+        assertEquals(3L, state.toInteger(17))
+
+        assertEquals("abcde", fullSink.acceptedBytes.toString(StandardCharsets.ISO_8859_1))
+        assertEquals("abc", linePrefixSink.acceptedBytes.toString(StandardCharsets.ISO_8859_1))
+        assertEquals("a\nb", lineSuffixSink.acceptedBytes.toString(StandardCharsets.ISO_8859_1))
     }
 
     @Test
@@ -28955,6 +29103,36 @@ class LuaStdlibTest {
 private data class DebugHostObject(
     val name: String,
 )
+
+private class ByteLimitOutputStream(
+    private val byteLimit: Int,
+) : OutputStream() {
+    private val accepted = ByteArrayOutputStream()
+    private var failed = false
+
+    val acceptedBytes: ByteArray
+        get() = accepted.toByteArray()
+
+    override fun write(value: Int) {
+        if (accepted.size() >= byteLimit) {
+            failed = true
+            throw IOException("forced write failure")
+        }
+        accepted.write(value)
+    }
+
+    override fun flush() {
+        if (failed) {
+            throw IOException("forced write failure")
+        }
+    }
+
+    override fun close() {
+        if (failed) {
+            throw IOException("forced write failure")
+        }
+    }
+}
 
 private fun Path.luaPath(): String = toString().replace("\\", "\\\\")
 
