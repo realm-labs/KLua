@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.core.vm
 
+import io.github.realmlabs.klua.core.bytecode.CallSiteInfo
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
@@ -11,8 +12,7 @@ internal data class CallFrame(
     val varargs: MutableList<LuaValue> = mutableListOf(),
     val upvalues: List<LuaUpvalue> = emptyList(),
     val environment: LuaUpvalue,
-    val callSiteName: String? = null,
-    val callSiteNameWhat: String = "",
+    val callSiteInfo: CallSiteInfo? = null,
     var pc: Int = 0,
     var openResultBase: Int = 0,
     var openResultCount: Int = 0,
@@ -25,6 +25,12 @@ internal data class CallFrame(
 
     val globals: LuaValue
         get() = environment.value
+
+    val callSiteName: String?
+        get() = callSiteInfo?.name
+
+    val callSiteNameWhat: String
+        get() = callSiteInfo?.nameWhat ?: ""
 
     val pendingCallResultBase: Int
         get() = pendingCall?.resultBase ?: -1

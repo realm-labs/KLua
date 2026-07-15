@@ -205,8 +205,7 @@ internal class LuaVm(
             function.upvalues,
             environment = function.environment ?: function.globals?.let(::LuaUpvalue) ?: rootEnvironment,
             function = function,
-            callSiteName = callSiteInfo?.name,
-            callSiteNameWhat = callSiteInfo?.nameWhat ?: "",
+            callSiteInfo = callSiteInfo,
         )
         return runFrameAndPopOnCompletion(frame)
     }

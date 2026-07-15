@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.core.vm
 
+import io.github.realmlabs.klua.core.bytecode.CallSiteInfo
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaNil
@@ -30,8 +31,7 @@ internal class LuaThread {
         upvalues: List<LuaUpvalue> = emptyList(),
         environment: LuaUpvalue = LuaUpvalue(LuaTable()),
         function: LuaValue = LuaClosure(prototype, upvalues.toMutableList(), environment = environment),
-        callSiteName: String? = null,
-        callSiteNameWhat: String = "",
+        callSiteInfo: CallSiteInfo? = null,
     ): CallFrame {
         val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
         for (index in 0 until prototype.numParams) {
@@ -49,8 +49,7 @@ internal class LuaThread {
             varargs,
             upvalues,
             environment,
-            callSiteName,
-            callSiteNameWhat,
+            callSiteInfo,
         )
         pushFrame(frame)
         return frame
