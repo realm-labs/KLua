@@ -680,12 +680,13 @@ internal object LuaStringLibrary {
     }
 
     private fun normalizeUnpackPosition(position: Long, length: Int): Long {
-        val normalized = if (position >= 0L) {
-            position
-        } else {
-            length.toLong() + position + 1L
+        val lengthLong = length.toLong()
+        val normalized = when {
+            position > 0L -> position
+            position == 0L || position < -lengthLong -> 1L
+            else -> lengthLong + position + 1L
         }
-        if (normalized < 1L || normalized > length.toLong() + 1L) {
+        if (normalized > lengthLong + 1L) {
             throw LuaRuntimeException("bad argument #3 to 'unpack' (initial position out of string)")
         }
         return normalized - 1L

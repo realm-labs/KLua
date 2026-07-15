@@ -5,7 +5,7 @@ import java.nio.ByteOrder
 
 internal object LuaStringPackFormat {
     private const val MAX_INT_SIZE = 16L
-    private const val NATIVE_MAX_ALIGN = 16L
+    private const val NATIVE_MAX_ALIGN = 8L
     private const val C_SHORT_SIZE = 2L
     private const val C_INT_SIZE = 4L
     private const val C_LONG_SIZE = 8L
@@ -34,9 +34,10 @@ internal object LuaStringPackFormat {
     }
 
     internal class PackFormatScanner(
-        private val format: String,
+        format: String,
         private val functionName: String,
     ) {
+        private val format = format.substringBefore('\u0000')
         private var cursor = 0
         private var littleEndian = ByteOrder.nativeOrder() == ByteOrder.LITTLE_ENDIAN
         private var maxAlign = 1L

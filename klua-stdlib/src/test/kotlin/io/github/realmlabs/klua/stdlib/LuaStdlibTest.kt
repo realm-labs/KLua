@@ -25180,6 +25180,253 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pack and unpack cover every integer width and fixed option`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function checkSignedWidth(size)
+                    local signedFormat = "<i" .. size
+                    local signed = string.pack(signedFormat, -2)
+                    local signedValue, signedNext = string.unpack(signedFormat, signed)
+                    local valid = #signed == size and signedValue == -2 and signedNext == size + 1
+                    if size < 8 then
+                        local limit = 1 << (size * 8 - 1)
+                        local minimumOk = pcall(string.pack, signedFormat, -limit)
+                        local maximumOk = pcall(string.pack, signedFormat, limit - 1)
+                        local underflowOk = pcall(string.pack, signedFormat, -limit - 1)
+                        local overflowOk = pcall(string.pack, signedFormat, limit)
+                        valid = valid and minimumOk and maximumOk and not underflowOk and not overflowOk
+                    end
+                    return valid
+                end
+
+                local function checkUnsignedWidth(size)
+                    local unsignedFormat = ">I" .. size
+                    local value = size < 8 and ((1 << (size * 8 - 1)) + 1) or -2
+                    local unsigned = string.pack(unsignedFormat, value)
+                    local unsignedValue, unsignedNext = string.unpack(unsignedFormat, unsigned)
+                    local valid = #unsigned == size and unsignedValue == value and unsignedNext == size + 1
+                    if size < 8 then
+                        local limit = 1 << (size * 8)
+                        local maximumOk = pcall(string.pack, unsignedFormat, limit - 1)
+                        local negativeOk = pcall(string.pack, unsignedFormat, -1)
+                        local overflowOk = pcall(string.pack, unsignedFormat, limit)
+                        valid = valid and maximumOk and not negativeOk and not overflowOk
+                    end
+                    return valid
+                end
+
+                local signedWidths = true
+                local unsignedWidths = true
+                for size = 1, 16 do
+                    signedWidths = signedWidths and checkSignedWidth(size)
+                    unsignedWidths = unsignedWidths and checkUnsignedWidth(size)
+                end
+
+                local fixedFormat = "<bBhHlLjJTI"
+                local fixed = string.pack(fixedFormat,
+                    -128, 255, -32768, 65535,
+                    math.mininteger, -1, math.mininteger, -1, -1, 0xffffffff)
+                local b, B, h, H, l, L, j, J, T, I, fixedNext = string.unpack(fixedFormat, fixed)
+
+                local signedLittle = string.pack("<i16", -2)
+                local signedBig = string.pack(">i16", -2)
+                local unsignedLittle = string.pack("<I16", -2)
+                local unsignedBig = string.pack(">I16", -2)
+                local extensionBytes =
+                    string.byte(signedLittle, 1) == 254 and string.byte(signedLittle, 16) == 255 and
+                    string.byte(signedBig, 1) == 255 and string.byte(signedBig, 16) == 254 and
+                    string.byte(unsignedLittle, 1) == 254 and string.byte(unsignedLittle, 8) == 255 and
+                    string.byte(unsignedLittle, 9) == 0 and string.byte(unsignedLittle, 16) == 0 and
+                    string.byte(unsignedBig, 1) == 0 and string.byte(unsignedBig, 8) == 0 and
+                    string.byte(unsignedBig, 9) == 255 and string.byte(unsignedBig, 16) == 254
+
+                return signedWidths, unsignedWidths, #fixed,
+                    b, B, h, H, l, L, j, J, T, I, fixedNext, extensionBytes
+                """.trimIndent(),
+                "string-pack-integer-width-matrix.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(50L, state.toInteger(3))
+        assertEquals(-128L, state.toInteger(4))
+        assertEquals(255L, state.toInteger(5))
+        assertEquals(-32768L, state.toInteger(6))
+        assertEquals(65535L, state.toInteger(7))
+        assertEquals(Long.MIN_VALUE, state.toInteger(8))
+        assertEquals(-1L, state.toInteger(9))
+        assertEquals(Long.MIN_VALUE, state.toInteger(10))
+        assertEquals(-1L, state.toInteger(11))
+        assertEquals(-1L, state.toInteger(12))
+        assertEquals(0xffffffffL, state.toInteger(13))
+        assertEquals(51L, state.toInteger(14))
+        assertTrue(state.toBoolean(15))
+    }
+
+    @Test
+    fun `string unpack validates wide integer extension bytes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local signed = string.unpack(">i16", string.pack(">i16", -2))
+                local unsigned = string.unpack("<I16", string.pack("<I16", -2))
+                local signedOk, signedMessage = pcall(string.unpack,
+                    ">i9", string.char(0) .. string.pack(">i8", -1))
+                local unsignedOk, unsignedMessage = pcall(string.unpack,
+                    ">I9", string.char(255) .. string.pack(">I8", 1))
+                local shortOk, shortMessage = pcall(string.unpack, "i9", string.rep("\0", 8))
+                return signed, unsigned,
+                    signedOk, signedMessage, unsignedOk, unsignedMessage, shortOk, shortMessage
+                """.trimIndent(),
+                "string-unpack-wide-integer-extension.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(-2L, state.toInteger(1))
+        assertEquals(-2L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("9-byte integer does not fit into Lua Integer", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("9-byte integer does not fit into Lua Integer", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(8))
+    }
+
+    @Test
+    fun `string pack alignment uses native cap and X lookahead`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local format = "<!8BXi8I8"
+                local packed = string.pack(format, 7, 0x0102030405060708)
+                local byte, integer, nextPosition = string.unpack(format, packed)
+                local positioned = string.rep("x", 8) .. string.pack("<I8", 0x0102030405060708)
+                local positionedInteger, positionedNext = string.unpack("<!8XI8I8", positioned, 2)
+                return string.packsize("x!i16"),
+                    string.packsize("x!1i16"),
+                    string.packsize("x!16i16"),
+                    string.packsize(format), #packed,
+                    byte, integer, nextPosition,
+                    positionedInteger, positionedNext,
+                    string.byte(packed, 2, 8)
+                """.trimIndent(),
+                "string-pack-native-alignment-lookahead.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(24L, state.toInteger(1))
+        assertEquals(17L, state.toInteger(2))
+        assertEquals(32L, state.toInteger(3))
+        assertEquals(16L, state.toInteger(4))
+        assertEquals(16L, state.toInteger(5))
+        assertEquals(7L, state.toInteger(6))
+        assertEquals(0x0102030405060708L, state.toInteger(7))
+        assertEquals(17L, state.toInteger(8))
+        assertEquals(0x0102030405060708L, state.toInteger(9))
+        assertEquals(17L, state.toInteger(10))
+        for (index in 11..17) {
+            assertEquals(0L, state.toInteger(index))
+        }
+    }
+
+    @Test
+    fun `string pack formats stop at nul and unpack clips early positions`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local format = "B" .. string.char(0) .. "?I4"
+                local packed = string.pack(format, 7, 99)
+                local value, nextPosition = string.unpack(format, packed)
+                local emptyFormat = string.char(0) .. "?"
+                local zeroValue, zeroNext = string.unpack("B", packed, 0)
+                local negativeValue, negativeNext = string.unpack("B", packed, -99)
+                local minimumValue, minimumNext = string.unpack("B", packed, math.mininteger)
+                return string.packsize(format), #packed, value, nextPosition,
+                    string.packsize(emptyFormat), #string.pack(emptyFormat),
+                    string.unpack(emptyFormat, packed),
+                    zeroValue, zeroNext, negativeValue, negativeNext, minimumValue, minimumNext
+                """.trimIndent(),
+                "string-pack-nul-position-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(7L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(7L, state.toInteger(8))
+        assertEquals(2L, state.toInteger(9))
+        assertEquals(7L, state.toInteger(10))
+        assertEquals(2L, state.toInteger(11))
+        assertEquals(7L, state.toInteger(12))
+        assertEquals(2L, state.toInteger(13))
+    }
+
+    @Test
+    fun `string pack and unpack preserve integer diagnostic order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local overflowOk, overflowMessage = pcall(string.pack, "B?", 256)
+                local laterFormatOk, laterFormatMessage = pcall(string.pack, "B?", 1)
+                local positionOk, positionMessage = pcall(string.unpack, "?", "", 2)
+                local formatOk, formatMessage = pcall(string.unpack, "?", "")
+                local dataOk, dataMessage = pcall(string.unpack, "i9?", string.rep("\0", 8))
+                return overflowOk, overflowMessage, laterFormatOk, laterFormatMessage,
+                    positionOk, positionMessage, formatOk, formatMessage, dataOk, dataMessage
+                """.trimIndent(),
+                "string-pack-integer-diagnostic-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'pack' (unsigned overflow)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("invalid format option '?'", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'unpack' (initial position out of string)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("invalid format option '?'", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(10))
+    }
+
+    @Test
     fun `string pack reports integer argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
