@@ -332,15 +332,27 @@ internal object LuaIoLibrary {
         if (handle.closed) {
             throw LuaRuntimeException("attempt to use a closed file")
         }
-        return try {
-            val result = handle.close()
-            if (handle.deleteOnClose && handle.path != null) {
-                Files.deleteIfExists(handle.path)
-            }
-            result
+        var result: LuaReturn? = null
+        var failure: IOException? = null
+        try {
+            result = handle.close()
         } catch (error: IOException) {
-            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+            failure = error
         }
+        if (handle.deleteOnClose && handle.path != null) {
+            try {
+                Files.deleteIfExists(handle.path)
+            } catch (error: IOException) {
+                if (failure == null) {
+                    failure = error
+                } else {
+                    failure.addSuppressed(error)
+                }
+            }
+        }
+        return failure?.let { error ->
+            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+        } ?: checkNotNull(result)
     }
 
     private fun closeHandleMetamethod(handle: IoFileHandle): LuaReturn {
@@ -841,12 +853,39 @@ internal object LuaIoLibrary {
             if (nonClosing) {
                 return closeResult?.invoke() ?: LuaReturn.of(null, "cannot close standard file")
             }
-            drainWriteBuffer()
             closed = true
-            randomAccessFile?.close()
-            inputStream?.close()
-            outputStream?.close()
-            return closeResult?.invoke() ?: LuaReturn.of(true)
+            var failure: IOException? = null
+            fun attempt(operation: () -> Unit) {
+                try {
+                    operation()
+                } catch (error: IOException) {
+                    if (failure == null) {
+                        failure = error
+                    } else {
+                        failure.addSuppressed(error)
+                    }
+                }
+            }
+
+            attempt(::drainWriteBuffer)
+            writeBuffer.reset()
+            randomAccessFile?.let { file -> attempt(file::close) }
+            inputStream?.let { input -> attempt(input::close) }
+            outputStream?.let { output -> attempt(output::close) }
+
+            var result: LuaReturn? = null
+            var resultFailure: RuntimeException? = null
+            try {
+                result = closeResult?.invoke() ?: LuaReturn.of(true)
+            } catch (error: RuntimeException) {
+                resultFailure = error
+            }
+            failure?.let { error ->
+                resultFailure?.let(error::addSuppressed)
+                throw error
+            }
+            resultFailure?.let { error -> throw error }
+            return checkNotNull(result)
         }
 
         fun flush() {

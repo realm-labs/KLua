@@ -4301,6 +4301,86 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io close finalizes owned handles after drain and close failures`() {
+        val combinedSink = ByteLimitOutputStream(1)
+        val closeOnlySink = ByteLimitOutputStream(Int.MAX_VALUE, alwaysFailClose = true)
+        val metamethodSink = ByteLimitOutputStream(0)
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+        LuaIoLibrary.pushOutputHandle(state, combinedSink)
+        state.setGlobal("combinedFailure")
+        LuaIoLibrary.pushOutputHandle(state, closeOnlySink)
+        state.setGlobal("closeOnlyFailure")
+        LuaIoLibrary.pushOutputHandle(state, metamethodSink)
+        state.setGlobal("metamethodFailure")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                assert(combinedFailure:setvbuf("full", 10))
+                assert(combinedFailure:write("abc") == combinedFailure)
+                io.output(combinedFailure)
+                local closeCount, closeValue, closeMessage, closeCode = pack(combinedFailure:close())
+                local combinedType = io.type(combinedFailure)
+                local repeatOk, repeatMessage = pcall(combinedFailure.close, combinedFailure)
+                local useOk, useMessage = pcall(combinedFailure.write, combinedFailure, "x")
+                local defaultOk, defaultMessage = pcall(io.write, "x")
+
+                assert(closeOnlyFailure:write("ok") == closeOnlyFailure)
+                local closeOnlyCount, closeOnlyValue, closeOnlyMessage, closeOnlyCode =
+                    pack(closeOnlyFailure:close())
+
+                local automatic
+                do
+                    local handle <close> = metamethodFailure
+                    assert(handle:setvbuf("full", 10))
+                    local buffered = handle:write("meta") == handle
+                    automatic = handle
+                    assert(buffered)
+                end
+
+                return closeCount, closeValue, closeMessage, closeCode, combinedType,
+                    repeatOk, repeatMessage, useOk, useMessage, defaultOk, defaultMessage,
+                    closeOnlyCount, closeOnlyValue, closeOnlyMessage, closeOnlyCode,
+                    io.type(closeOnlyFailure), io.type(automatic)
+                """.trimIndent(),
+                "io-close-finalization-failures.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertEquals("forced write failure", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals("closed file", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("attempt to use a closed file", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("attempt to use a closed file", state.toString(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("default output file is closed", state.toString(11))
+        assertEquals(3L, state.toInteger(12))
+        assertTrue(state.isNil(13))
+        assertEquals("forced close failure", state.toString(14))
+        assertEquals(1L, state.toInteger(15))
+        assertEquals("closed file", state.toString(16))
+        assertEquals("closed file", state.toString(17))
+
+        assertEquals("a", combinedSink.acceptedBytes.toString(StandardCharsets.ISO_8859_1))
+        assertEquals(1, combinedSink.closeAttempts)
+        assertEquals("ok", closeOnlySink.acceptedBytes.toString(StandardCharsets.ISO_8859_1))
+        assertEquals(1, closeOnlySink.closeAttempts)
+        assertEquals(1, metamethodSink.closeAttempts)
+    }
+
+    @Test
     fun `io tmpfile returns closeable file handles`() {
         val temporaryDirectory = Path.of(System.getProperty("java.io.tmpdir"))
         fun temporaryIoFiles(): Set<Path> = Files.list(temporaryDirectory).use { paths ->
@@ -29106,12 +29186,16 @@ private data class DebugHostObject(
 
 private class ByteLimitOutputStream(
     private val byteLimit: Int,
+    private val alwaysFailClose: Boolean = false,
 ) : OutputStream() {
     private val accepted = ByteArrayOutputStream()
     private var failed = false
 
     val acceptedBytes: ByteArray
         get() = accepted.toByteArray()
+
+    var closeAttempts: Int = 0
+        private set
 
     override fun write(value: Int) {
         if (accepted.size() >= byteLimit) {
@@ -29128,8 +29212,9 @@ private class ByteLimitOutputStream(
     }
 
     override fun close() {
-        if (failed) {
-            throw IOException("forced write failure")
+        closeAttempts++
+        if (failed || alwaysFailClose) {
+            throw IOException(if (failed) "forced write failure" else "forced close failure")
         }
     }
 }
