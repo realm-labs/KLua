@@ -5,7 +5,7 @@ import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaStack(size: Int) {
-    private val values = MutableList<LuaValue>(size.coerceAtLeast(1)) { LuaNil }
+    private var values = Array<LuaValue>(size.coerceAtLeast(1)) { LuaNil }
     private var captures: MutableMap<Int, LuaUpvalue>? = null
 
     fun get(index: Int): LuaValue {
@@ -48,8 +48,13 @@ internal class LuaStack(size: Int) {
 
     private fun ensureIndex(index: Int) {
         require(index >= 0) { "stack index out of range: $index" }
-        while (index >= values.size) {
-            values += LuaNil
+        if (index >= values.size) {
+            val oldValues = values
+            val minimumSize = index + 1
+            val grownSize = maxOf(minimumSize, oldValues.size + (oldValues.size shr 1))
+            values = Array(grownSize) { position ->
+                if (position < oldValues.size) oldValues[position] else LuaNil
+            }
         }
     }
 }
