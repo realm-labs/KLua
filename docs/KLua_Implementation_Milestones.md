@@ -6,6 +6,8 @@
 
 **Reference implementation:** Official Lua 5.5 source is available locally at `~/Downloads/lua-lua-a5522f0`. Use it as the primary reference for actual semantic logic before implementing behavior-sensitive parser, VM, coroutine, debug, and standard-library details. Local `lua5.5` probes and manuals are useful for observable checks, but the source tree owns the edge-case control flow.
 
+This document is a capability roadmap, not the current task queue and not a commit map. The prioritized work packages and delivery rules live in `docs/KLua_Codex_Goal.md`. A milestone can span many work packages, and one task bullet, entry point, probe, or test case is not automatically one commit. Before advancing the primary frontier, audit the milestone success criteria as `Done`, `Partial`, or `Gap`; group related behavior across affected modules into a bounded, independently verifiable work package.
+
 ---
 
 ## Milestone Overview

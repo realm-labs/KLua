@@ -2,6 +2,8 @@
 
 This note tracks known Lua 5.5 gaps that are too broad to treat as incidental test failures. Keep it source-backed and concise; move items out when they are implemented and covered by tests.
 
+This list is evidence and scope tracking, not a FIFO task queue or a commit map. Select related gaps into a named campaign in `docs/KLua_Codex_Goal.md`, with an owning subsystem or Lua source helper chain, affected entry points, a case matrix, verification, and an exit condition. Group fixes and tests for the same semantic rule; do not create a separate work package or commit for every probe.
+
 ## Language And VM
 
 - `<close>` local declarations are parsed; statically nil/false close locals compile as no-op close values, dynamic close initializers are runtime-checked to allow only nil/false, and statically non-false to-be-closed variable semantics are still rejected by the compiler because `__close` handling is not implemented.
