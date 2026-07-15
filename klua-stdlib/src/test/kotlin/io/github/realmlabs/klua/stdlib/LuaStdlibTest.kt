@@ -4544,6 +4544,98 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io lines preserves constructor and iterator result shapes`() {
+        val path = Files.createTempFile("klua-io-lines-shapes-", ".txt")
+        val emptyPath = Files.createTempFile("klua-io-lines-empty-", ".txt")
+        Files.writeString(path, "one\ntwo\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local function capture(...)
+                        return select("#", ...), ...
+                    end
+
+                    local namedCount, iterator, iteratorState, control, closeFile =
+                        capture(io.lines("${path.luaPath()}", "l", "L"))
+                    local firstCount, first, second = capture(iterator(iteratorState, control))
+                    local doneCount = select("#", iterator(iteratorState, first))
+                    local namedClosed = io.type(closeFile)
+                    local repeatedOk, repeatedMessage = pcall(iterator, iteratorState, first)
+
+                    local owned = assert(io.open("${path.luaPath()}", "r"))
+                    local ownedConstructorCount, ownedIterator = capture(owned:lines("l", "L"))
+                    local ownedFirstCount, ownedFirst, ownedSecond = capture(ownedIterator())
+                    local ownedDoneCount = select("#", ownedIterator())
+                    local ownedAfter = io.type(owned)
+                    owned:close()
+
+                    local default = io.input("${path.luaPath()}")
+                    local defaultConstructorCount, defaultIterator = capture(io.lines(nil, "l", "L"))
+                    local defaultFirstCount, defaultFirst, defaultSecond = capture(defaultIterator())
+                    local defaultAfter = io.type(default)
+                    default:close()
+
+                    local allIterator, allState, allControl, allClose =
+                        io.lines("${path.luaPath()}", "a")
+                    local allFirst = allIterator(allState, allControl)
+                    local allSecond = allIterator(allState, allControl)
+                    local allAfter = io.type(allClose)
+                    allClose:close()
+
+                    local zeroIterator, zeroState, zeroControl, zeroClose =
+                        io.lines("${emptyPath.luaPath()}", 0)
+                    local zeroCount = select("#", zeroIterator(zeroState, zeroControl))
+                    local zeroAfter = io.type(zeroClose)
+
+                    return namedCount, firstCount, first, second, doneCount, namedClosed,
+                        repeatedOk, repeatedMessage,
+                        ownedConstructorCount, ownedFirstCount, ownedFirst, ownedSecond,
+                        ownedDoneCount, ownedAfter,
+                        defaultConstructorCount, defaultFirstCount, defaultFirst, defaultSecond,
+                        defaultAfter, allFirst, allSecond, allAfter, zeroCount, zeroAfter
+                    """.trimIndent(),
+                    "io-lines-result-shapes.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(4L, state.toInteger(1))
+            assertEquals(2L, state.toInteger(2))
+            assertEquals("one", state.toString(3))
+            assertEquals("two\n", state.toString(4))
+            assertEquals(0L, state.toInteger(5))
+            assertEquals("closed file", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("file is already closed", state.toString(8))
+            assertEquals(1L, state.toInteger(9))
+            assertEquals(2L, state.toInteger(10))
+            assertEquals("one", state.toString(11))
+            assertEquals("two\n", state.toString(12))
+            assertEquals(0L, state.toInteger(13))
+            assertEquals("file", state.toString(14))
+            assertEquals(1L, state.toInteger(15))
+            assertEquals(2L, state.toInteger(16))
+            assertEquals("one", state.toString(17))
+            assertEquals("two\n", state.toString(18))
+            assertEquals("file", state.toString(19))
+            assertEquals("one\ntwo\n", state.toString(20))
+            assertEquals("", state.toString(21))
+            assertEquals("file", state.toString(22))
+            assertEquals(0L, state.toInteger(23))
+            assertEquals("closed file", state.toString(24))
+        } finally {
+            Files.deleteIfExists(path)
+            Files.deleteIfExists(emptyPath)
+        }
+    }
+
+    @Test
     fun `generic for closes named io lines files on early exit`() {
         val path = Files.createTempFile("klua-io-lines-early-exit-", ".txt")
         Files.writeString(path, "one\ntwo\n")
