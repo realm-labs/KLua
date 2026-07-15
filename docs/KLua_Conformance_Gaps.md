@@ -14,7 +14,7 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 ## OS Library
 
-- KLua's pure-JVM `os` library covers the Lua 5.5 entry points, source-backed filesystem argument/result ordering including host-conditional rename replacement, and real command-shell probing with distinct launch-error versus completed-exit tuples. JVM filesystem/process exceptions do not expose portable C errno values, so operation failure codes remain numeric placeholders; JVM process results also cannot reproduce POSIX wait-status signal metadata, and broader C locale/time/platform parity remains incomplete.
+- KLua's pure-JVM `os` library covers the Lua 5.5 entry points, source-backed filesystem argument/result ordering including host-conditional rename replacement, real command-shell probing with distinct launch-error versus completed-exit tuples, and source-backed `os.date` string boundaries. The date formatter deliberately exposes the Lua source's C99/POSIX conversion and `E`/`O` modifier set on every JVM host instead of switching to the reduced C89 set or Windows `#` modifiers. It maps locale data through Java, uses stable custom `%c`/`%x`/`%X` layouts, has no native `strftime` 250-byte per-conversion cap or zero-length failure signal, and inherits the JVM `Instant`/timezone database range. JVM filesystem/process exceptions do not expose portable C errno values, so operation failure codes remain numeric placeholders; JVM process results also cannot reproduce POSIX wait-status signal metadata, and broader `os.time`, locale, and platform parity remains incomplete.
 
 ## Strings And UTF-8
 

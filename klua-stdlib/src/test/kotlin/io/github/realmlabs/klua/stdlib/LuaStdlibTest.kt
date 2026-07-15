@@ -14534,30 +14534,36 @@ class LuaStdlibTest {
 
     @Test
     fun `os date formats utc time strings with strftime directives`() {
-        val state = LuaState.create()
-        LuaStdlib.openOs(state)
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.US)
+            val state = LuaState.create()
+            LuaStdlib.openOs(state)
 
-        assertEquals(
-            LuaStatus.OK,
-            state.load(
-                """
-                return os.date("!%Y-%m-%dT%H:%M:%S %w %u %j %U %W %%", 0),
-                    os.date("!%F|%D|%R|%T", 0),
-                    os.date("!%I:%M:%S %p", 47105),
-                    os.date("!%EY|%Od", 0),
-                    os.date("!%h", 0),
-                    os.date("!%b", 0)
-                """.trimIndent(),
-                "os-date-format.lua",
-            ),
-        )
-        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    return os.date("!%Y-%m-%dT%H:%M:%S %w %u %j %U %W %%", 0),
+                        os.date("!%F|%D|%R|%T", 0),
+                        os.date("!%I:%M:%S %p", 47105),
+                        os.date("!%EY|%Od", 0),
+                        os.date("!%h", 0),
+                        os.date("!%b", 0)
+                    """.trimIndent(),
+                    "os-date-format.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals("1970-01-01T00:00:00 4 4 001 00 00 %", state.toString(1))
-        assertEquals("1970-01-01|01/01/70|00:00|00:00:00", state.toString(2))
-        assertEquals("01:05:05 PM", state.toString(3))
-        assertEquals("1970|01", state.toString(4))
-        assertEquals(state.toString(6), state.toString(5))
+            assertEquals("1970-01-01T00:00:00 4 4 001 00 00 %", state.toString(1))
+            assertEquals("1970-01-01|01/01/70|00:00|00:00:00", state.toString(2))
+            assertEquals("01:05:05 PM", state.toString(3))
+            assertEquals("1970|01", state.toString(4))
+            assertEquals(state.toString(6), state.toString(5))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
     }
 
     @Test
@@ -14582,6 +14588,147 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os date preserves source string boundary rules`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local fields = os.date("!*t" .. zero .. "%Q", 0)
+                local literal = os.date("!A" .. zero .. "%Y", 0)
+                local b1, b2, b3, b4, b5, b6 = string.byte(literal, 1, -1)
+                return type(fields), fields.year, fields.month, fields.day,
+                    #literal, b1, b2, b3, b4, b5, b6,
+                    select("#", os.date("", 0, "ignored")),
+                    os.date("!", 0, "ignored")
+                """.trimIndent(),
+                "os-date-string-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertEquals(1970L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(6L, state.toInteger(5))
+        assertEquals('A'.code.toLong(), state.toInteger(6))
+        assertEquals(0L, state.toInteger(7))
+        assertEquals('1'.code.toLong(), state.toInteger(8))
+        assertEquals('9'.code.toLong(), state.toInteger(9))
+        assertEquals('7'.code.toLong(), state.toInteger(10))
+        assertEquals('0'.code.toLong(), state.toInteger(11))
+        assertEquals(1L, state.toInteger(12))
+        assertEquals("", state.toString(13))
+    }
+
+    @Test
+    fun `os date reports truncated format specifiers and unrepresentable times`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local percentOk, percentMessage = pcall(os.date, "%", 0)
+                local eraOk, eraMessage = pcall(os.date, "%E", 0)
+                local alternateOk, alternateMessage = pcall(os.date, "%O", 0)
+                local zero = string.char(0)
+                local nulTailOk, nulTailMessage = pcall(os.date, "%Q" .. zero .. "tail", 0)
+                local nulConversionOk, nulConversionMessage = pcall(os.date, "%" .. zero .. "tail", 0)
+                local maximumOk, maximumMessage = pcall(os.date, "!*t", math.maxinteger)
+                local minimumOk, minimumMessage = pcall(os.date, "!*t", math.mininteger)
+                return percentOk, percentMessage, eraOk, eraMessage,
+                    alternateOk, alternateMessage, nulTailOk, nulTailMessage,
+                    nulConversionOk, nulConversionMessage,
+                    maximumOk, maximumMessage, minimumOk, minimumMessage
+                """.trimIndent(),
+                "os-date-format-boundary-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%')", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%E')", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%O')", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%Q')", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'os.date' (invalid conversion specifier '%')", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("date result cannot be represented in this installation", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("date result cannot be represented in this installation", state.toString(14))
+    }
+
+    @Test
+    fun `os date uses date specific timezone abbreviations`() {
+        val previousTimeZone = TimeZone.getDefault()
+        val previousLocale = Locale.getDefault()
+        try {
+            TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+            Locale.setDefault(Locale.US)
+            val state = LuaState.create()
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    return os.date("%Z", 1609459200), os.date("%Z", 1625097600)
+                    """.trimIndent(),
+                    "os-date-timezone-abbreviation.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("EST", state.toString(1))
+            assertEquals("EDT", state.toString(2))
+        } finally {
+            TimeZone.setDefault(previousTimeZone)
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
+    fun `os date uses locale am pm names`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            Locale.setDefault(Locale.JAPAN)
+            val state = LuaState.create()
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    return os.date("!%p", 0), os.date("!%p", 46800)
+                    """.trimIndent(),
+                    "os-date-locale-am-pm.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("午前", state.toString(1))
+            assertEquals("午後", state.toString(2))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `os date validates time before format conversions`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -14591,8 +14738,9 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local ok, message = pcall(os.date, "%Q", "bad")
-                return ok, message
+                local formatOk, formatMessage = pcall(os.date, {}, "bad")
+                local timeOk, timeMessage = pcall(os.date, "%Q", "bad")
+                return formatOk, formatMessage, timeOk, timeMessage
                 """.trimIndent(),
                 "os-date-time-before-format.lua",
             ),
@@ -14600,7 +14748,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(2))
+        assertEquals("bad argument #1 to 'os.date' (string expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'os.date' (number expected)", state.toString(4))
     }
 
     @Test

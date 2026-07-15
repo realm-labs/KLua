@@ -192,11 +192,18 @@ internal object LuaOsLibrary {
         } catch (_: DateTimeException) {
             throw LuaRuntimeException("date result cannot be represented in this installation")
         }
-        return if (body == "*t") {
+        return if (isDateTableFormat(body)) {
             LuaReturn.of(dateTimeFields(dateTime))
         } else {
             LuaReturn.of(formatDate(body, dateTime))
         }
+    }
+
+    private fun isDateTableFormat(format: String): Boolean {
+        return format.length >= 2 &&
+            format[0] == '*' &&
+            format[1] == 't' &&
+            (format.length == 2 || format[2] == '\u0000')
     }
 
     private fun fileResult(filename: String?, action: () -> Unit): LuaReturn {
@@ -347,7 +354,7 @@ internal object LuaOsLibrary {
                     dateTime,
                     modifier,
                     conversion,
-                    invalidConversion = format.substring(specifierStart),
+                    invalidConversion = invalidDateConversionSuffix(format, specifierStart),
                 ),
             )
             index++
@@ -384,7 +391,7 @@ internal object LuaOsLibrary {
             'm' -> twoDigits(dateTime.monthValue)
             'M' -> twoDigits(dateTime.minute)
             'n' -> "\n"
-            'p' -> if (dateTime.hour < 12) "AM" else "PM"
+            'p' -> dateTime.format(DateTimeFormatter.ofPattern("a", Locale.getDefault()))
             'r' -> formatDate("%I:%M:%S %p", dateTime)
             'R' -> formatDate("%H:%M", dateTime)
             'S' -> twoDigits(dateTime.second)
@@ -400,10 +407,15 @@ internal object LuaOsLibrary {
             'y' -> twoDigits(java.lang.Math.floorMod(dateTime.year, 100))
             'Y' -> fourDigits(dateTime.year)
             'z' -> zoneOffset(dateTime)
-            'Z' -> dateTime.zone.getDisplayName(java.time.format.TextStyle.SHORT, Locale.getDefault())
+            'Z' -> dateTime.format(DateTimeFormatter.ofPattern("z", Locale.getDefault()))
             '%' -> "%"
             else -> throw invalidDateFormat(invalidConversion)
         }
+    }
+
+    private fun invalidDateConversionSuffix(format: String, startIndex: Int): String {
+        val endIndex = format.indexOf('\u0000', startIndex).takeIf { it >= 0 } ?: format.length
+        return format.substring(startIndex, endIndex)
     }
 
     private fun invalidDateFormat(conversion: String): LuaRuntimeException {
