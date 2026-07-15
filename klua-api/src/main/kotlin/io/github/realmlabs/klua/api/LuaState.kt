@@ -239,6 +239,10 @@ class LuaState private constructor(
         function: LuaStackValue.NativeFunctionValue,
         resultCount: Int,
     ): LuaStatus {
+        val coreFunction = function.coreFunction
+        if (coreFunction != null && KLuaCoreRuntime.canCreateCoroutine(coreFunction)) {
+            return pcallCoreLuaFunction(functionIndex, coreFunction, resultCount)
+        }
         val arguments = stack.subList(functionIndex + 1, stack.size).toList()
         return try {
             val result = function.function.call(DefaultLuaCallContext(arguments))
@@ -265,6 +269,78 @@ class LuaState private constructor(
             )
         } catch (exception: RuntimeException) {
             runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception)
+        }
+    }
+
+    private fun pcallCoreLuaFunction(
+        functionIndex: Int,
+        function: KLuaCoreValue.FunctionValue,
+        resultCount: Int,
+    ): LuaStatus {
+        return try {
+            val arguments = coreCallArguments(functionIndex)
+            when (
+                val result = KLuaCoreRuntime.callFunction(
+                    function,
+                    arguments,
+                    coreGlobals,
+                    isYieldable = false,
+                    limits = KLuaCoreExecutionLimits(config.instructionLimit),
+                )
+            ) {
+                is KLuaCoreCallResult.Success -> {
+                    lastError = null
+                    removeCallFrame(functionIndex)
+                    pushResults(result.values, resultCount)
+                    LuaStatus.OK
+                }
+                is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldException()
+                is KLuaCoreCallResult.RuntimeError -> throw coreRuntimeError(result)
+            }
+        } catch (exit: LuaExitException) {
+            throw exit
+        } catch (exception: LuaException) {
+            val runtimeException = exception as? LuaRuntimeException
+            val hasErrorObject = runtimeException?.hasErrorObject == true
+            val errorObject = if (hasErrorObject) {
+                runtimeException.errorObject
+            } else {
+                exception.message ?: exception::class.java.simpleName
+            }
+            runtimeCallError(
+                functionIndex,
+                exception.message ?: exception::class.java.simpleName,
+                exception,
+                errorObject,
+                hasErrorObject,
+            )
+        } catch (exception: RuntimeException) {
+            runtimeCallError(functionIndex, exception.message ?: exception::class.java.simpleName, exception)
+        }
+    }
+
+    private fun coreCallArguments(functionIndex: Int): List<KLuaCoreValue> {
+        val argumentCount = stack.size - functionIndex - 1
+        if (argumentCount == 0) {
+            return emptyList()
+        }
+        if (argumentCount == 1) {
+            return listOf(stack[functionIndex + 1].toCoreCallArgument(1))
+        }
+        return ArrayList<KLuaCoreValue>(argumentCount).also { arguments ->
+            for (index in 0 until argumentCount) {
+                arguments += stack[functionIndex + 1 + index].toCoreCallArgument(index + 1)
+            }
+        }
+    }
+
+    private fun LuaStackValue.toCoreCallArgument(index: Int): KLuaCoreValue {
+        return when (this) {
+            is LuaStackValue.NativeFunctionValue -> function.toCoreFunctionValue()
+            is LuaStackValue.ChunkValue,
+            is LuaStackValue.UnsupportedValue,
+            -> throw IllegalArgumentException("argument $index is ${stackTypeName(this)}")
+            else -> toCoreValue()
         }
     }
 
