@@ -22833,6 +22833,55 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `utf8 codes validates malformed sequence boundaries in strict and lax modes`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local leadingContinuations = string.char(0x80, 0xbf) .. "B"
+                local strictOpenOk, strictOpenMessage = pcall(utf8.codes, leadingContinuations)
+                local laxOpenOk, laxOpenMessage = pcall(utf8.codes, leadingContinuations, true)
+
+                local strictIterator = utf8.codes("A")
+                local laxIterator = utf8.codes("A", true)
+                local strictPosition, strictCodepoint = strictIterator(leadingContinuations, 0)
+                local laxPosition, laxCodepoint = laxIterator(leadingContinuations, 0)
+
+                local malformed = {
+                    string.char(0xc0, 0x80),
+                    string.char(0xe2, 0x82),
+                    string.char(0xc2, 0x80, 0x80) .. "B",
+                }
+                for _, bytes in ipairs(malformed) do
+                    local strictOk, strictMessage = pcall(strictIterator, bytes, 0)
+                    local laxOk, laxMessage = pcall(laxIterator, bytes, 0)
+                    assert(not strictOk and strictMessage == "invalid UTF-8 code")
+                    assert(not laxOk and laxMessage == "invalid UTF-8 code")
+                end
+
+                return strictOpenOk, strictOpenMessage, laxOpenOk, laxOpenMessage,
+                    strictPosition, strictCodepoint, laxPosition, laxCodepoint, #malformed
+                """.trimIndent(),
+                "utf8-codes-malformed-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'codes' (invalid UTF-8 code)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'codes' (invalid UTF-8 code)", state.toString(4))
+        assertEquals(3L, state.toInteger(5))
+        assertEquals(66L, state.toInteger(6))
+        assertEquals(3L, state.toInteger(7))
+        assertEquals(66L, state.toInteger(8))
+        assertEquals(3L, state.toInteger(9))
+    }
+
+    @Test
     fun `utf8 charpattern matches utf8 characters`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
