@@ -3961,8 +3961,9 @@ class LuaStdlibTest {
                 local readOk, readMessage = pcall(function()
                     return handle:read()
                 end)
-                local missing = io.type()
-                return before, data, closed, after, nonFile, readOk, readMessage, missing
+                local missingOk, missingMessage = pcall(io.type)
+                return before, data, closed, after, nonFile, readOk, readMessage,
+                    missingOk, missingMessage
                 """.trimIndent(),
                 "io-tmpfile.lua",
             ),
@@ -3976,7 +3977,8 @@ class LuaStdlibTest {
         assertTrue(state.isNil(5))
         assertFalse(state.toBoolean(6))
         assertEquals("attempt to use a closed file", state.toString(7))
-        assertTrue(state.isNil(8))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #1 to 'type' (value expected)", state.toString(9))
     }
 
     @Test
@@ -5341,6 +5343,66 @@ class LuaStdlibTest {
         } finally {
             Files.deleteIfExists(outputPath)
         }
+    }
+
+    @Test
+    fun `io close reports process failures while close metamethods suppress results`() {
+        val command = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "exit /b 7"
+        } else {
+            "exit 7"
+        }
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local explicit = assert(io.popen("$command", "r"))
+                local closeOk, closeKind, closeCode = explicit:close()
+                local explicitType = io.type(explicit)
+
+                local automatic
+                do
+                    local process <close> = assert(io.popen("$command", "r"))
+                    automatic = process
+                end
+
+                local standardBefore = io.type(io.stdout)
+                local flushResultCount
+                do
+                    local standard <close> = io.stdout
+                    flushResultCount = select("#", standard:flush())
+                end
+                local standardAfter = io.type(io.stdout)
+
+                local alreadyClosed = assert(io.tmpfile())
+                alreadyClosed:close()
+                local closedOk, closedMessage = pcall(function()
+                    local closed <close> = alreadyClosed
+                end)
+
+                return closeOk, closeKind, closeCode, explicitType,
+                    io.type(automatic), standardBefore, standardAfter, flushResultCount,
+                    closedOk, closedMessage
+                """.trimIndent(),
+                "io-close-result-lifecycle.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("exit", state.toString(2))
+        assertEquals(7L, state.toInteger(3))
+        assertEquals("closed file", state.toString(4))
+        assertEquals("closed file", state.toString(5))
+        assertEquals("file", state.toString(6))
+        assertEquals("file", state.toString(7))
+        assertEquals(1L, state.toInteger(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.isNil(10))
     }
 
     @Test
