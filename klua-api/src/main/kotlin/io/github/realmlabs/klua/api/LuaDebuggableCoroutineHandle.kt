@@ -10,7 +10,7 @@ interface LuaDebuggableCoroutineHandle : LuaCoroutineHandle {
 
     fun getDebugHook(): LuaReturn = LuaReturn.of(null)
 
-    fun setDebugObserver(observer: LuaDebugObserver?) {}
+    fun setDebugObserver(observer: LuaDebugObserver?): Boolean = false
 }
 
 enum class LuaDebugEvent {

@@ -48,11 +48,13 @@ public class LiveDebugSession(
     private var lastStop: DebugStop? = null
 
     init {
-        coroutine.setDebugObserver { event, sourceId, line, callDepth ->
-            val stop = controller.shouldStop(sourceId, line, event.toDebugEvent(), callDepth)
-            lastStop = stop
-            stop != null
-        }
+        check(
+            coroutine.setDebugObserver { event, sourceId, line, callDepth ->
+                val stop = controller.shouldStop(sourceId, line, event.toDebugEvent(), callDepth)
+                lastStop = stop
+                stop != null
+            },
+        ) { "debugging is disabled for this Lua runtime" }
     }
 
     public val frames: List<DebugFrameView>

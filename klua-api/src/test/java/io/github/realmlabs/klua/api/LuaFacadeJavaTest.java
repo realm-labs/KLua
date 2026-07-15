@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
@@ -78,12 +79,26 @@ class LuaFacadeJavaTest {
                 end
                 """, "java-debug-observer.lua").eval().get(1);
         LuaDebuggableCoroutineHandle coroutine = (LuaDebuggableCoroutineHandle) function.createCoroutine();
-        coroutine.setDebugObserver((event, sourceId, line, callDepth) -> line == 2);
+        assertEquals(true, coroutine.setDebugObserver((event, sourceId, line, callDepth) -> line == 2));
 
         assertSame(LuaCoroutineResult.DebugSuspended.INSTANCE, coroutine.resume(List.of()));
         assertEquals(2, coroutine.getLuaFrames().get(0).getLine());
 
         coroutine.setDebugObserver(null);
+        LuaCoroutineResult.Returned returned = (LuaCoroutineResult.Returned) coroutine.resume(List.of());
+        assertEquals(List.of(42L), returned.getValues());
+    }
+
+    @Test
+    void disabledDebugConfigurationRejectsExecutionObservers() {
+        Lua lua = Lua.create(new LuaConfig(false, () -> "", 0, LuaStandardLibrary.all()));
+        LuaCoroutineFunction function = (LuaCoroutineFunction) lua.load(
+                "return function() return 42 end",
+                "java-disabled-debug.lua"
+        ).eval().get(1);
+        LuaDebuggableCoroutineHandle coroutine = (LuaDebuggableCoroutineHandle) function.createCoroutine();
+
+        assertFalse(coroutine.setDebugObserver((event, sourceId, line, callDepth) -> true));
         LuaCoroutineResult.Returned returned = (LuaCoroutineResult.Returned) coroutine.resume(List.of());
         assertEquals(List.of(42L), returned.getValues());
     }

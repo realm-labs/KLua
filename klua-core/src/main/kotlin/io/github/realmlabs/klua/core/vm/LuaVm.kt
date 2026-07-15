@@ -218,7 +218,7 @@ internal class LuaVm(
             dispatchDebugCall(frame)
             while (frame.pc < frame.prototype.code.size) {
                 val pc = frame.pc
-                if (dispatchDebuggerLine(frame, pc)) {
+                if (debugObserver != null && dispatchDebuggerLine(frame, pc)) {
                     suspended = true
                     debugSuspended = true
                     return LuaExecutionResult.DebugSuspended

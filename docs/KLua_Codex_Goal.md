@@ -191,6 +191,7 @@ Current implemented areas:
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
 - `string.packsize`, `string.pack`, and `string.unpack` cover Lua 5.5 format parsing, endian directives, alignment, fixed and variable strings, integer formats, and floating-point formats.
 - Table-library conformance includes table-like primitive receivers for `table.concat`, `table.unpack`, `table.insert`, `table.remove`, `table.move`, and `table.sort` when Lua 5.5 `checktab`/metamethod requirements are met.
+- Live debugger runtime registration assigns stable thread IDs to independent coroutine sessions; debug-disabled API configurations reject execution observers, and the normal VM opcode path performs only a null-observer check.
 - Focused parser, compiler, VM, API, Kotlin helper, conformance, and foundation tests.
 
 Remaining major gaps:
@@ -201,7 +202,6 @@ Remaining major gaps:
 - Known debug-library gaps include broader cross-thread debug behavior beyond explicit current threads and suspended, normal, and empty-stack KLua coroutine snapshots.
 - Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.5 conformance coverage beyond the current Lua-backed and protected-call yield/resume paths.
 - Broader error, traceback, and debug-library conformance beyond the closed M14 foundation criteria.
-- A live M15 debugger integration that can suspend VM execution and expose the stopped context.
 - End-to-end M16 DAP and command-line debugger behavior over a live stopped runtime.
 - Broader script packaging workflow, including optional Gradle/plugin integration.
 - Broader sandbox and game-server controls beyond the initial chunk/function/coroutine instruction budget and standard-library whitelist.
@@ -246,8 +246,10 @@ M14 is closed against its foundation criteria. Broader debug-library and traceba
 | The debugger can show the current source line. | Done | Stopped frame snapshots preserve the suspended PC and report the exact source line. |
 | Locals, upvalues, and globals are inspectable. | Done | Live stopped frames populate all three scopes with local/upvalue shadowing information preserved by separate views. |
 | Debug expression evaluation works for simple expressions. | Done | Selected-frame evaluation copies scalar global/upvalue/local bindings into a fresh library-free Lua state, preserving shadow order without mutating the stopped program. |
-| Coroutines appear as debuggable Lua threads. | Partial | Coroutine snapshots and debugger thread-provider abstractions exist, but live runtime threads are not registered with a debugger session. |
-| Debug checks are cheap or disabled in normal fast execution. | Partial | Lua debug hooks are opt-in and the detached controller adds no VM cost, but the intended integrated fast-path/disabled-path behavior is not implemented or benchmarked. |
+| Coroutines appear as debuggable Lua threads. | Done | `LiveDebugRuntime` assigns stable IDs and independent sessions to registered Lua coroutine functions; integration tests suspend multiple registered threads separately. |
+| Debug checks are cheap or disabled in normal fast execution. | Done | Debug-disabled API configurations reject execution observers, and the opcode loop guards observer dispatch with a single null check when no live debugger is attached. |
+
+M15 is closed against its success criteria. Table/function-aware evaluation, mutation-enabled trusted evaluation, and richer multi-thread scheduling policy remain later debugger hardening rather than closure blockers.
 
 #### M16 DAP Adapter And Debug Tooling
 
@@ -296,16 +298,15 @@ This proof point should remain covered by tests while later milestones evolve th
 
 ## Next Implementation Focus
 
-The closure audit above closes M13, M14, and M17 against their success criteria. M15 now has live breakpoint/step suspension, locals/upvalues/globals, and read-only scalar selected-frame evaluation. It still needs coroutine thread/session ownership and an explicit disabled fast path before M16 consumes that context. M18 still needs a production-safe library-access policy before performance work begins.
+The closure audit above closes M13, M14, M15, and M17 against their success criteria. M16 is now the earliest open milestone: its CLI and DAP adapters still use supplied providers instead of the live runtime/session/thread context. M18 still needs a production-safe library-access policy before performance work begins.
 
 Use this work-package order:
 
 | Order | Work package | Outcome and exit criteria | Expected commit shape |
 | --- | --- | --- | --- |
-| 1 | M15 coroutine and fast-path closure | Define live debug-session ownership for multiple Lua coroutines and add a configuration/fast-mode test proving the observer path is absent or cheap when debugging is disabled. | One or two runtime/debug integration commits. |
-| 2 | M16 end-to-end client integration | Make the CLI and DAP paths consume the real stop context and pass end-to-end breakpoint, stepping, stack, scope, variable, and coroutine-thread tests. Update debug-tooling documentation to describe only working behavior. | One to three commits grouped by transport-independent behavior and client integration. |
-| 3 | M18 production-safe access policy | Add an explicit production-safe configuration/preset so OS/file libraries require opt-in, and verify that selective host exposure remains intact. | One or two API/stdlib behavior commits with Java and Kotlin coverage. |
-| 4 | M19 benchmark baselines | Replace the dummy benchmark with the first parse/compile and VM execution baselines before optimizing runtime paths. | One benchmark-baseline commit, followed by evidence-backed optimization packages only. |
+| 1 | M16 end-to-end client integration | Make the CLI and DAP paths consume the real stop context and pass end-to-end breakpoint, stepping, stack, scope, variable, and coroutine-thread tests. Update debug-tooling documentation to describe only working behavior. | One to three commits grouped by transport-independent behavior and client integration. |
+| 2 | M18 production-safe access policy | Add an explicit production-safe configuration/preset so OS/file libraries require opt-in, and verify that selective host exposure remains intact. | One or two API/stdlib behavior commits with Java and Kotlin coverage. |
+| 3 | M19 benchmark baselines | Replace the dummy benchmark with the first parse/compile and VM execution baselines before optimizing runtime paths. | One benchmark-baseline commit, followed by evidence-backed optimization packages only. |
 
 M20 conformance remains important throughout development, but broad hardening should run as an explicitly selected campaign rather than an open-ended stream of unrelated probes. A campaign should name one subsystem or semantic invariant, list the affected entry points and reference-source functions, define its case matrix, and finish by updating the gap snapshot. Regression, data-integrity, security, or active-milestone blocking fixes may interrupt the order above; incidental edge cases should be queued for the next campaign.
 

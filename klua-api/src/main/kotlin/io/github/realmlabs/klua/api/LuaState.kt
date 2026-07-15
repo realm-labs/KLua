@@ -1493,7 +1493,10 @@ class LuaState private constructor(
             return coroutine.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
         }
 
-        override fun setDebugObserver(observer: LuaDebugObserver?) {
+        override fun setDebugObserver(observer: LuaDebugObserver?): Boolean {
+            if (!config.debugEnabled && observer != null) {
+                return false
+            }
             coroutine.setDebugObserver(
                 observer?.let { publicObserver ->
                     KLuaCoreDebugObserver { event, sourceId, line, callDepth ->
@@ -1501,6 +1504,7 @@ class LuaState private constructor(
                     }
                 },
             )
+            return true
         }
     }
 
