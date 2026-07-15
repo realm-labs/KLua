@@ -216,3 +216,38 @@ The full nine-workload suite after the change measured:
 | Execute 10,000 coroutine yield/resume cycles | 21,867.310 | ±2,244.246 |
 
 The full-suite coroutine score is 15.9% below its 26,011.328 µs/op coverage baseline, and the complete Gradle test suite passes. The next M19 package should add closure-counter, method-call, and representative application-kernel controls before selecting another optimization.
+
+## 2026-07-15 Closure, Method, and Recursive-Kernel Coverage
+
+The runtime workload suite now adds three setup-verified, execution-only controls:
+
+- a captured counter closure performing 10,000 calls and upvalue updates;
+- a table method performing 10,000 colon calls, receiver-field reads, and receiver-field writes;
+- recursive `fib(20)`, returning 6,765 as a compact application kernel with a branching Lua call tree.
+
+These controls cover Lua 5.5's `OP_GETUPVAL`/`OP_SETUPVAL` closure path and the `OP_SELF` receiver placement described by `lvm.c`; compilation remains outside the measured operations. The focused GC-profiler run measured:
+
+| Benchmark | Average time | Allocation | Normalized observation |
+| --- | ---: | ---: | ---: |
+| 10,000 closure-counter calls | 5,507.281 µs/op | 4,242,278.300 B/op | 424 B/call |
+| 10,000 method calls | 16,814.452 µs/op | 30,642,653.284 B/op | 3,064 B/call |
+| Recursive `fib(20)` | 9,186.279 µs/op | 11,122,447.351 B/op | complete call tree |
+
+The expanded twelve-workload suite measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 17.638 | ±10.761 |
+| Execute numeric loop | 1,045.381 | ±51.643 |
+| Execute 10,000 Lua calls | 3,645.401 | ±1,533.597 |
+| Execute 10,000 closure-counter calls | 3,418.154 | ±2,799.833 |
+| Execute 10,000 host calls | 6,646.840 | ±3,627.715 |
+| Execute 10,000 `__index` metamethod calls | 7,829.313 | ±5,259.406 |
+| Execute 10,000 JVM-to-Lua calls | 4,929.565 | ±2,078.112 |
+| Execute 10,000 method calls | 13,690.815 | ±2,761.808 |
+| Execute recursive `fib(20)` | 7,273.834 | ±1,215.923 |
+| Execute 10,000 table writes and reads | 2,397.936 | ±352.679 |
+| Execute 1,000 growing string concatenations | 4,169.263 | ±488.289 |
+| Execute 10,000 coroutine yield/resume cycles | 25,956.554 | ±3,915.871 |
+
+The full run remains a local selection aid rather than a regression claim, especially where confidence intervals are wide. Method dispatch is the next bounded profiling target because it is the slowest new control and allocates roughly 7.2× as many bytes per 10,000 operations as the closure-counter control. A code change requires stack or allocation-site evidence and a matched GC-profiler rerun. The complete Gradle test suite passes.

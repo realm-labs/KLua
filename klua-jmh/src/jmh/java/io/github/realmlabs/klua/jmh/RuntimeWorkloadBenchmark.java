@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 public class RuntimeWorkloadBenchmark {
     private static final List<Object> ARGUMENTS = List.of(10_000L);
     private static final List<Object> CONCAT_ARGUMENTS = List.of(1_000L);
+    private static final List<Object> FIBONACCI_ARGUMENTS = List.of(20L);
     private static final String LUA_CALL_SOURCE = """
             local iterations = ...
             local function increment(value)
@@ -109,11 +110,53 @@ public class RuntimeWorkloadBenchmark {
             end
             return last + result
             """;
+    private static final String CLOSURE_COUNTER_SOURCE = """
+            local iterations = ...
+            local function makeCounter()
+                local value = 0
+                return function()
+                    value = value + 1
+                    return value
+                end
+            end
+            local counter = makeCounter()
+            local result = 0
+            for index = 1, iterations do
+                result = counter()
+            end
+            return result
+            """;
+    private static final String METHOD_CALL_SOURCE = """
+            local iterations = ...
+            local object = { value = 0 }
+            function object:increment(amount)
+                self.value = self.value + amount
+                return self.value
+            end
+            local result = 0
+            for index = 1, iterations do
+                result = object:increment(1)
+            end
+            return result
+            """;
+    private static final String RECURSIVE_FIBONACCI_SOURCE = """
+            local value = ...
+            local function fibonacci(current)
+                if current < 2 then
+                    return current
+                end
+                return fibonacci(current - 1) + fibonacci(current - 2)
+            end
+            return fibonacci(value)
+            """;
 
     private LuaCoroutineFunction luaCalls;
     private LuaCoroutineFunction hostCalls;
     private LuaCoroutineFunction tableReadWrite;
     private LuaCoroutineFunction stringConcatenation;
+    private LuaCoroutineFunction closureCounter;
+    private LuaCoroutineFunction methodCalls;
+    private LuaCoroutineFunction recursiveFibonacci;
     private LuaState indexMetamethodState;
     private LuaState jvmToLuaState;
     private LuaState coroutineYieldResumeState;
@@ -126,10 +169,19 @@ public class RuntimeWorkloadBenchmark {
         hostCalls = lua.load(HOST_CALL_SOURCE, "benchmark-host-calls.lua").asCoroutineFunction();
         tableReadWrite = lua.load(TABLE_SOURCE, "benchmark-table.lua").asCoroutineFunction();
         stringConcatenation = lua.load(STRING_CONCAT_SOURCE, "benchmark-string-concat.lua").asCoroutineFunction();
+        closureCounter = lua.load(CLOSURE_COUNTER_SOURCE, "benchmark-closure-counter.lua").asCoroutineFunction();
+        methodCalls = lua.load(METHOD_CALL_SOURCE, "benchmark-method-calls.lua").asCoroutineFunction();
+        recursiveFibonacci = lua.load(
+                RECURSIVE_FIBONACCI_SOURCE,
+                "benchmark-recursive-fibonacci.lua"
+        ).asCoroutineFunction();
         verify(luaCalls, 10_000L);
         verify(hostCalls, 10_000L);
         verify(tableReadWrite, 50_005_000L);
         verify(stringConcatenation, CONCAT_ARGUMENTS, 1_000L);
+        verify(closureCounter, 10_000L);
+        verify(methodCalls, 10_000L);
+        verify(recursiveFibonacci, FIBONACCI_ARGUMENTS, 6_765L);
 
         indexMetamethodState = LuaState.create();
         LuaStdlib.openBase(indexMetamethodState);
@@ -177,6 +229,21 @@ public class RuntimeWorkloadBenchmark {
     @Benchmark
     public LuaCoroutineResult executeStringConcatenation() {
         return stringConcatenation.createCoroutine().resume(CONCAT_ARGUMENTS);
+    }
+
+    @Benchmark
+    public LuaCoroutineResult executeClosureCounter() {
+        return closureCounter.createCoroutine().resume(ARGUMENTS);
+    }
+
+    @Benchmark
+    public LuaCoroutineResult executeMethodCalls() {
+        return methodCalls.createCoroutine().resume(ARGUMENTS);
+    }
+
+    @Benchmark
+    public LuaCoroutineResult executeRecursiveFibonacci() {
+        return recursiveFibonacci.createCoroutine().resume(FIBONACCI_ARGUMENTS);
     }
 
     @Benchmark
