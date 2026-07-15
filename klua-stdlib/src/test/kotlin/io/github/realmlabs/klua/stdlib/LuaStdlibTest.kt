@@ -4647,6 +4647,80 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io numeric reads preserve source integer and float subtypes`() {
+        val path = Files.createTempFile("klua-io-read-number-subtypes-", ".txt")
+        Files.writeString(
+            path,
+            "1 +2 -0 1.0 -0.0 1e0 0x1 0x1.0 0x1p0 9223372036854775808 1e400 1e-4000 3.0 4",
+        )
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local integer = handle:read("n")
+                    local positiveInteger = handle:read("n")
+                    local negativeIntegerZero = handle:read("n")
+                    local decimalFloat = handle:read("n")
+                    local negativeFloatZero = handle:read("n")
+                    local exponentFloat = handle:read("n")
+                    local hexInteger = handle:read("n")
+                    local hexFraction = handle:read("n")
+                    local hexExponent = handle:read("n")
+                    local decimalOverflow = handle:read("n")
+                    local floatOverflow = handle:read("n")
+                    local floatUnderflow = handle:read("n")
+
+                    local iterator = handle:lines("n")
+                    local iteratorFloat = iterator()
+                    local iteratorInteger = iterator()
+                    handle:close()
+
+                    local types = math.type(integer) .. "|" ..
+                        math.type(positiveInteger) .. "|" ..
+                        math.type(negativeIntegerZero) .. "|" ..
+                        math.type(decimalFloat) .. "|" ..
+                        math.type(negativeFloatZero) .. "|" ..
+                        math.type(exponentFloat) .. "|" ..
+                        math.type(hexInteger) .. "|" ..
+                        math.type(hexFraction) .. "|" ..
+                        math.type(hexExponent) .. "|" ..
+                        math.type(decimalOverflow) .. "|" ..
+                        math.type(floatOverflow) .. "|" ..
+                        math.type(floatUnderflow)
+                    return types, 1 / negativeFloatZero,
+                        floatOverflow == math.huge, floatUnderflow == 0,
+                        math.type(iteratorFloat), iteratorFloat,
+                        math.type(iteratorInteger), iteratorInteger
+                    """.trimIndent(),
+                    "io-read-number-subtypes.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(
+                "integer|integer|integer|float|float|float|integer|float|float|float|float|float",
+                state.toString(1),
+            )
+            assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(2))
+            assertTrue(state.toBoolean(3))
+            assertTrue(state.toBoolean(4))
+            assertEquals("float", state.toString(5))
+            assertEquals(3.0, state.toNumber(6) ?: error("missing iterator float"), 0.0)
+            assertEquals("integer", state.toString(7))
+            assertEquals(4L, state.toInteger(8))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io numeric reads accept locale decimal points`() {
         val previousLocale = Locale.getDefault()
         Locale.setDefault(Locale.GERMANY)
@@ -4808,9 +4882,10 @@ class LuaStdlibTest {
     @Test
     fun `io numeric reads fail after lua maximum numeral length`() {
         val path = Files.createTempFile("klua-io-read-long-number-", ".txt")
-        Files.writeString(path, "1".repeat(201) + "Z")
+        Files.writeString(path, "1".repeat(200) + "Z " + "1".repeat(201) + "Y")
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
         LuaStdlib.openIo(state)
 
         try {
@@ -4819,18 +4894,23 @@ class LuaStdlibTest {
                 state.load(
                     """
                     local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local withinLimit = handle:read("n")
+                    local afterLimit = handle:read(1)
                     local tooLong = handle:read("n")
                     local after = handle:read(2)
                     handle:close()
-                    return tooLong, after
+                    return math.type(withinLimit), withinLimit, afterLimit, tooLong, after
                     """.trimIndent(),
                     "io-read-long-number.lua",
                 ),
             )
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-            assertTrue(state.isNil(1))
-            assertEquals("1Z", state.toString(2))
+            assertEquals("float", state.toString(1))
+            assertTrue(state.toNumber(2)?.isFinite() == true)
+            assertEquals("Z", state.toString(3))
+            assertTrue(state.isNil(4))
+            assertEquals("1Y", state.toString(5))
         } finally {
             Files.deleteIfExists(path)
         }

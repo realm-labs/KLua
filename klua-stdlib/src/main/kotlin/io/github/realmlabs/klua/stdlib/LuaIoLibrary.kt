@@ -1112,15 +1112,10 @@ internal object LuaIoLibrary {
             return null
         }
         val normalized = lowercase(Locale.ROOT)
-        val parsed = if (normalized.startsWith("0x") || normalized.startsWith("+0x") || normalized.startsWith("-0x")) {
+        return if (normalized.startsWith("0x") || normalized.startsWith("+0x") || normalized.startsWith("-0x")) {
             parseHexNumber()
         } else {
             toLongOrNull() ?: toDoubleOrNull()
-        } ?: return null
-        return when (parsed) {
-            is Long -> parsed
-            is Double -> parsed.luaInteger() ?: parsed
-            else -> null
         }
     }
 
@@ -1138,7 +1133,7 @@ internal object LuaIoLibrary {
             } catch (_: NumberFormatException) {
                 return null
             }
-            return parsed.luaInteger() ?: parsed
+            return parsed
         }
         var parsed = BigInteger.ZERO
         val radix = BigInteger.valueOf(16L)
@@ -1162,15 +1157,6 @@ internal object LuaIoLibrary {
         return value.takeIf { it < base }
     }
 
-    private fun Double.luaInteger(): Long? {
-        if (!isFinite() || this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
-            return null
-        }
-        val integer = toLong()
-        return if (integer.toDouble() == this) integer else null
-    }
-
-    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private val FILE_BUFFER_MODES = setOf("no", "full", "line")
     private val FILE_SEEK_MODES = setOf("set", "cur", "end")
 }
