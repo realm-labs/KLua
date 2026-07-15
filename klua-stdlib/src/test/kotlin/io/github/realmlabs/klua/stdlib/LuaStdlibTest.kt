@@ -5719,6 +5719,135 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io setvbuf controls write visibility and lifecycle drains`() {
+        val noPath = Files.createTempFile("klua-io-buffer-no-", ".txt")
+        val fullPath = Files.createTempFile("klua-io-buffer-full-", ".txt")
+        val linePath = Files.createTempFile("klua-io-buffer-line-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    noHandle = assert(io.open("${noPath.luaPath()}", "w"))
+                    fullHandle = assert(io.open("${fullPath.luaPath()}", "w"))
+                    lineHandle = assert(io.open("${linePath.luaPath()}", "w"))
+                    local noMode = noHandle:setvbuf("no")
+                    local fullMode = fullHandle:setvbuf("full", 5)
+                    local lineMode = lineHandle:setvbuf("line", 64)
+                    return noMode, fullMode, lineMode,
+                        noHandle:write("N") == noHandle,
+                        fullHandle:write("abcd") == fullHandle,
+                        lineHandle:write("left") == lineHandle
+                    """.trimIndent(),
+                    "io-setvbuf-write-visibility.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+            (1..6).forEach { index -> assertTrue(state.toBoolean(index)) }
+            assertEquals("N", Files.readString(noPath))
+            assertEquals("", Files.readString(fullPath))
+            assertEquals("", Files.readString(linePath))
+            state.setTop(0)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    return fullHandle:write("e") == fullHandle,
+                        lineHandle:write("\nright") == lineHandle
+                    """.trimIndent(),
+                    "io-setvbuf-thresholds.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+            assertTrue(state.toBoolean(1))
+            assertTrue(state.toBoolean(2))
+            assertEquals("abcde", Files.readString(fullPath))
+            assertEquals("left\n", Files.readString(linePath).replace("\r\n", "\n"))
+            state.setTop(0)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    assert(fullHandle:setvbuf("full", 10))
+                    fullHandle:write("xy")
+                    local seekPosition = fullHandle:seek("cur", 0)
+                    local lineFlush = lineHandle:flush()
+                    assert(fullHandle:setvbuf("full", 10))
+                    fullHandle:write("z")
+                    assert(lineHandle:setvbuf("full", 10))
+                    lineHandle:write("tail")
+                    local fullClose = fullHandle:close()
+                    local lineClose = lineHandle:close()
+                    local noClose = noHandle:close()
+                    return seekPosition, lineFlush, fullClose, lineClose, noClose
+                    """.trimIndent(),
+                    "io-setvbuf-lifecycle-drain.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+            assertEquals(7L, state.toInteger(1))
+            (2..5).forEach { index -> assertTrue(state.toBoolean(index)) }
+            assertEquals("abcdexyz", Files.readString(fullPath))
+            assertEquals("left\nrighttail", Files.readString(linePath).replace("\r\n", "\n"))
+        } finally {
+            Files.deleteIfExists(noPath)
+            Files.deleteIfExists(fullPath)
+            Files.deleteIfExists(linePath)
+        }
+    }
+
+    @Test
+    fun `io setvbuf handles source string and size boundaries`() {
+        val path = Files.createTempFile("klua-io-buffer-boundary-", ".txt")
+        Files.writeString(path, "input")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local nulModeCount = select("#", handle:setvbuf("no\0ignored"))
+                    local readOnly = handle:setvbuf("full", 4)
+                    local zero = handle:setvbuf("line", 0)
+                    local negativeValue, negativeMessage, negativeCode = handle:setvbuf("full", -1)
+                    local hugeValue, hugeMessage, hugeCode = handle:setvbuf("line", 2147483648)
+                    local noNegative = handle:setvbuf("no", -1)
+                    handle:close()
+                    return nulModeCount, readOnly, zero,
+                        negativeValue, negativeMessage, negativeCode,
+                        hugeValue, hugeMessage, hugeCode, noNegative
+                    """.trimIndent(),
+                    "io-setvbuf-boundaries.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1L, state.toInteger(1))
+            assertTrue(state.toBoolean(2))
+            assertTrue(state.toBoolean(3))
+            assertTrue(state.isNil(4))
+            assertEquals("Invalid argument", state.toString(5))
+            assertEquals(1L, state.toInteger(6))
+            assertTrue(state.isNil(7))
+            assertEquals("Invalid argument", state.toString(8))
+            assertEquals(1L, state.toInteger(9))
+            assertTrue(state.toBoolean(10))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io popen reads process output`() {
         val allCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
             "echo KLua"
@@ -5781,12 +5910,14 @@ class LuaStdlibTest {
                 LuaStatus.OK,
                 state.load(
                     """
-                    local handle = assert(io.popen('$command', 'w'))
-                    local writeResult = handle:write("alpha\n", "beta\n")
-                    local closeOk, kind, code = handle:close()
-                    local closedType = io.type(handle)
-                    local badModeOk, badModeMessage = pcall(io.popen, '$command', 'a')
-                    return writeResult == handle, closeOk, kind, code, closedType, badModeOk, badModeMessage
+                local handle = assert(io.popen('$command', 'w'))
+                local buffered = handle:setvbuf("full", 128)
+                local writeResult = handle:write("alpha\n", "beta\n")
+                local closeOk, kind, code = handle:close()
+                local closedType = io.type(handle)
+                local badModeOk, badModeMessage = pcall(io.popen, '$command', 'a')
+                return writeResult == handle, closeOk, kind, code, closedType, badModeOk, badModeMessage,
+                    buffered
                     """.trimIndent(),
                     "io-popen-write.lua",
                 ),
@@ -5800,6 +5931,7 @@ class LuaStdlibTest {
             assertEquals("closed file", state.toString(5))
             assertFalse(state.toBoolean(6))
             assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(7))
+            assertTrue(state.toBoolean(8))
             val output = Files.readString(outputPath)
                 .replace("\r\n", "\n")
                 .replace(Regex("\n+\\z"), "\n")

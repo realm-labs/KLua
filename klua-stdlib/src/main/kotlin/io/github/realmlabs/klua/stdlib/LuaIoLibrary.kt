@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
+import java.io.ByteArrayOutputStream
 import java.io.EOFException
 import java.io.IOException
 import java.io.OutputStream
@@ -20,6 +21,7 @@ import java.util.Locale
 internal object LuaIoLibrary {
     private const val MAX_LINE_FORMAT_ARGUMENTS = 250
     private const val MAX_LUA_NUMBER_LENGTH = 200
+    private const val DEFAULT_IO_BUFFER_SIZE = 1024
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
 
     fun open(state: LuaState): LuaState {
@@ -550,17 +552,18 @@ internal object LuaIoLibrary {
         if (!handle.seekable) {
             return LuaReturn.of(null, "Illegal seek", 1L)
         }
-        val base = when (whence) {
-            "set" -> 0L
-            "cur" -> handle.file.filePointer
-            "end" -> handle.file.length()
-            else -> throw LuaRuntimeException("bad argument #2 to 'seek' (invalid option '$whence')")
-        }
-        val position = base + offset
-        if (position < 0L) {
-            return LuaReturn.of(null, "Invalid argument", 1L)
-        }
         return try {
+            handle.prepareForSeek()
+            val base = when (whence) {
+                "set" -> 0L
+                "cur" -> handle.file.filePointer
+                "end" -> handle.file.length()
+                else -> throw LuaRuntimeException("bad argument #2 to 'seek' (invalid option '$whence')")
+            }
+            val position = base + offset
+            if (position < 0L) {
+                return LuaReturn.of(null, "Invalid argument", 1L)
+            }
             handle.file.seek(position)
             LuaReturn.of(handle.file.filePointer)
         } catch (error: IOException) {
@@ -570,14 +573,23 @@ internal object LuaIoLibrary {
 
     private fun setBufferMode(handle: IoFileHandle, context: LuaCallContext): LuaReturn {
         handle.ensureOpen()
-        val mode = requiredString(context, 1, "setvbuf", argumentIndex = 2)
-        if (mode !in FILE_BUFFER_MODES) {
-            throw LuaRuntimeException("bad argument #2 to 'setvbuf' (invalid option '$mode')")
-        }
-        if (!context.isNone(2) && !context.isNil(2)) {
+        val modeName = requiredString(context, 1, "setvbuf", argumentIndex = 2).substringBefore('\u0000')
+        val mode = IoBufferMode.fromLuaName(modeName)
+            ?: throw LuaRuntimeException("bad argument #2 to 'setvbuf' (invalid option '$modeName')")
+        val requestedSize = if (!context.isNone(2) && !context.isNil(2)) {
             requiredInteger(context, 2, "setvbuf", argumentIndex = 3)
+        } else {
+            DEFAULT_IO_BUFFER_SIZE.toLong()
         }
-        return LuaReturn.of(true)
+        if (mode != IoBufferMode.NONE && requestedSize !in 0L..Int.MAX_VALUE.toLong()) {
+            return LuaReturn.of(null, "Invalid argument", 1L)
+        }
+        return try {
+            handle.configureBuffer(mode, requestedSize.toInt())
+            LuaReturn.of(true)
+        } catch (error: IOException) {
+            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+        }
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
@@ -708,6 +720,10 @@ internal object LuaIoLibrary {
         private val nonClosing: Boolean = false,
         val closeResult: (() -> LuaReturn)? = null,
     ) : LuaStdlibStringValue {
+        private var bufferMode: IoBufferMode = IoBufferMode.NONE
+        private var bufferSize: Int = DEFAULT_IO_BUFFER_SIZE
+        private val writeBuffer = ByteArrayOutputStream()
+
         constructor(
             path: Path?,
             file: RandomAccessFile,
@@ -809,6 +825,7 @@ internal object LuaIoLibrary {
             if (nonClosing) {
                 return closeResult?.invoke() ?: LuaReturn.of(null, "cannot close standard file")
             }
+            drainWriteBuffer()
             closed = true
             randomAccessFile?.close()
             inputStream?.close()
@@ -817,6 +834,7 @@ internal object LuaIoLibrary {
         }
 
         fun flush() {
+            drainWriteBuffer()
             outputStream?.let { output ->
                 output.flush()
                 return
@@ -825,14 +843,68 @@ internal object LuaIoLibrary {
         }
 
         fun write(bytes: ByteArray) {
+            when (bufferMode) {
+                IoBufferMode.NONE -> writeDirect(bytes)
+                IoBufferMode.FULL -> {
+                    if (bufferSize == 0) {
+                        writeDirect(bytes)
+                        return
+                    }
+                    writeBuffer.write(bytes)
+                    if (writeBuffer.size() >= bufferSize) {
+                        drainWriteBuffer()
+                    }
+                }
+                IoBufferMode.LINE -> writeLineBuffered(bytes)
+            }
+        }
+
+        fun configureBuffer(mode: IoBufferMode, size: Int) {
+            drainWriteBuffer()
+            bufferMode = mode
+            bufferSize = size
+        }
+
+        fun prepareForSeek() {
+            drainWriteBuffer()
+        }
+
+        private fun writeLineBuffered(bytes: ByteArray) {
+            if (bufferSize == 0) {
+                writeDirect(bytes)
+                return
+            }
+            writeBuffer.write(bytes)
+            val pending = writeBuffer.toByteArray()
+            val newlineIndex = pending.indexOfLast { byte -> byte == '\n'.code.toByte() }
+            if (newlineIndex >= 0) {
+                writeDirect(pending, 0, newlineIndex + 1)
+                writeBuffer.reset()
+                writeBuffer.write(pending, newlineIndex + 1, pending.size - newlineIndex - 1)
+            }
+            if (writeBuffer.size() >= bufferSize) {
+                drainWriteBuffer()
+            }
+        }
+
+        private fun drainWriteBuffer() {
+            if (writeBuffer.size() == 0) {
+                return
+            }
+            val bytes = writeBuffer.toByteArray()
+            writeDirect(bytes)
+            writeBuffer.reset()
+        }
+
+        private fun writeDirect(bytes: ByteArray, offset: Int = 0, length: Int = bytes.size) {
             outputStream?.let { output ->
-                output.write(bytes)
+                output.write(bytes, offset, length)
                 return
             }
             if (appendWrites) {
                 file.seek(file.length())
             }
-            file.write(bytes)
+            file.write(bytes, offset, length)
         }
 
         fun readAll(): String {
@@ -1095,6 +1167,16 @@ internal object LuaIoLibrary {
         data class Chars(val count: Int) : IoReadFormat
     }
 
+    private enum class IoBufferMode(val luaName: String) {
+        NONE("no"),
+        FULL("full"),
+        LINE("line");
+
+        companion object {
+            fun fromLuaName(name: String): IoBufferMode? = entries.firstOrNull { mode -> mode.luaName == name }
+        }
+    }
+
     private data class LuaNumberScan(val token: String, val overflow: Boolean)
 
     private fun Char.isLuaHexDigit(): Boolean {
@@ -1159,6 +1241,5 @@ internal object LuaIoLibrary {
         return value.takeIf { it < base }
     }
 
-    private val FILE_BUFFER_MODES = setOf("no", "full", "line")
     private val FILE_SEEK_MODES = setOf("set", "cur", "end")
 }
