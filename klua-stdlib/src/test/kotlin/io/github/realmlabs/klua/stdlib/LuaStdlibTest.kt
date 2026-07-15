@@ -5127,10 +5127,13 @@ class LuaStdlibTest {
                 state.load(
                     """
                     local stdinOk, stdinPosition, stdinMessage, stdinCode = pcall(io.stdin.seek, io.stdin)
+                    local stdinOptionOk, stdinOptionMessage = pcall(io.stdin.seek, io.stdin, "bad")
+                    local stdinOffsetOk, stdinOffsetMessage = pcall(io.stdin.seek, io.stdin, "set", 1.5)
                     local handle = assert(io.popen("$command", "r"))
                     local popenOk, popenPosition, popenMessage, popenCode = pcall(handle.seek, handle)
                     handle:close()
                     return stdinOk, stdinPosition, type(stdinMessage), type(stdinCode),
+                        stdinOptionOk, stdinOptionMessage, stdinOffsetOk, stdinOffsetMessage,
                         popenOk, popenPosition, type(popenMessage), type(popenCode)
                     """.trimIndent(),
                     "io-stream-seek.lua",
@@ -5142,10 +5145,14 @@ class LuaStdlibTest {
             assertTrue(state.isNil(2))
             assertEquals("string", state.toString(3))
             assertEquals("number", state.toString(4))
-            assertTrue(state.toBoolean(5))
-            assertTrue(state.isNil(6))
-            assertEquals("string", state.toString(7))
-            assertEquals("number", state.toString(8))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #2 to 'seek' (invalid option 'bad')", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("bad argument #3 to 'seek' (number has no integer representation)", state.toString(8))
+            assertTrue(state.toBoolean(9))
+            assertTrue(state.isNil(10))
+            assertEquals("string", state.toString(11))
+            assertEquals("number", state.toString(12))
         } finally {
             System.setIn(originalIn)
         }
@@ -5208,6 +5215,56 @@ class LuaStdlibTest {
             }
         } finally {
             System.setIn(originalIn)
+        }
+    }
+
+    @Test
+    fun `io file seek honors source bases defaults and failure positions`() {
+        val path = Files.createTempFile("klua-io-seek-boundaries-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    handle:write("abcdef")
+                    local defaultPosition = handle:seek()
+                    local nilDefaultPosition = handle:seek(nil, nil)
+                    local setPosition = handle:seek("set", 2)
+                    local currentPosition = handle:seek("cur", -1)
+                    local endPosition = handle:seek("end", -2)
+                    local beyondEndPosition = handle:seek("end", 2)
+                    local negativePosition, negativeMessage, negativeCode = handle:seek("set", -1)
+                    local afterFailure = handle:seek()
+                    local numericStringPosition = handle:seek("set", "2")
+                    handle:close()
+                    return defaultPosition, nilDefaultPosition, setPosition, currentPosition,
+                        endPosition, beyondEndPosition,
+                        negativePosition, type(negativeMessage), type(negativeCode), afterFailure,
+                        numericStringPosition
+                    """.trimIndent(),
+                    "io-seek-boundaries.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(6L, state.toInteger(1))
+            assertEquals(6L, state.toInteger(2))
+            assertEquals(2L, state.toInteger(3))
+            assertEquals(1L, state.toInteger(4))
+            assertEquals(4L, state.toInteger(5))
+            assertEquals(8L, state.toInteger(6))
+            assertTrue(state.isNil(7))
+            assertEquals("string", state.toString(8))
+            assertEquals("number", state.toString(9))
+            assertEquals(8L, state.toInteger(10))
+            assertEquals(2L, state.toInteger(11))
+        } finally {
+            Files.deleteIfExists(path)
         }
     }
 

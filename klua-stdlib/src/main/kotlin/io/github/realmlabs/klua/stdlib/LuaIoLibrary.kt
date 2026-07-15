@@ -547,6 +547,9 @@ internal object LuaIoLibrary {
         } else {
             requiredInteger(context, 2, "seek", argumentIndex = 3)
         }
+        if (whence !in FILE_SEEK_MODES) {
+            throw LuaRuntimeException("bad argument #2 to 'seek' (invalid option '$whence')")
+        }
         if (!handle.seekable) {
             return LuaReturn.of(null, "Illegal seek", 1L)
         }
@@ -1170,4 +1173,5 @@ internal object LuaIoLibrary {
 
     private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private val FILE_BUFFER_MODES = setOf("no", "full", "line")
+    private val FILE_SEEK_MODES = setOf("set", "cur", "end")
 }
