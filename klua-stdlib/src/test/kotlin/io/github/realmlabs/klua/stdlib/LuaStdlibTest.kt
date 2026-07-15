@@ -19174,6 +19174,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math atan follows atan2 signed zero and infinity quadrants`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local positiveZero = 0.0
+                local negativeZero = -0.0
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local defaultNegativeZero = math.atan(negativeZero)
+                local nilNegativeZero = math.atan(negativeZero, nil)
+                local typed = math.atan(1, 1)
+                return 1 / math.atan(positiveZero, positiveZero),
+                    1 / math.atan(negativeZero, positiveZero),
+                    math.atan(positiveZero, negativeZero),
+                    math.atan(negativeZero, negativeZero),
+                    math.atan(infinity, infinity),
+                    math.atan(infinity, -infinity),
+                    math.atan(-infinity, -infinity),
+                    math.atan(-infinity, infinity),
+                    math.atan(nan, 1), math.atan(1, nan),
+                    1 / defaultNegativeZero, 1 / nilNegativeZero,
+                    math.type(typed), select("#", math.atan(1, 1))
+                """.trimIndent(),
+                "math-atan-ieee.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(1))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(2))
+        assertEquals(Math.PI, state.toNumber(3))
+        assertEquals(-Math.PI, state.toNumber(4))
+        assertEquals(Math.PI / 4, state.toNumber(5))
+        assertEquals(3 * Math.PI / 4, state.toNumber(6))
+        assertEquals(-3 * Math.PI / 4, state.toNumber(7))
+        assertEquals(-Math.PI / 4, state.toNumber(8))
+        assertTrue(state.toNumber(9)?.isNaN() == true)
+        assertTrue(state.toNumber(10)?.isNaN() == true)
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(11))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(12))
+        assertEquals("float", state.toString(13))
+        assertEquals(1L, state.toInteger(14))
+    }
+
+    @Test
     fun `openMath installs exponential and angle functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -19198,6 +19248,110 @@ class LuaStdlibTest {
         assertEquals(180.0, state.toNumber(6) ?: error("missing deg result"), 1e-12)
         assertEquals(Math.PI, state.toNumber(7) ?: error("missing rad result"), 1e-12)
         assertTrue(state.toBoolean(8))
+    }
+
+    @Test
+    fun `math log follows source base branches and ieee domains`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local typed = math.log(8, 2)
+                local exactPowers = true
+                local failedExponent
+                for exponent = -1074, 1023 do
+                    if math.log(math.ldexp(1, exponent), 2) ~= exponent then
+                        exactPowers = false
+                        failedExponent = exponent
+                        break
+                    end
+                end
+                return math.log(0.0), math.log(-0.0), math.log(-1),
+                    math.log(infinity), math.log(nan),
+                    1 / math.log(2, 0.0),
+                    math.log(0, 0), math.log(1, 1), math.log(infinity, infinity),
+                    math.log(8, 2), math.log(0x1p-1066, 2),
+                    math.log(0x1p-1074, 2), math.log(0x1p1023, 2),
+                    math.log(1000, 10), math.log(16, 4),
+                    math.type(typed), select("#", math.log(8, 2)),
+                    exactPowers, failedExponent
+                """.trimIndent(),
+                "math-log-ieee.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(1))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(2))
+        assertTrue(state.toNumber(3)?.isNaN() == true)
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(4))
+        assertTrue(state.toNumber(5)?.isNaN() == true)
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(6))
+        assertTrue(state.toNumber(7)?.isNaN() == true)
+        assertTrue(state.toNumber(8)?.isNaN() == true)
+        assertTrue(state.toNumber(9)?.isNaN() == true)
+        assertEquals(3.0, state.toNumber(10))
+        assertEquals(-1066.0, state.toNumber(11))
+        assertEquals(-1074.0, state.toNumber(12))
+        assertEquals(1023.0, state.toNumber(13))
+        assertEquals(3.0, state.toNumber(14))
+        assertEquals(2.0, state.toNumber(15))
+        assertEquals("float", state.toString(16))
+        assertEquals(1L, state.toInteger(17))
+        assertTrue(state.toBoolean(18), "failed exponent: ${state.toInteger(19)}")
+        assertTrue(state.isNil(19))
+    }
+
+    @Test
+    fun `math atan and log validate used arguments from left to right`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local atanMissingOk, atanMissingError = pcall(math.atan)
+                local atanFirstOk, atanFirstError = pcall(math.atan, false, false)
+                local atanSecondOk, atanSecondError = pcall(math.atan, 1, false)
+                local logMissingOk, logMissingError = pcall(math.log)
+                local logFirstOk, logFirstError = pcall(math.log, false, false)
+                local logSecondOk, logSecondError = pcall(math.log, 1, false)
+                return atanMissingOk, atanMissingError,
+                    atanFirstOk, atanFirstError, atanSecondOk, atanSecondError,
+                    logMissingOk, logMissingError,
+                    logFirstOk, logFirstError, logSecondOk, logSecondError,
+                    math.atan(0, 1, false), math.log(1, nil, false),
+                    math.atan("0x1p0", "0x1p0"), math.log("0x8", "0x2")
+                """.trimIndent(),
+                "math-atan-log-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'atan' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'atan' (number expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'atan' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'log' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'log' (number expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #2 to 'log' (number expected)", state.toString(12))
+        assertEquals(0.0, state.toNumber(13))
+        assertEquals(0.0, state.toNumber(14))
+        assertEquals(Math.PI / 4, state.toNumber(15))
+        assertEquals(3.0, state.toNumber(16))
     }
 
     @Test

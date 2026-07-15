@@ -159,12 +159,27 @@ internal object LuaMathLibrary {
         }
         val base = requiredNumber(context, 2, "log")
         if (base == 2.0) {
-            return LuaReturn.of(java.lang.Math.log(number) / java.lang.Math.log(2.0))
+            return LuaReturn.of(luaLog2(number))
         }
         if (base == 10.0) {
             return LuaReturn.of(java.lang.Math.log10(number))
         }
         return LuaReturn.of(ln(number) / ln(base))
+    }
+
+    private fun luaLog2(number: Double): Double {
+        if (number > 0.0 && number.isFinite()) {
+            val bits = number.toRawBits()
+            val exponentBits = ((bits ushr 52) and 0x7ffL).toInt()
+            val fractionBits = bits and 0x000f_ffff_ffff_ffffL
+            if (fractionBits == 0L) {
+                return (exponentBits - 1023).toDouble()
+            }
+            if (exponentBits == 0 && fractionBits and (fractionBits - 1) == 0L) {
+                return (java.lang.Long.numberOfTrailingZeros(fractionBits) - 1074).toDouble()
+            }
+        }
+        return ln(number) / LUA_LN_2
     }
 
     private fun mathMax(context: LuaCallContext): LuaReturn {
@@ -507,6 +522,7 @@ internal object LuaMathLibrary {
     }
 
     private const val SUBNORMAL_SCALE_BITS = 54
+    private val LUA_LN_2 = ln(2.0)
     private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private const val RANDOM_STATE_SIZE = 4
     private const val RANDOM_SEED_SPREAD_ROUNDS = 16
