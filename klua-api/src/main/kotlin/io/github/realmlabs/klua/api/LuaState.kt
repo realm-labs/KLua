@@ -466,9 +466,28 @@ class LuaState private constructor(
 
     fun pushRegistryTable() {
         refreshRegistryCoreValue()
-        registryCore.fields[KLuaCoreValue.IntegerValue(3)] = KLuaCoreRuntime.getGlobalTable(coreGlobals)
+        registryCore.fields[KLuaCoreValue.IntegerValue(2)] = KLuaCoreRuntime.getGlobalTable(coreGlobals)
         refreshRegistryStackValue()
         stack += registry
+    }
+
+    fun setRegistryInteger(index: Long) {
+        val value = requireValue(-1)
+        stack.removeAt(stack.lastIndex)
+        refreshRegistryCoreValue()
+        val key = KLuaCoreValue.IntegerValue(index)
+        if (value == LuaStackValue.Nil) {
+            registryCore.fields.remove(key)
+        } else {
+            registryCore.fields[key] = value.toCoreValue()
+        }
+        KLuaCoreRuntime.syncTable(registryCore, coreGlobals)
+        refreshRegistryStackValue()
+    }
+
+    fun pushRegistryInteger(index: Long) {
+        refreshRegistryCoreValue()
+        stack += registryCore.fields[KLuaCoreValue.IntegerValue(index)]?.toStackValue() ?: LuaStackValue.Nil
     }
 
     fun pushRegistrySubtable(name: String) {

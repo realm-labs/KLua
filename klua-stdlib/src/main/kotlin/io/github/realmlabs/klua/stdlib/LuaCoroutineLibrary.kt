@@ -19,7 +19,13 @@ import io.github.realmlabs.klua.api.withContinuation
 
 internal object LuaCoroutineLibrary {
     fun open(state: LuaState): LuaState {
-        val runtime = CoroutineRuntime()
+        state.pushRegistryInteger(MAIN_THREAD_REGISTRY_INDEX)
+        val existingMain = state.toUserData(-1, LuaCoroutine::class.java)
+        state.pop()
+        val runtime = existingMain?.runtime ?: CoroutineRuntime().also { created ->
+            state.pushUserData(created.main)
+            state.setRegistryInteger(MAIN_THREAD_REGISTRY_INDEX)
+        }
         state.newTable()
         setYieldableFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
         setFunctionField(state, "create") { context -> coroutineCreate(context, "create", runtime) }
@@ -440,6 +446,8 @@ internal object LuaCoroutineLibrary {
     }
 
     private object SelfCloseSignal
+
+    private const val MAIN_THREAD_REGISTRY_INDEX = 3L
 
     private data class CoroutineTerminalError(
         val errorObject: Any?,

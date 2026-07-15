@@ -13580,10 +13580,12 @@ class LuaStdlibTest {
                 """
                 local first = debug.getregistry()
                 local second = debug.getregistry()
+                local mainThread, isMain = coroutine.running()
                 first.answer = 42
                 second.label = "registry"
                 return type(first), first == second, second.answer, first.label,
-                    first[1], first[3] == _G,
+                    first[1], first[2] == _G,
+                    first[3] == mainThread, type(first[3]), isMain,
                     first._LOADED == package.loaded, first._PRELOAD == package.preload,
                     klua_debug_registry
                 """.trimIndent(),
@@ -13599,8 +13601,11 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(5))
         assertTrue(state.toBoolean(6))
         assertTrue(state.toBoolean(7))
-        assertTrue(state.toBoolean(8))
-        assertTrue(state.isNil(9))
+        assertEquals("thread", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.toBoolean(11))
+        assertTrue(state.isNil(12))
     }
 
     @Test
@@ -13665,6 +13670,52 @@ class LuaStdlibTest {
             ),
             state.toString(9),
         )
+    }
+
+    @Test
+    fun `registry main thread survives coroutine reopen and is isolated per state`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                savedMainThread = coroutine.running()
+                return savedMainThread == debug.getregistry()[3]
+                """.trimIndent(),
+                "registry-main-thread-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+        assertTrue(state.toBoolean(-1))
+        state.setTop(0)
+
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local running, isMain = coroutine.running()
+                return running == savedMainThread,
+                    running == debug.getregistry()[3], isMain,
+                    select("#", coroutine.running())
+                """.trimIndent(),
+                "registry-main-thread-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals(2L, state.toInteger(4))
+
+        val otherState = LuaState.create()
+        LuaStdlib.openCoroutine(otherState)
+        state.pushRegistryInteger(3)
+        otherState.pushRegistryInteger(3)
+        assertTrue(state.toUserData(-1) !== otherState.toUserData(-1))
     }
 
     @Test

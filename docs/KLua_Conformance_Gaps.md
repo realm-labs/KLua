@@ -10,7 +10,7 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 ## Registry And Debug
 
-- The shared registry exposes source-compatible false slot 1 and live-globals slot 3, but reserved slot 2 is still nil because KLua has no stable public/core representation for the main thread. It must eventually be identical to the main-thread result of `coroutine.running`, not a placeholder value disconnected from coroutine state.
+- The shared registry exposes source-compatible false slot 1 and live-globals slot 2. Opening the coroutine library installs its real stable main handle at slot 3 and reuses it on reopen, so it is identical to `coroutine.running`; unlike Lua, however, KLua does not create that handle with `LuaState`, leaving slot 3 nil in states where the coroutine library has not been opened.
 
 ## IO Library
 
