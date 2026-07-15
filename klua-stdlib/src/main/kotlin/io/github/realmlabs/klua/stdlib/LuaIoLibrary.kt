@@ -539,7 +539,7 @@ internal object LuaIoLibrary {
         val whence = if (context.isNone(1) || context.isNil(1)) {
             "cur"
         } else {
-            requiredString(context, 1, "seek", argumentIndex = 2)
+            requiredString(context, 1, "seek", argumentIndex = 2).substringBefore('\u0000')
         }
         val offset = if (context.isNone(2) || context.isNil(2)) {
             0L
@@ -560,7 +560,11 @@ internal object LuaIoLibrary {
                 "end" -> handle.file.length()
                 else -> throw LuaRuntimeException("bad argument #2 to 'seek' (invalid option '$whence')")
             }
-            val position = base + offset
+            val position = try {
+                Math.addExact(base, offset)
+            } catch (_: ArithmeticException) {
+                return LuaReturn.of(null, "Invalid argument", 1L)
+            }
             if (position < 0L) {
                 return LuaReturn.of(null, "Invalid argument", 1L)
             }

@@ -5583,6 +5583,73 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io file seek preserves positions across signed range failures`() {
+        val path = Files.createTempFile("klua-io-seek-signed-range-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local maximum = 9223372036854775807
+                    local minimum = -maximum - 1
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    handle:write("abc")
+                    assert(handle:setvbuf("full", 8))
+                    handle:write("de")
+                    local cStringPosition = handle:seek("cur\0ignored", 0)
+
+                    local maximumPosition = handle:seek("set", maximum)
+                    local overflowValue, overflowMessage, overflowCode = handle:seek("cur", 1)
+                    local afterOverflow = handle:seek()
+
+                    local resetPosition = handle:seek("set", 0)
+                    local negativeValue, negativeMessage, negativeCode = handle:seek("cur", minimum)
+                    local afterNegative = handle:seek()
+
+                    local endValue, endMessage, endCode = handle:seek("end", maximum)
+                    local afterEndOverflow = handle:seek()
+                    local successCount = select("#", handle:seek("set", 0))
+                    local failureCount = select("#", handle:seek("set", -1))
+                    handle:close()
+                    return cStringPosition, maximumPosition,
+                        overflowValue, overflowMessage, overflowCode, afterOverflow,
+                        resetPosition, negativeValue, negativeMessage, negativeCode, afterNegative,
+                        endValue, endMessage, endCode, afterEndOverflow,
+                        successCount, failureCount
+                    """.trimIndent(),
+                    "io-seek-signed-range.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(5L, state.toInteger(1))
+            assertEquals(Long.MAX_VALUE, state.toInteger(2))
+            assertTrue(state.isNil(3))
+            assertEquals("Invalid argument", state.toString(4))
+            assertEquals(1L, state.toInteger(5))
+            assertEquals(Long.MAX_VALUE, state.toInteger(6))
+            assertEquals(0L, state.toInteger(7))
+            assertTrue(state.isNil(8))
+            assertEquals("Invalid argument", state.toString(9))
+            assertEquals(1L, state.toInteger(10))
+            assertEquals(0L, state.toInteger(11))
+            assertTrue(state.isNil(12))
+            assertEquals("Invalid argument", state.toString(13))
+            assertEquals(1L, state.toInteger(14))
+            assertEquals(0L, state.toInteger(15))
+            assertEquals(1L, state.toInteger(16))
+            assertEquals(3L, state.toInteger(17))
+            assertEquals("abcde", Files.readString(path))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io file seek reports source argument positions`() {
         val path = Files.createTempFile("klua-io-seek-args-", ".txt")
         val state = LuaState.create()
