@@ -31108,6 +31108,140 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table insert and remove shift sparse sequences with exact result arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({ [1] = "a", [3] = "c", [4] = "d" }, {
+                    __len = function() return 4 end,
+                })
+                table.insert(values, 2, "b")
+                local inserted1, inserted2, inserted3, inserted4, inserted5 =
+                    rawget(values, 1), rawget(values, 2), rawget(values, 3),
+                    rawget(values, 4), rawget(values, 5)
+                local removed = table.remove(values, 2, "ignored")
+                local insertArity = select("#", table.insert({}, "x"))
+                local removeArity = select("#", table.remove({}, nil, "ignored"))
+                return inserted1, inserted2, inserted3, inserted4, inserted5,
+                    removed, rawget(values, 1), rawget(values, 2), rawget(values, 3),
+                    rawget(values, 4), rawget(values, 5), insertArity, removeArity
+                """.trimIndent(),
+                "table-sequence-sparse-shifts.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("a", state.toString(1))
+        assertEquals("b", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("c", state.toString(4))
+        assertEquals("d", state.toString(5))
+        assertEquals("b", state.toString(6))
+        assertEquals("a", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals("c", state.toString(9))
+        assertTrue(state.isNil(10))
+        assertEquals("d", state.toString(11))
+        assertEquals(0L, state.toInteger(12))
+        assertEquals(1L, state.toInteger(13))
+    }
+
+    @Test
+    fun `table insert and remove retain source ordered partial mutations`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local insertValues = { "a", "b", "c" }
+                local insertLog = {}
+                local insertProxy = setmetatable({}, {
+                    __len = function()
+                        insertLog[#insertLog + 1] = "len"
+                        return 3
+                    end,
+                    __index = function(_, key)
+                        insertLog[#insertLog + 1] = "r" .. key
+                        return insertValues[key]
+                    end,
+                    __newindex = function(_, key, value)
+                        insertLog[#insertLog + 1] = "w" .. key .. ":" .. tostring(value)
+                        if key == 3 then error("insert stop", 0) end
+                        insertValues[key] = value
+                    end,
+                })
+                local insertOk, insertMessage = pcall(table.insert, insertProxy, 1, "x")
+
+                local removeValues = { "a", "b", "c" }
+                local removeLog = {}
+                local removeProxy = setmetatable({}, {
+                    __len = function()
+                        removeLog[#removeLog + 1] = "len"
+                        return 3
+                    end,
+                    __index = function(_, key)
+                        removeLog[#removeLog + 1] = "r" .. key
+                        if key == 3 then error("remove stop", 0) end
+                        return removeValues[key]
+                    end,
+                    __newindex = function(_, key, value)
+                        removeLog[#removeLog + 1] = "w" .. key .. ":" .. tostring(value)
+                        removeValues[key] = value
+                    end,
+                })
+                local removeOk, removeMessage = pcall(table.remove, removeProxy, 1)
+
+                local arityLog = {}
+                local arityProxy = setmetatable({}, {
+                    __len = function()
+                        arityLog[#arityLog + 1] = "len"
+                        return 0
+                    end,
+                    __index = function() end,
+                    __newindex = function() end,
+                })
+                local arityOk, arityMessage = pcall(table.insert, arityProxy)
+
+                return insertOk, insertMessage, table.concat(insertLog, ","),
+                    insertValues[1], insertValues[2], insertValues[3], insertValues[4],
+                    removeOk, removeMessage, table.concat(removeLog, ","),
+                    removeValues[1], removeValues[2], removeValues[3],
+                    arityOk, arityMessage, table.concat(arityLog, ",")
+                """.trimIndent(),
+                "table-sequence-partial-mutations.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("insert stop", state.toString(2))
+        assertEquals("len,r3,w4:c,r2,w3:b", state.toString(3))
+        assertEquals("a", state.toString(4))
+        assertEquals("b", state.toString(5))
+        assertEquals("c", state.toString(6))
+        assertEquals("c", state.toString(7))
+
+        assertFalse(state.toBoolean(8))
+        assertEquals("remove stop", state.toString(9))
+        assertEquals("len,r1,r2,w1:b,r3", state.toString(10))
+        assertEquals("b", state.toString(11))
+        assertEquals("b", state.toString(12))
+        assertEquals("c", state.toString(13))
+
+        assertFalse(state.toBoolean(14))
+        assertEquals("wrong number of arguments to 'insert'", state.toString(15))
+        assertEquals("len", state.toString(16))
+    }
+
+    @Test
     fun `table remove writes missing slots through newindex metamethod`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
