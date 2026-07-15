@@ -44,6 +44,22 @@ class LuaStackTest {
     }
 
     @Test
+    fun `slices are immutable snapshots for common result counts`() {
+        val stack = LuaStack(2)
+        stack.set(0, LuaInteger(10))
+        stack.set(1, LuaInteger(20))
+
+        val empty = stack.snapshotResults(0, 0)
+        val single = stack.snapshotResults(0, 1)
+        val multiple = stack.snapshotResults(0, 2)
+        stack.set(0, LuaInteger(30))
+
+        assertSame(empty, stack.snapshotResults(0, 0))
+        assertEquals(listOf(LuaInteger(10)), single)
+        assertEquals(listOf(LuaInteger(10), LuaInteger(20)), multiple)
+    }
+
+    @Test
     fun `keeps captures synchronized across growth`() {
         val stack = LuaStack(1)
         stack.set(0, LuaInteger(10))

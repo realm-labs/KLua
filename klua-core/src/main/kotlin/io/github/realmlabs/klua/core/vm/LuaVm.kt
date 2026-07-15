@@ -338,7 +338,7 @@ internal class LuaVm(
                         Opcode.RETURN -> {
                             val base = register(frame, Instruction.a(instruction))
                             val count = returnCount(frame, base, Instruction.b(instruction))
-                            val values = stack.slice(base, count)
+                            val values = stack.snapshotResults(base, count)
                             dispatchDebugReturn(frame, base - frame.base + 1, count)
                             return LuaExecutionResult.Returned(values)
                         }

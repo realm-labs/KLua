@@ -28,6 +28,15 @@ internal class LuaStack(size: Int) {
         return List(count) { offset -> get(start + offset) }
     }
 
+    fun snapshotResults(start: Int, count: Int): List<LuaValue> {
+        require(count >= 0) { "count must be non-negative" }
+        return when (count) {
+            0 -> emptyList()
+            1 -> listOf(get(start))
+            else -> List(count) { offset -> get(start + offset) }
+        }
+    }
+
     fun capture(index: Int): LuaUpvalue {
         checkIndex(index)
         val openCaptures = captures ?: mutableMapOf<Int, LuaUpvalue>().also { created -> captures = created }
