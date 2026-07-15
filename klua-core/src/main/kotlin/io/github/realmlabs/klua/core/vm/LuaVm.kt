@@ -365,6 +365,22 @@ internal class LuaVm(
                             return LuaExecutionResult.Returned(stack.snapshotResults(base, count))
                         }
                     }
+                } catch (suspension: LuaMetamethodSuspension) {
+                    val destination = when (Instruction.opcode(instruction)) {
+                        Opcode.GET_TABLE,
+                        Opcode.GET_FIELD,
+                        Opcode.GET_GLOBAL,
+                        -> register(frame, Instruction.a(instruction))
+                        else -> error("unsupported yielding metamethod instruction: ${Instruction.opcode(instruction)}")
+                    }
+                    val continuation = (suspension.result as? LuaExecutionResult.Yielded)?.continuation
+                    frame.setPendingCall(destination, 1, continuation)
+                    suspended = true
+                    return when (val result = suspension.result) {
+                        is LuaExecutionResult.Yielded -> LuaExecutionResult.Yielded(result.values)
+                        LuaExecutionResult.DebugSuspended -> result
+                        is LuaExecutionResult.Returned -> error("returned metamethod cannot suspend")
+                    }
                 } catch (error: LuaVmException) {
                     throw error.withFrame(frame, frame.lineForPc(pc))
                 }
@@ -840,7 +856,7 @@ internal class LuaVm(
     private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val receiver = stack.get(register(frame, Instruction.b(instruction)))
         val key = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key))
+        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key, allowSuspension = true))
     }
 
     private fun setTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -853,7 +869,7 @@ internal class LuaVm(
     private fun getField(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val receiver = stack.get(register(frame, Instruction.b(instruction)))
         val key = stringConstant(frame.prototype, Instruction.c(instruction))
-        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key))
+        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key, allowSuspension = true))
     }
 
     private fun setField(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -865,7 +881,7 @@ internal class LuaVm(
 
     private fun getGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
-        stack.set(register(frame, Instruction.a(instruction)), indexGet(frame.globals, key))
+        stack.set(register(frame, Instruction.a(instruction)), indexGet(frame.globals, key, allowSuspension = true))
     }
 
     private fun activeUpvalues(frame: CallFrame): List<LuaNativeUpvalue> {
@@ -954,18 +970,28 @@ internal class LuaVm(
         throw LuaVmException("variable '${name.value}' got a non-closable value")
     }
 
-    private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {
+    private fun tableGet(
+        table: LuaTable,
+        key: LuaValue,
+        allowSuspension: Boolean = false,
+    ): LuaValue {
         return try {
             val value = table.rawGet(key)
             if (value != LuaNil) {
                 value
             } else {
                 when (val index = table.metatableRawGet(INDEX_KEY)) {
-                    is LuaTable -> tableGet(index, key, mutableSetOf(table))
-                    is LuaClosure -> executeMetamethod(index, table, key, INDEX_KEY).firstOrNull() ?: LuaNil
-                    is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
+                    is LuaTable -> tableGet(index, key, mutableSetOf(table), allowSuspension)
+                    is LuaClosure -> executeMetamethod(
+                        index,
+                        table,
+                        key,
+                        INDEX_KEY,
+                        allowSuspension,
+                    ).firstOrNull() ?: LuaNil
+                    is LuaNativeFunction -> callIndexMetamethod(index, table, key, allowSuspension)
                     LuaNil -> LuaNil
-                    else -> indexGet(index, key)
+                    else -> indexGet(index, key, allowSuspension)
                 }
             }
         } catch (error: LuaTableKeyException) {
@@ -975,19 +1001,23 @@ internal class LuaVm(
         }
     }
 
-    private fun indexGet(receiver: LuaValue, key: LuaValue): LuaValue {
+    private fun indexGet(
+        receiver: LuaValue,
+        key: LuaValue,
+        allowSuspension: Boolean = false,
+    ): LuaValue {
         return when (receiver) {
-            is LuaTable -> tableGet(receiver, key)
+            is LuaTable -> tableGet(receiver, key, allowSuspension)
             is LuaString -> {
                 val metatableConfigured = isStringMetatableConfigured?.invoke() ?: stringMetatableConfigured
                 if (metatableConfigured) {
                     val metatable = currentStringMetatable?.invoke() ?: stringMetatable
                         ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-                    return primitiveIndexGet(receiver, key, metatable)
+                    return primitiveIndexGet(receiver, key, metatable, allowSuspension)
                 }
                 val stringLibrary = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
                     ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-                tableGet(stringLibrary, key)
+                tableGet(stringLibrary, key, allowSuspension)
             }
             is LuaUserData -> {
                 val metatable = currentUserDataMetatable?.invoke(receiver.value)
@@ -996,7 +1026,7 @@ internal class LuaVm(
                     if (index == LuaNil) {
                         throw LuaVmException("attempt to index a ${userDataObjectTypeName(metatable)} value")
                     }
-                    return metamethodIndexGet(receiver, key, index)
+                    return metamethodIndexGet(receiver, key, index, allowSuspension)
                 }
                 if (key is LuaString) {
                     val property = receiver.type?.property(key.value)
@@ -1012,22 +1042,51 @@ internal class LuaVm(
             else -> {
                 val metatable = currentRawTypeMetatable?.invoke(typeName(receiver))
                     ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-                primitiveIndexGet(receiver, key, metatable)
+                primitiveIndexGet(receiver, key, metatable, allowSuspension)
             }
         }
     }
 
-    private fun primitiveIndexGet(receiver: LuaValue, key: LuaValue, metatable: LuaTable): LuaValue {
-        return metamethodIndexGet(receiver, key, metatable.rawGet(INDEX_KEY))
+    private fun primitiveIndexGet(
+        receiver: LuaValue,
+        key: LuaValue,
+        metatable: LuaTable,
+        allowSuspension: Boolean,
+    ): LuaValue {
+        return metamethodIndexGet(receiver, key, metatable.rawGet(INDEX_KEY), allowSuspension)
     }
 
-    private fun metamethodIndexGet(receiver: LuaValue, key: LuaValue, index: LuaValue): LuaValue {
+    private fun metamethodIndexGet(
+        receiver: LuaValue,
+        key: LuaValue,
+        index: LuaValue,
+        allowSuspension: Boolean,
+    ): LuaValue {
         return when (index) {
-            is LuaTable -> tableGet(index, key)
-            is LuaClosure -> executeMetamethod(index, receiver, key, INDEX_KEY).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callNative(index, listOf(receiver, key)).firstOrNull() ?: LuaNil
+            is LuaTable -> tableGet(index, key, allowSuspension)
+            is LuaClosure -> executeMetamethod(
+                index,
+                receiver,
+                key,
+                INDEX_KEY,
+                allowSuspension,
+            ).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callIndexMetamethod(index, receiver, key, allowSuspension)
             else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
         }
+    }
+
+    private fun callIndexMetamethod(
+        function: LuaNativeFunction,
+        receiver: LuaValue,
+        key: LuaValue,
+        allowSuspension: Boolean,
+    ): LuaValue {
+        val canSuspend = allowSuspension && thread.currentFrame != null && !thread.inNativeCall
+        return metamethodValues(
+            callNativeResult(function, listOf(receiver, key)),
+            canSuspend,
+        ).firstOrNull() ?: LuaNil
     }
 
     private fun rawTypeMetatable(value: LuaValue): LuaTable? {
@@ -1070,7 +1129,12 @@ internal class LuaVm(
         }
     }
 
-    private fun tableGet(table: LuaTable, key: LuaValue, visited: MutableSet<LuaTable>): LuaValue {
+    private fun tableGet(
+        table: LuaTable,
+        key: LuaValue,
+        visited: MutableSet<LuaTable>,
+        allowSuspension: Boolean,
+    ): LuaValue {
         val value = table.rawGet(key)
         if (value != LuaNil) {
             return value
@@ -1080,11 +1144,17 @@ internal class LuaVm(
         }
 
         return when (val index = table.metatableRawGet(INDEX_KEY)) {
-            is LuaTable -> tableGet(index, key, visited)
-            is LuaClosure -> executeMetamethod(index, table, key, INDEX_KEY).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
+            is LuaTable -> tableGet(index, key, visited, allowSuspension)
+            is LuaClosure -> executeMetamethod(
+                index,
+                table,
+                key,
+                INDEX_KEY,
+                allowSuspension,
+            ).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callIndexMetamethod(index, table, key, allowSuspension)
             LuaNil -> LuaNil
-            else -> indexGet(index, key)
+            else -> indexGet(index, key, allowSuspension)
         }
     }
 
@@ -1209,6 +1279,7 @@ internal class LuaVm(
         firstArgument: LuaValue,
         secondArgument: LuaValue,
         metamethod: LuaString,
+        allowSuspension: Boolean = false,
     ): List<LuaValue> {
         return executeFixedMetamethod(
             closure,
@@ -1217,6 +1288,7 @@ internal class LuaVm(
             secondArgument,
             LuaNil,
             metamethod,
+            allowSuspension,
         )
     }
 
@@ -1234,6 +1306,7 @@ internal class LuaVm(
             secondArgument,
             thirdArgument,
             metamethod,
+            false,
         )
     }
 
@@ -1244,7 +1317,9 @@ internal class LuaVm(
         secondArgument: LuaValue,
         thirdArgument: LuaValue,
         metamethod: LuaString,
+        allowSuspension: Boolean,
     ): List<LuaValue> {
+        val canSuspend = allowSuspension && thread.currentFrame != null && !thread.inNativeCall
         val frame = thread.pushFixedCall(
             function = closure,
             argumentCount = argumentCount,
@@ -1254,7 +1329,17 @@ internal class LuaVm(
             environment = closure.environment ?: closure.globals?.let(::LuaUpvalue) ?: rootEnvironment,
             callSiteInfo = metamethodCallSiteInfo(metamethod),
         )
-        return returnedValues(runFrameAndPopOnCompletion(frame))
+        return metamethodValues(runFrameAndPopOnCompletion(frame), canSuspend)
+    }
+
+    private fun metamethodValues(
+        result: LuaExecutionResult,
+        allowSuspension: Boolean,
+    ): List<LuaValue> {
+        if (allowSuspension && result !is LuaExecutionResult.Returned) {
+            throw LuaMetamethodSuspension(result)
+        }
+        return returnedValues(result)
     }
 
     private fun metamethodCallSiteInfo(metamethod: LuaString): CallSiteInfo {
@@ -2182,3 +2267,7 @@ private data class DebugHookState(
 
     fun toNativeHook(): LuaNativeDebugHook = LuaNativeDebugHook(function, mask, count)
 }
+
+private class LuaMetamethodSuspension(
+    val result: LuaExecutionResult,
+) : RuntimeException(null, null, false, false)

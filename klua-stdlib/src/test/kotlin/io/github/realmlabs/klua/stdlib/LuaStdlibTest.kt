@@ -14988,6 +14988,158 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `index metamethod can yield and resume with its first result`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, {
+                    __index = function(self, key)
+                        local resumed = coroutine.yield("index", self, key)
+                        return resumed, "ignored"
+                    end,
+                })
+                local co = coroutine.create(function()
+                    return target.answer
+                end)
+                local firstOk, marker, yieldedSelf, yieldedKey = coroutine.resume(co)
+                local secondOk, result = coroutine.resume(co, "resolved")
+                return firstOk, marker, yieldedSelf == target, yieldedKey,
+                    coroutine.status(co), secondOk, result
+                """.trimIndent(),
+                "coroutine-index-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("index", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("answer", state.toString(4))
+        assertEquals("dead", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("resolved", state.toString(7))
+    }
+
+    @Test
+    fun `index metamethod yield preserves nil padding and table chains`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local prototype = setmetatable({}, {
+                    __index = function(self, key)
+                        coroutine.yield("chained", self, key)
+                    end,
+                })
+                local target = setmetatable({}, { __index = prototype })
+                local key = "answer"
+                local co = coroutine.create(function()
+                    return target[key], "after"
+                end)
+                local firstOk, marker, yieldedSelf, yieldedKey = coroutine.resume(co)
+                local secondOk, result, after = coroutine.resume(co, "discarded")
+                return firstOk, marker, yieldedSelf == prototype, yieldedKey,
+                    secondOk, result, after, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-index-chain.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("chained", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("answer", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.isNil(6))
+        assertEquals("after", state.toString(7))
+        assertEquals("dead", state.toString(8))
+    }
+
+    @Test
+    fun `global index metamethod can yield and resume`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                setmetatable(_ENV, {
+                    __index = function(self, key)
+                        return coroutine.yield("global", self, key)
+                    end,
+                })
+                local co = coroutine.create(function()
+                    return missingGlobal
+                end)
+                local firstOk, marker, yieldedEnvironment, yieldedKey = coroutine.resume(co)
+                local secondOk, result = coroutine.resume(co, "resolved-global")
+                return firstOk, marker, yieldedEnvironment == _ENV, yieldedKey,
+                    secondOk, result, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-global-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("global", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("missingGlobal", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("resolved-global", state.toString(6))
+        assertEquals("dead", state.toString(7))
+    }
+
+    @Test
+    fun `native index metamethod can yield and resume`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostIndex",
+            LuaYieldableFunction { context ->
+                context.yield(listOf("native", context.get(2)))
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, { __index = hostIndex })
+                local co = coroutine.create(function()
+                    return target.answer
+                end)
+                local firstOk, marker, yieldedKey = coroutine.resume(co)
+                local secondOk, result = coroutine.resume(co, "resolved-native")
+                return firstOk, marker, yieldedKey, secondOk, result, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-native-index.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1), state.toString(2))
+        assertEquals("native", state.toString(2))
+        assertEquals("answer", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("resolved-native", state.toString(5))
+        assertEquals("dead", state.toString(6))
+    }
+
+    @Test
     fun `coroutine yield and resume preserve cyclic table identity`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
@@ -22814,6 +22966,36 @@ class LuaStdlibTest {
 
         assertEquals("a,b", state.toString(1))
         assertEquals("x-y", state.toString(2))
+    }
+
+    @Test
+    fun `table concat index metamethod cannot yield across its native boundary`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __index = function()
+                        return coroutine.yield("paused")
+                    end,
+                })
+                local co = coroutine.create(function()
+                    return table.concat(values, ",", 1, 1)
+                end)
+                local ok, message = coroutine.resume(co)
+                return ok, message, coroutine.status(co)
+                """.trimIndent(),
+                "table-concat-index-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
     }
 
     @Test
