@@ -24,6 +24,7 @@ internal object LuaIoLibrary {
     private const val MAX_LUA_NUMBER_LENGTH = 200
     private const val DEFAULT_IO_BUFFER_SIZE = 1024
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
+    private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
 
     fun open(state: LuaState): LuaState {
         val stdin = IoFileHandle.input(System.`in`, nonClosing = true, closeResult = ::standardFileCloseResult)
@@ -479,7 +480,7 @@ internal object LuaIoLibrary {
             return emptyList()
         }
         return (firstIndex..context.argumentCount).map { index ->
-            IoReadArgument(context.typeName(index), context.get(index))
+            IoReadArgument(context.typeName(index), context.getLuaValue(index))
         }
     }
 
@@ -519,10 +520,18 @@ internal object LuaIoLibrary {
             is Short -> value.toLong()
             is Int -> value.toLong()
             is Long -> value
-            is Float -> if (value.isFinite() && value % 1.0f == 0.0f) value.toLong() else null
-            is Double -> if (value.isFinite() && value % 1.0 == 0.0) value.toLong() else null
+            is Float -> value.toDouble().luaIntegerReadFormat()
+            is Double -> value.luaIntegerReadFormat()
             else -> null
         }
+    }
+
+    private fun Double.luaIntegerReadFormat(): Long? {
+        if (!isFinite() || this < Long.MIN_VALUE.toDouble() || this >= LUA_INTEGER_EXCLUSIVE_UPPER_BOUND) {
+            return null
+        }
+        val integer = toLong()
+        return integer.takeIf { it.toDouble() == this }
     }
 
     private fun writeHandle(

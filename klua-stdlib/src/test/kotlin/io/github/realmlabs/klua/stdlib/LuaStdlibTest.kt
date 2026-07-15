@@ -4776,6 +4776,68 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read defers unsupported format values until their turn`() {
+        val path = Files.createTempFile("klua-io-read-format-value-order-", ".txt")
+        Files.writeString(path, "first\nsecond\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local direct = assert(io.open("${path.luaPath()}", "r"))
+                    local directOk, directMessage = pcall(direct.read, direct, "l", {})
+                    local directAfter = direct:read("l")
+                    direct:close()
+
+                    local firstInvalid = assert(io.open("${path.luaPath()}", "r"))
+                    local firstOk, firstMessage = pcall(firstInvalid.read, firstInvalid, {})
+                    local firstAfter = firstInvalid:read("l")
+                    firstInvalid:close()
+
+                    local default = io.input("${path.luaPath()}")
+                    local defaultOk, defaultMessage = pcall(io.read, "l", function() end)
+                    local defaultAfter = io.read("l")
+                    default:close()
+
+                    local linesHandle = assert(io.open("${path.luaPath()}", "r"))
+                    local createOk, iterator = pcall(linesHandle.lines, linesHandle, "l", {})
+                    local iteratorOk, iteratorMessage = pcall(iterator)
+                    local linesAfter = linesHandle:read("l")
+                    linesHandle:close()
+
+                    return directOk, directMessage, directAfter,
+                        firstOk, firstMessage, firstAfter,
+                        defaultOk, defaultMessage, defaultAfter,
+                        createOk, iteratorOk, iteratorMessage, linesAfter
+                    """.trimIndent(),
+                    "io-read-format-value-order.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertFalse(state.toBoolean(1))
+            assertEquals("bad argument #3 to 'read' (string expected)", state.toString(2))
+            assertEquals("second", state.toString(3))
+            assertFalse(state.toBoolean(4))
+            assertEquals("bad argument #2 to 'read' (string expected)", state.toString(5))
+            assertEquals("first", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("bad argument #2 to 'read' (string expected)", state.toString(8))
+            assertEquals("second", state.toString(9))
+            assertTrue(state.toBoolean(10))
+            assertFalse(state.toBoolean(11))
+            assertEquals("bad argument #3 to 'lines' (string expected)", state.toString(12))
+            assertEquals("second", state.toString(13))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read supports source file formats`() {
         val path = Files.createTempFile("klua-io-read-", ".txt")
         Files.writeString(path, "  42 tail\n0x10 3.5\nabc")
@@ -4897,9 +4959,87 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read count conversion precedes jvm capacity validation`() {
+        val path = Files.createTempFile("klua-io-read-count-boundaries-", ".txt")
+        Files.writeString(path, "abc")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+        LuaStdlib.openMath(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local fractionOk, fractionMessage = pcall(handle.read, handle, 1.5)
+                    local positiveOverflowOk, positiveOverflowMessage = pcall(handle.read, handle, 1e20)
+                    local negativeOverflowOk, negativeOverflowMessage = pcall(handle.read, handle, -1e20)
+                    local infinityOk, infinityMessage = pcall(handle.read, handle, math.huge)
+                    local maxOk, maxMessage = pcall(handle.read, handle, math.maxinteger)
+                    local minOk, minMessage = pcall(handle.read, handle, math.mininteger)
+                    local capacityOk, capacityMessage = pcall(handle.read, handle, 2147483648)
+                    local negativeOk, negativeMessage = pcall(handle.read, handle, -1)
+                    local after = handle:read(3)
+                    handle:close()
+
+                    local default = io.input("${path.luaPath()}")
+                    local defaultOk, defaultMessage = pcall(io.read, 1e20)
+                    local defaultAfter = io.read(1)
+                    default:close()
+
+                    return fractionOk, fractionMessage,
+                        positiveOverflowOk, positiveOverflowMessage,
+                        negativeOverflowOk, negativeOverflowMessage,
+                        infinityOk, infinityMessage,
+                        maxOk, maxMessage, minOk, minMessage,
+                        capacityOk, capacityMessage, negativeOk, negativeMessage, after,
+                        defaultOk, defaultMessage, defaultAfter
+                    """.trimIndent(),
+                    "io-read-count-boundaries.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            for (index in listOf(1, 3, 5, 7, 9, 11, 13, 15, 18)) {
+                assertFalse(state.toBoolean(index), "result $index")
+            }
+            for (index in listOf(2, 4, 6, 8)) {
+                assertEquals(
+                    "bad argument #2 to 'read' (number has no integer representation)",
+                    state.toString(index),
+                )
+            }
+            for (index in listOf(10, 12, 14, 16)) {
+                assertEquals("bad argument #2 to 'read' (out of range)", state.toString(index))
+            }
+            assertEquals("abc", state.toString(17))
+            assertEquals(
+                "bad argument #1 to 'read' (number has no integer representation)",
+                state.toString(19),
+            )
+            assertEquals("a", state.toString(20))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io read and write preserve raw bytes`() {
         val path = Files.createTempFile("klua-io-raw-bytes-", ".bin")
-        Files.write(path, byteArrayOf(255.toByte(), 'A'.code.toByte(), '\n'.code.toByte(), 128.toByte(), 'Z'.code.toByte()))
+        Files.write(
+            path,
+            byteArrayOf(
+                255.toByte(),
+                'A'.code.toByte(),
+                '\r'.code.toByte(),
+                '\n'.code.toByte(),
+                0,
+                128.toByte(),
+                'Z'.code.toByte(),
+            ),
+        )
         val outputPath = Files.createTempFile("klua-io-write-raw-bytes-", ".bin")
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -4915,6 +5055,8 @@ class LuaStdlibTest {
                     local first = input:read(2)
                     local line = input:read("L")
                     local rest = input:read("a")
+                    input:seek("set", 2)
+                    local chopped = input:read("l")
                     input:close()
 
                     local output = assert(io.open("${outputPath.luaPath()}", "w+"))
@@ -4924,12 +5066,15 @@ class LuaStdlibTest {
                     output:close()
 
                     local firstA, firstB = string.byte(first, 1, -1)
-                    local lineA = string.byte(line, 1, -1)
-                    local restA, restB = string.byte(rest, 1, -1)
-                    local roundtripA, roundtripB, roundtripC, roundtripD, roundtripE =
+                    local lineA, lineB = string.byte(line, 1, -1)
+                    local restA, restB, restC = string.byte(rest, 1, -1)
+                    local choppedA = string.byte(chopped)
+                    local roundtripA, roundtripB, roundtripC, roundtripD,
+                        roundtripE, roundtripF, roundtripG =
                         string.byte(roundtrip, 1, -1)
-                    return firstA, firstB, lineA, restA, restB,
-                        roundtripA, roundtripB, roundtripC, roundtripD, roundtripE
+                    return firstA, firstB, lineA, lineB, restA, restB, restC, choppedA,
+                        roundtripA, roundtripB, roundtripC, roundtripD,
+                        roundtripE, roundtripF, roundtripG
                     """.trimIndent(),
                     "io-raw-byte-read-write.lua",
                 ),
@@ -4938,16 +5083,29 @@ class LuaStdlibTest {
 
             assertEquals(255L, state.toInteger(1))
             assertEquals('A'.code.toLong(), state.toInteger(2))
-            assertEquals('\n'.code.toLong(), state.toInteger(3))
-            assertEquals(128L, state.toInteger(4))
-            assertEquals('Z'.code.toLong(), state.toInteger(5))
-            assertEquals(255L, state.toInteger(6))
-            assertEquals('A'.code.toLong(), state.toInteger(7))
-            assertEquals('\n'.code.toLong(), state.toInteger(8))
-            assertEquals(128L, state.toInteger(9))
-            assertEquals('Z'.code.toLong(), state.toInteger(10))
+            assertEquals('\r'.code.toLong(), state.toInteger(3))
+            assertEquals('\n'.code.toLong(), state.toInteger(4))
+            assertEquals(0L, state.toInteger(5))
+            assertEquals(128L, state.toInteger(6))
+            assertEquals('Z'.code.toLong(), state.toInteger(7))
+            assertEquals('\r'.code.toLong(), state.toInteger(8))
+            assertEquals(255L, state.toInteger(9))
+            assertEquals('A'.code.toLong(), state.toInteger(10))
+            assertEquals('\r'.code.toLong(), state.toInteger(11))
+            assertEquals('\n'.code.toLong(), state.toInteger(12))
+            assertEquals(0L, state.toInteger(13))
+            assertEquals(128L, state.toInteger(14))
+            assertEquals('Z'.code.toLong(), state.toInteger(15))
             assertEquals(
-                listOf(255.toByte(), 'A'.code.toByte(), '\n'.code.toByte(), 128.toByte(), 'Z'.code.toByte()),
+                listOf(
+                    255.toByte(),
+                    'A'.code.toByte(),
+                    '\r'.code.toByte(),
+                    '\n'.code.toByte(),
+                    0.toByte(),
+                    128.toByte(),
+                    'Z'.code.toByte(),
+                ),
                 Files.readAllBytes(outputPath).toList(),
             )
         } finally {
