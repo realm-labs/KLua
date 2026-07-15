@@ -12,6 +12,7 @@ import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.withContinuation
 import io.github.realmlabs.klua.core.value.luaRawBytes
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -20395,6 +20396,98 @@ class LuaStdlibTest {
         assertEquals("\u00E4", state.toString(4))
         assertEquals("\u0130", state.toString(5))
         assertEquals("\u00DF", state.toString(6))
+    }
+
+    @Test
+    fun `string lower and upper preserve the complete raw byte domain`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {}
+                for value = 0, 255 do
+                    values[#values + 1] = string.char(value)
+                end
+                local all = table.concat(values)
+                local missingOk, missingMessage = pcall(string.lower)
+                local tableOk, tableMessage = pcall(string.upper, {})
+                return string.lower(all), string.upper(all),
+                    string.lower(123, "ignored"), string.upper(1.5, "ignored"),
+                    missingOk, missingMessage, tableOk, tableMessage
+                """.trimIndent(),
+                "string-case-all-bytes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val original = ByteArray(256) { value -> value.toByte() }
+        val expectedLower = original.copyOf().also { bytes ->
+            for (value in 'A'.code..'Z'.code) {
+                bytes[value] = (value + ('a' - 'A')).toByte()
+            }
+        }
+        val expectedUpper = original.copyOf().also { bytes ->
+            for (value in 'a'.code..'z'.code) {
+                bytes[value] = (value - ('a' - 'A')).toByte()
+            }
+        }
+        assertEquals(expectedLower.toList(), state.toString(1)?.luaRawBytes()?.toList())
+        assertEquals(expectedUpper.toList(), state.toString(2)?.luaRawBytes()?.toList())
+        assertEquals("123", state.toString(3))
+        assertEquals("1.5", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'lower' (string expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'upper' (string expected)", state.toString(8))
+    }
+
+    @Test
+    fun `string byte case mapping remains length stable after locale selection`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openString(state)
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local selected = os.setlocale("tr-TR", "ctype")
+                    local source = "I\u{130}\u{131}i" .. string.char(0, 255)
+                    local lowered = string.lower(source)
+                    local uppered = string.upper(source)
+                    local cLocale = os.setlocale("C", "ctype")
+                    return selected, lowered, uppered,
+                        string.len(source), string.len(lowered), string.len(uppered), cLocale
+                    """.trimIndent(),
+                    "string-case-selected-locale.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(!state.isNil(1), state.toString(1))
+            assertEquals(
+                "i\u0130\u0131i\u0000" + byteArrayOf(255.toByte()).toLuaByteString(),
+                state.toString(2),
+            )
+            assertEquals(
+                "I\u0130\u0131I\u0000" + byteArrayOf(255.toByte()).toLuaByteString(),
+                state.toString(3),
+            )
+            assertEquals(8L, state.toInteger(4))
+            assertEquals(8L, state.toInteger(5))
+            assertEquals(8L, state.toInteger(6))
+            assertEquals("C", state.toString(7))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
     }
 
     @Test

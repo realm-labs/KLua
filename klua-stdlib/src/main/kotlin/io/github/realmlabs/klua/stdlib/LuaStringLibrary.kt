@@ -387,7 +387,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringLower(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "lower").mapAsciiCase(::lowerAscii))
+        return LuaReturn.of(requiredString(context, 1, "lower").mapAsciiByteCase(lowercase = true))
     }
 
     private fun stringMatch(context: LuaCallContext): LuaReturn {
@@ -811,23 +811,20 @@ internal object LuaStringLibrary {
     }
 
     private fun stringUpper(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "upper").mapAsciiCase(::upperAscii))
+        return LuaReturn.of(requiredString(context, 1, "upper").mapAsciiByteCase(lowercase = false))
     }
 
-    private fun String.mapAsciiCase(convert: (Char) -> Char): String {
-        return buildString(length) {
-            for (char in this@mapAsciiCase) {
-                append(convert(char))
+    private fun String.mapAsciiByteCase(lowercase: Boolean): String {
+        val bytes = luaRawBytes()
+        for (index in bytes.indices) {
+            val value = bytes[index].toInt() and 0xff
+            bytes[index] = when {
+                lowercase && value in 'A'.code..'Z'.code -> (value + ('a' - 'A')).toByte()
+                !lowercase && value in 'a'.code..'z'.code -> (value - ('a' - 'A')).toByte()
+                else -> bytes[index]
             }
         }
-    }
-
-    private fun lowerAscii(char: Char): Char {
-        return if (char in 'A'..'Z') char + ('a' - 'A') else char
-    }
-
-    private fun upperAscii(char: Char): Char {
-        return if (char in 'a'..'z') char - ('a' - 'A') else char
+        return bytes.toLuaByteString()
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
