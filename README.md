@@ -198,10 +198,11 @@ Lua source
 
 ## Benchmarks
 
-The `klua-jmh` module contains JMH baselines for two deliberately separate costs:
+The `klua-jmh` module contains JMH baselines for deliberately separate costs:
 
 - `CompileBenchmark.compileNumericLoop` recompiles a fixed numeric-loop source through parsing, compilation, and KLua bytecode-package encoding.
 - `VmExecutionBenchmark.executeNumericLoop` reuses a compiled top-level function and measures creation and execution of a fresh VM coroutine running 10,000 numeric-loop iterations.
+- `RuntimeWorkloadBenchmark` compares 10,000 Lua calls, 10,000 host calls, and 10,000 table writes followed by 10,000 reads using the same fresh-coroutine boundary.
 
 Build and list the generated benchmark jar:
 
@@ -217,6 +218,8 @@ Run the configured warmup, measurement, and fork settings with:
 ```
 
 Benchmark numbers are only comparable when the JVM, hardware, operating system, power settings, and JMH arguments are held constant. The short smoke commands used during development prove that benchmarks execute; they are not optimization evidence.
+
+Recorded checkpoints and the evidence used to select optimization targets live in [docs/KLua_Benchmark_Baseline.md](docs/KLua_Benchmark_Baseline.md).
 
 See [docs/KLua_Architecture.md](docs/KLua_Architecture.md) for the full architecture notes.
 
