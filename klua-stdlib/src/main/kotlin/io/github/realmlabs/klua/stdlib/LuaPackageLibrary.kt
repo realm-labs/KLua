@@ -13,12 +13,24 @@ import java.nio.file.Path
 
 internal object LuaPackageLibrary {
     private val directorySeparator: String = File.separator
+    private val isWindows: Boolean = File.separatorChar == '\\'
+    internal val defaultLuaPath: String = if (isWindows) {
+        """!\lua\?.lua;!\lua\?\init.lua;!\?.lua;!\?\init.lua;!\..\share\lua\5.5\?.lua;!\..\share\lua\5.5\?\init.lua;.\?.lua;.\?\init.lua"""
+    } else {
+        "/usr/local/share/lua/5.5/?.lua;/usr/local/share/lua/5.5/?/init.lua;" +
+            "/usr/local/lib/lua/5.5/?.lua;/usr/local/lib/lua/5.5/?/init.lua;./?.lua;./?/init.lua"
+    }
+    internal val defaultCPath: String = if (isWindows) {
+        """!\?.dll;!\..\lib\lua\5.5\?.dll;!\loadall.dll;.\?.dll"""
+    } else {
+        "/usr/local/lib/lua/5.5/?.so;/usr/local/lib/lua/5.5/loadall.so;./?.so"
+    }
 
     fun open(state: LuaState): LuaState {
         state.newTable()
-        state.pushString("?.lua;?/init.lua")
+        state.pushString(resolvePackagePath("LUA_PATH", defaultLuaPath, state.config.packagePathEnvironmentEnabled))
         state.setField(-2, "path")
-        state.pushString("?.so")
+        state.pushString(resolvePackagePath("LUA_CPATH", defaultCPath, state.config.packagePathEnvironmentEnabled))
         state.setField(-2, "cpath")
         state.pushString("$directorySeparator\n;\n?\n!\n-\n")
         state.setField(-2, "config")
@@ -36,6 +48,70 @@ internal object LuaPackageLibrary {
         state.setGlobal("package")
         installLuaSource(state, REQUIRE_SOURCE, "stdlib-package.lua")
         return state
+    }
+
+    internal fun resolvePackagePath(
+        environmentName: String,
+        defaultPath: String,
+        environmentEnabled: Boolean,
+        environment: (String) -> String? = ::readEnvironment,
+        executableDirectory: String? = currentExecutableDirectory(),
+    ): String {
+        val configured = if (environmentEnabled) {
+            environment("${environmentName}_5_5") ?: environment(environmentName)
+        } else {
+            null
+        }
+        val selected = configured?.let { expandDefaultPath(it, defaultPath) } ?: defaultPath
+        if (!isWindows || '!' !in selected) {
+            return selected
+        }
+        val directory = executableDirectory
+            ?: throw LuaRuntimeException("unable to get executable directory")
+        return selected.replace("!", directory)
+    }
+
+    private fun expandDefaultPath(path: String, defaultPath: String): String {
+        val marker = path.indexOf(";;")
+        if (marker < 0) {
+            return path
+        }
+        val prefix = path.substring(0, marker)
+        val suffix = path.substring(marker + 2)
+        return buildString {
+            if (prefix.isNotEmpty()) {
+                append(prefix)
+                append(';')
+            }
+            append(defaultPath)
+            if (suffix.isNotEmpty()) {
+                append(';')
+                append(suffix)
+            }
+        }
+    }
+
+    private fun readEnvironment(name: String): String? {
+        return try {
+            System.getenv(name)
+        } catch (_: IllegalArgumentException) {
+            null
+        } catch (_: SecurityException) {
+            null
+        }
+    }
+
+    private fun currentExecutableDirectory(): String? {
+        return try {
+            ProcessHandle.current().info().command().orElse(null)
+                ?.let(Path::of)
+                ?.parent
+                ?.toString()
+        } catch (_: InvalidPathException) {
+            null
+        } catch (_: SecurityException) {
+            null
+        }
     }
 
     private fun loadlib(context: LuaCallContext): LuaReturn {

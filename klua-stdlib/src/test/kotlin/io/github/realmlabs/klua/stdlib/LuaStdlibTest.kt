@@ -14,6 +14,7 @@ import io.github.realmlabs.klua.api.withContinuation
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
 import java.io.PrintStream
 import java.nio.charset.StandardCharsets
 import java.nio.file.Files
@@ -497,7 +498,7 @@ class LuaStdlibTest {
 
     @Test
     fun `openLibs installs package table`() {
-        val state = LuaState.create()
+        val state = LuaState.create(LuaConfig(packagePathEnvironmentEnabled = false))
         LuaStdlib.openLibs(state)
 
         assertEquals(
@@ -506,7 +507,7 @@ class LuaStdlibTest {
                 """
                 return type(package), type(package.searchpath), package.path, package.config,
                     type(package.loaded), type(package.preload), type(package.searchers), type(require),
-                    type(package.loadlib), type(package.cpath),
+                    type(package.loadlib), package.cpath,
                     type(package.searchers[1]), type(package.searchers[2]),
                     type(package.searchers[3]), type(package.searchers[4])
                 """.trimIndent(),
@@ -517,18 +518,70 @@ class LuaStdlibTest {
 
         assertEquals("table", state.toString(1))
         assertEquals("function", state.toString(2))
-        assertEquals("?.lua;?/init.lua", state.toString(3))
-        assertTrue(state.toString(4)?.contains(";\n?") == true)
+        assertEquals(
+            LuaPackageLibrary.resolvePackagePath(
+                "LUA_PATH",
+                LuaPackageLibrary.defaultLuaPath,
+                environmentEnabled = false,
+            ),
+            state.toString(3),
+        )
+        assertEquals("${File.separator}\n;\n?\n!\n-\n", state.toString(4))
         assertEquals("table", state.toString(5))
         assertEquals("table", state.toString(6))
         assertEquals("table", state.toString(7))
         assertEquals("function", state.toString(8))
         assertEquals("function", state.toString(9))
-        assertEquals("string", state.toString(10))
+        assertEquals(
+            LuaPackageLibrary.resolvePackagePath(
+                "LUA_CPATH",
+                LuaPackageLibrary.defaultCPath,
+                environmentEnabled = false,
+            ),
+            state.toString(10),
+        )
         assertEquals("function", state.toString(11))
         assertEquals("function", state.toString(12))
         assertEquals("function", state.toString(13))
         assertEquals("function", state.toString(14))
+    }
+
+    @Test
+    fun `package path initialization follows versioned environment and default insertion rules`() {
+        val defaultPath = "default-a;default-b"
+
+        fun resolve(
+            environment: Map<String, String>,
+            enabled: Boolean = true,
+            executableDirectory: String? = "C:\\runtime",
+        ): String = LuaPackageLibrary.resolvePackagePath(
+            environmentName = "LUA_PATH",
+            defaultPath = defaultPath,
+            environmentEnabled = enabled,
+            environment = environment::get,
+            executableDirectory = executableDirectory,
+        )
+
+        assertEquals(
+            "versioned",
+            resolve(mapOf("LUA_PATH_5_5" to "versioned", "LUA_PATH" to "unversioned")),
+        )
+        assertEquals("unversioned", resolve(mapOf("LUA_PATH" to "unversioned")))
+        assertEquals("", resolve(mapOf("LUA_PATH_5_5" to "", "LUA_PATH" to "unversioned")))
+        assertEquals(defaultPath, resolve(mapOf("LUA_PATH_5_5" to "versioned"), enabled = false))
+        assertEquals("head;$defaultPath;tail;;last", resolve(mapOf("LUA_PATH_5_5" to "head;;tail;;last")))
+        assertEquals("$defaultPath;tail", resolve(mapOf("LUA_PATH_5_5" to ";;tail")))
+        assertEquals("head;$defaultPath", resolve(mapOf("LUA_PATH_5_5" to "head;;")))
+
+        val executablePath = resolve(mapOf("LUA_PATH_5_5" to "before!after"))
+        if (File.separatorChar == '\\') {
+            assertEquals("beforeC:\\runtimeafter", executablePath)
+            assertFailsWith<LuaRuntimeException> {
+                resolve(mapOf("LUA_PATH_5_5" to "!\\?.lua"), executableDirectory = null)
+            }
+        } else {
+            assertEquals("before!after", executablePath)
+        }
     }
 
     @Test

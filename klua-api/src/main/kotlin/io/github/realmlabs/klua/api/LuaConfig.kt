@@ -13,6 +13,7 @@ data class LuaConfig @JvmOverloads constructor(
     val instructionLimit: Long = 0,
     val standardLibraries: Set<LuaStandardLibrary> = LuaStandardLibrary.all(),
     val unsafeStandardLibraryAccessEnabled: Boolean = true,
+    val packagePathEnvironmentEnabled: Boolean = true,
     val exitHandler: LuaExitHandler = LuaExitHandler { _, _ -> },
 ) {
     init {
@@ -36,6 +37,7 @@ data class LuaConfig @JvmOverloads constructor(
                 instructionLimit = instructionLimit,
                 standardLibraries = LuaStandardLibrary.safe(),
                 unsafeStandardLibraryAccessEnabled = false,
+                packagePathEnvironmentEnabled = false,
             )
         }
     }

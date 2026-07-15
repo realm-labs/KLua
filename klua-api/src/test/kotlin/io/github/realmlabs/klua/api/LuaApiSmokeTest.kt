@@ -23,6 +23,7 @@ class LuaApiSmokeTest {
 
         assertEquals(false, config.debugEnabled)
         assertEquals(false, config.unsafeStandardLibraryAccessEnabled)
+        assertEquals(false, config.packagePathEnvironmentEnabled)
         assertEquals(LuaConfig.DEFAULT_PRODUCTION_INSTRUCTION_LIMIT, config.instructionLimit)
         assertEquals(LuaStandardLibrary.safe(), config.standardLibraries)
         assertEquals(42L, lua.load("return hostAnswer", "production-host.lua").evalLong())
