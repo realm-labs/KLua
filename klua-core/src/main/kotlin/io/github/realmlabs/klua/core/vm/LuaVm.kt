@@ -591,10 +591,9 @@ internal class LuaVm(
         val frame = frames.drop(level).firstOrNull() ?: return null
         if (index < 0) {
             val varargIndex = -index - 1
-            if (varargIndex !in frame.varargs.indices) {
+            if (!frame.setVararg(varargIndex, value)) {
                 return null
             }
-            frame.varargs[varargIndex] = value
             return VARARG_LOCAL_NAME
         }
         if (index == 0) {

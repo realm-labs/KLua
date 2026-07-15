@@ -75,7 +75,7 @@ class LuaThreadTest {
 
         assertEquals(listOf<LuaValue>(LuaNil, LuaInteger(40)), frame.varargs)
 
-        frame.varargs[1] = LuaInteger(50)
+        assertTrue(frame.setVararg(1, LuaInteger(50)))
 
         assertEquals(listOf<LuaValue>(LuaInteger(10), LuaInteger(20), LuaInteger(30), LuaInteger(40)), arguments)
     }
@@ -84,14 +84,17 @@ class LuaThreadTest {
     fun `push call fills missing fixed parameters with nil`() {
         val thread = LuaThread()
 
-        val frame = thread.pushCall(
+        val first = thread.pushCall(
             prototype("chunk", numParams = 2),
             listOf(LuaInteger(10)),
         )
+        val second = thread.pushCall(prototype("chunk"), emptyList())
 
-        assertEquals(LuaInteger(10), frame.stack.get(0))
-        assertEquals(LuaNil, frame.stack.get(1))
-        assertEquals(emptyList<LuaValue>(), frame.varargs)
+        assertEquals(LuaInteger(10), first.stack.get(0))
+        assertEquals(LuaNil, first.stack.get(1))
+        assertEquals(emptyList<LuaValue>(), first.varargs)
+        assertSame(first.varargs, second.varargs)
+        assertFalse(first.setVararg(0, LuaInteger(20)))
     }
 
     @Test

@@ -9,7 +9,7 @@ internal data class CallFrame(
     val prototype: Prototype,
     val function: LuaValue,
     val stack: LuaStack,
-    val varargs: MutableList<LuaValue> = mutableListOf(),
+    private val varargValues: MutableList<LuaValue>? = null,
     val upvalues: List<LuaUpvalue> = emptyList(),
     val environment: LuaUpvalue,
     val callSiteInfo: CallSiteInfo? = null,
@@ -25,6 +25,18 @@ internal data class CallFrame(
 
     val globals: LuaValue
         get() = environment.value
+
+    val varargs: List<LuaValue>
+        get() = varargValues ?: emptyList()
+
+    fun setVararg(index: Int, value: LuaValue): Boolean {
+        val values = varargValues ?: return false
+        if (index !in values.indices) {
+            return false
+        }
+        values[index] = value
+        return true
+    }
 
     val callSiteName: String?
         get() = callSiteInfo?.name
