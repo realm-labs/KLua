@@ -103,7 +103,13 @@ private fun luaFloatToString(value: Double): String {
         return "-inf"
     }
     val decimalPoint = luaLocaleDecimalPoint()
-    val formatted = String.format(Locale.getDefault(), "%.15g", value).lowercase(Locale.ROOT)
+    val ordinary = String.format(Locale.getDefault(), "%.15g", value).lowercase(Locale.ROOT)
+    val check = ordinary.replace(decimalPoint, '.').toDoubleOrNull()
+    val formatted = if (check == value) {
+        ordinary
+    } else {
+        String.format(Locale.getDefault(), "%.17g", value).lowercase(Locale.ROOT)
+    }
     val exponentIndex = formatted.indexOf('e')
     return if (exponentIndex >= 0) {
         val mantissa = formatted.substring(0, exponentIndex).trimLuaFloatTrailingZeros(decimalPoint)

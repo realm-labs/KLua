@@ -5814,6 +5814,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io flush ignores extras and returns one success result`() {
+        val path = Files.createTempFile("klua-io-flush-shape-", ".txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local function pack(...)
+                        return select("#", ...), ...
+                    end
+
+                    local handle = assert(io.open("${path.luaPath()}", "w+"))
+                    assert(handle:setvbuf("full", 64))
+                    assert(handle:write("abc") == handle)
+                    local fileCount, fileValue = pack(handle:flush({}, function() end))
+
+                    io.output(handle)
+                    assert(io.write("def") == handle)
+                    local moduleCount, moduleValue = pack(io.flush({}, function() end))
+                    handle:seek("set", 0)
+                    local text = handle:read("a")
+                    handle:close()
+                    return fileCount, fileValue, moduleCount, moduleValue, text
+                    """.trimIndent(),
+                    "io-flush-result-shape.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1L, state.toInteger(1))
+            assertTrue(state.toBoolean(2))
+            assertEquals(1L, state.toInteger(3))
+            assertTrue(state.toBoolean(4))
+            assertEquals("abcdef", state.toString(5))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io write formats numeric arguments like lua`() {
         val path = Files.createTempFile("klua-io-write-numbers-", ".txt")
         val state = LuaState.create()
@@ -5827,14 +5871,16 @@ class LuaStdlibTest {
                 state.load(
                     """
                     local handle = assert(io.open("${path.luaPath()}", "w+"))
-                    local returned = handle:write(1, "|", 1.0, "|", 1.25, "|", 1e14, "|", 1e15, "|", 1e-5, "|", 0/0, "|", 1/0, "|", -1/0)
+                    local returned = handle:write(1, "|", 1.0, "|", 1.25, "|", 1e14,
+                        "|", 1e15, "|", 1e-5, "|", 0x1.0000000000001p0,
+                        "|", 0/0, "|", 1/0, "|", -1/0)
                     handle:seek("set", 0)
                     local fileText = handle:read("a")
                     handle:close()
 
                     local output = assert(io.open("${path.luaPath()}", "w+"))
                     io.output(output)
-                    local moduleReturned = io.write(1e15, "|", 1e-5)
+                    local moduleReturned = io.write(1e15, "|", 1e-5, "|", 0x1.0000000000001p0)
                     io.close(output)
                     local readback = assert(io.open("${path.luaPath()}", "r"))
                     local moduleText = readback:read("a")
@@ -5847,9 +5893,12 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
             assertTrue(state.toBoolean(1))
-            assertEquals("1|1.0|1.25|100000000000000.0|1e+15|1e-05|nan|inf|-inf", state.toString(2))
+            assertEquals(
+                "1|1.0|1.25|100000000000000.0|1e+15|1e-05|1.0000000000000002|nan|inf|-inf",
+                state.toString(2),
+            )
             assertTrue(state.toBoolean(3))
-            assertEquals("1e+15|1e-05", state.toString(4))
+            assertEquals("1e+15|1e-05|1.0000000000000002", state.toString(4))
         } finally {
             Files.deleteIfExists(path)
         }
