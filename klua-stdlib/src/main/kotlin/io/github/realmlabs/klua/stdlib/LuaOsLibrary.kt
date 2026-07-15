@@ -20,6 +20,7 @@ import java.time.ZoneOffset
 import java.time.ZonedDateTime
 import java.time.format.DateTimeFormatter
 import java.time.temporal.WeekFields
+import java.time.zone.ZoneRules
 import java.util.Locale
 
 internal object LuaOsLibrary {
@@ -299,14 +300,34 @@ internal object LuaOsLibrary {
         if (requestedIsDst == null) {
             return atZone(zone)
         }
-        val matchingOffset = zone.rules.getValidOffsets(this).firstOrNull { offset ->
-            zone.rules.isDaylightSavings(atOffset(offset).toInstant()) == requestedIsDst
+        val rules = zone.rules
+        val matchingOffset = rules.getValidOffsets(this).firstOrNull { offset ->
+            rules.isDaylightSavings(atOffset(offset).toInstant()) == requestedIsDst
         }
-        return if (matchingOffset == null) {
-            atZone(zone)
-        } else {
-            ZonedDateTime.ofLocal(this, zone, matchingOffset)
+        if (matchingOffset != null) {
+            return ZonedDateTime.ofLocal(this, zone, matchingOffset)
         }
+        val inferred = atZone(zone)
+        val requestedOffset = rules.nearestOffsetWithDaylightState(inferred.toInstant(), requestedIsDst)
+            ?: return inferred
+        return atOffset(requestedOffset).toInstant().atZone(zone)
+    }
+
+    private fun ZoneRules.nearestOffsetWithDaylightState(reference: Instant, isDst: Boolean): ZoneOffset? {
+        val transitions = listOfNotNull(
+            previousTransition(reference.plusSeconds(1)),
+            nextTransition(reference.minusSeconds(1)),
+        )
+        return transitions
+            .flatMap { transition ->
+                listOf(
+                    transition.offsetBefore to transition.instant.minusSeconds(1),
+                    transition.offsetAfter to transition.instant,
+                )
+            }
+            .filter { (_, sample) -> isDaylightSavings(sample) == isDst }
+            .minByOrNull { (_, sample) -> java.lang.Math.abs(reference.epochSecond - sample.epochSecond) }
+            ?.first
     }
 
     private fun dateTimeFields(dateTime: ZonedDateTime): LinkedHashMap<String, Any?> {

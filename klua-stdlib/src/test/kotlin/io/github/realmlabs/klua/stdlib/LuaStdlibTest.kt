@@ -14211,6 +14211,36 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time ignores extras and returns one integer`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function inspect(...)
+                    return select("#", ...), math.type(...)
+                end
+                local nilCount, nilType = inspect(os.time(nil, {}))
+                local date = {year = 2020, month = 1, day = 2}
+                local tableCount, tableType = inspect(os.time(date, "ignored"))
+                return nilCount, nilType, tableCount, tableType
+                """.trimIndent(),
+                "os-time-result-arity.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("integer", state.toString(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals("integer", state.toString(4))
+    }
+
+    @Test
     fun `os time accepts lua numeric string date fields`() {
         val state = LuaState.create()
         LuaStdlib.openOs(state)
@@ -14329,7 +14359,9 @@ class LuaStdlibTest {
                     """
                     local date = {year = 1969, month = 12, day = 31, hour = 23, min = 59, sec = 59}
                     local ok, message = pcall(os.time, date)
-                    return ok, message
+                    return ok, message,
+                        date.year, date.month, date.day, date.hour, date.min, date.sec,
+                        date.wday, date.yday, date.isdst
                     """.trimIndent(),
                     "os-time-sentinel-result.lua",
                 ),
@@ -14338,6 +14370,15 @@ class LuaStdlibTest {
 
             assertFalse(state.toBoolean(1))
             assertEquals("time result cannot be represented in this installation", state.toString(2))
+            assertEquals(1969L, state.toInteger(3))
+            assertEquals(12L, state.toInteger(4))
+            assertEquals(31L, state.toInteger(5))
+            assertEquals(23L, state.toInteger(6))
+            assertEquals(59L, state.toInteger(7))
+            assertEquals(59L, state.toInteger(8))
+            assertEquals(4L, state.toInteger(9))
+            assertEquals(365L, state.toInteger(10))
+            assertFalse(state.toBoolean(11))
         } finally {
             TimeZone.setDefault(previous)
         }
@@ -14444,7 +14485,7 @@ class LuaStdlibTest {
                 local fourth = os.time(stringBacked)
                 debug.setmetatable("", originalStringMetatable)
                 return os.difftime(second, first), os.difftime(third, first), os.difftime(fourth, first),
-                    calls[1], calls[2], calls[3],
+                    calls[1], calls[2], calls[3], calls[4], calls[5], calls[6], calls[7],
                     tableBacked.year, nestedTableBacked.year, functionBacked.year
                 """.trimIndent(),
                 "os-time-index-metamethod.lua",
@@ -14458,9 +14499,13 @@ class LuaStdlibTest {
         assertEquals("year", state.toString(4))
         assertEquals("month", state.toString(5))
         assertEquals("day", state.toString(6))
-        assertEquals(2020L, state.toInteger(7))
-        assertEquals(2020L, state.toInteger(8))
-        assertEquals(2020L, state.toInteger(9))
+        assertEquals("hour", state.toString(7))
+        assertEquals("min", state.toString(8))
+        assertEquals("sec", state.toString(9))
+        assertEquals("isdst", state.toString(10))
+        assertEquals(2020L, state.toInteger(11))
+        assertEquals(2020L, state.toInteger(12))
+        assertEquals(2020L, state.toInteger(13))
     }
 
     @Test
@@ -14475,12 +14520,14 @@ class LuaStdlibTest {
                 LuaStatus.OK,
                 state.load(
                     """
+                    local automatic = {year = 2021, month = 11, day = 7, hour = 1, min = 30, sec = 0}
                     local daylight = {year = 2021, month = 11, day = 7, hour = 1, min = 30, sec = 0, isdst = true}
                     local standard = {year = 2021, month = 11, day = 7, hour = 1, min = 30, sec = 0, isdst = false}
+                    local automaticTime = os.time(automatic)
                     local daylightTime = os.time(daylight)
                     local standardTime = os.time(standard)
-                    return daylightTime, standardTime, standardTime - daylightTime,
-                        daylight.isdst, standard.isdst
+                    return automaticTime, daylightTime, standardTime, standardTime - daylightTime,
+                        automatic.isdst, daylight.isdst, standard.isdst
                     """.trimIndent(),
                     "os-time-isdst.lua",
                 ),
@@ -14488,10 +14535,61 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
             assertEquals(1636263000L, state.toInteger(1))
-            assertEquals(1636266600L, state.toInteger(2))
-            assertEquals(3600L, state.toInteger(3))
-            assertTrue(state.toBoolean(4))
-            assertFalse(state.toBoolean(5))
+            assertEquals(1636263000L, state.toInteger(2))
+            assertEquals(1636266600L, state.toInteger(3))
+            assertEquals(3600L, state.toInteger(4))
+            assertTrue(state.toBoolean(5))
+            assertTrue(state.toBoolean(6))
+            assertFalse(state.toBoolean(7))
+        } finally {
+            TimeZone.setDefault(previous)
+        }
+    }
+
+    @Test
+    fun `os time normalizes contradictory isdst hints`() {
+        val previous = TimeZone.getDefault()
+        TimeZone.setDefault(TimeZone.getTimeZone("America/New_York"))
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local winter = {year = 2021, month = 1, day = 15, hour = 12, min = 0, sec = 0, isdst = true}
+                    local summer = {year = 2021, month = 7, day = 15, hour = 12, min = 0, sec = 0, isdst = false}
+                    local gapDaylight = {year = 2021, month = 3, day = 14, hour = 2, min = 30, sec = 0, isdst = true}
+                    local gapStandard = {year = 2021, month = 3, day = 14, hour = 2, min = 30, sec = 0, isdst = false}
+                    local winterTime = os.time(winter)
+                    local summerTime = os.time(summer)
+                    local gapDaylightTime = os.time(gapDaylight)
+                    local gapStandardTime = os.time(gapStandard)
+                    return winterTime, winter.hour, winter.isdst,
+                        summerTime, summer.hour, summer.isdst,
+                        gapDaylightTime, gapDaylight.hour, gapDaylight.min, gapDaylight.isdst,
+                        gapStandardTime, gapStandard.hour, gapStandard.min, gapStandard.isdst
+                    """.trimIndent(),
+                    "os-time-contradictory-isdst.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1610726400L, state.toInteger(1))
+            assertEquals(11L, state.toInteger(2))
+            assertFalse(state.toBoolean(3))
+            assertEquals(1626368400L, state.toInteger(4))
+            assertEquals(13L, state.toInteger(5))
+            assertTrue(state.toBoolean(6))
+            assertEquals(1615703400L, state.toInteger(7))
+            assertEquals(1L, state.toInteger(8))
+            assertEquals(30L, state.toInteger(9))
+            assertFalse(state.toBoolean(10))
+            assertEquals(1615707000L, state.toInteger(11))
+            assertEquals(3L, state.toInteger(12))
+            assertEquals(30L, state.toInteger(13))
+            assertTrue(state.toBoolean(14))
         } finally {
             TimeZone.setDefault(previous)
         }

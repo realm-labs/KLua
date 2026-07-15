@@ -1390,12 +1390,15 @@ private fun callCoreFunction(
                 syncPublicTablesToLua(arguments, publicArguments, globals)
                 throw result.toLuaYieldSignal(arguments, publicArguments, globals)
             }
-            is KLuaCoreCallResult.RuntimeError -> throw LuaVmException(
-                result.message,
-                luaFrames = result.nativeFrames.toNativeStackFrames(),
-                errorObject = result.errorObject?.toLuaValueOrNull(globals),
-                cause = result.cause,
-            )
+            is KLuaCoreCallResult.RuntimeError -> {
+                syncPublicTablesToLua(arguments, publicArguments, globals)
+                throw LuaVmException(
+                    result.message,
+                    luaFrames = result.nativeFrames.toNativeStackFrames(),
+                    errorObject = result.errorObject?.toLuaValueOrNull(globals),
+                    cause = result.cause,
+                )
+            }
         }
     } catch (control: KLuaCoreControlException) {
         throw control
@@ -1638,8 +1641,13 @@ private fun callPublicLuaFunction(
     isYieldable: Boolean = true,
     limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
 ): KLuaCoreCallResult {
+    val tableCache = if (arguments.any { value -> value is KLuaCoreValue.TableValue }) {
+        IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>()
+    } else {
+        null
+    }
     val luaArguments = arguments.map { value ->
-        value.toLuaValueOrNull(globals)
+        value.toLuaValueOrNull(globals, tableCache)
             ?: return KLuaCoreCallResult.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
     }
     return try {
@@ -1649,13 +1657,40 @@ private fun callPublicLuaFunction(
             metatables = globals.vmMetatableProvider,
             instructionLimit = limits.instructionLimit,
         )
-        vm.callWithYieldability(function, luaArguments, isYieldable).toCoreCallResult(vm, globals)
+        val result = vm.callWithYieldability(function, luaArguments, isYieldable).toCoreCallResult(vm, globals)
+        syncLuaTablesToPublic(luaArguments, arguments, globals)
+        result
     } catch (error: LuaVmException) {
+        syncLuaTablesToPublic(luaArguments, arguments, globals)
         KLuaCoreCallResult.RuntimeError(
             error.message ?: "runtime error",
             error.rootCause(),
             errorObject = error.errorObject?.let { toPublicValue(it, globals) },
         )
+    }
+}
+
+private fun syncLuaTablesToPublic(
+    luaArguments: List<LuaValue>,
+    publicArguments: List<KLuaCoreValue>,
+    globals: KLuaCoreGlobals,
+) {
+    val tableCache = IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
+    for (index in luaArguments.indices) {
+        val luaTable = luaArguments[index] as? LuaTable ?: continue
+        val publicTable = publicArguments.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
+        tableCache[luaTable] = publicTable
+    }
+    for ((luaTable, publicTable) in tableCache.entries.toList()) {
+        val entries = luaTable.rawEntries().map { (key, value) ->
+            toPublicValue(key, globals, tableCache) to toPublicValue(value, globals, tableCache)
+        }
+        publicTable.fields.clear()
+        publicTable.fields.putAll(entries)
+        publicTable.metatable = luaTable.metatable?.let { metatable ->
+            toPublicValue(metatable, globals, tableCache) as KLuaCoreValue.TableValue
+        }
+        publicTable.sourceTable = luaTable
     }
 }
 

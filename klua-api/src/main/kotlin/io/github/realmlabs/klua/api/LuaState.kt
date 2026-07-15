@@ -701,6 +701,7 @@ class LuaState private constructor(
         } catch (exit: LuaExitException) {
             throw exit
         } catch (exception: LuaException) {
+            syncStackArgumentsToCore(arguments, stackArguments)
             val errorObject = if (exception is LuaRuntimeException && exception.hasErrorObject) {
                 exception.errorObject.toCoreReturnValue(stackArguments, arguments)
             } else {
@@ -712,6 +713,7 @@ class LuaState private constructor(
                 errorObject = errorObject,
             )
         } catch (exception: RuntimeException) {
+            syncStackArgumentsToCore(arguments, stackArguments)
             KLuaCoreCallResult.RuntimeError(
                 exception.message ?: exception::class.java.simpleName,
                 exception,
