@@ -343,9 +343,6 @@ internal class LuaStringPattern private constructor(
                             index = nextIndex
                         } else {
                             val token = percentToken(next)
-                            if (token == null) {
-                                throw LuaRuntimeException("string patterns are not supported")
-                            }
                             index = addToken(tokens, token, pattern, index + 2)
                             hasPatternToken = true
                         }
@@ -418,9 +415,6 @@ internal class LuaStringPattern private constructor(
                         throw LuaRuntimeException("malformed pattern (ends with '%')")
                     }
                     val token = percentToken(pattern[index + 1])
-                    if (token == null) {
-                        throw LuaRuntimeException("string patterns are not supported")
-                    }
                     tokens += token
                     sawItem = true
                     index += 2
@@ -452,32 +446,8 @@ internal class LuaStringPattern private constructor(
             throw LuaRuntimeException("malformed pattern (missing ']')")
         }
 
-        private fun percentToken(char: Char): Token? {
-            return when (char) {
-                'a' -> Token.CharClass { value -> value.isLuaAlpha() }
-                'A' -> Token.CharClass { value -> !value.isLuaAlpha() }
-                'c' -> Token.CharClass { value -> value.code in 0..31 || value.code == 127 }
-                'C' -> Token.CharClass { value -> value.code !in 0..31 && value.code != 127 }
-                'd' -> Token.CharClass { value -> value.isLuaDigit() }
-                'D' -> Token.CharClass { value -> !value.isLuaDigit() }
-                'g' -> Token.CharClass { value -> value.isLuaGraph() }
-                'G' -> Token.CharClass { value -> !value.isLuaGraph() }
-                'l' -> Token.CharClass { value -> value.isLuaLower() }
-                'L' -> Token.CharClass { value -> !value.isLuaLower() }
-                'p' -> Token.CharClass { value -> value.isAsciiPunctuation() }
-                'P' -> Token.CharClass { value -> !value.isAsciiPunctuation() }
-                's' -> Token.CharClass { value -> value.isLuaSpace() }
-                'S' -> Token.CharClass { value -> !value.isLuaSpace() }
-                'u' -> Token.CharClass { value -> value.isLuaUpper() }
-                'U' -> Token.CharClass { value -> !value.isLuaUpper() }
-                'w' -> Token.CharClass { value -> value.isLuaAlphaNumeric() }
-                'W' -> Token.CharClass { value -> !value.isLuaAlphaNumeric() }
-                'x' -> Token.CharClass { value -> value.isLuaHexDigit() }
-                'X' -> Token.CharClass { value -> !value.isLuaHexDigit() }
-                'z' -> Token.CharClass { value -> value == '\u0000' }
-                'Z' -> Token.CharClass { value -> value != '\u0000' }
-                else -> Token.Literal(char)
-            }
+        private fun percentToken(char: Char): Token {
+            return Token.CharClass(char)
         }
     }
 }
@@ -496,9 +466,9 @@ private sealed interface Token {
     }
 
     data class CharClass(
-        val predicate: (Char) -> Boolean,
+        val className: Char,
     ) : Token {
-        override fun matches(char: Char): Boolean = predicate(char)
+        override fun matches(char: Char): Boolean = LuaPatternByteClass.matches(char.code, className)
     }
 
     data class CharSet(
@@ -560,38 +530,33 @@ private sealed interface Token {
     }
 }
 
-private fun Char.isAsciiPunctuation(): Boolean {
-    return this in '!'..'/' || this in ':'..'@' || this in '['..'`' || this in '{'..'~'
-}
-
-private fun Char.isLuaAlpha(): Boolean {
-    return isLuaLower() || isLuaUpper()
-}
-
-private fun Char.isLuaAlphaNumeric(): Boolean {
-    return isLuaAlpha() || isLuaDigit()
-}
-
-private fun Char.isLuaDigit(): Boolean {
-    return this in '0'..'9'
-}
-
-private fun Char.isLuaGraph(): Boolean {
-    return this in '!'..'~'
-}
-
-private fun Char.isLuaHexDigit(): Boolean {
-    return isLuaDigit() || this in 'a'..'f' || this in 'A'..'F'
-}
-
-private fun Char.isLuaLower(): Boolean {
-    return this in 'a'..'z'
-}
-
-private fun Char.isLuaSpace(): Boolean {
-    return this == ' ' || this in '\t'..'\r'
-}
-
-private fun Char.isLuaUpper(): Boolean {
-    return this in 'A'..'Z'
+private object LuaPatternByteClass {
+    fun matches(value: Int, className: Char): Boolean {
+        val normalizedClass = when (className) {
+            in 'A'..'Z' -> (className.code + ('a' - 'A')).toChar()
+            else -> className
+        }
+        val matches = when (normalizedClass) {
+            'a' -> value in 'A'.code..'Z'.code || value in 'a'.code..'z'.code
+            'c' -> value in 0..31 || value == 127
+            'd' -> value in '0'.code..'9'.code
+            'g' -> value in '!'.code..'~'.code
+            'l' -> value in 'a'.code..'z'.code
+            'p' -> value in '!'.code..'/'.code ||
+                value in ':'.code..'@'.code ||
+                value in '['.code..'`'.code ||
+                value in '{'.code..'~'.code
+            's' -> value == ' '.code || value in '\t'.code..'\r'.code
+            'u' -> value in 'A'.code..'Z'.code
+            'w' -> value in '0'.code..'9'.code ||
+                value in 'A'.code..'Z'.code ||
+                value in 'a'.code..'z'.code
+            'x' -> value in '0'.code..'9'.code ||
+                value in 'A'.code..'F'.code ||
+                value in 'a'.code..'f'.code
+            'z' -> value == 0
+            else -> return value == className.code
+        }
+        return if (className in 'a'..'z') matches else !matches
+    }
 }

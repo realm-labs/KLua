@@ -21151,6 +21151,172 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string pattern classes partition the complete raw byte domain`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openTable(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {}
+                for value = 0, 255 do
+                    values[#values + 1] = string.char(value)
+                end
+                local all = table.concat(values)
+                local results = {}
+                local classes = "acdglpsuwxz"
+                for index = 1, #classes do
+                    local class = string.sub(classes, index, index)
+                    results[#results + 1] = string.gsub(all, "%" .. string.upper(class), "")
+                    results[#results + 1] = string.gsub(all, "%" .. class, "")
+                end
+                return table.unpack(results)
+                """.trimIndent(),
+                "string-pattern-classes-all-bytes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for ((classIndex, className) in "acdglpsuwxz".withIndex()) {
+            val predicate: (Int) -> Boolean = when (className) {
+                'a' -> { value -> value in 'A'.code..'Z'.code || value in 'a'.code..'z'.code }
+                'c' -> { value -> value in 0..31 || value == 127 }
+                'd' -> { value -> value in '0'.code..'9'.code }
+                'g' -> { value -> value in '!'.code..'~'.code }
+                'l' -> { value -> value in 'a'.code..'z'.code }
+                'p' -> { value ->
+                    value in '!'.code..'/'.code ||
+                        value in ':'.code..'@'.code ||
+                        value in '['.code..'`'.code ||
+                        value in '{'.code..'~'.code
+                }
+                's' -> { value -> value == ' '.code || value in '\t'.code..'\r'.code }
+                'u' -> { value -> value in 'A'.code..'Z'.code }
+                'w' -> { value ->
+                    value in '0'.code..'9'.code ||
+                        value in 'A'.code..'Z'.code ||
+                        value in 'a'.code..'z'.code
+                }
+                'x' -> { value ->
+                    value in '0'.code..'9'.code ||
+                        value in 'A'.code..'F'.code ||
+                        value in 'a'.code..'f'.code
+                }
+                'z' -> { value -> value == 0 }
+                else -> error("unexpected class $className")
+            }
+            val matching = (0..255).filter(predicate).map(Int::toByte)
+            val nonMatching = (0..255).filterNot(predicate).map(Int::toByte)
+            val stackIndex = classIndex * 2 + 1
+            assertEquals(matching, state.toString(stackIndex)?.luaRawBytes()?.toList(), "%$className")
+            assertEquals(nonMatching, state.toString(stackIndex + 1)?.luaRawBytes()?.toList(), "%${className.uppercaseChar()}")
+        }
+    }
+
+    @Test
+    fun `string pattern byte classes compose across sets frontiers and consumers`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local subject = string.char(255) .. "A" .. string.char(0) .. "9" .. string.char(128)
+                local byteRange = string.char(128) .. "-" .. string.char(255)
+                local set = "[%z%d" .. byteRange .. "]"
+                local inverseSet = "[^%z%d" .. byteRange .. "]"
+                local first, last = string.find(subject, "%a")
+                local matches = {}
+                for value in string.gmatch(subject, set) do
+                    matches[#matches + 1] = value
+                end
+                local replaced, count = string.gsub(subject, "[^%w]", "*")
+                local nulStart, nulEnd = string.find(subject, "%f[%z]")
+                local terminalStart, terminalEnd = string.find(subject, "%f[%z]", 4)
+                local nonzeroStart, nonzeroEnd = string.find(subject, "%f[%Z]")
+                return first, last,
+                    string.match(subject, "%a"),
+                    string.match(subject, "(%a)"),
+                    string.match(subject, set),
+                    string.match(subject, inverseSet),
+                    table.concat(matches),
+                    replaced, count,
+                    nulStart, nulEnd,
+                    terminalStart, terminalEnd,
+                    nonzeroStart, nonzeroEnd
+                """.trimIndent(),
+                "string-pattern-byte-composition.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("A", state.toString(3))
+        assertEquals("A", state.toString(4))
+        assertEquals(listOf(255.toByte()), state.toString(5)?.luaRawBytes()?.toList())
+        assertEquals("A", state.toString(6))
+        assertEquals(
+            listOf(255.toByte(), 0.toByte(), '9'.code.toByte(), 128.toByte()),
+            state.toString(7)?.luaRawBytes()?.toList(),
+        )
+        assertEquals("*A*9*", state.toString(8))
+        assertEquals(3L, state.toInteger(9))
+        assertEquals(3L, state.toInteger(10))
+        assertEquals(2L, state.toInteger(11))
+        assertEquals(6L, state.toInteger(12))
+        assertEquals(5L, state.toInteger(13))
+        assertEquals(1L, state.toInteger(14))
+        assertEquals(0L, state.toInteger(15))
+    }
+
+    @Test
+    fun `string pattern byte classes remain ascii after locale selection`() {
+        val previousLocale = Locale.getDefault()
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openString(state)
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local selected = os.setlocale("tr-TR", "ctype")
+                    local source = "Ii\u{130}\u{131}" .. string.char(0, 255)
+                    local replaced, count = string.gsub(source, "%a", "x")
+                    local cLocale = os.setlocale("C", "ctype")
+                    return selected,
+                        string.match(source, "%a+"),
+                        string.match(source, "%A+"),
+                        string.match(source, "%u+"),
+                        string.match(source, "%l+"),
+                        replaced, count, cLocale
+                    """.trimIndent(),
+                    "string-pattern-selected-locale.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(!state.isNil(1), state.toString(1))
+            assertEquals("Ii", state.toString(2))
+            assertEquals("\u0130\u0131\u0000" + byteArrayOf(255.toByte()).toLuaByteString(), state.toString(3))
+            assertEquals("I", state.toString(4))
+            assertEquals("i", state.toString(5))
+            assertEquals("xx\u0130\u0131\u0000" + byteArrayOf(255.toByte()).toLuaByteString(), state.toString(6))
+            assertEquals(2L, state.toInteger(7))
+            assertEquals("C", state.toString(8))
+        } finally {
+            Locale.setDefault(previousLocale)
+        }
+    }
+
+    @Test
     fun `string bracket patterns support percent classes`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
