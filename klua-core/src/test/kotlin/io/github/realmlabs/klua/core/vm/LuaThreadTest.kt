@@ -126,6 +126,19 @@ class LuaThreadTest {
     }
 
     @Test
+    fun `call frame owns its stack storage and captures`() {
+        val frame = LuaThread().pushCall(prototype("chunk", maxStackSize = 1), emptyList())
+
+        assertSame(frame, frame.stack)
+        frame.set(4, LuaInteger(40))
+        val captured = frame.capture(4)
+        frame.stack.set(4, LuaInteger(50))
+
+        assertEquals(LuaInteger(50), frame.get(4))
+        assertEquals(LuaInteger(50), captured.value)
+    }
+
+    @Test
     fun `tracks nested native call boundaries`() {
         val thread = LuaThread()
 

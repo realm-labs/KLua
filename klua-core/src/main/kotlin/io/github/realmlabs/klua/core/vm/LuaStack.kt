@@ -4,7 +4,7 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
-internal class LuaStack(size: Int) {
+internal open class LuaStack(size: Int) {
     private var values = Array<LuaValue>(size.coerceAtLeast(1)) { LuaNil }
     private var captures: MutableMap<Int, LuaUpvalue>? = null
 

@@ -5,10 +5,10 @@ import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
-internal data class CallFrame(
+internal class CallFrame(
     val prototype: Prototype,
     val function: LuaValue,
-    val stack: LuaStack,
+    stackSize: Int,
     private val varargValues: MutableList<LuaValue>? = null,
     val upvalues: List<LuaUpvalue> = emptyList(),
     val environment: LuaUpvalue,
@@ -19,12 +19,15 @@ internal data class CallFrame(
     val base: Int = 0,
     val returnBase: Int = 0,
     val expectedResults: Int = -1,
-) {
+) : LuaStack(stackSize) {
     private var pendingCall: PendingCallState? = null
     private var debugState: DebugFrameState? = null
 
     val globals: LuaValue
         get() = environment.value
+
+    val stack: LuaStack
+        get() = this
 
     val varargs: List<LuaValue>
         get() = varargValues ?: emptyList()

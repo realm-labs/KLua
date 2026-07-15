@@ -33,16 +33,24 @@ internal class LuaThread {
         function: LuaValue = LuaClosure(prototype, upvalues.toMutableList(), environment = environment),
         callSiteInfo: CallSiteInfo? = null,
     ): CallFrame {
-        val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(arguments.size))
-        for (index in 0 until prototype.numParams) {
-            stack.set(index, arguments.getOrElse(index) { LuaNil })
-        }
         val varargs: MutableList<LuaValue>? = if (prototype.isVararg) {
             copyVarargs(arguments, prototype.numParams)
         } else {
             null
         }
-        return createAndPushFrame(prototype, function, stack, varargs, upvalues, environment, callSiteInfo)
+        val frame = createAndPushFrame(
+            prototype,
+            function,
+            prototype.maxStackSize.coerceAtLeast(arguments.size),
+            varargs,
+            upvalues,
+            environment,
+            callSiteInfo,
+        )
+        for (index in 0 until prototype.numParams) {
+            frame.set(index, arguments.getOrElse(index) { LuaNil })
+        }
+        return frame
     }
 
     fun pushCallFromStack(
@@ -56,23 +64,31 @@ internal class LuaThread {
         callSiteInfo: CallSiteInfo? = null,
     ): CallFrame {
         require(argumentCount >= 0) { "argument count must be non-negative" }
-        val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(argumentCount))
-        for (index in 0 until prototype.numParams) {
-            val value = if (index < argumentCount) sourceStack.get(argumentStart + index) else LuaNil
-            stack.set(index, value)
-        }
         val varargs: MutableList<LuaValue>? = if (prototype.isVararg) {
             copyVarargs(sourceStack, argumentStart, argumentCount, prototype.numParams)
         } else {
             null
         }
-        return createAndPushFrame(prototype, function, stack, varargs, upvalues, environment, callSiteInfo)
+        val frame = createAndPushFrame(
+            prototype,
+            function,
+            prototype.maxStackSize.coerceAtLeast(argumentCount),
+            varargs,
+            upvalues,
+            environment,
+            callSiteInfo,
+        )
+        for (index in 0 until prototype.numParams) {
+            val value = if (index < argumentCount) sourceStack.get(argumentStart + index) else LuaNil
+            frame.set(index, value)
+        }
+        return frame
     }
 
     private fun createAndPushFrame(
         prototype: Prototype,
         function: LuaValue,
-        stack: LuaStack,
+        stackSize: Int,
         varargs: MutableList<LuaValue>?,
         upvalues: List<LuaUpvalue>,
         environment: LuaUpvalue,
@@ -81,7 +97,7 @@ internal class LuaThread {
         val frame = CallFrame(
             prototype,
             function,
-            stack,
+            stackSize,
             varargs,
             upvalues,
             environment,
