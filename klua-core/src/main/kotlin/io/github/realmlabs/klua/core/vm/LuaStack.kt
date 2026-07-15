@@ -6,17 +6,17 @@ import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class LuaStack(size: Int) {
     private val values = MutableList<LuaValue>(size.coerceAtLeast(1)) { LuaNil }
-    private val captures = mutableMapOf<Int, LuaUpvalue>()
+    private var captures: MutableMap<Int, LuaUpvalue>? = null
 
     fun get(index: Int): LuaValue {
         checkIndex(index)
-        return captures[index]?.value ?: values[index]
+        return captures?.get(index)?.value ?: values[index]
     }
 
     fun set(index: Int, value: LuaValue) {
         ensureIndex(index)
         values[index] = value
-        captures[index]?.value = value
+        captures?.get(index)?.value = value
     }
 
     fun copy(from: Int, to: Int) {
@@ -30,11 +30,16 @@ internal class LuaStack(size: Int) {
 
     fun capture(index: Int): LuaUpvalue {
         checkIndex(index)
-        return captures.getOrPut(index) { LuaUpvalue(values[index]) }
+        val openCaptures = captures ?: mutableMapOf<Int, LuaUpvalue>().also { created -> captures = created }
+        return openCaptures.getOrPut(index) { LuaUpvalue(values[index]) }
     }
 
     fun closeCapturesFrom(index: Int) {
-        captures.keys.removeIf { it >= index }
+        val openCaptures = captures ?: return
+        openCaptures.keys.removeIf { it >= index }
+        if (openCaptures.isEmpty()) {
+            captures = null
+        }
     }
 
     private fun checkIndex(index: Int) {
