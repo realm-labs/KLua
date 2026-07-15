@@ -19129,6 +19129,114 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math sin cos and tan preserve ieee wrapper results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local positiveZero = 0.0
+                local negativeZero = -0.0
+                local minimumSubnormal = 0x0.0000000000001p-1022
+                local maximumFinite = 0x1.fffffffffffffp1023
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local sinTyped = math.sin(0)
+                local cosTyped = math.cos(0)
+                local tanTyped = math.tan(0)
+                return 1 / math.sin(positiveZero), 1 / math.sin(negativeZero),
+                    math.cos(positiveZero), math.cos(negativeZero),
+                    1 / math.tan(positiveZero), 1 / math.tan(negativeZero),
+                    math.sin(math.pi / 6), math.cos(math.pi / 3), math.tan(math.pi / 4),
+                    math.sin(maximumFinite), math.cos(maximumFinite), math.tan(maximumFinite),
+                    math.sin(minimumSubnormal), math.cos(minimumSubnormal), math.tan(minimumSubnormal),
+                    math.sin(infinity), math.cos(infinity), math.tan(infinity),
+                    math.sin(nan), math.cos(nan), math.tan(nan),
+                    math.type(sinTyped), math.type(cosTyped), math.type(tanTyped),
+                    select("#", math.sin(0)), select("#", math.cos(0)), select("#", math.tan(0))
+                """.trimIndent(),
+                "math-trig-ieee.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(1))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(2))
+        assertEquals(1.0, state.toNumber(3))
+        assertEquals(1.0, state.toNumber(4))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(5))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(6))
+        assertEquals(kotlin.math.sin(Math.PI / 6), state.toNumber(7))
+        assertEquals(kotlin.math.cos(Math.PI / 3), state.toNumber(8))
+        assertEquals(kotlin.math.tan(Math.PI / 4), state.toNumber(9))
+        assertEquals(kotlin.math.sin(Double.MAX_VALUE), state.toNumber(10))
+        assertEquals(kotlin.math.cos(Double.MAX_VALUE), state.toNumber(11))
+        assertEquals(kotlin.math.tan(Double.MAX_VALUE), state.toNumber(12))
+        assertEquals(kotlin.math.sin(Double.MIN_VALUE), state.toNumber(13))
+        assertEquals(kotlin.math.cos(Double.MIN_VALUE), state.toNumber(14))
+        assertEquals(kotlin.math.tan(Double.MIN_VALUE), state.toNumber(15))
+        assertTrue(state.toNumber(16)?.isNaN() == true)
+        assertTrue(state.toNumber(17)?.isNaN() == true)
+        assertTrue(state.toNumber(18)?.isNaN() == true)
+        assertTrue(state.toNumber(19)?.isNaN() == true)
+        assertTrue(state.toNumber(20)?.isNaN() == true)
+        assertTrue(state.toNumber(21)?.isNaN() == true)
+        assertEquals("float", state.toString(22))
+        assertEquals("float", state.toString(23))
+        assertEquals("float", state.toString(24))
+        assertEquals(1L, state.toInteger(25))
+        assertEquals(1L, state.toInteger(26))
+        assertEquals(1L, state.toInteger(27))
+    }
+
+    @Test
+    fun `math sin cos and tan validate and coerce their first argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local sinMissingOk, sinMissingError = pcall(math.sin)
+                local sinTypeOk, sinTypeError = pcall(math.sin, false)
+                local cosMissingOk, cosMissingError = pcall(math.cos)
+                local cosTypeOk, cosTypeError = pcall(math.cos, false)
+                local tanMissingOk, tanMissingError = pcall(math.tan)
+                local tanTypeOk, tanTypeError = pcall(math.tan, false)
+                return sinMissingOk, sinMissingError, sinTypeOk, sinTypeError,
+                    cosMissingOk, cosMissingError, cosTypeOk, cosTypeError,
+                    tanMissingOk, tanMissingError, tanTypeOk, tanTypeError,
+                    math.sin("0x1p0", false), math.cos("0x1p0", false),
+                    math.tan("0x1p0", false)
+                """.trimIndent(),
+                "math-trig-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'sin' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'sin' (number expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'cos' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'cos' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'tan' (number expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #1 to 'tan' (number expected)", state.toString(12))
+        assertEquals(kotlin.math.sin(1.0), state.toNumber(13))
+        assertEquals(kotlin.math.cos(1.0), state.toNumber(14))
+        assertEquals(kotlin.math.tan(1.0), state.toNumber(15))
+    }
+
+    @Test
     fun `math number arguments accept hexadecimal integer strings`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
