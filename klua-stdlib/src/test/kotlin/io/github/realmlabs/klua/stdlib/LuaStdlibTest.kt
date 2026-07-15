@@ -22464,7 +22464,110 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("malformed pattern (ends with '%')", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("malformed pattern (ends with '%')", state.toString(4))
+        assertEquals("malformed pattern (missing ']')", state.toString(4))
+    }
+
+    @Test
+    fun `string structural pattern errors are delayed until their item is reached`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local skippedPercentOk, skippedPercent = pcall(string.match, "abc", "z%")
+                local skippedBracketOk, skippedBracket = pcall(string.find, "abc", "z[")
+                local skippedBalanceOk, skippedBalance = pcall(string.match, "abc", "z%b(")
+                local skippedFrontierOk, skippedFrontier = pcall(string.match, "abc", "z%fa")
+                local skippedFrontierSetOk, skippedFrontierSet = pcall(string.match, "abc", "z%f[")
+
+                local reachedPercentOk, reachedPercent = pcall(string.match, "z", "z%")
+                local reachedBracketOk, reachedBracket = pcall(string.find, "z", "z[")
+                local reachedBalanceOk, reachedBalance = pcall(string.match, "z", "z%b(")
+                local reachedFrontierOk, reachedFrontier = pcall(string.match, "z", "z%fa")
+                local reachedFrontierSetOk, reachedFrontierSet = pcall(string.match, "z", "z%f[")
+                return skippedPercentOk, skippedPercent,
+                    skippedBracketOk, skippedBracket,
+                    skippedBalanceOk, skippedBalance,
+                    skippedFrontierOk, skippedFrontier,
+                    skippedFrontierSetOk, skippedFrontierSet,
+                    reachedPercentOk, reachedPercent,
+                    reachedBracketOk, reachedBracket,
+                    reachedBalanceOk, reachedBalance,
+                    reachedFrontierOk, reachedFrontier,
+                    reachedFrontierSetOk, reachedFrontierSet
+                """.trimIndent(),
+                "string-pattern-structural-error-reachability.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for (index in listOf(1, 3, 5, 7, 9)) {
+            assertTrue(state.toBoolean(index))
+            assertTrue(state.isNil(index + 1))
+        }
+        assertFalse(state.toBoolean(11))
+        assertEquals("malformed pattern (ends with '%')", state.toString(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("malformed pattern (missing ']')", state.toString(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("malformed pattern (missing arguments to '%b')", state.toString(16))
+        assertFalse(state.toBoolean(17))
+        assertEquals("missing '[' after '%f' in pattern", state.toString(18))
+        assertFalse(state.toBoolean(19))
+        assertEquals("malformed pattern (missing ']')", state.toString(20))
+    }
+
+    @Test
+    fun `string consumers preserve structural pattern error bypasses`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local missed, missedSubCount = string.gsub("abc", "z[", "x")
+                local reachedSubOk, reachedSubMessage = pcall(string.gsub, "az", "z[", "x")
+                local zero, zeroCount = string.gsub("abc", "[", "x", 0)
+                local negative, negativeCount = string.gsub("abc", "%", "x", -1)
+
+                local missedIterator = string.gmatch("abc", "z[")
+                local missedIteratorCount = select("#", missedIterator())
+                local reachedIterator = string.gmatch("az", "z[")
+                local reachedIteratorOk, reachedIteratorMessage = pcall(reachedIterator)
+
+                local beyondOk, beyond = pcall(string.match, "a", "[", 3)
+                local plainFirst, plainLast = string.find("z[", "z[", 1, true)
+                return missed, missedSubCount,
+                    reachedSubOk, reachedSubMessage,
+                    zero, zeroCount, negative, negativeCount,
+                    missedIteratorCount, reachedIteratorOk, reachedIteratorMessage,
+                    beyondOk, beyond, plainFirst, plainLast
+                """.trimIndent(),
+                "string-pattern-structural-error-consumers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("abc", state.toString(1))
+        assertEquals(0L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("malformed pattern (missing ']')", state.toString(4))
+        assertEquals("abc", state.toString(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals("abc", state.toString(7))
+        assertEquals(0L, state.toInteger(8))
+        assertEquals(0L, state.toInteger(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("malformed pattern (missing ']')", state.toString(11))
+        assertTrue(state.toBoolean(12))
+        assertTrue(state.isNil(13))
+        assertEquals(1L, state.toInteger(14))
+        assertEquals(2L, state.toInteger(15))
     }
 
     @Test

@@ -144,6 +144,7 @@ internal class LuaStringPattern private constructor(
                     null
                 }
             }
+            is Token.PatternError -> throw LuaRuntimeException(token.message)
             is Token.Repetition -> matchRepetition(
                 text,
                 textIndex,
@@ -319,7 +320,10 @@ internal class LuaStringPattern private constructor(
                     }
                     '%' -> {
                         if (index + 1 >= pattern.length) {
-                            throw LuaRuntimeException("malformed pattern (ends with '%')")
+                            tokens += Token.PatternError("malformed pattern (ends with '%')")
+                            hasPatternToken = true
+                            index = pattern.length
+                            continue
                         }
                         val next = pattern[index + 1]
                         if (next in '0'..'9') {
@@ -328,14 +332,20 @@ internal class LuaStringPattern private constructor(
                             index += 2
                         } else if (next == 'b') {
                             if (index + 3 >= pattern.length) {
-                                throw LuaRuntimeException("malformed pattern (missing arguments to '%b')")
+                                tokens += Token.PatternError("malformed pattern (missing arguments to '%b')")
+                                hasPatternToken = true
+                                index = pattern.length
+                                continue
                             }
                             tokens += Token.Balanced(pattern[index + 2], pattern[index + 3])
                             hasPatternToken = true
                             index += 4
                         } else if (next == 'f') {
                             if (index + 2 >= pattern.length || pattern[index + 2] != '[') {
-                                throw LuaRuntimeException("missing '[' after '%f' in pattern")
+                                tokens += Token.PatternError("missing '[' after '%f' in pattern")
+                                hasPatternToken = true
+                                index = pattern.length
+                                continue
                             }
                             val (token, nextIndex) = bracketClassToken(pattern, index + 2)
                             tokens += Token.Frontier(token)
@@ -412,7 +422,7 @@ internal class LuaStringPattern private constructor(
                 }
                 if (start == '%') {
                     if (index + 1 >= pattern.length) {
-                        throw LuaRuntimeException("malformed pattern (ends with '%')")
+                        return Token.PatternError("malformed pattern (missing ']')") to pattern.length
                     }
                     val token = percentToken(pattern[index + 1])
                     tokens += token
@@ -443,7 +453,7 @@ internal class LuaStringPattern private constructor(
                 sawItem = true
             }
 
-            throw LuaRuntimeException("malformed pattern (missing ']')")
+            return Token.PatternError("malformed pattern (missing ']')") to pattern.length
         }
 
         private fun percentToken(char: Char): Token {
@@ -480,6 +490,12 @@ private sealed interface Token {
             val contains = ranges.any { range -> char in range } || tokens.any { token -> token.matches(char) }
             return if (negated) !contains else contains
         }
+    }
+
+    data class PatternError(
+        val message: String,
+    ) : Token {
+        override fun matches(char: Char): Boolean = throw LuaRuntimeException(message)
     }
 
     data class CaptureStart(
