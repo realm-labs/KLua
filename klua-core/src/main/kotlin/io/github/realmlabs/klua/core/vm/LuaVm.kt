@@ -867,7 +867,18 @@ internal class LuaVm(
 
     private fun tableGet(table: LuaTable, key: LuaValue): LuaValue {
         return try {
-            tableGet(table, key, mutableSetOf())
+            val value = table.rawGet(key)
+            if (value != LuaNil) {
+                value
+            } else {
+                when (val index = table.metatableRawGet(INDEX_KEY)) {
+                    is LuaTable -> tableGet(index, key, mutableSetOf(table))
+                    is LuaClosure -> executeMetamethod(index, listOf(table, key), INDEX_KEY).firstOrNull() ?: LuaNil
+                    is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
+                    LuaNil -> LuaNil
+                    else -> indexGet(index, key)
+                }
+            }
         } catch (error: LuaTableKeyException) {
             throw LuaVmException(error.message ?: "invalid table key")
         } catch (error: LuaMetatableException) {
@@ -1030,7 +1041,14 @@ internal class LuaVm(
 
     private fun tableSet(table: LuaTable, key: LuaValue, value: LuaValue) {
         try {
-            tableSet(table, key, value, mutableSetOf(), 0)
+            if (table.rawGet(key) != LuaNil) {
+                table.rawSet(key, value)
+                return
+            }
+            when (val newIndex = table.metatableRawGet(NEW_INDEX_KEY)) {
+                LuaNil -> table.rawSet(key, value)
+                else -> newIndexSet(table, key, value, newIndex, mutableSetOf(table), 1)
+            }
         } catch (error: LuaTableKeyException) {
             throw LuaVmException(error.message ?: "invalid table key")
         } catch (error: LuaMetatableException) {

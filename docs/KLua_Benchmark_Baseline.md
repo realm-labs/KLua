@@ -71,3 +71,28 @@ The full five-workload suite was then rerun with the baseline command and enviro
 | Execute 10,000 table writes and reads | 2,626.994 | 2,835.344 | +7.9% |
 
 The non-host changes are treated as run variance; the table checkpoint in particular had a wide 99.9% error of ±925.322 µs/op. The host improvement is independently supported by the allocation reduction, and the complete Gradle test suite passes. The next M19 package should profile table access and choose one evidence-backed representation or dispatch improvement without mixing in unrelated VM changes.
+
+## 2026-07-15 Table Metamethod Traversal Checkpoint
+
+Stack and GC profiling of the combined 10,000-write/10,000-read workload found that ordinary raw table accesses allocated cycle-detection sets before determining whether an `__index` or `__newindex` chain existed. The workload allocated 3,093,994.067 B/op, and stack samples included `HashSet.add` alongside hash-table lookup and growth.
+
+Lua 5.5's `lvm.c` fast table opcodes attempt raw access first and enter `luaV_finishget` or `luaV_finishset` only for an unfinished access. KLua now follows that split: present-key reads/writes and missing-key accesses without a metamethod avoid traversal-state allocation, while table-valued metamethod chains retain the existing cycle checks. Existing core and standard-library tests cover raw precedence, integral-float key canonicalization, chained table delegates, and cycle errors.
+
+The matched JMH GC-profiler run measured:
+
+| Metric | Before | After | Delta |
+| --- | ---: | ---: | ---: |
+| Average time | 2,594.550 µs/op | 2,327.755 µs/op | -10.3% |
+| Allocation | 3,093,994.067 B/op | 1,253,993.849 B/op | -59.5% |
+
+The full suite after the change measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 7.890 | ±0.945 |
+| Execute numeric loop | 1,003.856 | ±56.477 |
+| Execute 10,000 Lua calls | 2,316.229 | ±148.557 |
+| Execute 10,000 host calls | 5,345.019 | ±1,493.626 |
+| Execute 10,000 table writes and reads | 2,365.362 | ±405.078 |
+
+The table score is 10.0% below the initial 2,626.994 µs/op baseline, and the host-call improvement remains intact. The complete Gradle test suite passes. With the two baseline-selected hotspots improved, the next M19 package should expand coverage with metamethod and JVM-to-Lua call controls before selecting another optimization.

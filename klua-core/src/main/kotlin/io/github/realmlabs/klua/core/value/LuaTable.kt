@@ -14,12 +14,30 @@ internal class LuaTable : LuaValue {
 
     fun get(key: LuaValue): LuaValue {
         val canonicalKey = canonicalKey(key)
-        return get(canonicalKey, mutableSetOf())
+        val value = values[canonicalKey]
+        if (value != null) {
+            return value
+        }
+        val index = metatable?.rawGet(INDEX_KEY)
+        return if (index is LuaTable) {
+            index.get(canonicalKey, mutableSetOf(this))
+        } else {
+            LuaNil
+        }
     }
 
     fun set(key: LuaValue, value: LuaValue) {
         val canonicalKey = canonicalKey(key)
-        set(canonicalKey, value, mutableSetOf())
+        if (values.containsKey(canonicalKey)) {
+            rawSet(canonicalKey, value)
+            return
+        }
+        val newIndex = metatable?.rawGet(NEW_INDEX_KEY)
+        if (newIndex is LuaTable) {
+            newIndex.set(canonicalKey, value, mutableSetOf(this))
+        } else {
+            rawSet(canonicalKey, value)
+        }
     }
 
     fun rawGet(key: LuaValue): LuaValue {
