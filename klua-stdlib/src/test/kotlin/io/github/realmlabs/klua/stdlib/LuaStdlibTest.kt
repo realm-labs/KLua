@@ -15295,13 +15295,21 @@ class LuaStdlibTest {
                 LuaStatus.OK,
                 state.load(
                     """
+                    local function inspect(...)
+                        return select("#", ...), ...
+                    end
                     local before = os.setlocale(nil)
-                    local timeCategory = os.setlocale(nil, "time")
-                    local cLocale = os.setlocale("C", "all")
-                    local afterC = os.setlocale(nil)
-                    local rejected = os.setlocale("1-not-locale")
-                    local restored = os.setlocale("")
-                    return type(before), type(timeCategory), cLocale, afterC, rejected, type(restored)
+                    local queryCount, timeCategory = inspect(os.setlocale(nil, "time", "ignored"))
+                    local cCount, cLocale = inspect(os.setlocale("C", "numeric", "ignored"))
+                    local globalTime = os.setlocale(nil, "time")
+                    local rejectedCount, rejected = inspect(os.setlocale("zz_ZZ", "collate"))
+                    local afterRejected = os.setlocale(nil, "all")
+                    local numericRejected = os.setlocale(1)
+                    local restoredCount, restored = inspect(os.setlocale("", "monetary"))
+                    return type(before), queryCount, type(timeCategory),
+                        cCount, cLocale, globalTime,
+                        rejectedCount, rejected, afterRejected, numericRejected,
+                        restoredCount, type(restored)
                     """.trimIndent(),
                     "os-setlocale.lua",
                 ),
@@ -15309,11 +15317,17 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
             assertEquals("string", state.toString(1))
-            assertEquals("string", state.toString(2))
-            assertEquals("C", state.toString(3))
-            assertEquals("C", state.toString(4))
-            assertTrue(state.isNil(5))
-            assertEquals("string", state.toString(6))
+            assertEquals(1L, state.toInteger(2))
+            assertEquals("string", state.toString(3))
+            assertEquals(1L, state.toInteger(4))
+            assertEquals("C", state.toString(5))
+            assertEquals("C", state.toString(6))
+            assertEquals(1L, state.toInteger(7))
+            assertTrue(state.isNil(8))
+            assertEquals("C", state.toString(9))
+            assertTrue(state.isNil(10))
+            assertEquals(1L, state.toInteger(11))
+            assertEquals("string", state.toString(12))
         } finally {
             Locale.setDefault(originalLocale)
         }

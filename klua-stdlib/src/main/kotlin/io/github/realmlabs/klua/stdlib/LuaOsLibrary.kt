@@ -25,6 +25,7 @@ import java.util.Locale
 
 internal object LuaOsLibrary {
     private val startupLocale: Locale = Locale.getDefault()
+    private val availableLocales: List<Locale> = Locale.getAvailableLocales().toList()
 
     fun open(state: LuaState): LuaState {
         val startNanos = System.nanoTime()
@@ -713,7 +714,16 @@ internal object LuaOsLibrary {
             return null
         }
         val locale = Locale.forLanguageTag(normalized)
-        return locale.takeIf { it.language.isNotEmpty() && it.language != "und" }
+        return locale.takeIf { requested ->
+            requested.language.isNotEmpty() &&
+                requested.language != "und" &&
+                availableLocales.any { available ->
+                    available.language == requested.language &&
+                        (requested.script.isEmpty() || available.script == requested.script) &&
+                        (requested.country.isEmpty() || available.country == requested.country) &&
+                        (requested.variant.isEmpty() || available.variant == requested.variant)
+                }
+        }
     }
 
     private fun localeName(locale: Locale): String {
