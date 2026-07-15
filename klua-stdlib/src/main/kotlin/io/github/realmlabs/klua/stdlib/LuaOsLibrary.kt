@@ -175,12 +175,12 @@ internal object LuaOsLibrary {
         val localeName = if (context.isNone(1) || context.isNil(1)) {
             null
         } else {
-            requiredString(context, 1, "os.setlocale")
+            requiredString(context, 1, "os.setlocale").substringBefore('\u0000')
         }
         val category = if (context.isNone(2) || context.isNil(2)) {
             "all"
         } else {
-            requiredString(context, 2, "os.setlocale")
+            requiredString(context, 2, "os.setlocale").substringBefore('\u0000')
         }
         if (category !in LOCALE_CATEGORIES) {
             throw LuaRuntimeException("bad argument #2 to 'os.setlocale' (invalid option '$category')")

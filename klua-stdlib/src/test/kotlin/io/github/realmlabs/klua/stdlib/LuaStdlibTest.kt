@@ -17004,6 +17004,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os setlocale preserves c string boundaries`() {
+        val originalLocale = Locale.getDefault()
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openString(state)
+            LuaStdlib.openOs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local function inspect(...)
+                        return select("#", ...), ...
+                    end
+                    local zero = string.char(0)
+                    local selectedCount, selected = inspect(
+                        os.setlocale("C" .. zero .. "ignored", "time" .. zero .. "ignored", "ignored")
+                    )
+                    local queryCount, queried = inspect(os.setlocale(nil, "numeric" .. zero .. "ignored"))
+                    local invalidOk, invalidMessage = pcall(
+                        os.setlocale, nil, "bad" .. zero .. "ignored"
+                    )
+                    return selectedCount, selected, queryCount, queried,
+                        invalidOk, invalidMessage
+                    """.trimIndent(),
+                    "os-setlocale-c-strings.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1L, state.toInteger(1))
+            assertEquals("C", state.toString(2))
+            assertEquals(1L, state.toInteger(3))
+            assertEquals("C", state.toString(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #2 to 'os.setlocale' (invalid option 'bad')", state.toString(6))
+        } finally {
+            Locale.setDefault(originalLocale)
+        }
+    }
+
+    @Test
     fun `os difftime avoids signed integer overflow`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
