@@ -211,10 +211,10 @@ internal object LuaIoLibrary {
 
     private fun ioLines(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
         if (context.isNone(1) || context.isNil(1)) {
-            checkLineFormatCount(context, 2, "io.lines")
-            val arguments = readFormatArgumentsFromContext(context, 2)
             val handle = currentInput(defaultFiles)
             handle.ensureOpen()
+            checkLineFormatCount(context, 2, "io.lines")
+            val arguments = readFormatArgumentsFromContext(context, 2)
             return LuaReturn.of(lineIterator(handle, arguments, firstArgumentIndex = 2, "io.lines", closeOnEnd = false))
         }
         val filename = requiredString(context, 1, "io.lines")

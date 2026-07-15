@@ -4126,7 +4126,14 @@ class LuaStdlibTest {
                     local moduleOk, moduleMessage = pcall(function()
                         return io.lines("${path.luaPath()}", table.unpack(args))
                     end)
-                    return handleOk, handleMessage, moduleOk, moduleMessage
+                    local closedDefault = assert(io.open("${path.luaPath()}", "r"))
+                    io.input(closedDefault)
+                    closedDefault:close()
+                    local closedOk, closedMessage = pcall(function()
+                        return io.lines(nil, table.unpack(args))
+                    end)
+                    return handleOk, handleMessage, moduleOk, moduleMessage,
+                        closedOk, closedMessage
                     """.trimIndent(),
                     "io-lines-too-many-args.lua",
                 ),
@@ -4137,6 +4144,8 @@ class LuaStdlibTest {
             assertEquals("bad argument #252 to 'lines' (too many arguments)", state.toString(2))
             assertFalse(state.toBoolean(3))
             assertEquals("bad argument #252 to 'io.lines' (too many arguments)", state.toString(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("attempt to use a closed file", state.toString(6))
         } finally {
             Files.deleteIfExists(path)
         }
