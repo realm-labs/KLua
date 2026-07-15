@@ -26,6 +26,7 @@ import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmDebugObserver
 import io.github.realmlabs.klua.core.vm.LuaVmException
+import io.github.realmlabs.klua.core.vm.LuaVmMetatableProvider
 import io.github.realmlabs.klua.core.vm.LuaVmStackFrame
 import io.github.realmlabs.klua.core.vm.LuaYieldContinuation
 import io.github.realmlabs.klua.core.vm.LuaYieldSignal
@@ -97,10 +98,7 @@ public object KLuaCoreRuntime {
                 LuaVm(
                     globals.table,
                     globals.environment,
-                    currentStringMetatable = { globals.stringMetatable },
-                    isStringMetatableConfigured = { globals.stringMetatableConfigured },
-                    currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
-                    currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
+                    metatables = globals.vmMetatableProvider,
                     instructionLimit = limits.instructionLimit,
                 ).execute(chunk.prototype, vmArguments).map { value ->
                     toPublicValue(value, globals)
@@ -153,10 +151,7 @@ public object KLuaCoreRuntime {
             val vm = LuaVm(
                 globals.table,
                 globals.environment,
-                currentStringMetatable = { globals.stringMetatable },
-                isStringMetatableConfigured = { globals.stringMetatableConfigured },
-                currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
-                currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
+                metatables = globals.vmMetatableProvider,
             )
             KLuaCoreComparison.Success(compare(vm, luaLeft, luaRight))
         } catch (error: LuaVmException) {
@@ -456,6 +451,15 @@ public class KLuaCoreGlobals internal constructor(
     internal var stringMetatableConfigured: Boolean = false
     internal val rawTypeMetatables: MutableMap<String, LuaTable> = linkedMapOf()
     internal val userDataMetatables: MutableMap<Any, LuaTable> = IdentityHashMap()
+    internal val vmMetatableProvider: LuaVmMetatableProvider = object : LuaVmMetatableProvider {
+        override fun stringMetatable(): LuaTable? = this@KLuaCoreGlobals.stringMetatable
+
+        override fun isStringMetatableConfigured(): Boolean = stringMetatableConfigured
+
+        override fun rawTypeMetatable(typeName: String): LuaTable? = this@KLuaCoreGlobals.rawTypeMetatable(typeName)
+
+        override fun userDataMetatable(value: Any): LuaTable? = this@KLuaCoreGlobals.userDataMetatable(value)
+    }
 
     internal fun rawTypeMetatable(typeName: String): LuaTable? {
         return when (typeName) {
@@ -843,10 +847,7 @@ public class KLuaCoreCoroutine internal constructor(
     private val vm = LuaVm(
         globals.table,
         globals.environment,
-        currentStringMetatable = { globals.stringMetatable },
-        isStringMetatableConfigured = { globals.stringMetatableConfigured },
-        currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
-        currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
+        metatables = globals.vmMetatableProvider,
         instructionLimit = limits.instructionLimit,
     )
     private var started = false
@@ -1633,10 +1634,7 @@ private fun callPublicLuaFunction(
         val vm = LuaVm(
             globals.table,
             globals.environment,
-            currentStringMetatable = { globals.stringMetatable },
-            isStringMetatableConfigured = { globals.stringMetatableConfigured },
-            currentRawTypeMetatable = { typeName -> globals.rawTypeMetatable(typeName) },
-            currentUserDataMetatable = { value -> globals.userDataMetatable(value) },
+            metatables = globals.vmMetatableProvider,
             instructionLimit = limits.instructionLimit,
         )
         vm.callWithYieldability(function, luaArguments, isYieldable).toCoreCallResult(vm, globals)

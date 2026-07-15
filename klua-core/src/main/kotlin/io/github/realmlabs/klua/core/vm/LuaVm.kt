@@ -30,15 +30,22 @@ import java.math.BigInteger
 import java.text.DecimalFormatSymbols
 import java.util.Locale
 
+internal interface LuaVmMetatableProvider {
+    fun stringMetatable(): LuaTable?
+
+    fun isStringMetatableConfigured(): Boolean
+
+    fun rawTypeMetatable(typeName: String): LuaTable?
+
+    fun userDataMetatable(value: Any): LuaTable?
+}
+
 internal class LuaVm(
     private val globals: LuaTable = LuaTable(),
     private val environment: LuaValue = globals,
     private val stringMetatable: LuaTable? = null,
     private val stringMetatableConfigured: Boolean = false,
-    private val currentStringMetatable: (() -> LuaTable?)? = null,
-    private val isStringMetatableConfigured: (() -> Boolean)? = null,
-    private val currentRawTypeMetatable: ((String) -> LuaTable?)? = null,
-    private val currentUserDataMetatable: ((Any) -> LuaTable?)? = null,
+    private val metatables: LuaVmMetatableProvider? = null,
     private val instructionLimit: Long = 0,
 ) {
     private val thread = LuaThread()
@@ -566,7 +573,7 @@ internal class LuaVm(
                 callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callSiteInfo, callMetamethodDepth)
             }
             is LuaUserData -> {
-                val metatable = currentUserDataMetatable?.invoke(callee.value)
+                val metatable = metatables?.userDataMetatable(callee.value)
                 if (metatable != null) {
                     callMetamethod(
                         callee,
@@ -1037,9 +1044,9 @@ internal class LuaVm(
         return when (receiver) {
             is LuaTable -> tableGet(receiver, key, allowSuspension)
             is LuaString -> {
-                val metatableConfigured = isStringMetatableConfigured?.invoke() ?: stringMetatableConfigured
+                val metatableConfigured = metatables?.isStringMetatableConfigured() ?: stringMetatableConfigured
                 if (metatableConfigured) {
-                    val metatable = currentStringMetatable?.invoke() ?: stringMetatable
+                    val metatable = metatables?.stringMetatable() ?: stringMetatable
                         ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
                     return primitiveIndexGet(receiver, key, metatable, allowSuspension)
                 }
@@ -1048,7 +1055,7 @@ internal class LuaVm(
                 tableGet(stringLibrary, key, allowSuspension)
             }
             is LuaUserData -> {
-                val metatable = currentUserDataMetatable?.invoke(receiver.value)
+                val metatable = metatables?.userDataMetatable(receiver.value)
                 if (metatable != null) {
                     val index = metatable.rawGet(INDEX_KEY)
                     if (index == LuaNil) {
@@ -1068,7 +1075,7 @@ internal class LuaVm(
                 }
             }
             else -> {
-                val metatable = currentRawTypeMetatable?.invoke(typeName(receiver))
+                val metatable = metatables?.rawTypeMetatable(typeName(receiver))
                     ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
                 primitiveIndexGet(receiver, key, metatable, allowSuspension)
             }
@@ -1120,8 +1127,8 @@ internal class LuaVm(
     private fun rawTypeMetatable(value: LuaValue): LuaTable? {
         return when (value) {
             is LuaString -> {
-                val metatableConfigured = isStringMetatableConfigured?.invoke() ?: stringMetatableConfigured
-                if (metatableConfigured) currentStringMetatable?.invoke() ?: stringMetatable else null
+                val metatableConfigured = metatables?.isStringMetatableConfigured() ?: stringMetatableConfigured
+                if (metatableConfigured) metatables?.stringMetatable() ?: stringMetatable else null
             }
             is LuaBoolean,
             is LuaClosure,
@@ -1129,7 +1136,7 @@ internal class LuaVm(
             is LuaInteger,
             is LuaNativeFunction,
             LuaNil,
-            -> currentRawTypeMetatable?.invoke(typeName(value))
+            -> metatables?.rawTypeMetatable(typeName(value))
             else -> null
         }
     }
@@ -1150,7 +1157,7 @@ internal class LuaVm(
     private fun namedObjectTypeName(value: LuaValue): String? {
         return when (value) {
             is LuaTable -> (value.metatableRawGet(NAME_KEY) as? LuaString)?.value
-            is LuaUserData -> currentUserDataMetatable?.invoke(value.value)?.let { metatable ->
+            is LuaUserData -> metatables?.userDataMetatable(value.value)?.let { metatable ->
                 (metatable.rawGet(NAME_KEY) as? LuaString)?.value
             }
             else -> null
@@ -1195,7 +1202,7 @@ internal class LuaVm(
         when (receiver) {
             is LuaTable -> tableSet(receiver, key, value, allowSuspension)
             is LuaUserData -> {
-                val metatable = currentUserDataMetatable?.invoke(receiver.value)
+                val metatable = metatables?.userDataMetatable(receiver.value)
                 if (metatable != null) {
                     val newIndex = metatable.rawGet(NEW_INDEX_KEY)
                     if (newIndex == LuaNil) {
@@ -1513,7 +1520,7 @@ internal class LuaVm(
     private fun rawMetamethod(value: LuaValue, key: LuaString): LuaValue {
         return when (value) {
             is LuaTable -> value.metatableRawGet(key)
-            is LuaUserData -> currentUserDataMetatable?.invoke(value.value)?.rawGet(key) ?: LuaNil
+            is LuaUserData -> metatables?.userDataMetatable(value.value)?.rawGet(key) ?: LuaNil
             else -> rawTypeMetatable(value)?.rawGet(key) ?: LuaNil
         }
     }
@@ -1586,7 +1593,7 @@ internal class LuaVm(
     }
 
     private fun userDataLength(value: LuaUserData, allowSuspension: Boolean): LuaValue {
-        val metatable = currentUserDataMetatable?.invoke(value.value)
+        val metatable = metatables?.userDataMetatable(value.value)
             ?: throw LuaVmException("attempt to get length of userdata")
         val length = metatable.rawGet(LEN_KEY)
         if (length == LuaNil) {
