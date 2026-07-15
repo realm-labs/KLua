@@ -3917,6 +3917,59 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io update modes preserve source missing file creation rules`() {
+        val directory = Files.createTempDirectory("klua-io-update-mode-create-")
+        val readUpdatePath = directory.resolve("read-update.txt")
+        val writeUpdatePath = directory.resolve("write-update.txt")
+        val appendUpdatePath = directory.resolve("append-update.txt")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local readValue, readMessage, readCode =
+                        io.open("${readUpdatePath.luaPath()}", "r+")
+                    if readValue then
+                        readValue:close()
+                    end
+
+                    local writeHandle = assert(io.open("${writeUpdatePath.luaPath()}", "w+"))
+                    local writeReturned = writeHandle:write("write") == writeHandle
+                    writeHandle:close()
+
+                    local appendHandle = assert(io.open("${appendUpdatePath.luaPath()}", "a+"))
+                    local appendReturned = appendHandle:write("append") == appendHandle
+                    appendHandle:close()
+
+                    return readValue, type(readMessage), type(readCode),
+                        writeReturned, appendReturned
+                    """.trimIndent(),
+                    "io-update-mode-missing-files.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.isNil(1))
+            assertEquals("string", state.toString(2))
+            assertEquals("number", state.toString(3))
+            assertTrue(state.toBoolean(4))
+            assertTrue(state.toBoolean(5))
+            assertFalse(Files.exists(readUpdatePath))
+            assertEquals("write", Files.readString(writeUpdatePath))
+            assertEquals("append", Files.readString(appendUpdatePath))
+        } finally {
+            Files.deleteIfExists(readUpdatePath)
+            Files.deleteIfExists(writeUpdatePath)
+            Files.deleteIfExists(appendUpdatePath)
+            Files.deleteIfExists(directory)
+        }
+    }
+
+    @Test
     fun `io open entry points use source c string boundaries`() {
         val directory = Files.createTempDirectory("klua-io-open-c-string-")
         val inputPath = directory.resolve("input.txt")
@@ -4409,9 +4462,9 @@ class LuaStdlibTest {
                 handle:write("scratch")
                 handle:seek("set", 0)
                 local data = handle:read("*a")
-                local closed = io.close(handle)
-                local after = io.type(handle)
-                local nonFile = io.type({})
+                local closed = io.close(handle, {}, "ignored")
+                local after = io.type(handle, {}, "ignored")
+                local nonFile = io.type({}, "ignored")
                 local readOk, readMessage = pcall(function()
                     return handle:read()
                 end)
@@ -5570,7 +5623,7 @@ class LuaStdlibTest {
                     """
                     local input = assert(io.open("${inputPath.luaPath()}", nil))
                     io.input(input)
-                    local nilInput = io.input(nil)
+                    local nilInput = io.input(nil, {}, "ignored")
                     local inputOk, inputMessage = pcall(io.input, "${missingPath.luaPath()}")
                     local inputAfter = io.input()
                     local inputText = io.read("a")
@@ -5578,7 +5631,7 @@ class LuaStdlibTest {
 
                     local output = assert(io.open("${outputPath.luaPath()}", "w"))
                     io.output(output)
-                    local nilOutput = io.output(nil)
+                    local nilOutput = io.output(nil, {}, "ignored")
                     local outputOk, outputMessage = pcall(io.output, "${missingPath.luaPath()}")
                     local outputAfter = io.output()
                     io.write("kept-output")

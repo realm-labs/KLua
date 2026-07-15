@@ -16,6 +16,7 @@ import java.io.RandomAccessFile
 import java.math.BigInteger
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
+import java.nio.file.NoSuchFileException
 import java.nio.file.Path
 import java.util.Locale
 
@@ -89,8 +90,12 @@ internal object LuaIoLibrary {
         val parsed = parseMode(cMode)
             ?: throw LuaRuntimeException("bad argument #2 to 'io.open' (invalid mode)")
         return try {
+            val path = Path.of(cFilename)
+            if (parsed.requiresExistingFile && !Files.exists(path)) {
+                throw NoSuchFileException(cFilename)
+            }
             val handle = IoFileHandle(
-                Path.of(cFilename),
+                path,
                 RandomAccessFile(cFilename, parsed.randomAccessMode),
                 readable = parsed.readable,
                 writable = parsed.writable,
@@ -691,6 +696,7 @@ internal object LuaIoLibrary {
             writable = writable,
             append = first == 'a',
             truncate = first == 'w',
+            requiresExistingFile = first == 'r',
         )
     }
 
@@ -733,6 +739,7 @@ internal object LuaIoLibrary {
         val writable: Boolean,
         val append: Boolean,
         val truncate: Boolean,
+        val requiresExistingFile: Boolean,
     )
 
     private data class IoDefaultFiles(
