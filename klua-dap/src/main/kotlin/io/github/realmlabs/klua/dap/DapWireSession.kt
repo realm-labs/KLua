@@ -13,7 +13,7 @@ public fun interface DapStackTraceFrameProvider {
 }
 
 public class DapWireSession(
-    private val session: DapSession = DapSession(),
+    private val session: DapCommandSession = DapSession(),
     private val stackTraceFrameProvider: DapStackTraceFrameProvider = DapStackTraceFrameProvider { emptyList() },
 ) {
     private var nextSeq = 1
@@ -36,17 +36,38 @@ public class DapWireSession(
                 success = false,
                 message = error.message ?: "invalid DAP request",
             )
+        } catch (error: IllegalStateException) {
+            DapResponseMessage(
+                seq = nextSeq++,
+                requestSeq = request.seq,
+                command = request.command,
+                success = false,
+                message = error.message ?: "invalid debugger state",
+            )
         }
     }
 
     public fun handleExchange(request: DapRequestMessage): DapWireExchange {
         val response = handle(request)
-        val events = if (response.success && request.command == "initialize") {
-            listOf(DapEventMessage(seq = nextSeq++, event = "initialized"))
-        } else {
-            emptyList()
+        val events = buildList {
+            if (response.success && request.command == "initialize") {
+                add(DapEventMessage(seq = nextSeq++, event = "initialized"))
+            }
+            if (response.success) {
+                addAll(drainEvents())
+            }
         }
         return DapWireExchange(response, events)
+    }
+
+    public fun drainEvents(): List<DapEventMessage> {
+        return session.drainEvents().map { event ->
+            DapEventMessage(
+                seq = nextSeq++,
+                event = event.event,
+                body = event.body.toDapJson(),
+            )
+        }
     }
 
     public fun handleJson(json: String): String {
@@ -70,8 +91,13 @@ public class DapWireSession(
             "attach" -> argumentsObject().toAttachRequest()
             "disconnect" -> argumentsObjectOrNull()?.toDisconnectRequest() ?: DapDisconnectRequest()
             "setBreakpoints" -> argumentsObject().toSetBreakpointsRequest()
-            "configurationDone", "continue", "pause", "stepIn", "threads" -> null
-            "next", "stepOut" -> DapStepRequest(argumentsObjectOrNull()?.optionalInt("callDepth") ?: 0)
+            "configurationDone", "threads" -> null
+            "continue" -> DapContinueRequest(argumentsObjectOrNull()?.optionalInt("threadId"))
+            "pause" -> DapPauseRequest(argumentsObjectOrNull()?.optionalInt("threadId"))
+            "next", "stepIn", "stepOut" -> DapStepRequest(
+                callDepth = argumentsObjectOrNull()?.optionalInt("callDepth") ?: 0,
+                threadId = argumentsObjectOrNull()?.optionalInt("threadId"),
+            )
             "stackTrace" -> argumentsObject().toStackTraceRequest(stackTraceFrameProvider)
             "scopes" -> DapScopesRequest(argumentsObject().requiredInt("frameId"))
             "variables" -> argumentsObject().toVariablesRequest()
@@ -159,6 +185,7 @@ private fun DapJsonObject.toStackTraceRequest(
         frames = frameProvider.frames(threadId),
         startFrame = optionalInt("startFrame") ?: 0,
         levels = optionalInt("levels"),
+        threadId = threadId,
     )
 }
 
@@ -219,6 +246,22 @@ private fun Any?.toDapJson(): DapJsonValue? {
             ),
         )
         is DapThreadsResponse -> DapJsonObject(linkedMapOf("threads" to DapJsonArray(threads.map { thread -> thread.toDapJson() })))
+        is DapStoppedEventBody -> {
+            val properties = linkedMapOf<String, DapJsonValue>(
+                "reason" to DapJsonString(reason),
+                "threadId" to DapJsonNumber(threadId.toDouble()),
+                "allThreadsStopped" to DapJsonBoolean(allThreadsStopped),
+            )
+            if (description != null) properties["description"] = DapJsonString(description)
+            DapJsonObject(properties)
+        }
+        is DapThreadEventBody -> DapJsonObject(
+            linkedMapOf(
+                "reason" to DapJsonString(reason),
+                "threadId" to DapJsonNumber(threadId.toDouble()),
+            ),
+        )
+        DapTerminatedEventBody -> DapJsonObject(emptyMap())
         else -> throw IllegalArgumentException("unsupported DAP response body: ${this::class.java.simpleName}")
     }
 }

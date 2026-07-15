@@ -167,6 +167,17 @@ public data class DapCommandResponse(
     public val body: Any?,
 )
 
+public data class DapSessionEvent(
+    public val event: String,
+    public val body: Any? = null,
+)
+
+public interface DapCommandSession {
+    public fun handle(request: DapCommandRequest): DapCommandResponse
+
+    public fun drainEvents(): List<DapSessionEvent> = emptyList()
+}
+
 public data class DapEvaluateRequest(
     public val expression: String,
     public val frameId: Int? = null,
@@ -197,7 +208,7 @@ public class DapSession(
     private val threadProvider: DapThreadProvider = DapThreadProvider {
         listOf(DapThread(id = 1, name = "main"))
     },
-) {
+) : DapCommandSession {
     private var initialized = false
     private var configured = false
     private var disconnected = false
@@ -376,7 +387,7 @@ public class DapSession(
         return DapThreadsResponse(threadProvider.threads())
     }
 
-    public fun handle(request: DapCommandRequest): DapCommandResponse {
+    override fun handle(request: DapCommandRequest): DapCommandResponse {
         val body = when (request.command) {
             "initialize" -> initialize(request.argumentsAs())
             "launch" -> launch(request.argumentsAs())
@@ -435,13 +446,23 @@ public class DapSession(
 }
 
 public data class DapStepRequest(
-    public val callDepth: Int,
+    public val callDepth: Int = 0,
+    public val threadId: Int? = null,
 )
 
 public data class DapStackTraceRequest(
     public val frames: List<DebugFrameView>,
     public val startFrame: Int = 0,
     public val levels: Int? = null,
+    public val threadId: Int? = null,
+)
+
+public data class DapContinueRequest(
+    public val threadId: Int? = null,
+)
+
+public data class DapPauseRequest(
+    public val threadId: Int? = null,
 )
 
 public data class DapScopesRequest(
