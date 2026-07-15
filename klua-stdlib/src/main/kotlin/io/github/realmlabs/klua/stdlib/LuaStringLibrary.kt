@@ -8,7 +8,10 @@ import io.github.realmlabs.klua.api.LuaState
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.ByteArrayOutputStream
+import java.math.BigDecimal
 import java.math.BigInteger
+import java.math.MathContext
+import java.math.RoundingMode
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.charset.StandardCharsets
@@ -1025,12 +1028,99 @@ internal object LuaStringLibrary {
         specifier: String,
         conversion: Char,
     ): String {
-        val parsed = validateFormatSize(specifier)
         val value = requiredNumber(context, index, "string.format")
+        val parsed = validateFormatSize(specifier)
         if (!value.isFinite()) {
             return formatNonFiniteDecimalFloat(value, parsed, conversion)
         }
-        return parsed.toJavaSpecifier(conversion).formatWith(value).localizeFloatDecimalPoint()
+        val magnitude = BigDecimal(if (value.hasNegativeSign()) -value else value)
+        val alternate = '#' in parsed.flags
+        val formatted = when (conversion) {
+            'f' -> formatFixedDecimal(magnitude, parsed.precision ?: 6, alternate)
+            'e',
+            'E',
+            -> formatScientificDecimal(magnitude, parsed.precision ?: 6, alternate, conversion)
+            'g',
+            'G',
+            -> formatGeneralDecimal(magnitude, parsed.precision ?: 6, alternate, conversion)
+            else -> error("unsupported decimal conversion $conversion")
+        }
+        val signed = floatSign(value, parsed) + formatted
+        return applyFloatWidth(signed.localizeFloatDecimalPoint(), parsed)
+    }
+
+    private fun formatFixedDecimal(value: BigDecimal, precision: Int, alternate: Boolean): String {
+        val formatted = value.setScale(precision, RoundingMode.HALF_EVEN).toPlainString()
+        return if (precision == 0 && alternate) "$formatted." else formatted
+    }
+
+    private fun formatScientificDecimal(
+        value: BigDecimal,
+        precision: Int,
+        alternate: Boolean,
+        conversion: Char,
+    ): String {
+        val significantDigits = precision + 1
+        val rounded = roundToSignificantDigits(value, significantDigits)
+        val exponent = decimalExponent(rounded)
+        var mantissa = rounded.movePointLeft(exponent).setScale(precision, RoundingMode.HALF_EVEN).toPlainString()
+        if (precision == 0 && alternate) {
+            mantissa += "."
+        }
+        return mantissa + formatDecimalExponent(exponent, conversion)
+    }
+
+    private fun formatGeneralDecimal(
+        value: BigDecimal,
+        requestedPrecision: Int,
+        alternate: Boolean,
+        conversion: Char,
+    ): String {
+        val precision = requestedPrecision.coerceAtLeast(1)
+        val rounded = roundToSignificantDigits(value, precision)
+        val exponent = decimalExponent(rounded)
+        return if (exponent < -4 || exponent >= precision) {
+            val fractionDigits = precision - 1
+            var mantissa = rounded.movePointLeft(exponent)
+                .setScale(fractionDigits, RoundingMode.HALF_EVEN)
+                .toPlainString()
+            if (!alternate) {
+                mantissa = mantissa.removeDecimalTrailingZeros()
+            } else if (fractionDigits == 0) {
+                mantissa += "."
+            }
+            mantissa + formatDecimalExponent(exponent, conversion)
+        } else {
+            val fractionDigits = (precision - exponent - 1).coerceAtLeast(0)
+            var formatted = rounded.setScale(fractionDigits, RoundingMode.HALF_EVEN).toPlainString()
+            if (!alternate) {
+                formatted = formatted.removeDecimalTrailingZeros()
+            } else if (fractionDigits == 0) {
+                formatted += "."
+            }
+            formatted
+        }
+    }
+
+    private fun roundToSignificantDigits(value: BigDecimal, precision: Int): BigDecimal {
+        return if (value.signum() == 0) value else value.round(MathContext(precision, RoundingMode.HALF_EVEN))
+    }
+
+    private fun decimalExponent(value: BigDecimal): Int {
+        return if (value.signum() == 0) 0 else value.precision() - value.scale() - 1
+    }
+
+    private fun formatDecimalExponent(exponent: Int, conversion: Char): String {
+        val marker = if (conversion.isUpperCase()) 'E' else 'e'
+        val sign = if (exponent < 0) '-' else '+'
+        return "$marker$sign${kotlin.math.abs(exponent).toString().padStart(2, '0')}"
+    }
+
+    private fun String.removeDecimalTrailingZeros(): String {
+        if ('.' !in this) {
+            return this
+        }
+        return trimEnd('0').trimEnd('.')
     }
 
     private fun formatIntegerValue(
@@ -1115,8 +1205,74 @@ internal object LuaStringLibrary {
         if (!value.isFinite()) {
             return formatNonFiniteHexFloat(value, parsed, conversion)
         }
-        val formatted = parsed.copy(width = null).toJavaSpecifier(conversion).formatWith(value)
-        return applyFloatWidth(canonicalizeHexFloat(formatted, parsed).localizeFloatDecimalPoint(), parsed)
+        val magnitude = if (value.hasNegativeSign()) -value else value
+        val formatted = formatHexFloatMagnitude(magnitude, parsed, conversion)
+        val signed = floatSign(value, parsed) + formatted
+        return applyFloatWidth(signed.localizeFloatDecimalPoint(), parsed)
+    }
+
+    private fun formatHexFloatMagnitude(value: Double, parsed: FormatSpecifier, conversion: Char): String {
+        val bits = java.lang.Double.doubleToRawLongBits(value)
+        val exponentBits = ((bits ushr 52) and 0x7ffL).toInt()
+        val fraction = bits and 0x000f_ffff_ffff_ffffL
+        val exponent: Int
+        val significand: Long
+        when {
+            value == 0.0 -> {
+                exponent = 0
+                significand = 0
+            }
+            exponentBits == 0 -> {
+                exponent = -1022
+                significand = fraction
+            }
+            else -> {
+                exponent = exponentBits - 1023
+                significand = (1L shl 52) or fraction
+            }
+        }
+
+        val precision = parsed.precision
+        val digits = if (precision == null) {
+            significand.toString(16).padStart(14, '0').let { exact ->
+                exact.first() + exact.substring(1).trimEnd('0').let { fractionDigits ->
+                    when {
+                        fractionDigits.isNotEmpty() -> ".$fractionDigits"
+                        '#' in parsed.flags -> "."
+                        else -> ""
+                    }
+                }
+            }
+        } else {
+            val roundedDigits = roundHexSignificand(significand, precision)
+            val padded = roundedDigits.padStart(precision + 1, '0')
+            when {
+                precision > 0 -> padded.first() + "." + padded.substring(1)
+                '#' in parsed.flags -> padded + "."
+                else -> padded
+            }
+        }
+        val uppercase = conversion == 'A'
+        val prefix = if (uppercase) "0X" else "0x"
+        val marker = if (uppercase) 'P' else 'p'
+        val exponentSign = if (exponent < 0) '-' else '+'
+        val body = "$prefix$digits$marker$exponentSign${kotlin.math.abs(exponent)}"
+        return if (uppercase) body.uppercase(Locale.ROOT) else body
+    }
+
+    private fun roundHexSignificand(significand: Long, precision: Int): String {
+        if (precision >= 13) {
+            return significand.toString(16).padStart(14, '0') + "0".repeat(precision - 13)
+        }
+        val discardedBits = 52 - precision * 4
+        var kept = significand ushr discardedBits
+        val mask = (1L shl discardedBits) - 1
+        val discarded = significand and mask
+        val halfway = 1L shl (discardedBits - 1)
+        if (discarded > halfway || discarded == halfway && kept and 1L != 0L) {
+            kept++
+        }
+        return kept.toString(16)
     }
 
     private fun String.localizeFloatDecimalPoint(): String {
@@ -1132,22 +1288,6 @@ internal object LuaStringLibrary {
         } else {
             this
         }
-    }
-
-    private fun canonicalizeHexFloat(value: String, parsed: FormatSpecifier): String {
-        val exponent = value.indexOfLast { char -> char == 'p' || char == 'P' }
-        if (exponent < 0) {
-            return value
-        }
-        val rawMantissa = value.substring(0, exponent)
-        val dot = rawMantissa.indexOf('.')
-        val mantissa = when {
-            parsed.precision == 0 && dot >= 0 && '#' in parsed.flags -> rawMantissa.substring(0, dot + 1)
-            parsed.precision == 0 && dot >= 0 -> rawMantissa.substring(0, dot)
-            parsed.precision == null && '#' !in parsed.flags -> rawMantissa.removeSuffix(".0")
-            else -> rawMantissa
-        }
-        return signedHexFloatExponent(mantissa + value.substring(exponent))
     }
 
     private fun applyFloatWidth(value: String, parsed: FormatSpecifier): String {
@@ -1169,33 +1309,15 @@ internal object LuaStringLibrary {
         return value.substring(0, insertion) + padding + value.substring(insertion)
     }
 
-    private fun signedHexFloatExponent(value: String): String {
-        val exponent = value.indexOfLast { char -> char == 'p' || char == 'P' }
-        if (exponent < 0) {
-            return value
-        }
-        val sign = value.getOrNull(exponent + 1)
-        if (sign == '+' || sign == '-') {
-            return value
-        }
-        return value.substring(0, exponent + 1) + "+" + value.substring(exponent + 1)
-    }
-
     private fun formatNonFiniteDecimalFloat(
         value: Double,
         parsed: FormatSpecifier,
         conversion: Char,
     ): String {
-        val text = when {
-            value.isNaN() -> "nan"
-            value < 0.0 -> "-inf"
-            '+' in parsed.flags -> "+inf"
-            ' ' in parsed.flags -> " inf"
-            else -> "inf"
-        }.let { formatted ->
+        val text = (floatSign(value, parsed) + if (value.isNaN()) "nan" else "inf").let { formatted ->
             if (conversion == 'E' || conversion == 'G') formatted.uppercase(Locale.ROOT) else formatted
         }
-        return applyFloatWidth(text, parsed)
+        return applyNonFiniteFloatWidth(text, parsed)
     }
 
     private fun formatNonFiniteHexFloat(
@@ -1203,16 +1325,27 @@ internal object LuaStringLibrary {
         parsed: FormatSpecifier,
         conversion: Char,
     ): String {
-        val text = when {
-            value.isNaN() -> "nan"
-            value < 0.0 -> "-inf"
-            '+' in parsed.flags -> "+inf"
-            ' ' in parsed.flags -> " inf"
-            else -> "inf"
-        }.let { formatted ->
+        val text = (floatSign(value, parsed) + if (value.isNaN()) "nan" else "inf").let { formatted ->
             if (conversion == 'A') formatted.uppercase(Locale.ROOT) else formatted
         }
-        return applyFloatWidth(text, parsed)
+        return applyNonFiniteFloatWidth(text, parsed)
+    }
+
+    private fun Double.hasNegativeSign(): Boolean {
+        return java.lang.Double.doubleToRawLongBits(this) < 0
+    }
+
+    private fun floatSign(value: Double, parsed: FormatSpecifier): String {
+        return when {
+            !value.isNaN() && value.hasNegativeSign() -> "-"
+            '+' in parsed.flags -> "+"
+            ' ' in parsed.flags -> " "
+            else -> ""
+        }
+    }
+
+    private fun applyNonFiniteFloatWidth(value: String, parsed: FormatSpecifier): String {
+        return applyFloatWidth(value, parsed.copy(flags = parsed.flags.replace("0", "")))
     }
 
     private fun validateIntegerFormatFlags(

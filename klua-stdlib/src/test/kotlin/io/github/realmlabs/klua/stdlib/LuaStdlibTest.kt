@@ -24063,7 +24063,7 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals("ab   |   +7|00007|1.3| 0xff", state.toString(1))
+        assertEquals("ab   |   +7|00007|1.2| 0xff", state.toString(1))
     }
 
     @Test
@@ -24147,7 +24147,7 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals("+7   |+0007| 1.3    |+00001.3", state.toString(1))
+        assertEquals("+7   |+0007| 1.2    |+00001.2", state.toString(1))
     }
 
     @Test
@@ -24368,10 +24368,128 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals(
-            "0x1.8p+0|0X1.8P+0|0x1.80p+0|    0x1.8p+0|0x00001.8p+0|   +0x1.8p+0|0x1p+0|0x1.p+0|" +
+            "0x1.8p+0|0X1.8P+0|0x1.80p+0|    0x1.8p+0|0x00001.8p+0|   +0x1.8p+0|0x2p+0|0x2.p+0|" +
                 "0x1p+0|0x0p+0|-0x0p+0|inf|INF|-inf|-INF|nan|NAN",
             state.toString(1),
         )
+    }
+
+    @Test
+    fun `string format renders exact decimal floating point conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local general = string.format(
+                    "%g|%.2g|%#.6g|%.0g|%.6g|%.6g|%.6g|%.6g",
+                    1.0, 1.25, 9.999999, 9.99999, 0.0001, 0.00001, 999999.0, 1000000.0)
+                local endpoints = string.format("%g|%.17e", 0x1p-1074, 0x1p-1074)
+                local maximum = string.format("%.0f", 0x1.fffffffffffffp+1023)
+                return general, endpoints, string.len(maximum), string.sub(maximum, -12),
+                    string.format("%#.0f|%#.0e|%#.0g", 1.5, 1.5, 1.5),
+                    string.format("%.1e|%.1E|%.2G|%+010.1f", 1.25, 1.25, 12345, 1.25)
+                """.trimIndent(),
+                "string-format-exact-decimal-floats.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("1|1.2|10.0000|1e+01|0.0001|1e-05|999999|1e+06", state.toString(1))
+        assertEquals("4.94066e-324|4.94065645841246544e-324", state.toString(2))
+        assertEquals(309L, state.toInteger(3))
+        assertEquals("184124858368", state.toString(4))
+        assertEquals("2.|2.e+00|2.", state.toString(5))
+        assertEquals("1.2e+00|1.2E+00|1.2E+04|+0000001.2", state.toString(6))
+    }
+
+    @Test
+    fun `string format rounds hexadecimal floats by binary precision`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.format(
+                    "%.0a|%#.0a|%#a|%.1a|%.1a|%.1a|%.0a|%.14a|%a|%.13a|%.0a",
+                    1.5, 1.5, 1.0, 1.03125, 1.09375, 0x1.fffffffffffffp+0,
+                    0x1.fffffffffffffp+1023, 0x1.fffffffffffffp+0,
+                    0x1p-1074, 0x1p-1074, 0x1p-1074)
+                """.trimIndent(),
+                "string-format-hex-float-rounding.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            "0x2p+0|0x2.p+0|0x1.p+0|0x1.0p+0|0x1.2p+0|0x2.0p+0|0x2p+1023|" +
+                "0x1.fffffffffffff0p+0|0x0.0000000000001p-1022|" +
+                "0x0.0000000000001p-1022|0x0p-1022",
+            state.toString(1),
+        )
+    }
+
+    @Test
+    fun `string format applies finite signs and non finite padding`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return string.format("%f|%+010g|%010g|% 10G|%-10f|%+g|% g|%+G",
+                    -0.0, math.huge, -math.huge, 0 / 0, math.huge, 0 / 0, 0 / 0, 0 / 0)
+                """.trimIndent(),
+                "string-format-float-sign-padding.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            "-0.000000|      +inf|      -inf|       NAN|inf       |+nan| nan|+NAN",
+            state.toString(1),
+        )
+    }
+
+    @Test
+    fun `string format numeric conversions preserve source validation order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local decimalTypeOk, decimalTypeMessage = pcall(string.format, "%100f", "bad")
+                local decimalFormatOk, decimalFormatMessage = pcall(string.format, "%100f", 1)
+                local hexFormatOk, hexFormatMessage = pcall(string.format, "%100a", "bad")
+                local integerTypeOk, integerTypeMessage = pcall(string.format, "%#d", "bad")
+                local formatted = string.format("%d|%.2g", "7", "1.25", "ignored")
+                return decimalTypeOk, decimalTypeMessage, decimalFormatOk, decimalFormatMessage,
+                    hexFormatOk, hexFormatMessage, integerTypeOk, integerTypeMessage,
+                    formatted, select("#", string.format("%d", 1))
+                """.trimIndent(),
+                "string-format-numeric-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'string.format' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("invalid conversion specification: '%100f'", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("invalid conversion specification: '%100a'", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #2 to 'format' (number expected)", state.toString(8))
+        assertEquals("7|1.2", state.toString(9))
+        assertEquals(1L, state.toInteger(10))
     }
 
     @Test
@@ -24410,6 +24528,43 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertEquals("18446744073709551615|018446744073709551615", state.toString(1))
+    }
+
+    @Test
+    fun `string format projects integer boundaries through printf conversions`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local boundaries = string.format("%d|%i|%u|%o|%x|%X",
+                    math.mininteger, math.maxinteger, -1, -1, -1, -1)
+                local signed = string.format("%+021d|% 21d|%-21d",
+                    math.mininteger, math.maxinteger, math.maxinteger)
+                local precision = string.format("%.0d|%5.0d|%#.0o|%#8.5o|%#10.4x|%#10.4X",
+                    0, 0, 0, 9, 255, 255)
+                local unsigned = string.format("%021u|%.21u|%#022o|%#018x", -1, -1, -1, -1)
+                return boundaries, signed, precision, unsigned
+                """.trimIndent(),
+                "string-format-integer-boundary-matrix.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            "-9223372036854775808|9223372036854775807|18446744073709551615|" +
+                "1777777777777777777777|ffffffffffffffff|FFFFFFFFFFFFFFFF",
+            state.toString(1),
+        )
+        assertEquals("-09223372036854775808|  9223372036854775807|9223372036854775807  ", state.toString(2))
+        assertEquals("|     |0|   00011|    0x00ff|    0X00FF", state.toString(3))
+        assertEquals(
+            "018446744073709551615|018446744073709551615|01777777777777777777777|0xffffffffffffffff",
+            state.toString(4),
+        )
     }
 
     @Test
