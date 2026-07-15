@@ -13570,6 +13570,50 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `registry owns stable isolated main thread before libraries open`() {
+        val state = LuaState.create()
+        state.pushRegistryInteger(3)
+        assertEquals("thread", state.typeName(-1))
+        val mainThread = state.toUserData(-1)
+        state.pop()
+
+        state.pushRegistryInteger(3)
+        assertTrue(state.toUserData(-1) === mainThread)
+        state.pop()
+
+        val otherState = LuaState.create()
+        otherState.pushRegistryInteger(3)
+        assertEquals("thread", otherState.typeName(-1))
+        assertTrue(otherState.toUserData(-1) !== mainThread)
+    }
+
+    @Test
+    fun `debug registry exposes state main thread without coroutine library`() {
+        val state = LuaState.create()
+        state.pushRegistryInteger(3)
+        val mainThread = state.toUserData(-1)
+        state.pop()
+
+        LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local registry = debug.getregistry()
+                return type(registry[3]), registry[3]
+                """.trimIndent(),
+                "debug-registry-main-thread-without-coroutine.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("thread", state.toString(1))
+        assertTrue(state.toUserData(2) === mainThread)
+    }
+
+    @Test
     fun `debug getregistry returns stable mutable registry table`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -16447,7 +16491,7 @@ class LuaStdlibTest {
                 local afterThread, afterIsMain = coroutine.running()
                 return mainThread ~= nil, mainIsMain, ok, sameThread, coroutineIsMain,
                     afterThread == mainThread, afterIsMain, coroutine.status(mainThread),
-                    coroutine.isyieldable(mainThread)
+                    coroutine.isyieldable(mainThread), coroutine.resume(mainThread)
                 """.trimIndent(),
                 "coroutine-running.lua",
             ),
@@ -16463,6 +16507,8 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(7))
         assertEquals("running", state.toString(8))
         assertFalse(state.toBoolean(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("cannot resume non-suspended coroutine", state.toString(11))
     }
 
     @Test

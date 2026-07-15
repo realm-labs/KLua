@@ -4,9 +4,11 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaCoroutineFunction
 import io.github.realmlabs.klua.api.LuaCoroutineHandle
 import io.github.realmlabs.klua.api.LuaCoroutineResult
+import io.github.realmlabs.klua.api.LuaDebugThread
 import io.github.realmlabs.klua.api.LuaDebuggableCoroutineHandle
 import io.github.realmlabs.klua.api.LuaException
 import io.github.realmlabs.klua.api.LuaFunction
+import io.github.realmlabs.klua.api.LuaMainThread
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -20,12 +22,10 @@ import io.github.realmlabs.klua.api.withContinuation
 internal object LuaCoroutineLibrary {
     fun open(state: LuaState): LuaState {
         state.pushRegistryInteger(MAIN_THREAD_REGISTRY_INDEX)
-        val existingMain = state.toUserData(-1, LuaCoroutine::class.java)
+        val main = state.toUserData(-1, LuaMainThread::class.java)
         state.pop()
-        val runtime = existingMain?.runtime ?: CoroutineRuntime().also { created ->
-            state.pushUserData(created.main)
-            state.setRegistryInteger(MAIN_THREAD_REGISTRY_INDEX)
-        }
+        checkNotNull(main) { "LuaState registry main thread is unavailable" }
+        val runtime = CoroutineRuntime(main) { current -> state.setMainThreadCurrent(current) }
         state.newTable()
         setYieldableFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
         setFunctionField(state, "create") { context -> coroutineCreate(context, "create", runtime) }
@@ -49,7 +49,11 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineResume(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val coroutine = requiredCoroutine(context, 1, "resume")
+        val target = requiredCoroutineTarget(context, 1, "resume", runtime)
+        if (target is CoroutineTarget.Main) {
+            return LuaReturn.of(false, "cannot resume non-suspended coroutine")
+        }
+        val coroutine = (target as CoroutineTarget.Child).coroutine
         return resumeCoroutine(
             context,
             runtime,
@@ -75,6 +79,7 @@ internal object LuaCoroutineLibrary {
         coroutine.status = CoroutineStatus.RUNNING
         val previousRunning = runtime.running
         runtime.running = coroutine
+        runtime.updateMainCurrent(false)
         return try {
             val handle = coroutine.handle
             if (handle != null) {
@@ -135,6 +140,7 @@ internal object LuaCoroutineLibrary {
             LuaReturn.of(false, errorObject)
         } finally {
             runtime.running = previousRunning
+            runtime.updateMainCurrent(previousRunning == null)
         }
     }
 
@@ -179,13 +185,14 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineClose(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val coroutine = optionalCurrentCoroutine(context, runtime, "close")
-        if (coroutine.isMain) {
-            if (isRunningCoroutine(coroutine, runtime)) {
+        val target = optionalCurrentCoroutineTarget(context, runtime, "close")
+        if (target is CoroutineTarget.Main) {
+            if (runtime.running == null) {
                 throw LuaRuntimeException("cannot close main thread")
             }
             throw LuaRuntimeException("cannot close a normal coroutine")
         }
+        val coroutine = (target as CoroutineTarget.Child).coroutine
         if (coroutine.status == CoroutineStatus.RUNNING) {
             if (!isRunningCoroutine(coroutine, runtime)) {
                 throw LuaRuntimeException("cannot close a normal coroutine")
@@ -259,10 +266,11 @@ internal object LuaCoroutineLibrary {
         if (context.isNone(1)) {
             return LuaReturn.of(runtime.running != null && context.isYieldable)
         }
-        val coroutine = requiredCoroutine(context, 1, "isyieldable")
-        if (coroutine.isMain) {
+        val target = requiredCoroutineTarget(context, 1, "isyieldable", runtime)
+        if (target is CoroutineTarget.Main) {
             return LuaReturn.of(false)
         }
+        val coroutine = (target as CoroutineTarget.Child).coroutine
         if (coroutine.status != CoroutineStatus.RUNNING) {
             return LuaReturn.of(true)
         }
@@ -270,7 +278,11 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun coroutineStatus(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
-        val coroutine = requiredCoroutine(context, 1, "status")
+        val target = requiredCoroutineTarget(context, 1, "status", runtime)
+        if (target is CoroutineTarget.Main) {
+            return LuaReturn.of(if (runtime.running == null) "running" else "normal")
+        }
+        val coroutine = (target as CoroutineTarget.Child).coroutine
         return LuaReturn.of(
             when (coroutine.status) {
                 CoroutineStatus.SUSPENDED -> "suspended"
@@ -281,7 +293,7 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun isRunningCoroutine(coroutine: LuaCoroutine, runtime: CoroutineRuntime): Boolean {
-        return runtime.running == coroutine || coroutine.isMain && runtime.running == null
+        return runtime.running == coroutine
     }
 
     private fun coroutineWrap(context: LuaCallContext, runtime: CoroutineRuntime): LuaReturn {
@@ -347,24 +359,31 @@ internal object LuaCoroutineLibrary {
         }
     }
 
-    private fun requiredCoroutine(
+    private fun requiredCoroutineTarget(
         context: LuaCallContext,
         index: Int,
         functionName: String,
-    ): LuaCoroutine {
-        return context.toUserData(index, LuaCoroutine::class.java)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (thread expected)")
+        runtime: CoroutineRuntime,
+    ): CoroutineTarget {
+        context.toUserData(index, LuaCoroutine::class.java)?.let { coroutine ->
+            return CoroutineTarget.Child(coroutine)
+        }
+        val main = context.toUserData(index, LuaMainThread::class.java)
+        if (main === runtime.main) {
+            return CoroutineTarget.Main(main)
+        }
+        throw LuaRuntimeException("bad argument #$index to '$functionName' (thread expected)")
     }
 
-    private fun optionalCurrentCoroutine(
+    private fun optionalCurrentCoroutineTarget(
         context: LuaCallContext,
         runtime: CoroutineRuntime,
         functionName: String,
-    ): LuaCoroutine {
+    ): CoroutineTarget {
         return if (context.isNone(1)) {
-            runtime.running ?: runtime.main
+            runtime.running?.let(CoroutineTarget::Child) ?: CoroutineTarget.Main(runtime.main)
         } else {
-            requiredCoroutine(context, 1, functionName)
+            requiredCoroutineTarget(context, 1, functionName, runtime)
         }
     }
 
@@ -386,14 +405,17 @@ internal object LuaCoroutineLibrary {
         state.setField(-2, name)
     }
 
-    private class CoroutineRuntime {
-        val main: LuaCoroutine = LuaCoroutine(
-            function = LuaFunction { LuaReturn.of() },
-            runtime = this,
-            status = CoroutineStatus.RUNNING,
-            isMain = true,
-        )
+    private class CoroutineRuntime(
+        val main: LuaMainThread,
+        val updateMainCurrent: (Boolean) -> Unit,
+    ) {
         var running: LuaCoroutine? = null
+    }
+
+    private sealed interface CoroutineTarget {
+        data class Main(val thread: LuaMainThread) : CoroutineTarget
+
+        data class Child(val coroutine: LuaCoroutine) : CoroutineTarget
     }
 
     private class LuaCoroutine(
@@ -404,7 +426,6 @@ internal object LuaCoroutineLibrary {
         var pendingYield: LuaYieldException? = null,
         var terminalError: CoroutineTerminalError? = null,
         var needsErrorClose: Boolean = false,
-        val isMain: Boolean = false,
         var closeError: Any? = null,
         var hasCloseError: Boolean = false,
     ) : LuaTypedValue, LuaDebugThread {
@@ -414,7 +435,7 @@ internal object LuaCoroutineLibrary {
             get() = (handle as? LuaDebuggableCoroutineHandle)?.luaFrames ?: emptyList()
 
         override val isCurrentDebugThread: Boolean
-            get() = runtime.running == this || (isMain && runtime.running == null)
+            get() = runtime.running == this
 
         override fun setLocal(level: Int, index: Int, value: Any?): String? {
             return (handle as? LuaDebuggableCoroutineHandle)?.setLocal(level, index, value)

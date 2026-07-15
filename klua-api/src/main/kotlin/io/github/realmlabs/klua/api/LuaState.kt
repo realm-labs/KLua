@@ -34,8 +34,11 @@ class LuaState private constructor(
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
+    private val mainThread = LuaMainThread()
     private val registryCore = KLuaCoreRuntime.createTable(coreGlobals).also { registry ->
         registry.fields[KLuaCoreValue.IntegerValue(1)] = KLuaCoreValue.BooleanValue(false)
+        registry.fields[KLuaCoreValue.IntegerValue(3)] = KLuaCoreValue.UserDataValue(mainThread)
+        KLuaCoreRuntime.syncTable(registry, coreGlobals)
     }
     private val registry = LuaStackValue.TableValue(coreValue = registryCore)
     private val userMetatables = IdentityHashMap<Any, LuaStackValue.TableValue>()
@@ -488,6 +491,10 @@ class LuaState private constructor(
     fun pushRegistryInteger(index: Long) {
         refreshRegistryCoreValue()
         stack += registryCore.fields[KLuaCoreValue.IntegerValue(index)]?.toStackValue() ?: LuaStackValue.Nil
+    }
+
+    fun setMainThreadCurrent(current: Boolean) {
+        mainThread.isCurrentDebugThread = current
     }
 
     fun pushRegistrySubtable(name: String) {

@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaDebugThread
 import io.github.realmlabs.klua.api.LuaFunctionDebugInfo
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
