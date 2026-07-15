@@ -12,6 +12,10 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 - The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, source-backed line-iterator ownership including fourth-result early-exit closing for `io.lines(filename)`, common file read formats, Lua-style numeric write formatting and subtype-preserving capped numeric read scanning, source-backed open/default routing, seek boundaries, close/flush lifecycle and result shapes, and `setvbuf` argument validation, plus non-closing standard handles and source-routed stream-backed `io.popen`. Actual buffer reconfiguration remains a no-op, write failures cannot recover an intra-argument partial byte count from Java's bulk-write APIs, JVM process results cannot distinguish POSIX signal termination, and Windows C pipe text-mode translation is unavailable; broader `liolib.c` edge-case parity still needs conformance hardening.
 
+## OS Library
+
+- KLua's pure-JVM `os` library covers the Lua 5.5 entry points and source-backed filesystem argument/result ordering, including host-conditional rename replacement. JVM filesystem exceptions do not expose portable C errno values, so file-operation failure codes remain numeric placeholders; JVM process results also cannot reproduce POSIX wait-status signal metadata, and broader C locale/time/platform parity remains incomplete.
+
 ## Strings And UTF-8
 
 - KLua strings are still JVM-string-backed rather than byte-string-faithful in all standard-library paths. This leaves Lua 5.5 byte-level behavior incomplete for broader byte-sensitive standard-library cases. The raw-byte `utf8.offset`, `utf8.len`, `utf8.codepoint`, and `utf8.codes` paths are source-backed for representable malformed layouts; the remaining gap is general byte-string fidelity rather than an open UTF-8 entry-point family.

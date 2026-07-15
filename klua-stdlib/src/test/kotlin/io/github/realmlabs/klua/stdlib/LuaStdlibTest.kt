@@ -14752,34 +14752,70 @@ class LuaStdlibTest {
 
     @Test
     fun `os rename and remove operate on files`() {
+        val windows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
         val root = Files.createTempDirectory("klua-os-files")
         val source = root.resolve("source.txt")
         val target = root.resolve("target.txt")
+        val replacementSource = root.resolve("replacement-source.txt")
+        val replacementTarget = root.resolve("replacement-target.txt")
+        val emptyDirectory = root.resolve("empty")
         Files.writeString(source, "payload")
+        Files.writeString(replacementSource, "new")
+        Files.writeString(replacementTarget, "old")
+        Files.createDirectory(emptyDirectory)
         try {
             val state = LuaState.create()
+            LuaStdlib.openBase(state)
             LuaStdlib.openOs(state)
 
             assertEquals(
                 LuaStatus.OK,
                 state.load(
                     """
-                    local renamed = os.rename("${source.luaPath()}", "${target.luaPath()}")
-                    local removed = os.remove("${target.luaPath()}")
-                    return renamed, removed
+                    local renameCount, renamed = (function(...)
+                        return select("#", ...), ...
+                    end)(os.rename("${source.luaPath()}", "${target.luaPath()}"))
+                    local removeCount, removed = (function(...)
+                        return select("#", ...), ...
+                    end)(os.remove("${target.luaPath()}"))
+                    local directoryRemoved = os.remove("${emptyDirectory.luaPath()}")
+                    local replaced, replaceMessage, replaceCode =
+                        os.rename("${replacementSource.luaPath()}", "${replacementTarget.luaPath()}")
+                    return renameCount, renamed, removeCount, removed, directoryRemoved,
+                        replaced, replaceMessage, type(replaceCode)
                     """.trimIndent(),
                     "os-rename-remove.lua",
                 ),
             )
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-            assertTrue(state.toBoolean(1))
+            assertEquals(1L, state.toInteger(1))
             assertTrue(state.toBoolean(2))
+            assertEquals(1L, state.toInteger(3))
+            assertTrue(state.toBoolean(4))
+            assertTrue(state.toBoolean(5))
             assertFalse(Files.exists(source))
             assertFalse(Files.exists(target))
+            assertFalse(Files.exists(emptyDirectory))
+            if (windows) {
+                assertTrue(state.isNil(6))
+                assertEquals("string", state.typeName(7))
+                assertEquals("number", state.toString(8))
+                assertEquals("new", Files.readString(replacementSource))
+                assertEquals("old", Files.readString(replacementTarget))
+            } else {
+                assertTrue(state.toBoolean(6))
+                assertTrue(state.isNil(7))
+                assertEquals("nil", state.toString(8))
+                assertFalse(Files.exists(replacementSource))
+                assertEquals("new", Files.readString(replacementTarget))
+            }
         } finally {
             Files.deleteIfExists(source)
             Files.deleteIfExists(target)
+            Files.deleteIfExists(replacementSource)
+            Files.deleteIfExists(replacementTarget)
+            Files.deleteIfExists(emptyDirectory)
             Files.deleteIfExists(root)
         }
     }
@@ -14794,21 +14830,24 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local first = os.tmpname()
+                local resultCount, first = (function(...)
+                    return select("#", ...), ...
+                end)(os.tmpname({}, "ignored"))
                 local second = os.tmpname()
-                return type(first), type(second), first ~= second, first, second
+                return resultCount, type(first), type(second), first ~= second, first, second
                 """.trimIndent(),
                 "os-tmpname.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        val first = Path.of(state.toString(4) ?: error("missing first tmpname"))
-        val second = Path.of(state.toString(5) ?: error("missing second tmpname"))
+        val first = Path.of(state.toString(5) ?: error("missing first tmpname"))
+        val second = Path.of(state.toString(6) ?: error("missing second tmpname"))
         try {
-            assertEquals("string", state.toString(1))
+            assertEquals(1L, state.toInteger(1))
             assertEquals("string", state.toString(2))
-            assertTrue(state.toBoolean(3))
+            assertEquals("string", state.toString(3))
+            assertTrue(state.toBoolean(4))
             assertFalse(Files.exists(first))
             assertFalse(Files.exists(second))
             Files.writeString(first, "payload")

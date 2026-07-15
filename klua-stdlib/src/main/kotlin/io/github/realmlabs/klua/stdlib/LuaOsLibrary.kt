@@ -106,7 +106,11 @@ internal object LuaOsLibrary {
         val source = requiredString(context, 1, "os.rename")
         val target = requiredString(context, 2, "os.rename")
         return fileResult(null) {
-            Files.move(Path.of(source), Path.of(target), StandardCopyOption.REPLACE_EXISTING)
+            if (isWindows()) {
+                Files.move(Path.of(source), Path.of(target))
+            } else {
+                Files.move(Path.of(source), Path.of(target), StandardCopyOption.REPLACE_EXISTING)
+            }
         }
     }
 
