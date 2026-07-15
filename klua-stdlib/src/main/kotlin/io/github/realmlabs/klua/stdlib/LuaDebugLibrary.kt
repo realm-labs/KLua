@@ -23,6 +23,8 @@ internal object LuaDebugLibrary {
         state.register("klua_debug_setmetatable") { context -> setMetatable(context) }
         state.register("klua_debug_sethook") { context -> setHook(context) }
         state.register("klua_debug_gethook") { context -> getHook(context) }
+        state.pushRegistryTable()
+        state.setGlobal("klua_debug_registry")
         installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
         return state
     }
@@ -484,7 +486,8 @@ internal object LuaDebugLibrary {
 
     private const val DEBUG_SOURCE: String = """
         debug = debug or {}
-        local klua_debug_registry = {}
+        local klua_registry = klua_debug_registry
+        klua_debug_registry = nil
 
         function debug.debug()
         end
@@ -497,7 +500,7 @@ internal object LuaDebugLibrary {
         end
 
         function debug.getregistry()
-            return klua_debug_registry
+            return klua_registry
         end
 
         function debug.getinfo(threadOrLevel, levelOrWhat, what)

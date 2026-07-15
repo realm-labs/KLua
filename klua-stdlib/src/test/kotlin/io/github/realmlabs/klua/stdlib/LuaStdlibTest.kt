@@ -13582,7 +13582,10 @@ class LuaStdlibTest {
                 local second = debug.getregistry()
                 first.answer = 42
                 second.label = "registry"
-                return type(first), first == second, second.answer, first.label
+                return type(first), first == second, second.answer, first.label,
+                    first[1], first[3] == _G,
+                    first._LOADED == package.loaded, first._PRELOAD == package.preload,
+                    klua_debug_registry
                 """.trimIndent(),
                 "debug-registry.lua",
             ),
@@ -13593,6 +13596,75 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals(42L, state.toInteger(3))
         assertEquals("registry", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.isNil(9))
+    }
+
+    @Test
+    fun `package reuses shared registry tables across reopen and global replacement`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local registry = debug.getregistry()
+                registry._LOADED.persisted = "registry-loaded"
+                registry._PRELOAD.from_registry = function(name, data)
+                    return name .. "@" .. data
+                end
+                registry.LUA_NOENV = true
+                package = { replacement = true }
+                return package.replacement
+                """.trimIndent(),
+                "registry-package-prepare.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+        assertTrue(state.toBoolean(-1))
+        state.setTop(0)
+
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local registry = debug.getregistry()
+                local cached, cachedExtra = require("persisted")
+                local preloaded, preloadExtra = require("from_registry")
+                return registry._LOADED == package.loaded,
+                    registry._PRELOAD == package.preload,
+                    cached, cachedExtra,
+                    preloaded, preloadExtra,
+                    registry.LUA_NOENV, package.replacement,
+                    package.path
+                """.trimIndent(),
+                "registry-package-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("registry-loaded", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals("from_registry@:preload:", state.toString(5))
+        assertEquals(":preload:", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.isNil(8))
+        assertEquals(
+            LuaPackageLibrary.resolvePackagePath(
+                "LUA_PATH",
+                LuaPackageLibrary.defaultLuaPath,
+                environmentEnabled = false,
+            ),
+            state.toString(9),
+        )
     }
 
     @Test

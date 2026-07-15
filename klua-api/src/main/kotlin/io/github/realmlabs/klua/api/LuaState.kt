@@ -34,6 +34,10 @@ class LuaState private constructor(
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
+    private val registryCore = KLuaCoreRuntime.createTable(coreGlobals).also { registry ->
+        registry.fields[KLuaCoreValue.IntegerValue(1)] = KLuaCoreValue.BooleanValue(false)
+    }
+    private val registry = LuaStackValue.TableValue(coreValue = registryCore)
     private val userMetatables = IdentityHashMap<Any, LuaStackValue.TableValue>()
     private val coreBackedNativeGlobals = mutableSetOf<String>()
     private val userValues = IdentityHashMap<Any, MutableMap<Int, LuaStackValue>>()
@@ -458,6 +462,40 @@ class LuaState private constructor(
 
     fun newTable() {
         stack += LuaStackValue.TableValue()
+    }
+
+    fun pushRegistryTable() {
+        refreshRegistryCoreValue()
+        registryCore.fields[KLuaCoreValue.IntegerValue(3)] = KLuaCoreRuntime.getGlobalTable(coreGlobals)
+        refreshRegistryStackValue()
+        stack += registry
+    }
+
+    fun pushRegistrySubtable(name: String) {
+        refreshRegistryCoreValue()
+        val key = KLuaCoreValue.StringValue(name)
+        val table = registryCore.fields[key] as? KLuaCoreValue.TableValue
+            ?: KLuaCoreRuntime.createTable(coreGlobals).also {
+                registryCore.fields[key] = it
+                KLuaCoreRuntime.syncTable(registryCore, coreGlobals)
+            }
+        stack += table.toStackValue()
+    }
+
+    private fun refreshRegistryCoreValue() {
+        val refreshed = KLuaCoreRuntime.refreshTable(registryCore, coreGlobals)
+        if (refreshed !== registryCore) {
+            registryCore.fields.clear()
+            registryCore.fields.putAll(refreshed.fields)
+            registryCore.metatable = refreshed.metatable
+        }
+    }
+
+    private fun refreshRegistryStackValue() {
+        val refreshed = registryCore.toStackValue() as LuaStackValue.TableValue
+        registry.fields.clear()
+        registry.fields.putAll(refreshed.fields)
+        registry.metatable = refreshed.metatable
     }
 
     fun getField(index: Int, key: String) {

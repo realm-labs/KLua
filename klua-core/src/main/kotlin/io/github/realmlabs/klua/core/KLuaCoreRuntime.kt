@@ -325,6 +325,23 @@ public object KLuaCoreRuntime {
         return globals.stringMetatable?.let { metatable -> toPublicValue(metatable, globals) as KLuaCoreValue.TableValue }
     }
 
+    public fun getGlobalTable(globals: KLuaCoreGlobals): KLuaCoreValue.TableValue {
+        return toPublicValue(globals.table, globals) as KLuaCoreValue.TableValue
+    }
+
+    public fun createTable(globals: KLuaCoreGlobals): KLuaCoreValue.TableValue {
+        return toPublicValue(LuaTable(), globals) as KLuaCoreValue.TableValue
+    }
+
+    public fun refreshTable(table: KLuaCoreValue.TableValue, globals: KLuaCoreGlobals): KLuaCoreValue.TableValue {
+        val source = table.sourceTable ?: return table
+        return toPublicValue(source, globals) as KLuaCoreValue.TableValue
+    }
+
+    public fun syncTable(table: KLuaCoreValue.TableValue, globals: KLuaCoreGlobals) {
+        table.toLuaValueOrNull(globals)
+    }
+
     public fun getRawTypeMetatable(globals: KLuaCoreGlobals, typeName: String): KLuaCoreValue.TableValue? {
         return when (typeName) {
             "string" -> getStringMetatable(globals)

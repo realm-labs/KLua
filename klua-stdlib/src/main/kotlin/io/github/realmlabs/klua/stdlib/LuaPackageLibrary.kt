@@ -27,16 +27,26 @@ internal object LuaPackageLibrary {
     }
 
     fun open(state: LuaState): LuaState {
+        val initialTop = state.getTop()
+        state.pushRegistryTable()
+        state.getField(-1, "LUA_NOENV")
+        val environmentEnabled = state.config.packagePathEnvironmentEnabled && !state.toBoolean(-1)
+        state.setTop(initialTop)
+
+        state.pushRegistrySubtable(LOADED_TABLE)
+        val loadedIndex = state.getTop()
+        state.pushRegistrySubtable(PRELOAD_TABLE)
+        val preloadIndex = state.getTop()
         state.newTable()
-        state.pushString(resolvePackagePath("LUA_PATH", defaultLuaPath, state.config.packagePathEnvironmentEnabled))
+        state.pushString(resolvePackagePath("LUA_PATH", defaultLuaPath, environmentEnabled))
         state.setField(-2, "path")
-        state.pushString(resolvePackagePath("LUA_CPATH", defaultCPath, state.config.packagePathEnvironmentEnabled))
+        state.pushString(resolvePackagePath("LUA_CPATH", defaultCPath, environmentEnabled))
         state.setField(-2, "cpath")
         state.pushString("$directorySeparator\n;\n?\n!\n-\n")
         state.setField(-2, "config")
-        state.newTable()
+        state.pushValue(loadedIndex)
         state.setField(-2, "loaded")
-        state.newTable()
+        state.pushValue(preloadIndex)
         state.setField(-2, "preload")
         setFunctionField(state, "loadlib", ::loadlib)
         setFunctionField(state, "searchpath", ::searchpath)
@@ -46,6 +56,7 @@ internal object LuaPackageLibrary {
         setFunctionField(state, "_cString", ::cString)
         setFunctionField(state, "_moduleRoot", ::moduleRoot)
         state.setGlobal("package")
+        state.setTop(initialTop)
         installLuaSource(state, REQUIRE_SOURCE, "stdlib-package.lua")
         return state
     }
@@ -234,6 +245,8 @@ internal object LuaPackageLibrary {
     }
 
     private const val DYNAMIC_LIBRARIES_DISABLED_MESSAGE = "dynamic libraries not enabled; check your Lua installation"
+    private const val LOADED_TABLE = "_LOADED"
+    private const val PRELOAD_TABLE = "_PRELOAD"
 
     private const val REQUIRE_SOURCE: String = """
         local package = package
