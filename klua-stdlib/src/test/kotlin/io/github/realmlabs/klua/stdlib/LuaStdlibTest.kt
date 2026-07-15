@@ -7967,6 +7967,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `require leaves recursive cache control to the loader`() {
+        val state = LuaState.create()
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local before
+                local nestedValue
+                local nestedExtra
+                package.preload.recursive = function(name)
+                    before = package.loaded[name]
+                    package.loaded[name] = "loader-sentinel"
+                    nestedValue, nestedExtra = require(name)
+                    return nestedValue .. ":complete"
+                end
+
+                local loaded, loaderData = require("recursive")
+                return before, nestedValue, nestedExtra,
+                    loaded, loaderData, package.loaded.recursive
+                """.trimIndent(),
+                "require-loader-controlled-recursion.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.isNil(1))
+        assertEquals("loader-sentinel", state.toString(2))
+        assertTrue(state.isNil(3))
+        assertEquals("loader-sentinel:complete", state.toString(4))
+        assertEquals(":preload:", state.toString(5))
+        assertEquals("loader-sentinel:complete", state.toString(6))
+    }
+
+    @Test
     fun `require reloads modules cached as false`() {
         val state = LuaState.create()
         LuaStdlib.openPackage(state)
@@ -8482,6 +8518,40 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("module 'custom' not found:\n\tcustom miss", state.toString(2))
         assertTrue(state.isNil(3))
+    }
+
+    @Test
+    fun `require appends numeric searcher diagnostics`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                package.searchers = {
+                    function()
+                        return 9223372036854775807, "ignored extra"
+                    end,
+                    function()
+                        return 1.5
+                    end,
+                    function()
+                        return "tail"
+                    end,
+                }
+                return pcall(require, "numeric")
+                """.trimIndent(),
+                "require-numeric-searcher-diagnostics.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals(
+            "module 'numeric' not found:\n\t9223372036854775807\n\t1.5\n\ttail",
+            state.toString(2),
+        )
     }
 
     @Test

@@ -396,7 +396,7 @@ internal object LuaPackageLibrary {
                     end
                     return value, extra
                 end
-                if loaderType == "string" then
+                if loaderType == "string" or loaderType == "number" then
                     errors = errors .. "\n\t" .. loader
                 end
                 index = index + 1
