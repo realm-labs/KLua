@@ -34,7 +34,7 @@ internal object Disassembler {
                 "LOAD_K R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
             }
             Opcode.VARARG -> "VARARG R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
-            Opcode.NEW_TABLE -> "NEW_TABLE R${Instruction.a(instruction)}"
+            Opcode.NEW_TABLE -> tableCreation(instruction)
             Opcode.GET_TABLE -> binary("GET_TABLE", instruction)
             Opcode.SET_TABLE -> binary("SET_TABLE", instruction)
             Opcode.GET_FIELD -> fieldGet(instruction, prototype)
@@ -78,6 +78,12 @@ internal object Disassembler {
             Opcode.CHECK_FIELD_NIL -> fieldNilCheck(instruction, prototype)
             Opcode.CHECK_CLOSE_FALSE -> closeFalseCheck(instruction, prototype)
         }
+    }
+
+    private fun tableCreation(instruction: Int): String {
+        val base = "NEW_TABLE R${Instruction.a(instruction)}"
+        val expectedEntries = Instruction.b(instruction)
+        return if (expectedEntries == 0) base else "$base entries=$expectedEntries"
     }
 
     private fun formatCount(count: Int): String = if (count == OPEN_RESULT_COUNT) "*" else count.toString()

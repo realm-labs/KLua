@@ -857,7 +857,8 @@ internal class Compiler private constructor(
     }
 
     private fun compileTableExpression(expression: TableExpression, register: Int) {
-        writer.emit(Instruction.abc(Opcode.NEW_TABLE, register), expression.range.start.line)
+        val expectedEntries = expression.entries.size.coerceAtMost(MAX_TABLE_CAPACITY_HINT)
+        writer.emit(Instruction.abc(Opcode.NEW_TABLE, register, expectedEntries), expression.range.start.line)
         if (expression.entries.isEmpty()) {
             return
         }
@@ -1593,3 +1594,5 @@ internal class Compiler private constructor(
         }
     }
 }
+
+private const val MAX_TABLE_CAPACITY_HINT = 255

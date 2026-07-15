@@ -8,8 +8,16 @@ internal class LuaMetatableException(
     message: String,
 ) : RuntimeException(message)
 
-internal class LuaTable : LuaValue {
-    private val values = mutableMapOf<LuaValue, LuaValue>()
+internal class LuaTable(expectedSize: Int = 0) : LuaValue {
+    init {
+        require(expectedSize >= 0) { "expected size must be non-negative" }
+    }
+
+    private val values: MutableMap<LuaValue, LuaValue> = if (expectedSize == 0) {
+        mutableMapOf()
+    } else {
+        LinkedHashMap(hashMapCapacity(expectedSize))
+    }
     var metatable: LuaTable? = null
 
     fun get(key: LuaValue): LuaValue {
@@ -118,6 +126,12 @@ internal class LuaTable : LuaValue {
             rawSet(canonicalKey, value)
         }
     }
+}
+
+private fun hashMapCapacity(expectedSize: Int): Int {
+    return ((expectedSize.toLong() * 4L + 2L) / 3L)
+        .coerceAtMost(Int.MAX_VALUE.toLong())
+        .toInt()
 }
 
 private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0

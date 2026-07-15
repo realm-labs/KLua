@@ -1,10 +1,20 @@
 package io.github.realmlabs.klua.core.compiler
 
 import io.github.realmlabs.klua.core.bytecode.Disassembler
+import io.github.realmlabs.klua.core.bytecode.Instruction
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 class CompilerTableTest {
+    @Test
+    fun `caps table capacity hints at the bytecode operand limit`() {
+        val entries = List(256) { index -> (index + 1).toString() }.joinToString(", ")
+
+        val prototype = Compiler.compile("return {$entries}")
+
+        assertEquals(255, Instruction.b(prototype.code.first()))
+    }
+
     @Test
     fun `compiles empty table constructors`() {
         val prototype = Compiler.compile("return {}")
@@ -26,7 +36,7 @@ class CompilerTableTest {
         assertEquals(3, prototype.maxStackSize)
         assertEquals(
             """
-            0000  [1]  NEW_TABLE R0
+            0000  [1]  NEW_TABLE R0 entries=2
             0001  [1]  LOAD_INT R2 10
             0002  [1]  LOAD_INT R1 1
             0003  [1]  SET_TABLE R0 R1 R2
@@ -48,7 +58,7 @@ class CompilerTableTest {
         assertEquals(3, prototype.maxStackSize)
         assertEquals(
             """
-            0000  [1]  NEW_TABLE R0
+            0000  [1]  NEW_TABLE R0 entries=1
             0001  [1]  LOAD_INT R2 42
             0002  [1]  SET_FIELD R0 K0 R2 ; "answer"
             0003  [1]  RETURN R0 1
@@ -64,7 +74,7 @@ class CompilerTableTest {
         assertEquals(3, prototype.maxStackSize)
         assertEquals(
             """
-            0000  [1]  NEW_TABLE R0
+            0000  [1]  NEW_TABLE R0 entries=1
             0001  [1]  LOAD_K R1 K0 ; "answer"
             0002  [1]  LOAD_INT R2 42
             0003  [1]  SET_TABLE R0 R1 R2

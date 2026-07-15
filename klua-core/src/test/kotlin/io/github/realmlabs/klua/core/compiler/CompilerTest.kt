@@ -966,7 +966,7 @@ class CompilerTest {
 
         assertEquals(
             """
-            0000  [1]  NEW_TABLE R0
+            0000  [1]  NEW_TABLE R0 entries=1
             0001  [1]  LOAD_INT R2 42
             0002  [1]  SET_FIELD R0 K0 R2 ; "answer"
             0003  [1]  SET_ENV R0
@@ -989,7 +989,7 @@ class CompilerTest {
 
         assertEquals(
             """
-            0000  [1]  NEW_TABLE R0
+            0000  [1]  NEW_TABLE R0 entries=1
             0001  [1]  LOAD_INT R2 42
             0002  [1]  SET_FIELD R0 K0 R2 ; "answer"
             0003  [2]  MOVE R1 R0

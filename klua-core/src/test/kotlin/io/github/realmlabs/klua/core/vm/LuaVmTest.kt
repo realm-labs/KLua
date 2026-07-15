@@ -931,6 +931,32 @@ class LuaVmTest {
     }
 
     @Test
+    fun `preserves table constructor field evaluation order`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local order = {}
+                local function mark(label, value)
+                    order[#order + 1] = label
+                    return value
+                end
+                local values = {
+                    [mark("key", "dynamic")] = mark("value", 1),
+                    named = mark("named", 2),
+                    mark("list", 3),
+                }
+                return order[1] .. order[2] .. order[3] .. order[4], values.dynamic, values.named, values[1]
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(LuaString("keyvaluenamedlist"), LuaInteger(1), LuaInteger(2), LuaInteger(3)),
+            result,
+        )
+    }
+
+    @Test
     fun `executes numeric equality without losing integer precision`() {
         val globals = LuaTable()
         globals.rawSet(LuaString("max"), LuaInteger(Long.MAX_VALUE))

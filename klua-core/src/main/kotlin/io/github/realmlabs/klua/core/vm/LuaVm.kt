@@ -250,7 +250,10 @@ internal class LuaVm(
                             constant(frame.prototype, Instruction.b(instruction)),
                         )
                         Opcode.VARARG -> loadVarargs(stack, frame, instruction)
-                        Opcode.NEW_TABLE -> stack.set(register(frame, Instruction.a(instruction)), LuaTable())
+                        Opcode.NEW_TABLE -> stack.set(
+                            register(frame, Instruction.a(instruction)),
+                            LuaTable(Instruction.b(instruction)),
+                        )
                         Opcode.GET_TABLE -> getTable(stack, frame, instruction)
                         Opcode.SET_TABLE -> setTable(stack, frame, instruction)
                         Opcode.GET_FIELD -> getField(stack, frame, instruction)
