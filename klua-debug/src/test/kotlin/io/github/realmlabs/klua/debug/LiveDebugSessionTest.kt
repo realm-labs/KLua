@@ -65,6 +65,35 @@ class LiveDebugSessionTest {
         assertEquals(listOf(3L), assertIs<LiveDebugResult.Returned>(session.continueExecution()).values)
     }
 
+    @Test
+    fun `stopped frame exposes globals and evaluates scalar snapshots without mutation`() {
+        val lua = Lua.create()
+        lua.globals().set("globalValue", 20L)
+        val function = lua.load(
+            """
+            local captured = 10
+            return function()
+                local value = 12
+                return value + captured + globalValue
+            end
+            """.trimIndent(),
+            "live-evaluate.lua",
+        ).eval().get(1) as LuaCoroutineFunction
+        val session = LiveDebugSession(function)
+        session.controller.setBreakpoint("live-evaluate.lua", 4)
+        val stopped = assertIs<LiveDebugResult.Stopped>(session.run())
+
+        assertEquals(20L, stopped.frames.single().globals.single { variable -> variable.name == "globalValue" }.value)
+        assertEquals(
+            listOf(42L),
+            assertIs<DebugEvaluationResult.Success>(
+                session.evaluate("value + captured + globalValue"),
+            ).values,
+        )
+        assertIs<DebugEvaluationResult.Failure>(session.evaluate("value = 0"))
+        assertEquals(listOf(42L), assertIs<LiveDebugResult.Returned>(session.continueExecution()).values)
+    }
+
     private fun steppingSession(): LiveDebugSession {
         val function = debugFunction(
             """

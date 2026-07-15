@@ -767,6 +767,7 @@ public data class KLuaCoreStackFrame(
     public val varargs: List<KLuaCoreValue> = emptyList(),
     public val locals: List<KLuaCoreLocalVariable> = emptyList(),
     public val upvalues: List<KLuaCoreUpvalue> = emptyList(),
+    public val globals: List<KLuaCoreLocalVariable> = emptyList(),
     public val callSiteName: String? = null,
     public val callSiteNameWhat: String = "",
     public val transferStart: Int = 0,
@@ -1218,6 +1219,12 @@ private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaC
                 KLuaCoreUpvalue(
                     upvalue.name,
                     toPublicValue(upvalue.value, globals),
+                )
+            },
+            globals = frame.globals.map { global ->
+                KLuaCoreLocalVariable(
+                    global.name,
+                    toPublicValue(global.value, globals),
                 )
             },
             callSiteName = frame.callSiteName,

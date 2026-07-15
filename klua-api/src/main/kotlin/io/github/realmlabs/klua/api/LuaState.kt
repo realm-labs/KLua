@@ -1415,6 +1415,12 @@ class LuaState private constructor(
                         upvalue.value.toStackValue().toPublicCallReturnValue(),
                     )
                 },
+                globals = frame.globals.map { global ->
+                    LuaLocalVariable(
+                        global.name,
+                        global.value.toStackValue().toPublicCallReturnValue(),
+                    )
+                },
                 callSiteName = frame.callSiteName,
                 callSiteNameWhat = frame.callSiteNameWhat,
                 transferStart = frame.transferStart,

@@ -111,6 +111,7 @@ internal data class LuaNativeStackFrame(
     val varargs: List<LuaValue> = emptyList(),
     val locals: List<LuaNativeLocalVariable> = emptyList(),
     val upvalues: List<LuaNativeUpvalue> = emptyList(),
+    val globals: List<LuaNativeLocalVariable> = emptyList(),
     val callSiteName: String? = null,
     val callSiteNameWhat: String = "",
     val transferStart: Int = 0,

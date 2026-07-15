@@ -35,6 +35,7 @@ data class LuaStackFrame(
     val varargs: List<Any?> = emptyList(),
     val locals: List<LuaLocalVariable> = emptyList(),
     val upvalues: List<LuaUpvalueVariable> = emptyList(),
+    val globals: List<LuaLocalVariable> = emptyList(),
     val callSiteName: String? = null,
     val callSiteNameWhat: String = "",
     val transferStart: Int = 0,

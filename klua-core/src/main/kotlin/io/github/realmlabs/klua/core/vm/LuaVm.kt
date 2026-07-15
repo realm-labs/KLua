@@ -563,6 +563,7 @@ internal class LuaVm(
                     varargs = frame.varargs.toList(),
                     locals = activeLocals(frame, pc),
                     upvalues = activeUpvalues(frame),
+                    globals = activeGlobals(frame),
                     callSiteName = frame.callSiteName,
                     callSiteNameWhat = frame.callSiteNameWhat,
                     transferStart = frame.hookTransferStart,
@@ -782,6 +783,15 @@ internal class LuaVm(
                 upvalue.value,
             )
         }
+    }
+
+    private fun activeGlobals(frame: CallFrame): List<LuaNativeLocalVariable> {
+        val table = frame.globals as? LuaTable ?: return emptyList()
+        return table.rawEntries()
+            .mapNotNull { (key, value) ->
+                (key as? LuaString)?.let { name -> LuaNativeLocalVariable(name.value, value) }
+            }
+            .sortedBy { global -> global.name }
     }
 
     private fun getEnvironment(stack: LuaStack, frame: CallFrame, instruction: Int) {

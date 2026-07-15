@@ -139,6 +139,7 @@ public fun LuaStackFrame.toDebugFrameView(
         lastLineDefined = lastLineDefined,
         locals = locals.map { local -> local.toDebugVariable(displayAdapters) },
         upvalues = upvalues.map { upvalue -> upvalue.toDebugVariable(displayAdapters) },
+        globals = globals.map { global -> global.toDebugVariable(displayAdapters) },
     )
 }
 
