@@ -74,7 +74,7 @@ internal object LuaCoroutineLibrary {
                 when (val result = handle.resume(arguments)) {
                     is LuaCoroutineResult.Returned -> {
                         coroutine.status = CoroutineStatus.DEAD
-                        LuaReturn.ofValues(listOf(true) + result.values)
+                        LuaReturn.ofValues(true, result.values)
                     }
                     is LuaCoroutineResult.Yielded -> {
                         if (result.values.singleOrNull() === SelfCloseSignal) {
@@ -82,7 +82,7 @@ internal object LuaCoroutineLibrary {
                             return LuaReturn.of(true)
                         }
                         coroutine.status = CoroutineStatus.SUSPENDED
-                        LuaReturn.ofValues(listOf(true) + result.values)
+                        LuaReturn.ofValues(true, result.values)
                     }
                     LuaCoroutineResult.DebugSuspended -> {
                         coroutine.status = CoroutineStatus.DEAD
@@ -100,7 +100,7 @@ internal object LuaCoroutineLibrary {
                 try {
                     val result = context.call(coroutine.function, arguments)
                     coroutine.status = CoroutineStatus.DEAD
-                    LuaReturn.ofValues(listOf(true) + result.values)
+                    LuaReturn.ofValues(true, result.values)
                 } catch (yield: LuaYieldException) {
                     if (coroutine.function !is LuaYieldableFunction) {
                         coroutine.status = CoroutineStatus.DEAD
@@ -136,7 +136,7 @@ internal object LuaCoroutineLibrary {
         return try {
             val result = yield.continueWith(arguments)
             coroutine.status = CoroutineStatus.DEAD
-            LuaReturn.ofValues(listOf(true) + result.values)
+            LuaReturn.ofValues(true, result.values)
         } catch (nextYield: LuaYieldException) {
             suspendHostYieldableCoroutine(coroutine, nextYield)
         }
@@ -147,7 +147,7 @@ internal object LuaCoroutineLibrary {
             yield.continueWith(arguments)
         }
         coroutine.status = CoroutineStatus.SUSPENDED
-        return LuaReturn.ofValues(listOf(true) + yield.values)
+        return LuaReturn.ofValues(true, yield.values)
     }
 
     private fun coroutineRunning(runtime: CoroutineRuntime): LuaReturn {

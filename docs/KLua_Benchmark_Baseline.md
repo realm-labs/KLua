@@ -352,3 +352,38 @@ The full twelve-workload regression screen measured:
 | Execute 10,000 coroutine yield/resume cycles | 18,167.585 | ±8,093.663 |
 
 No workload shows a supported regression, and the complete Gradle test suite passes. Core/public result-list and continuation conversion remain visible in the profiles and require a fresh matched investigation before another change.
+
+## 2026-07-15 Coroutine Success-Prefix Checkpoint
+
+Matched post-context GC baselines measured 23,358,771.956 B/op for coroutine yield/resume, 7,278,434.201 B/op for host calls, and 12,073,882.783 B/op for JVM-to-Lua calls. JFR profiles showed scalar wrapper and general result-list allocation across all three controls, so they reject a broad value-model or list-copy rewrite. The coroutine-only path also built `listOf(true) + results` and then copied that combined list again into `LuaReturn` for every successful yield or return.
+
+Lua 5.5's `lcorolib.c` `luaB_coresume` receives the yielded/result values from `auxresume`, inserts one true boolean before them, and returns exactly `nres + 1` values. `LuaReturn` now provides a prefixed-values factory that allocates one correctly sized result list and snapshots the remaining values once. Every successful coroutine return, yield, and host-yield continuation uses it. Existing coroutine tests cover repeated yields, nil holes, cyclic tables, and host continuations; a new Java API test verifies prefix order, nil preservation, and independence from later mutation of the source list.
+
+The matched GC-profiler checkpoint measured:
+
+| Benchmark | Before allocation | After allocation | Delta |
+| --- | ---: | ---: | ---: |
+| 10,000 coroutine yield/resume cycles | 23,358,771.956 B/op | 22,638,675.936 B/op | -3.1% |
+| 10,000 host calls | 7,278,434.201 B/op | 7,278,458.189 B/op | effectively unchanged |
+| 10,000 JVM-to-Lua calls | 12,073,882.783 B/op | 12,073,882.980 B/op | effectively unchanged |
+
+The coroutine delta is about 72 B per resume cycle and matches the removed intermediate list/backing storage. Focused time remained effectively flat at 15,035.869 µs/op before and 15,084.243 µs/op after, so this is an allocation-only claim.
+
+The full twelve-workload regression screen measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 7.954 | ±0.522 |
+| Execute numeric loop | 1,079.468 | ±259.426 |
+| Execute 10,000 Lua calls | 2,512.397 | ±621.208 |
+| Execute 10,000 closure-counter calls | 2,266.345 | ±183.532 |
+| Execute 10,000 host calls | 2,648.331 | ±144.670 |
+| Execute 10,000 `__index` metamethod calls | 2,796.297 | ±281.183 |
+| Execute 10,000 JVM-to-Lua calls | 3,668.653 | ±604.439 |
+| Execute 10,000 method calls | 5,062.565 | ±693.894 |
+| Execute recursive `fib(20)` | 6,470.889 | ±925.545 |
+| Execute 10,000 table writes and reads | 2,933.636 | ±928.915 |
+| Execute 1,000 growing string concatenations | 3,955.308 | ±814.821 |
+| Execute 10,000 coroutine yield/resume cycles | 14,435.184 | ±2,601.592 |
+
+The complete Gradle test suite passes. The next M19 package should expand application-shaped coverage with vararg/multi-return flow and a table-backed entity-update kernel before selecting another optimization.

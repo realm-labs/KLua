@@ -71,6 +71,14 @@ class LuaReturn private constructor(
 
         @JvmStatic
         fun ofValues(values: List<Any?>): LuaReturn = LuaReturn(values.toList())
+
+        @JvmStatic
+        fun ofValues(first: Any?, remaining: List<Any?>): LuaReturn {
+            val values = ArrayList<Any?>(remaining.size + 1)
+            values.add(first)
+            values.addAll(remaining)
+            return LuaReturn(values)
+        }
     }
 }
 

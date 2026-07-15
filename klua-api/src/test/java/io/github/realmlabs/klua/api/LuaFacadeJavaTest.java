@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Set;
@@ -198,6 +199,21 @@ class LuaFacadeJavaTest {
         assertEquals("ok", result.getString(2));
         assertEquals(true, result.getBoolean(3));
         assertThrows(LuaRuntimeException.class, () -> result.getLong(2));
+    }
+
+    @Test
+    void luaReturnPrefixesAndSnapshotsRemainingValues() {
+        ArrayList<Object> remaining = new ArrayList<>();
+        remaining.add("yielded");
+        remaining.add(null);
+
+        LuaReturn result = LuaReturn.ofValues(true, remaining);
+        remaining.clear();
+
+        assertEquals(3, result.getCount());
+        assertEquals(true, result.getBoolean(1));
+        assertEquals("yielded", result.getString(2));
+        assertEquals(null, result.get(3));
     }
 
     @Test
