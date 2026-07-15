@@ -4,10 +4,6 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 This list is evidence and scope tracking, not a FIFO task queue or a commit map. Select related gaps into a named campaign in `docs/KLua_Codex_Goal.md`, with an owning subsystem or Lua source helper chain, affected entry points, a case matrix, verification, and an exit condition. Group fixes and tests for the same semantic rule; do not create a separate work package or commit for every probe.
 
-## Compiler And Bytecode
-
-- KLua's custom bytecode currently stores `TEST`, `JMP`, `FOR_TEST`, and `FOR_LOOP` displacements in one signed `ABC` byte. Compilation therefore rejects forward or backward control-flow spans outside -128 through 127 instructions with `jump offset out of range`, whereas Lua 5.5's source instruction fields and jump patching support substantially larger functions. A dedicated long-branch campaign is queued with compiler, VM, dumped-package, debug-line, and malformed-bytecode coverage.
-
 ## Package Library
 
 - Native C module loading is intentionally unavailable in the pure Kotlin runtime. `package.loadlib` exposes the source fallback's exact C-string-checked `nil, message, "absent"` result, and the C/C-root searcher slots can report `package.cpath` misses or dynamic-loading failures but cannot create native loaders. `package.searchpath` follows Lua's C-string substitution, empty-template diagnostics, and host openability probe; Java invalid-path and security failures are treated as unreadable candidates. `require` and direct built-in searcher calls use source-compatible C-string module-name boundaries for cache/preload keys, path and symbol construction, C-root detection, and diagnostics while preserving the complete original Lua string as the loader's first argument. Package initialization uses the official platform defaults, versioned-first environment selection, first-`;;` default insertion, Windows executable-directory substitution, and registry `LUA_NOENV` with a JVM config default. Package loaded/preload storage and `debug.getregistry` now share one state-owned registry identity across re-open and global replacement.

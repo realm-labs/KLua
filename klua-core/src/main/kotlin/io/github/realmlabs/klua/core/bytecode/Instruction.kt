@@ -1,6 +1,8 @@
 package io.github.realmlabs.klua.core.bytecode
 
 internal object Instruction {
+    private const val MAX_AX: Int = 0x00ff_ffff
+
     fun abc(opcode: Opcode, a: Int, b: Int = 0, c: Int = 0): Int {
         require(a in 0..255) { "A operand out of range: $a" }
         require(b in 0..255) { "B operand out of range: $b" }
@@ -13,6 +15,13 @@ internal object Instruction {
     fun b(instruction: Int): Int = (instruction ushr 16) and 0xFF
 
     fun c(instruction: Int): Int = (instruction ushr 24) and 0xFF
+
+    fun ax(opcode: Opcode, value: Int): Int {
+        require(value in 0..MAX_AX) { "Ax operand out of range: $value" }
+        return opcode.ordinal or (value shl 8)
+    }
+
+    fun ax(instruction: Int): Int = instruction ushr 8
 
     fun opcode(instruction: Int): Opcode = Opcode.entries[instruction and 0xFF]
 }

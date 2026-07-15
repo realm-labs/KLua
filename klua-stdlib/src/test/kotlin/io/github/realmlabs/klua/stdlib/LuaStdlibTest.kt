@@ -10794,6 +10794,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string dump round trips functions with long control flow`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val filler = List(40) { "x = x + 1" }.joinToString("\n")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function longBranch(flag)
+                    local x = 0
+                    if flag then
+                $filler
+                    else
+                        x = -1
+                    end
+                    return x
+                end
+
+                local loaded = assert(load(string.dump(longBranch), "dumped-long-branch", "b"))
+                return loaded(true), loaded(false)
+                """.trimIndent(),
+                "string-dump-long-branch.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(40L, state.toInteger(1))
+        assertEquals(-1L, state.toInteger(2))
+    }
+
+    @Test
     fun `string dump strip removes debug metadata from dumped chunks`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

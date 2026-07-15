@@ -212,8 +212,7 @@ internal class Compiler private constructor(
         }
 
         registerLocal(statement.name, baseRegister, LocalAttribute.CONST)
-        val testIndex = writer.size
-        writer.emit(Instruction.abc(Opcode.FOR_TEST, baseRegister), statement.range.start.line)
+        val testJump = emitConditionalJump(Opcode.FOR_TEST, baseRegister, statement.range.start.line)
         val loopStart = writer.size
 
         enterBlockScope()
@@ -226,9 +225,9 @@ internal class Compiler private constructor(
             )
         }
 
-        val loopIndex = writer.size
-        writer.emit(Instruction.abc(Opcode.FOR_LOOP, baseRegister, writer.jumpOffset(loopIndex, loopStart)), statement.range.start.line)
-        patchForTest(testIndex, writer.size)
+        writer.emit(Instruction.abc(Opcode.FOR_LOOP, baseRegister), statement.range.start.line)
+        emitJump(statement.range.start.line).also { jump -> patchJump(jump, loopStart) }
+        patchJump(testJump, writer.size)
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(
@@ -283,8 +282,7 @@ internal class Compiler private constructor(
         )
         writer.emit(Instruction.abc(Opcode.MOVE, iteratorBase + 3, valueBase), statement.range.start.line)
 
-        val testIndex = writer.size
-        writer.emit(Instruction.abc(Opcode.TEST, valueBase), statement.range.start.line)
+        val testJump = emitConditionalJump(Opcode.TEST, valueBase, statement.range.start.line)
 
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
@@ -296,10 +294,9 @@ internal class Compiler private constructor(
             )
         }
 
-        val backJump = writer.size
-        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        val backJump = emitJump(statement.range.start.line)
         patchJump(backJump, loopStart)
-        patchTest(testIndex, writer.size)
+        patchJump(testJump, writer.size)
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
         restoreLocals(
@@ -627,16 +624,14 @@ internal class Compiler private constructor(
         val conditionRegister = nextLocalRegister
         compileExpression(condition, conditionRegister)
 
-        val testIndex = writer.size
-        writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), line)
+        val testJump = emitConditionalJump(Opcode.TEST, conditionRegister, line)
 
         compileScopedBlock(block)
 
-        val endJump = writer.size
-        writer.emit(Instruction.abc(Opcode.JMP, 0), line)
+        val endJump = emitJump(line)
         endJumps += endJump
 
-        patchTest(testIndex, writer.size)
+        patchJump(testJump, writer.size)
     }
 
     private fun compileWhile(statement: WhileStatement) {
@@ -646,15 +641,13 @@ internal class Compiler private constructor(
         val conditionRegister = nextLocalRegister
         compileExpression(statement.condition, conditionRegister)
 
-        val testIndex = writer.size
-        writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.range.start.line)
+        val testJump = emitConditionalJump(Opcode.TEST, conditionRegister, statement.range.start.line)
 
         compileScopedBlock(statement.block)
 
-        val backJump = writer.size
-        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        val backJump = emitJump(statement.range.start.line)
         patchJump(backJump, loopStart)
-        patchTest(testIndex, writer.size)
+        patchJump(testJump, writer.size)
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
     }
 
@@ -675,20 +668,17 @@ internal class Compiler private constructor(
         val conditionRegister = nextLocalRegister
         compileExpression(statement.condition, conditionRegister)
 
-        val testIndex = writer.size
-        writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.condition.range.start.line)
+        val testJump = emitConditionalJump(Opcode.TEST, conditionRegister, statement.condition.range.start.line)
         if (needsClose) {
             writer.emit(Instruction.abc(Opcode.CLOSE, savedNextLocalRegister), statement.condition.range.start.line)
-            val exitJump = writer.size
-            writer.emit(Instruction.abc(Opcode.JMP, 0), statement.condition.range.start.line)
-            patchTest(testIndex, writer.size)
+            val exitJump = emitJump(statement.condition.range.start.line)
+            patchJump(testJump, writer.size)
             writer.emit(Instruction.abc(Opcode.CLOSE, savedNextLocalRegister), statement.condition.range.start.line)
-            val repeatJump = writer.size
-            writer.emit(Instruction.abc(Opcode.JMP, 0), statement.condition.range.start.line)
+            val repeatJump = emitJump(statement.condition.range.start.line)
             patchJump(repeatJump, loopStart)
             patchJump(exitJump, writer.size)
         } else {
-            patchTest(testIndex, loopStart)
+            patchJump(testJump, loopStart)
         }
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
@@ -705,8 +695,7 @@ internal class Compiler private constructor(
     private fun compileBreak(statement: BreakStatement) {
         val breaks = loopBreaks.lastOrNull()
             ?: throw unsupported(statement, "break outside loop")
-        val breakJump = writer.size
-        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        val breakJump = emitJump(statement.range.start.line)
         val close = if (needsClose) {
             writer.size.also { writer.emit(Instruction.abc(Opcode.CLOSE, 0), statement.range.start.line) }
         } else {
@@ -716,8 +705,7 @@ internal class Compiler private constructor(
     }
 
     private fun compileGoto(statement: GotoStatement) {
-        val jump = writer.size
-        writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
+        val jump = emitJump(statement.range.start.line)
         val close = writer.size
         writer.emit(Instruction.abc(Opcode.CLOSE, 0), statement.range.start.line)
         val pending = PendingGoto(
@@ -1482,19 +1470,17 @@ internal class Compiler private constructor(
 
         when (expression.operator) {
             BinaryOperator.AND -> {
-                val testIndex = writer.size
-                writer.emit(Instruction.abc(Opcode.TEST, register), expression.range.start.line)
+                val testJump = emitConditionalJump(Opcode.TEST, register, expression.range.start.line)
                 compileExpression(expression.right, register)
-                patchTest(testIndex, writer.size)
+                patchJump(testJump, writer.size)
             }
             BinaryOperator.OR -> {
                 val truthTestRegister = register + 1
                 maxRegister = maxRegister.coerceAtLeast(truthTestRegister + 1)
                 writer.emit(Instruction.abc(Opcode.NOT, truthTestRegister, register), expression.range.start.line)
-                val testIndex = writer.size
-                writer.emit(Instruction.abc(Opcode.TEST, truthTestRegister), expression.range.start.line)
+                val testJump = emitConditionalJump(Opcode.TEST, truthTestRegister, expression.range.start.line)
                 compileExpression(expression.right, register)
-                patchTest(testIndex, writer.size)
+                patchJump(testJump, writer.size)
             }
             else -> throw unsupported(expression, "not a logical operator")
         }
@@ -1593,18 +1579,18 @@ internal class Compiler private constructor(
         emitReturn(0, 0, line)
     }
 
-    private fun patchTest(index: Int, targetIndex: Int) {
-        val register = Instruction.a(writer.code()[index])
-        writer.patch(index, Instruction.abc(Opcode.TEST, register, writer.jumpOffset(index, targetIndex)))
+    private fun emitConditionalJump(opcode: Opcode, register: Int, line: Int): Int {
+        require(opcode == Opcode.TEST || opcode == Opcode.FOR_TEST) { "invalid conditional jump opcode $opcode" }
+        writer.emit(Instruction.abc(opcode, register), line)
+        return emitJump(line)
+    }
+
+    private fun emitJump(line: Int): Int {
+        return writer.size.also { index -> writer.emit(Instruction.ax(Opcode.JMP, 0), line) }
     }
 
     private fun patchJump(index: Int, targetIndex: Int) {
-        writer.patch(index, Instruction.abc(Opcode.JMP, writer.jumpOffset(index, targetIndex)))
-    }
-
-    private fun patchForTest(index: Int, targetIndex: Int) {
-        val register = Instruction.a(writer.code()[index])
-        writer.patch(index, Instruction.abc(Opcode.FOR_TEST, register, writer.jumpOffset(index, targetIndex)))
+        writer.patch(index, Instruction.ax(Opcode.JMP, targetIndex))
     }
 
     private fun pushLoopBreaks(): MutableList<BreakJump> {

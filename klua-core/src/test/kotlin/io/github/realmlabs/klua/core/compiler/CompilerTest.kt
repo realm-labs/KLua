@@ -243,17 +243,20 @@ class CompilerTest {
         assertEquals(
             """
             0000  [1]  LOAD_BOOL R0 false
-            0001  [1]  TEST R0 1
-            0002  [1]  LOAD_K R0 K0 ; "right"
-            0003  [1]  LOAD_BOOL R1 true
-            0004  [1]  NOT R2 R1
-            0005  [1]  TEST R2 1
-            0006  [1]  LOAD_K R1 K0 ; "right"
-            0007  [1]  LOAD_NIL R2
-            0008  [1]  NOT R3 R2
-            0009  [1]  TEST R3 1
-            0010  [1]  LOAD_K R2 K1 ; "fallback"
-            0011  [1]  RETURN R0 3
+            0001  [1]  TEST R0
+            0002  [1]  JMP 1
+            0003  [1]  LOAD_K R0 K0 ; "right"
+            0004  [1]  LOAD_BOOL R1 true
+            0005  [1]  NOT R2 R1
+            0006  [1]  TEST R2
+            0007  [1]  JMP 1
+            0008  [1]  LOAD_K R1 K0 ; "right"
+            0009  [1]  LOAD_NIL R2
+            0010  [1]  NOT R3 R2
+            0011  [1]  TEST R3
+            0012  [1]  JMP 1
+            0013  [1]  LOAD_K R2 K1 ; "fallback"
+            0014  [1]  RETURN R0 3
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -646,15 +649,16 @@ class CompilerTest {
             """
             0000  [1]  LOAD_INT R0 0
             0001  [2]  LOAD_BOOL R1 true
-            0002  [2]  TEST R1 3
-            0003  [3]  LOAD_INT R1 1
-            0004  [3]  MOVE R0 R1
-            0005  [2]  JMP 2
-            0006  [5]  LOAD_INT R1 2
-            0007  [5]  MOVE R0 R1
-            0008  [7]  MOVE R1 R0
-            0009  [7]  MOVE R0 R1
-            0010  [7]  RETURN R0 1
+            0002  [2]  TEST R1
+            0003  [2]  JMP 3
+            0004  [3]  LOAD_INT R1 1
+            0005  [3]  MOVE R0 R1
+            0006  [2]  JMP 2
+            0007  [5]  LOAD_INT R1 2
+            0008  [5]  MOVE R0 R1
+            0009  [7]  MOVE R1 R0
+            0010  [7]  MOVE R0 R1
+            0011  [7]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -680,20 +684,22 @@ class CompilerTest {
             """
             0000  [1]  LOAD_INT R0 0
             0001  [2]  LOAD_BOOL R1 false
-            0002  [2]  TEST R1 3
-            0003  [3]  LOAD_INT R1 1
-            0004  [3]  MOVE R0 R1
-            0005  [2]  JMP 7
-            0006  [4]  LOAD_BOOL R1 true
-            0007  [4]  TEST R1 3
-            0008  [5]  LOAD_INT R1 2
-            0009  [5]  MOVE R0 R1
-            0010  [4]  JMP 2
-            0011  [7]  LOAD_INT R1 3
-            0012  [7]  MOVE R0 R1
-            0013  [9]  MOVE R1 R0
-            0014  [9]  MOVE R0 R1
-            0015  [9]  RETURN R0 1
+            0002  [2]  TEST R1
+            0003  [2]  JMP 3
+            0004  [3]  LOAD_INT R1 1
+            0005  [3]  MOVE R0 R1
+            0006  [2]  JMP 8
+            0007  [4]  LOAD_BOOL R1 true
+            0008  [4]  TEST R1
+            0009  [4]  JMP 3
+            0010  [5]  LOAD_INT R1 2
+            0011  [5]  MOVE R0 R1
+            0012  [4]  JMP 2
+            0013  [7]  LOAD_INT R1 3
+            0014  [7]  MOVE R0 R1
+            0015  [9]  MOVE R1 R0
+            0016  [9]  MOVE R0 R1
+            0017  [9]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -717,15 +723,16 @@ class CompilerTest {
             0001  [2]  MOVE R1 R0
             0002  [2]  LOAD_INT R2 3
             0003  [2]  LT R1 R1 R2
-            0004  [2]  TEST R1 5
-            0005  [3]  MOVE R1 R0
-            0006  [3]  LOAD_INT R2 1
-            0007  [3]  ADD R1 R1 R2
-            0008  [3]  MOVE R0 R1
-            0009  [2]  JMP -9
-            0010  [5]  MOVE R1 R0
-            0011  [5]  MOVE R0 R1
-            0012  [5]  RETURN R0 1
+            0004  [2]  TEST R1
+            0005  [2]  JMP 5
+            0006  [3]  MOVE R1 R0
+            0007  [3]  LOAD_INT R2 1
+            0008  [3]  ADD R1 R1 R2
+            0009  [3]  MOVE R0 R1
+            0010  [2]  JMP -10
+            0011  [5]  MOVE R1 R0
+            0012  [5]  MOVE R0 R1
+            0013  [5]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -753,10 +760,11 @@ class CompilerTest {
             0005  [4]  MOVE R1 R0
             0006  [4]  LOAD_INT R2 3
             0007  [4]  LE R1 R2 R1
-            0008  [4]  TEST R1 -8
-            0009  [5]  MOVE R1 R0
-            0010  [5]  MOVE R0 R1
-            0011  [5]  RETURN R0 1
+            0008  [4]  TEST R1
+            0009  [4]  JMP -9
+            0010  [5]  MOVE R1 R0
+            0011  [5]  MOVE R0 R1
+            0012  [5]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -781,21 +789,23 @@ class CompilerTest {
             """
             0000  [1]  LOAD_INT R0 0
             0001  [2]  LOAD_BOOL R1 true
-            0002  [2]  TEST R1 11
-            0003  [3]  MOVE R1 R0
-            0004  [3]  LOAD_INT R2 1
-            0005  [3]  ADD R1 R1 R2
-            0006  [3]  MOVE R0 R1
-            0007  [4]  MOVE R1 R0
-            0008  [4]  LOAD_INT R2 2
-            0009  [4]  EQ R1 R1 R2
-            0010  [4]  TEST R1 2
-            0011  [5]  JMP 2
-            0012  [4]  JMP 0
-            0013  [2]  JMP -13
-            0014  [8]  MOVE R1 R0
-            0015  [8]  MOVE R0 R1
-            0016  [8]  RETURN R0 1
+            0002  [2]  TEST R1
+            0003  [2]  JMP 12
+            0004  [3]  MOVE R1 R0
+            0005  [3]  LOAD_INT R2 1
+            0006  [3]  ADD R1 R1 R2
+            0007  [3]  MOVE R0 R1
+            0008  [4]  MOVE R1 R0
+            0009  [4]  LOAD_INT R2 2
+            0010  [4]  EQ R1 R1 R2
+            0011  [4]  TEST R1
+            0012  [4]  JMP 2
+            0013  [5]  JMP 2
+            0014  [4]  JMP 0
+            0015  [2]  JMP -15
+            0016  [8]  MOVE R1 R0
+            0017  [8]  MOVE R0 R1
+            0018  [8]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -845,15 +855,17 @@ class CompilerTest {
             0001  [2]  LOAD_INT R1 1
             0002  [2]  LOAD_INT R2 3
             0003  [2]  LOAD_INT R3 1
-            0004  [2]  FOR_TEST R1 5
-            0005  [3]  MOVE R4 R0
-            0006  [3]  MOVE R5 R1
-            0007  [3]  ADD R4 R4 R5
-            0008  [3]  MOVE R0 R4
-            0009  [2]  FOR_LOOP R1 -5
-            0010  [5]  MOVE R1 R0
-            0011  [5]  MOVE R0 R1
-            0012  [5]  RETURN R0 1
+            0004  [2]  FOR_TEST R1
+            0005  [2]  JMP 6
+            0006  [3]  MOVE R4 R0
+            0007  [3]  MOVE R5 R1
+            0008  [3]  ADD R4 R4 R5
+            0009  [3]  MOVE R0 R4
+            0010  [2]  FOR_LOOP R1
+            0011  [2]  JMP -6
+            0012  [5]  MOVE R1 R0
+            0013  [5]  MOVE R0 R1
+            0014  [5]  RETURN R0 1
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )

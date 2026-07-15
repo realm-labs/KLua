@@ -17,12 +17,6 @@ internal class BytecodeWriter {
         code[index] = instruction
     }
 
-    fun jumpOffset(fromIndex: Int, targetIndex: Int): Int {
-        val offset = targetIndex - (fromIndex + 1)
-        require(offset in Byte.MIN_VALUE..Byte.MAX_VALUE) { "jump offset out of range: $offset" }
-        return offset and 0xFF
-    }
-
     fun code(): IntArray = code.toIntArray()
 
     fun lineInfo(): IntArray = lineInfo.toIntArray()

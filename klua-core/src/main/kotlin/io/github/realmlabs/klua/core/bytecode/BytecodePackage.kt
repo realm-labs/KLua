@@ -3,7 +3,7 @@ package io.github.realmlabs.klua.core.bytecode
 import java.util.zip.CRC32
 
 internal const val KLUA_BYTECODE_MAGIC: String = "KLua"
-internal const val KLUA_BYTECODE_FORMAT_VERSION: Int = 2
+internal const val KLUA_BYTECODE_FORMAT_VERSION: Int = 3
 internal const val KLUA_BYTECODE_SOURCE_LANGUAGE: String = "Lua55"
 internal const val KLUA_BYTECODE_FLAG_DEBUG_INFO: Int = 1
 private const val KLUA_BYTECODE_SUPPORTED_FLAGS: Int = KLUA_BYTECODE_FLAG_DEBUG_INFO

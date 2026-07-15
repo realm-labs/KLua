@@ -16,11 +16,11 @@ internal object Disassembler {
         return prototype.code.indices.joinToString(separator = "\n") { pc ->
             val instruction = prototype.code[pc]
             val line = prototype.lineInfo.getOrElse(pc) { 0 }
-            "%04d  [%d]  %s".format(pc, line, disassembleInstruction(instruction, prototype))
+            "%04d  [%d]  %s".format(pc, line, disassembleInstruction(instruction, prototype, pc))
         }
     }
 
-    private fun disassembleInstruction(instruction: Int, prototype: Prototype): String {
+    private fun disassembleInstruction(instruction: Int, prototype: Prototype, pc: Int): String {
         return when (val opcode = Instruction.opcode(instruction)) {
             Opcode.LOAD_NIL -> "LOAD_NIL R${Instruction.a(instruction)}"
             Opcode.LOAD_BOOL -> "LOAD_BOOL R${Instruction.a(instruction)} ${Instruction.b(instruction) != 0}"
@@ -66,10 +66,10 @@ internal object Disassembler {
             Opcode.EQ -> binary("EQ", instruction)
             Opcode.LT -> binary("LT", instruction)
             Opcode.LE -> binary("LE", instruction)
-            Opcode.TEST -> "TEST R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
-            Opcode.JMP -> "JMP ${signedByte(Instruction.a(instruction))}"
-            Opcode.FOR_TEST -> "FOR_TEST R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
-            Opcode.FOR_LOOP -> "FOR_LOOP R${Instruction.a(instruction)} ${signedByte(Instruction.b(instruction))}"
+            Opcode.TEST -> "TEST R${Instruction.a(instruction)}"
+            Opcode.JMP -> "JMP ${Instruction.ax(instruction) - (pc + 1)}"
+            Opcode.FOR_TEST -> "FOR_TEST R${Instruction.a(instruction)}"
+            Opcode.FOR_LOOP -> "FOR_LOOP R${Instruction.a(instruction)}"
             Opcode.CALL -> "CALL R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))} ${formatCount(Instruction.c(instruction))}"
             Opcode.RETURN -> "RETURN R${Instruction.a(instruction)} ${formatCount(Instruction.b(instruction))}"
             Opcode.CHECK_GLOBAL_NIL -> globalNilCheck(instruction, prototype)

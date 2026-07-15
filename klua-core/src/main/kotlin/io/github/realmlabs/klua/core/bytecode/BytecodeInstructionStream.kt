@@ -59,6 +59,28 @@ internal object BytecodeInstructionStreamCodec {
             position += BYTECODE_INSTRUCTION_INT_SIZE
         }
 
+        for (index in code.indices) {
+            when (val opcode = Instruction.opcode(code[index])) {
+                Opcode.JMP -> {
+                    val target = Instruction.ax(code[index])
+                    if (target !in code.indices) {
+                        return BytecodeInstructionStreamDecode.Invalid(
+                            "invalid KLua jump target $target at pc $index",
+                        )
+                    }
+                }
+                Opcode.TEST,
+                Opcode.FOR_TEST,
+                Opcode.FOR_LOOP,
+                -> if (index == code.lastIndex || Instruction.opcode(code[index + 1]) != Opcode.JMP) {
+                    return BytecodeInstructionStreamDecode.Invalid(
+                        "KLua $opcode at pc $index is not followed by JMP",
+                    )
+                }
+                else -> Unit
+            }
+        }
+
         return BytecodeInstructionStreamDecode.Decoded(code, position)
     }
 

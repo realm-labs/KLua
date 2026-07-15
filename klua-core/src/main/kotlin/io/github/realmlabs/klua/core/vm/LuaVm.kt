@@ -360,19 +360,19 @@ internal class LuaVm(
                         Opcode.LT -> compare(stack, frame, instruction, Comparison.LT)
                         Opcode.LE -> compare(stack, frame, instruction, Comparison.LE)
                         Opcode.TEST -> {
-                            if (!isTruthy(stack.get(register(frame, Instruction.a(instruction))))) {
-                                frame.pc += signedByte(Instruction.b(instruction))
+                            if (isTruthy(stack.get(register(frame, Instruction.a(instruction))))) {
+                                frame.pc++
                             }
                         }
-                        Opcode.JMP -> frame.pc += signedByte(Instruction.a(instruction))
+                        Opcode.JMP -> frame.pc = Instruction.ax(instruction)
                         Opcode.FOR_TEST -> {
-                            if (!forLoopContinues(stack, frame, instruction)) {
-                                frame.pc += signedByte(Instruction.b(instruction))
+                            if (forLoopContinues(stack, frame, instruction)) {
+                                frame.pc++
                             }
                         }
                         Opcode.FOR_LOOP -> {
-                            if (advanceForLoop(stack, frame, instruction)) {
-                                frame.pc += signedByte(Instruction.b(instruction))
+                            if (!advanceForLoop(stack, frame, instruction)) {
+                                frame.pc++
                             }
                         }
                         Opcode.CALL -> {
