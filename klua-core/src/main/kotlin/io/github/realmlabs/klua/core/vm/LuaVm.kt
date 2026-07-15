@@ -339,7 +339,7 @@ internal class LuaVm(
                             val base = register(frame, Instruction.a(instruction))
                             val count = returnCount(frame, base, Instruction.b(instruction))
                             val values = stack.snapshotResults(base, count)
-                            dispatchDebugReturn(frame, base - frame.base + 1, count)
+                            dispatchDebugReturn(frame, base + 1, count)
                             return LuaExecutionResult.Returned(values)
                         }
                     }
@@ -366,7 +366,7 @@ internal class LuaVm(
         remainingInstructions--
     }
 
-    private fun register(frame: CallFrame, offset: Int): Int = frame.base + offset
+    private fun register(@Suppress("UNUSED_PARAMETER") frame: CallFrame, offset: Int): Int = offset
 
     private fun CallFrame.lineForPc(pc: Int): Int = prototype.lineInfo.getOrElse(pc) { 0 }
 
