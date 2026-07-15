@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.tools
 
+import io.github.realmlabs.klua.api.Lua
+import io.github.realmlabs.klua.api.LuaConfig
 import io.github.realmlabs.klua.debug.DebugFrameView
 import io.github.realmlabs.klua.debug.DebugVariable
 import kotlin.test.Test
@@ -89,15 +91,93 @@ class DebugCliRunnerTest {
     }
 
     @Test
-    fun `runner handles control and unavailable frame commands`() {
+    fun `runner rejects control and frame commands before a program is run`() {
         val runner = DebugCliRunner(DebugCliSession(program = "main.lua"))
 
-        assertEquals(DebugCliResult(success = true, message = "continued"), runner.execute("continue"))
-        assertEquals(DebugCliResult(success = true, message = "next"), runner.execute("next"))
-        assertEquals(DebugCliResult(success = true, message = "step"), runner.execute("step"))
-        assertEquals(DebugCliResult(success = true, message = "out"), runner.execute("out"))
+        assertEquals(DebugCliResult(success = false, message = "program has not been run"), runner.execute("continue"))
+        assertEquals(DebugCliResult(success = false, message = "program has not been run"), runner.execute("next"))
+        assertEquals(DebugCliResult(success = false, message = "program has not been run"), runner.execute("step"))
+        assertEquals(DebugCliResult(success = false, message = "program has not been run"), runner.execute("out"))
         assertFalse(runner.execute("bt").success)
         assertFalse(runner.execute("locals").success)
+    }
+
+    @Test
+    fun `runner stops live execution and serves backtrace locals evaluation and stepping`() {
+        val runner = DebugCliRunner(
+            session = DebugCliSession(program = "main.lua"),
+            readSource = {
+                """
+                local captured = 10
+                local value = 1
+                value = value + captured
+                return value
+                """.trimIndent()
+            },
+        )
+        runner.execute("break main.lua:3")
+
+        val stopped = runner.execute("run")
+
+        assertEquals(DebugCliResult(success = true, message = "stopped breakpoint main.lua:3"), stopped)
+        assertEquals(
+            DebugCliResult(success = true, message = "backtrace", values = listOf("#0 main.lua:3")),
+            runner.execute("bt"),
+        )
+        assertTrue(runner.execute("locals").values.containsAll(listOf("captured = 10", "value = 1")))
+        assertEquals(
+            DebugCliResult(success = true, message = "printed", values = listOf(11L)),
+            runner.execute("print value + captured"),
+        )
+        assertEquals(
+            DebugCliResult(success = true, message = "stopped step main.lua:4"),
+            runner.execute("next"),
+        )
+        assertEquals(
+            DebugCliResult(success = true, message = "completed", values = listOf(11L)),
+            runner.execute("continue"),
+        )
+        assertFalse(runner.execute("bt").success)
+    }
+
+    @Test
+    fun `runner debugs a packaged bytecode chunk using its original source name`() {
+        val bytecode = Lua.create().compileBytecode(
+            """
+            local value = 41
+            value = value + 1
+            return value
+            """.trimIndent(),
+            "packed.lua",
+        )
+        val runner = DebugCliRunner(
+            session = DebugCliSession(program = "main.kluac"),
+            readBytecode = { bytecode },
+        )
+        runner.execute("break packed.lua:2")
+
+        assertEquals(
+            DebugCliResult(success = true, message = "stopped breakpoint packed.lua:2"),
+            runner.execute("run"),
+        )
+        assertEquals(
+            DebugCliResult(success = true, message = "completed", values = listOf(42L)),
+            runner.execute("continue"),
+        )
+    }
+
+    @Test
+    fun `runner cannot attach when debugging is disabled in the runtime config`() {
+        val runner = DebugCliRunner(
+            session = DebugCliSession(program = "main.lua"),
+            luaFactory = { Lua.create(LuaConfig(debugEnabled = false)) },
+            readSource = { "return 1" },
+        )
+
+        val result = runner.execute("run")
+
+        assertFalse(result.success)
+        assertEquals("debugging is disabled for this Lua runtime", result.message)
     }
 
     @Test

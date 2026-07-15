@@ -40,6 +40,23 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `source and bytecode chunks expose coroutine-capable top-level functions`() {
+        val lua = Lua.create()
+        val source = "return ... + 1"
+        val sourceResult = lua.load(source, "api-source-coroutine.lua")
+            .asCoroutineFunction()
+            .createCoroutine()
+            .resume(listOf(41L))
+        val bytecodeResult = lua.loadBytecode(lua.compileBytecode(source, "api-bytecode-coroutine.lua"))
+            .asCoroutineFunction()
+            .createCoroutine()
+            .resume(listOf(41L))
+
+        assertEquals(listOf(42L), assertIs<LuaCoroutineResult.Returned>(sourceResult).values)
+        assertEquals(listOf(42L), assertIs<LuaCoroutineResult.Returned>(bytecodeResult).values)
+    }
+
+    @Test
     fun `facade loads bytecode resources`() {
         val lua = Lua.create()
         val bytecode = lua.compileBytecode("return ... + 1", "api-resource-bytecode.lua")

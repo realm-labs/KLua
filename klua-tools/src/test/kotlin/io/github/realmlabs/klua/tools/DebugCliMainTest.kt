@@ -64,6 +64,53 @@ class DebugCliMainTest {
     }
 
     @Test
+    fun `main command loop inspects and steps a live stopped script`() {
+        val input = ArrayDeque(
+            listOf(
+                "break main.lua:3",
+                "run",
+                "bt",
+                "locals",
+                "print value + captured",
+                "next",
+                "continue",
+                "quit",
+            ),
+        )
+        val output = mutableListOf<String>()
+
+        val exitCode = DebugCliMain.run(
+            args = arrayOf("--debug", "main.lua"),
+            readLine = { input.removeFirstOrNull() },
+            writeLine = { line -> output += line },
+            readSource = {
+                """
+                local captured = 10
+                local value = 1
+                value = value + captured
+                return value
+                """.trimIndent()
+            },
+        )
+
+        assertEquals(0, exitCode)
+        assertEquals(
+            listOf(
+                "debugging main.lua",
+                "ok: breakpoint main.lua:3",
+                "ok: stopped breakpoint main.lua:3",
+                "ok: backtrace #0 main.lua:3",
+                "ok: locals captured = 10\tvalue = 1",
+                "ok: printed 11",
+                "ok: stopped step main.lua:4",
+                "ok: completed 11",
+                "ok: quit",
+            ),
+            output,
+        )
+    }
+
+    @Test
     fun `main command loop runs bytecode packages`() {
         val input = ArrayDeque(listOf("run", "quit"))
         val output = mutableListOf<String>()

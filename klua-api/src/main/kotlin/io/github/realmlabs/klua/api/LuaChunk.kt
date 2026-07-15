@@ -19,12 +19,7 @@ class LuaChunk internal constructor(
     fun call(vararg arguments: Any?): LuaReturn {
         val base = state.getTop()
         try {
-            val status = if (bytecode == null) {
-                state.load(source, chunkName)
-            } else {
-                state.loadBytecode(bytecode.copyOf())
-            }
-            checkStatus(status)
+            loadFunction()
             for (argument in arguments) {
                 pushValue(argument)
             }
@@ -32,6 +27,14 @@ class LuaChunk internal constructor(
             return LuaReturn.ofValues(readResults(base))
         } finally {
             state.setTop(base)
+        }
+    }
+
+    fun asCoroutineFunction(): LuaCoroutineFunction {
+        return if (bytecode == null) {
+            state.loadCoroutineFunction(source, chunkName)
+        } else {
+            state.loadBytecodeCoroutineFunction(bytecode.copyOf())
         }
     }
 
@@ -65,6 +68,15 @@ class LuaChunk internal constructor(
             is LuaFunction -> state.pushFunction(value)
             else -> state.pushUserData(value)
         }
+    }
+
+    private fun loadFunction() {
+        val status = if (bytecode == null) {
+            state.load(source, chunkName)
+        } else {
+            state.loadBytecode(bytecode.copyOf())
+        }
+        checkStatus(status)
     }
 
     private fun checkStatus(status: LuaStatus) {

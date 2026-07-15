@@ -6,7 +6,7 @@ KLua debug tooling is split across three modules:
 - `klua-dap` adapts those debug primitives to Debug Adapter Protocol-shaped requests and `Content-Length` framed JSON messages.
 - `klua-tools` contains the command-line debugger runner core, the `klua --debug <script.lua> [args...]` command-loop wrapper, and the `klua --compile <script.lua> <output.kluac>` bytecode package compiler.
 
-The current implementation is a library-level foundation. It does not yet package a standalone executable DAP adapter process, and live VM stop contexts are still limited. The CLI runner can render supplied `DebugFrameView` backtraces and locals, but the default command-line path still reports that no Lua frame is suspended until VM-level stop-state integration is added.
+The CLI and transport-independent DAP session now consume live VM stop contexts. The project does not yet package a standalone executable DAP adapter process; an adapter host must still connect `DapMessageConnection` to its chosen stream or socket.
 
 ## Bytecode Compiler
 
@@ -50,10 +50,11 @@ quit
 Current behavior:
 
 - `break <file>:<line>` registers a source-line breakpoint in the `BreakpointManager`.
-- `run` loads and executes the configured script through the public `Lua` API, passing any script arguments. Paths ending in `.kluac` are read as KLua bytecode packages; other paths are read as Lua source.
-- `continue`, `next`, `step`, and `out` update `DebugController` state.
-- `print <expr>` evaluates a top-level expression by loading `return <expr>` through the public `Lua` API.
-- `bt` and `locals` render supplied suspended-frame views; the default command-line runner still reports that no Lua frame is suspended until VM stop-state integration is connected.
+- `run` loads the configured source or `.kluac` package as a coroutine-capable top-level chunk, passes the script arguments, and runs until completion, yield, runtime error, or a live breakpoint stop.
+- `continue`, `next`, `step`, and `out` resume the suspended VM through `LiveDebugSession`; control commands issued before `run` or when no debugger stop exists report an error.
+- `bt` and `locals` render the live suspended Lua frames and the selected top frame's local variables.
+- `print <expr>` evaluates against the stopped frame's scalar locals, upvalues, and globals in a fresh read-only snapshot runtime. With no stopped frame it retains the top-level expression behavior.
+- A `LuaConfig` with `debugEnabled = false` rejects debugger attachment, including through the CLI runner.
 
 ## DAP Integration
 
@@ -63,7 +64,10 @@ Current behavior:
 - a dependency-free JSON value parser/stringifier;
 - generic DAP request, response, and event envelopes;
 - a `Content-Length` framed JSON stream and connection layer;
-- a `DapWireSession` bridge from JSON request envelopes to typed session responses.
+- a `DapWireSession` bridge from JSON request envelopes to typed session responses and debugger events;
+- a `LiveDapSession` that shares breakpoint definitions across registered coroutines while retaining independent pause/step state for each DAP thread;
+- live `continue`, `next`, `stepIn`, and `stepOut` execution, plus VM-backed `threads`, `stackTrace`, `scopes`, `variables`, and read-only frame evaluation;
+- `stopped`, thread lifecycle, and final `terminated` event bodies that can be drained by an adapter host. Initial execution is started by the host with `LiveDapSession.start`; subsequent DAP control requests resume the selected thread.
 
 The VS Code launch example in `docs/examples/vscode/launch.json` describes the intended adapter-facing shape. The `debugServer` field assumes a future adapter host that exposes `DapMessageConnection` over a local socket.
 

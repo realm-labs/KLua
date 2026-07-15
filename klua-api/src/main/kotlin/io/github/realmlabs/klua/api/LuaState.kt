@@ -305,6 +305,20 @@ class LuaState private constructor(
         }
     }
 
+    internal fun loadCoroutineFunction(source: String, chunkName: String): LuaCoroutineFunction {
+        return when (val result = KLuaCoreRuntime.compile(source, chunkName)) {
+            is KLuaCoreLoad.Success -> result.chunk.toCoroutineFunction()
+            is KLuaCoreLoad.SyntaxError -> throw LuaSyntaxException(result.message)
+        }
+    }
+
+    internal fun loadBytecodeCoroutineFunction(bytes: ByteArray): LuaCoroutineFunction {
+        return when (val result = KLuaCoreRuntime.loadBytecode(bytes)) {
+            is KLuaCoreLoad.Success -> result.chunk.toCoroutineFunction()
+            is KLuaCoreLoad.SyntaxError -> throw LuaSyntaxException(result.message)
+        }
+    }
+
     private fun loadBytecodeFunction(bytes: ByteArray, environment: KLuaCoreValue?): LuaReturn {
         return when (val load = KLuaCoreRuntime.loadBytecode(bytes)) {
             is KLuaCoreLoad.Success -> {
@@ -1183,6 +1197,12 @@ class LuaState private constructor(
         return hexIntegerFromString(trimmed)
             ?: normalized.toLongOrNull()
             ?: normalized.luaFloatFromString()?.let(::integerFromNumber)
+    }
+
+    private fun KLuaCoreChunk.toCoroutineFunction(): LuaCoroutineFunction {
+        val functionValue = KLuaCoreRuntime.createChunkFunctionValue(this, coreGlobals)
+        return toLuaFunctionValue(functionValue) as? LuaCoroutineFunction
+            ?: throw LuaRuntimeException("loaded Lua chunk is not coroutine-capable")
     }
 
     private fun numberFromString(value: String): Double? {

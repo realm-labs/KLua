@@ -4,7 +4,10 @@ import io.github.realmlabs.klua.api.Lua
 import io.github.realmlabs.klua.api.LuaException
 import io.github.realmlabs.klua.debug.BreakpointManager
 import io.github.realmlabs.klua.debug.DebugController
+import io.github.realmlabs.klua.debug.DebugEvaluationResult
 import io.github.realmlabs.klua.debug.DebugFrameView
+import io.github.realmlabs.klua.debug.LiveDebugResult
+import io.github.realmlabs.klua.debug.LiveDebugSession
 import java.nio.file.Files
 import java.nio.file.Path
 
@@ -89,6 +92,9 @@ public class DebugCliRunner(
     private val readBytecode: (String) -> ByteArray = { program -> Files.readAllBytes(Path.of(program)) },
     private val frameProvider: DebugCliFrameProvider = DebugCliFrameProvider { emptyList() },
 ) {
+    private var liveSession: LiveDebugSession? = null
+    private var liveResult: LiveDebugResult? = null
+
     public fun execute(input: String): DebugCliResult {
         return execute(DebugCliCommandParser.parse(input))
     }
@@ -97,22 +103,12 @@ public class DebugCliRunner(
         return when (command) {
             is DebugCliCommand.Break -> setBreakpoint(command)
             DebugCliCommand.Run -> runProgram()
-            DebugCliCommand.Continue -> {
-                debugController.resume()
-                DebugCliResult(success = true, message = "continued")
+            DebugCliCommand.Continue -> controlExecution { live ->
+                if (liveResult is LiveDebugResult.Yielded) live.resumeYield() else live.continueExecution()
             }
-            DebugCliCommand.Next -> {
-                debugController.stepOver(startDepth = 0)
-                DebugCliResult(success = true, message = "next")
-            }
-            DebugCliCommand.Step -> {
-                debugController.stepInto()
-                DebugCliResult(success = true, message = "step")
-            }
-            DebugCliCommand.Out -> {
-                debugController.stepOut(currentDepth = 1)
-                DebugCliResult(success = true, message = "out")
-            }
+            DebugCliCommand.Next -> controlExecution(LiveDebugSession::stepOver)
+            DebugCliCommand.Step -> controlExecution(LiveDebugSession::stepInto)
+            DebugCliCommand.Out -> controlExecution(LiveDebugSession::stepOut)
             DebugCliCommand.Backtrace -> backtrace()
             DebugCliCommand.Locals -> locals()
             is DebugCliCommand.Print -> evaluateExpression(command.expression)
@@ -140,17 +136,23 @@ public class DebugCliRunner(
             } else {
                 lua.load(readSource(session.program), session.program)
             }
-            val result = chunk.call(*session.args.toTypedArray())
-            DebugCliResult(success = true, message = "completed", values = result.values)
+            debugController.resume()
+            val live = LiveDebugSession(chunk.asCoroutineFunction(), debugController)
+            liveSession = live
+            renderLiveResult(live.run(session.args))
         } catch (error: LuaException) {
+            liveSession = null
+            liveResult = null
             DebugCliResult(success = false, message = error.message ?: error::class.java.simpleName)
         } catch (error: Exception) {
+            liveSession = null
+            liveResult = null
             DebugCliResult(success = false, message = error.message ?: error::class.java.simpleName)
         }
     }
 
     private fun backtrace(): DebugCliResult {
-        val frames = frameProvider.frames()
+        val frames = suspendedFrames()
         if (frames.isEmpty()) {
             return DebugCliResult(success = false, message = "no suspended Lua frame")
         }
@@ -162,7 +164,7 @@ public class DebugCliRunner(
     }
 
     private fun locals(): DebugCliResult {
-        val frame = frameProvider.frames().firstOrNull()
+        val frame = suspendedFrames().firstOrNull()
             ?: return DebugCliResult(success = false, message = "no suspended Lua frame")
         return DebugCliResult(
             success = true,
@@ -172,11 +174,66 @@ public class DebugCliRunner(
     }
 
     private fun evaluateExpression(expression: String): DebugCliResult {
+        val live = liveSession
+        if (live != null && liveResult is LiveDebugResult.Stopped) {
+            return when (val result = live.evaluate(expression)) {
+                is DebugEvaluationResult.Success -> DebugCliResult(
+                    success = true,
+                    message = "printed",
+                    values = result.values,
+                )
+                is DebugEvaluationResult.Failure -> DebugCliResult(success = false, message = result.message)
+            }
+        }
         return try {
             val result = luaFactory().load("return $expression", "=(debug print)").eval()
             DebugCliResult(success = true, message = "printed", values = result.values)
         } catch (error: LuaException) {
             DebugCliResult(success = false, message = error.message ?: error::class.java.simpleName)
         }
+    }
+
+    private fun controlExecution(action: (LiveDebugSession) -> LiveDebugResult): DebugCliResult {
+        val live = liveSession
+            ?: return DebugCliResult(success = false, message = "program has not been run")
+        return try {
+            renderLiveResult(action(live))
+        } catch (error: IllegalStateException) {
+            DebugCliResult(success = false, message = error.message ?: "invalid debugger state")
+        }
+    }
+
+    private fun renderLiveResult(result: LiveDebugResult): DebugCliResult {
+        liveResult = result
+        return when (result) {
+            is LiveDebugResult.Stopped -> DebugCliResult(
+                success = true,
+                message = "stopped ${result.stop.reason.name.lowercase()} ${result.stop.sourceId}:${result.stop.line}",
+            )
+            is LiveDebugResult.Returned -> DebugCliResult(
+                success = true,
+                message = "completed",
+                values = result.values,
+            )
+            is LiveDebugResult.Yielded -> DebugCliResult(
+                success = true,
+                message = "yielded",
+                values = result.values,
+            )
+            is LiveDebugResult.RuntimeError -> DebugCliResult(
+                success = false,
+                message = result.error.message,
+            )
+        }
+    }
+
+    private fun suspendedFrames(): List<DebugFrameView> {
+        val frames = when (liveResult) {
+            is LiveDebugResult.Stopped,
+            is LiveDebugResult.Yielded,
+            -> liveSession?.frames.orEmpty()
+            else -> emptyList()
+        }
+        return frames.ifEmpty(frameProvider::frames)
     }
 }
