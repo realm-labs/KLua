@@ -8,6 +8,7 @@ import io.github.realmlabs.klua.api.LuaState
 import java.io.File
 import java.io.IOException
 import java.nio.file.Files
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 
 internal object LuaPackageLibrary {
@@ -58,10 +59,10 @@ internal object LuaPackageLibrary {
     }
 
     private fun searchpath(context: LuaCallContext): LuaReturn {
-        val name = requiredString(context, 1, "searchpath")
-        val path = requiredString(context, 2, "searchpath")
-        val separator = optionalString(context, 3, ".", "searchpath")
-        val replacement = optionalString(context, 4, directorySeparator, "searchpath")
+        val name = requiredString(context, 1, "searchpath").substringBefore('\u0000')
+        val path = requiredString(context, 2, "searchpath").substringBefore('\u0000')
+        val separator = optionalString(context, 3, ".", "searchpath").substringBefore('\u0000')
+        val replacement = optionalString(context, 4, directorySeparator, "searchpath").substringBefore('\u0000')
         val normalizedName = if (separator.isEmpty()) {
             name
         } else {
@@ -70,7 +71,7 @@ internal object LuaPackageLibrary {
         val missingPaths = mutableListOf<String>()
         for (template in searchPathTemplates(path)) {
             val candidate = template.replace("?", normalizedName)
-            if (candidate.isNotEmpty() && Files.isReadable(Path.of(candidate))) {
+            if (candidate.isNotEmpty() && isReadablePath(candidate)) {
                 return LuaReturn.of(candidate)
             }
             missingPaths += candidate
@@ -78,6 +79,19 @@ internal object LuaPackageLibrary {
         return LuaReturn.of(null, missingPaths.joinToString(separator = "\n\t") { candidate ->
             "no file '$candidate'"
         })
+    }
+
+    private fun isReadablePath(candidate: String): Boolean {
+        return try {
+            Files.newInputStream(Path.of(candidate)).use { }
+            true
+        } catch (_: IOException) {
+            false
+        } catch (_: InvalidPathException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        }
     }
 
     private fun searchPathTemplates(path: String): List<String> {

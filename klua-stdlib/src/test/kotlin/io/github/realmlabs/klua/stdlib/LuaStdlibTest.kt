@@ -6670,7 +6670,67 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `package searchpath returns readable directory candidates like lua readable check`() {
+    fun `package searchpath uses c string argument boundaries`() {
+        val root = Files.createTempDirectory("klua-searchpath-c-strings")
+        val alpha = root.resolve("alpha.lua")
+        val dotted = root.resolve("alpha.beta.lua")
+        Files.writeString(alpha, "return 1")
+        Files.writeString(dotted, "return 2")
+        val template = "${root.luaPath()}/?.lua"
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openBase(state)
+            LuaStdlib.openString(state)
+            LuaStdlib.openPackage(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local zero = string.char(0)
+                    local function inspect(...)
+                        return select("#", ...), ...
+                    end
+                    local foundCount, found = inspect(package.searchpath(
+                        "alpha" .. zero .. ".ignored",
+                        "$template" .. zero .. ";ignored",
+                        "." .. zero .. "ignored",
+                        "/" .. zero .. "ignored",
+                        "ignored"
+                    ))
+                    local unchanged = package.searchpath("alpha.beta", "$template", zero .. ".", "/")
+                    local missing, message = package.searchpath(
+                        "missing",
+                        "$template" .. zero .. ";ignored/?.lua"
+                    )
+                    local numericMissing, numericMessage = package.searchpath(123, "number-?.lua", "", "")
+                    local invalidMissing, invalidMessage = package.searchpath("x", "<invalid>")
+                    return foundCount, found, unchanged, missing, message,
+                        numericMissing, numericMessage, invalidMissing, invalidMessage
+                    """.trimIndent(),
+                    "package-searchpath-c-string-boundaries.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1L, state.toInteger(1))
+            assertEquals("${root}/alpha.lua", state.toString(2))
+            assertEquals("${root}/alpha.beta.lua", state.toString(3))
+            assertTrue(state.isNil(4))
+            assertEquals("no file '${root}/missing.lua'", state.toString(5))
+            assertTrue(state.isNil(6))
+            assertEquals("no file 'number-123.lua'", state.toString(7))
+            assertTrue(state.isNil(8))
+            assertEquals("no file '<invalid>'", state.toString(9))
+        } finally {
+            Files.deleteIfExists(alpha)
+            Files.deleteIfExists(dotted)
+            Files.deleteIfExists(root)
+        }
+    }
+
+    @Test
+    fun `package searchpath probes directory candidates like host fopen`() {
         val root = Files.createTempDirectory("klua-searchpath-readable-directory")
         val moduleDirectory = root.resolve("alpha").resolve("beta.lua")
         Files.createDirectories(moduleDirectory)
@@ -6693,7 +6753,12 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
-        assertEquals("${root}/alpha/beta.lua", state.toString(1))
+        val expected = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            "${root}/alpha/beta/init.lua"
+        } else {
+            "${root}/alpha/beta.lua"
+        }
+        assertEquals(expected, state.toString(1))
     }
 
     @Test
