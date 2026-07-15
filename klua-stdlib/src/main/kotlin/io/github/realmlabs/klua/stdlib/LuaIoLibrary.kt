@@ -133,13 +133,14 @@ internal object LuaIoLibrary {
         return try {
             if (parsedMode == "r") {
                 val process = ProcessBuilder(shellCommand(command))
-                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .redirectInput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
                     .start()
                 LuaReturn.of(IoFileHandle.input(process.inputStream) { waitForProcessClose(process) })
             } else {
                 val process = ProcessBuilder(shellCommand(command))
-                    .redirectOutput(ProcessBuilder.Redirect.DISCARD)
-                    .redirectError(ProcessBuilder.Redirect.DISCARD)
+                    .redirectOutput(ProcessBuilder.Redirect.INHERIT)
+                    .redirectError(ProcessBuilder.Redirect.INHERIT)
                     .start()
                 LuaReturn.of(IoFileHandle.output(process.outputStream) { waitForProcessClose(process) })
             }
@@ -154,15 +155,12 @@ internal object LuaIoLibrary {
     }
 
     private fun parsePopenMode(mode: String): String? {
-        return if (
-            mode.length in 1..2 &&
-            mode[0] in "rw" &&
-            (mode.length == 1 || mode[1] == 'b' || mode[1] == 't')
-        ) {
-            mode[0].toString()
-        } else {
-            null
+        if (mode.isEmpty() || mode[0] !in "rw") {
+            return null
         }
+        val valid = mode.length == 1 ||
+            (isWindowsHost() && mode.length == 2 && mode[1] in "bt")
+        return mode[0].toString().takeIf { valid }
     }
 
     private fun ioClose(context: LuaCallContext, defaultFiles: IoDefaultFiles): LuaReturn {
@@ -669,11 +667,15 @@ internal object LuaIoLibrary {
     }
 
     private fun shellCommand(command: String): List<String> {
-        return if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+        return if (isWindowsHost()) {
             listOf("cmd", "/c", command)
         } else {
             listOf("sh", "-c", command)
         }
+    }
+
+    private fun isWindowsHost(): Boolean {
+        return System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
     }
 
     private data class IoOpenMode(

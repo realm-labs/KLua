@@ -4019,6 +4019,16 @@ class LuaStdlibTest {
 
     @Test
     fun `io tmpfile returns closeable file handles`() {
+        val temporaryDirectory = Path.of(System.getProperty("java.io.tmpdir"))
+        fun temporaryIoFiles(): Set<Path> = Files.list(temporaryDirectory).use { paths ->
+            paths.iterator().asSequence()
+                .filter { path ->
+                    val name = path.fileName.toString()
+                    name.startsWith("klua-io-") && name.endsWith(".tmp")
+                }
+                .toSet()
+        }
+        val beforeTemporaryFiles = temporaryIoFiles()
         val state = LuaState.create()
         LuaStdlib.openBase(state)
         LuaStdlib.openIo(state)
@@ -4027,7 +4037,10 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local handle = assert(io.tmpfile())
+                local resultCount, handle = (function(...)
+                    return select("#", ...), ...
+                end)(io.tmpfile({}, "ignored"))
+                assert(handle)
                 local before = io.type(handle)
                 handle:write("scratch")
                 handle:seek("set", 0)
@@ -4039,7 +4052,7 @@ class LuaStdlibTest {
                     return handle:read()
                 end)
                 local missingOk, missingMessage = pcall(io.type)
-                return before, data, closed, after, nonFile, readOk, readMessage,
+                return resultCount, before, data, closed, after, nonFile, readOk, readMessage,
                     missingOk, missingMessage
                 """.trimIndent(),
                 "io-tmpfile.lua",
@@ -4047,15 +4060,17 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals("file", state.toString(1))
-        assertEquals("scratch", state.toString(2))
-        assertTrue(state.toBoolean(3))
-        assertEquals("closed file", state.toString(4))
-        assertTrue(state.isNil(5))
-        assertFalse(state.toBoolean(6))
-        assertEquals("attempt to use a closed file", state.toString(7))
-        assertFalse(state.toBoolean(8))
-        assertEquals("bad argument #1 to 'type' (value expected)", state.toString(9))
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("file", state.toString(2))
+        assertEquals("scratch", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("closed file", state.toString(5))
+        assertTrue(state.isNil(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("attempt to use a closed file", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'type' (value expected)", state.toString(10))
+        assertEquals(beforeTemporaryFiles, temporaryIoFiles())
     }
 
     @Test
@@ -5803,6 +5818,7 @@ class LuaStdlibTest {
 
     @Test
     fun `io popen validates source mode grammar`() {
+        val windows = System.getProperty("os.name").startsWith("Windows", ignoreCase = true)
         val outputPath = Files.createTempFile("klua-popen-mode-", ".txt")
         val readCommand = if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
             "echo KLua"
@@ -5823,21 +5839,36 @@ class LuaStdlibTest {
                 LuaStatus.OK,
                 state.load(
                     """
-                    local readHandle = assert(io.popen("$readCommand", "rb"))
-                    local data = readHandle:read("a")
-                    readHandle:close()
+                    local defaultHandle = assert(io.popen("$readCommand", nil, "ignored"))
+                    local defaultData = defaultHandle:read("a")
+                    defaultHandle:close()
 
-                    local writeHandle = assert(io.popen('$writeCommand', 'wt'))
-                    writeHandle:write("ok")
-                    local closeOk = writeHandle:close()
+                    local readModeOk, readModeValue = pcall(io.popen, "$readCommand", "rb")
+                    local readData, readClose
+                    if readModeOk then
+                        readData = readModeValue:read("a")
+                        readClose = readModeValue:close()
+                    end
+
+                    local writeModeOk, writeModeValue = pcall(io.popen, '$writeCommand', 'wt')
+                    local writeClose
+                    if writeModeOk then
+                        writeModeValue:write("ok")
+                        writeClose = writeModeValue:close()
+                    end
 
                     local badOneOk, badOneMessage = pcall(io.popen, "$readCommand", "rtb")
                     local badTwoOk, badTwoMessage = pcall(io.popen, "$readCommand", "br")
                     local badThreeOk, badThreeMessage = pcall(io.popen, "$readCommand", "r+")
-                    return data, closeOk,
+                    local commandOk, commandMessage = pcall(io.popen, {}, "bad")
+                    local modeTypeOk, modeTypeMessage = pcall(io.popen, "$readCommand", {})
+                    return defaultData,
+                        readModeOk, readData or readModeValue, readClose,
+                        writeModeOk, writeClose or writeModeValue,
                         badOneOk, badOneMessage,
                         badTwoOk, badTwoMessage,
-                        badThreeOk, badThreeMessage
+                        badThreeOk, badThreeMessage,
+                        commandOk, commandMessage, modeTypeOk, modeTypeMessage
                     """.trimIndent(),
                     "io-popen-mode-validation.lua",
                 ),
@@ -5845,13 +5876,29 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
             assertTrue(state.toString(1)?.contains("KLua") == true, state.toString(1))
-            assertTrue(state.toBoolean(2))
-            assertFalse(state.toBoolean(3))
-            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(4))
-            assertFalse(state.toBoolean(5))
-            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(6))
+            assertEquals(windows, state.toBoolean(2))
+            if (windows) {
+                assertTrue(state.toString(3)?.contains("KLua") == true, state.toString(3))
+                assertTrue(state.toBoolean(4))
+                assertTrue(state.toBoolean(5))
+                assertTrue(state.toBoolean(6))
+                assertEquals("ok", Files.readString(outputPath).trim())
+            } else {
+                assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(3))
+                assertTrue(state.isNil(4))
+                assertFalse(state.toBoolean(5))
+                assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(6))
+            }
             assertFalse(state.toBoolean(7))
             assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(8))
+            assertFalse(state.toBoolean(9))
+            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(10))
+            assertFalse(state.toBoolean(11))
+            assertEquals("bad argument #2 to 'io.popen' (invalid mode)", state.toString(12))
+            assertFalse(state.toBoolean(13))
+            assertEquals("bad argument #1 to 'io.popen' (string expected)", state.toString(14))
+            assertFalse(state.toBoolean(15))
+            assertEquals("bad argument #2 to 'io.popen' (string expected)", state.toString(16))
         } finally {
             Files.deleteIfExists(outputPath)
         }
