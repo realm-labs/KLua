@@ -1515,6 +1515,47 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo reports close metamethod call site names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local seen = {}
+                local metatable = {
+                    __close = function()
+                        local info = debug.getinfo(1, "n")
+                        seen[#seen + 1] = info.name
+                        seen[#seen + 1] = info.namewhat
+                    end,
+                }
+
+                do
+                    local blockValue <close> = setmetatable({}, metatable)
+                end
+
+                local function returnProbe()
+                    local returnValue <close> = setmetatable({}, metatable)
+                    return 42
+                end
+                returnProbe()
+
+                return seen[1], seen[2], seen[3], seen[4]
+                """.trimIndent(),
+                "debug-getinfo-close-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("close", state.toString(1))
+        assertEquals("metamethod", state.toString(2))
+        assertEquals("close", state.toString(3))
+        assertEquals("metamethod", state.toString(4))
+    }
+
+    @Test
     fun `debug getinfo reports main chunk source metadata`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
