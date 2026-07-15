@@ -5356,15 +5356,25 @@ class LuaStdlibTest {
                     local no = handle:setvbuf("no")
                     local full = handle:setvbuf("full", 1024)
                     local line = handle:setvbuf("line", nil)
+                    local numericStringCount = select("#", handle:setvbuf("full", "1024"))
+                    local missingOk, missingMessage = pcall(handle.setvbuf, handle)
+                    local nilOk, nilMessage = pcall(handle.setvbuf, handle, nil)
                     local badModeOk, badModeMessage = pcall(function()
                         return handle:setvbuf("bad")
                     end)
                     local badSizeOk, badSizeMessage = pcall(function()
                         return handle:setvbuf("full", 1.5)
                     end)
+                    local modeFirstOk, modeFirstMessage = pcall(handle.setvbuf, handle, "bad", {})
+                    local sizeTypeOk, sizeTypeMessage = pcall(handle.setvbuf, handle, "full", false)
+                    local savedSetvbuf = handle.setvbuf
                     handle:close()
-                    return no, full, line, badModeOk, badModeMessage,
-                        badSizeOk, badSizeMessage
+                    local closedOk, closedMessage = pcall(savedSetvbuf, handle, "bad", {})
+                    return no, full, line, numericStringCount,
+                        missingOk, missingMessage, nilOk, nilMessage,
+                        badModeOk, badModeMessage, badSizeOk, badSizeMessage,
+                        modeFirstOk, modeFirstMessage, sizeTypeOk, sizeTypeMessage,
+                        closedOk, closedMessage
                     """.trimIndent(),
                     "io-setvbuf.lua",
                 ),
@@ -5374,10 +5384,21 @@ class LuaStdlibTest {
             assertTrue(state.toBoolean(1))
             assertTrue(state.toBoolean(2))
             assertTrue(state.toBoolean(3))
-            assertFalse(state.toBoolean(4))
-            assertEquals("bad argument #2 to 'setvbuf' (invalid option 'bad')", state.toString(5))
-            assertFalse(state.toBoolean(6))
-            assertEquals("bad argument #3 to 'setvbuf' (number has no integer representation)", state.toString(7))
+            assertEquals(1L, state.toInteger(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #2 to 'setvbuf' (string expected)", state.toString(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("bad argument #2 to 'setvbuf' (string expected)", state.toString(8))
+            assertFalse(state.toBoolean(9))
+            assertEquals("bad argument #2 to 'setvbuf' (invalid option 'bad')", state.toString(10))
+            assertFalse(state.toBoolean(11))
+            assertEquals("bad argument #3 to 'setvbuf' (number has no integer representation)", state.toString(12))
+            assertFalse(state.toBoolean(13))
+            assertEquals("bad argument #2 to 'setvbuf' (invalid option 'bad')", state.toString(14))
+            assertFalse(state.toBoolean(15))
+            assertEquals("bad argument #3 to 'setvbuf' (number expected)", state.toString(16))
+            assertFalse(state.toBoolean(17))
+            assertEquals("attempt to use a closed file", state.toString(18))
         } finally {
             Files.deleteIfExists(path)
         }

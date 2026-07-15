@@ -10,7 +10,7 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 ## IO Library
 
-- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration including fourth-result early-exit closing for `io.lines(filename)`, common file read formats, Lua-style numeric write formatting and capped numeric read scanning, source-backed open/default routing, seek boundaries, and close/flush lifecycle and result shapes, non-closing standard handles, no-op buffer-mode validation, and stream-backed read/write-mode `io.popen`, but broader `liolib.c` edge-case and platform-mode parity still needs conformance hardening.
+- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration including fourth-result early-exit closing for `io.lines(filename)`, common file read formats, Lua-style numeric write formatting and capped numeric read scanning, source-backed open/default routing, seek boundaries, close/flush lifecycle and result shapes, and `setvbuf` argument validation, plus non-closing standard handles and stream-backed read/write-mode `io.popen`. Actual buffer reconfiguration remains a no-op, and broader `liolib.c` edge-case and platform-mode parity still needs conformance hardening.
 
 ## Strings And UTF-8
 
