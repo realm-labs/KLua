@@ -15598,6 +15598,48 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os time writes normalized fields in source order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local source = {year = 2020, month = 1, day = 2}
+                local writes = {}
+                local date = setmetatable({}, {
+                    __index = source,
+                    __newindex = function(_, key)
+                        writes[#writes + 1] = key
+                    end,
+                })
+                local count = select("#", os.time(date, "ignored"))
+                return count,
+                    writes[1], writes[2], writes[3],
+                    writes[4], writes[5], writes[6],
+                    writes[7], writes[8], writes[9], writes[10]
+                """.trimIndent(),
+                "os-time-write-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("year", state.toString(2))
+        assertEquals("month", state.toString(3))
+        assertEquals("day", state.toString(4))
+        assertEquals("hour", state.toString(5))
+        assertEquals("min", state.toString(6))
+        assertEquals("sec", state.toString(7))
+        assertEquals("yday", state.toString(8))
+        assertEquals("wday", state.toString(9))
+        assertEquals("isdst", state.toString(10))
+        assertTrue(state.isNil(11))
+    }
+
+    @Test
     fun `os time ignores extras and returns one integer`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

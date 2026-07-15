@@ -317,8 +317,8 @@ internal object LuaOsLibrary {
         setDateField(context, "hour", normalized.hour.toLong())
         setDateField(context, "min", normalized.minute.toLong())
         setDateField(context, "sec", normalized.second.toLong())
-        setDateField(context, "wday", normalized.dayOfWeek.value % 7L + 1L)
         setDateField(context, "yday", normalized.dayOfYear.toLong())
+        setDateField(context, "wday", normalized.dayOfWeek.value % 7L + 1L)
         setDateField(context, "isdst", normalized.zone.rules.isDaylightSavings(normalized.toInstant()))
         if (epochSecond == -1L) {
             throw LuaRuntimeException("time result cannot be represented in this installation")
@@ -370,8 +370,8 @@ internal object LuaOsLibrary {
             "hour" to dateTime.hour.toLong(),
             "min" to dateTime.minute.toLong(),
             "sec" to dateTime.second.toLong(),
-            "wday" to (dateTime.dayOfWeek.value % 7L + 1L),
             "yday" to dateTime.dayOfYear.toLong(),
+            "wday" to (dateTime.dayOfWeek.value % 7L + 1L),
             "isdst" to dateTime.zone.rules.isDaylightSavings(dateTime.toInstant()),
         )
     }
