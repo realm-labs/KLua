@@ -25887,6 +25887,253 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string variable layouts cover every length width and raw bytes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local raw = string.char(0, 65, 255)
+                local widthsValid = true
+                for size = 1, 16 do
+                    local littleFormat = "<s" .. size
+                    local bigFormat = ">s" .. size
+                    local little = string.pack(littleFormat, raw)
+                    local big = string.pack(bigFormat, raw)
+                    widthsValid = widthsValid and #little == size + 3 and #big == size + 3
+                    for index = 1, size do
+                        local littleExpected = index == 1 and 3 or 0
+                        local bigExpected = index == size and 3 or 0
+                        widthsValid = widthsValid and
+                            string.byte(little, index) == littleExpected and
+                            string.byte(big, index) == bigExpected
+                    end
+                    local littleValue, littleNext = string.unpack(littleFormat, little)
+                    local bigValue, bigNext = string.unpack(bigFormat, big)
+                    widthsValid = widthsValid and
+                        littleValue == raw and bigValue == raw and
+                        littleNext == size + 4 and bigNext == size + 4
+                end
+
+                local fixed = string.pack("c5", raw)
+                local fixedValue, fixedNext = string.unpack("c5", fixed)
+                local fixed1, fixed2, fixed3, fixed4, fixed5 = string.byte(fixed, 1, 5)
+                local empty, emptyNext = string.unpack("c0", string.pack("c0", ""))
+                local mixed = string.pack("s1s2z", raw, raw, "tail")
+                local first, second, third, mixedNext = string.unpack("s1s2z", mixed)
+                return widthsValid,
+                    #fixed, fixed1, fixed2, fixed3, fixed4, fixed5,
+                    fixedValue == fixed, fixedNext,
+                    #empty, emptyNext,
+                    first == raw, second == raw, third, mixedNext,
+                    select("#", string.unpack("s1s2z", mixed))
+                """.trimIndent(),
+                "string-pack-variable-widths.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(5L, state.toInteger(2))
+        assertEquals(listOf(0L, 65L, 255L, 0L, 0L), (3..7).map(state::toInteger))
+        assertTrue(state.toBoolean(8))
+        assertEquals(6L, state.toInteger(9))
+        assertEquals(0L, state.toInteger(10))
+        assertEquals(1L, state.toInteger(11))
+        assertTrue(state.toBoolean(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("tail", state.toString(14))
+        assertEquals(15L, state.toInteger(15))
+        assertEquals(4L, state.toInteger(16))
+    }
+
+    @Test
+    fun `string variable layouts honor alignment X and absolute positions`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local raw = string.char(0, 65, 255)
+                local format = "<!4B Xs4 s4 c3 z"
+                local packed = string.pack(format, 7, raw, "q", "end")
+                local byte, sized, fixed, zero, nextPosition = string.unpack(format, packed)
+                local pad1, pad2, pad3 = string.byte(packed, 2, 4)
+                local length1, length2, length3, length4 = string.byte(packed, 5, 8)
+
+                local paddingFormat = "x!4Xs4"
+                local padding = string.pack(paddingFormat)
+                local paddingNext = string.unpack(paddingFormat, padding)
+
+                local positioned = "x" .. string.rep("p", 3) .. string.pack("<s4", "abc")
+                local positionedValue, positionedNext = string.unpack("<!4Xs4s4", positioned, 2)
+                return #packed, byte, sized == raw, fixed, zero, nextPosition,
+                    pad1, pad2, pad3, length1, length2, length3, length4,
+                    string.packsize(paddingFormat), #padding, paddingNext,
+                    positionedValue, positionedNext
+                """.trimIndent(),
+                "string-pack-variable-alignment.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(18L, state.toInteger(1))
+        assertEquals(7L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("q\u0000\u0000", state.toString(4))
+        assertEquals("end", state.toString(5))
+        assertEquals(19L, state.toInteger(6))
+        assertEquals(listOf(0L, 0L, 0L, 3L, 0L, 0L, 0L), (7..13).map(state::toInteger))
+        assertEquals(4L, state.toInteger(14))
+        assertEquals(4L, state.toInteger(15))
+        assertEquals(5L, state.toInteger(16))
+        assertEquals("abc", state.toString(17))
+        assertEquals(12L, state.toInteger(18))
+    }
+
+    @Test
+    fun `string variable layouts coerce numbers and delimit zero strings`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local packed = string.pack("c2s1z", 12, 34, 56)
+                local fixed, sized, zero, nextPosition = string.unpack("c2s1z", packed)
+                local first, second, byte, delimitedNext =
+                    string.unpack("zzB", "a\0b\0" .. string.char(7))
+                local high = string.char(255, 128)
+                local highValue, highNext = string.unpack("z", string.pack("z", high))
+                local emptyValue, emptyNext = string.unpack("z", string.pack("z", ""))
+                return #packed, fixed, sized, zero, nextPosition,
+                    first, second, byte, delimitedNext,
+                    highValue == high, highNext, #emptyValue, emptyNext
+                """.trimIndent(),
+                "string-pack-variable-coercion.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(8L, state.toInteger(1))
+        assertEquals("12", state.toString(2))
+        assertEquals("34", state.toString(3))
+        assertEquals("56", state.toString(4))
+        assertEquals(9L, state.toInteger(5))
+        assertEquals("a", state.toString(6))
+        assertEquals("b", state.toString(7))
+        assertEquals(7L, state.toInteger(8))
+        assertEquals(6L, state.toInteger(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals(4L, state.toInteger(11))
+        assertEquals(0L, state.toInteger(12))
+        assertEquals(2L, state.toInteger(13))
+    }
+
+    @Test
+    fun `string variable layouts preserve limits and diagnostic order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local s1max = string.rep("a", 255)
+                local s1MaxOk, s1Packed = pcall(string.pack, "s1", s1max)
+                local s1Value, s1Next = string.unpack("s1", s1Packed)
+                local s1OverflowOk, s1OverflowMessage =
+                    pcall(string.pack, "s1", string.rep("a", 256))
+
+                local s2max = string.rep("b", 65535)
+                local s2MaxOk, s2Packed = pcall(string.pack, ">s2", s2max)
+                local s2Value, s2Next = string.unpack(">s2", s2Packed)
+                local s2OverflowOk, s2OverflowMessage =
+                    pcall(string.pack, "s2", string.rep("b", 65536))
+
+                local charOk, charMessage = pcall(string.pack, "c2", "abc")
+                local zeroOk, zeroMessage = pcall(string.pack, "z", "a\0b")
+                local charOrderOk, charOrderMessage = pcall(string.pack, "c2?", "abc")
+                local sizedOrderOk, sizedOrderMessage =
+                    pcall(string.pack, "s1?", string.rep("a", 256))
+                local zeroOrderOk, zeroOrderMessage = pcall(string.pack, "z?", "a\0b")
+
+                local prefixShortOk, prefixShortMessage = pcall(string.unpack, "s2", "a")
+                local payloadShortOk, payloadShortMessage =
+                    pcall(string.unpack, "s1", string.char(2) .. "a")
+                local wideOk, wideMessage =
+                    pcall(string.unpack, ">s9", string.char(1) .. string.rep("\0", 8))
+                local unsignedOk, unsignedMessage =
+                    pcall(string.unpack, ">s8", string.rep(string.char(255), 8))
+                local unfinishedOk, unfinishedMessage = pcall(string.unpack, "z", "abc")
+                local completedLaterOk, completedLaterMessage =
+                    pcall(string.unpack, "s1?", string.char(0))
+                local packsizeOk, packsizeMessage = pcall(string.packsize, "s?")
+
+                local largeFixedSize = string.packsize("c2147483648")
+                local largeFixedOk, largeFixedMessage = pcall(string.pack, "c2147483648", "")
+                local ignoredExtra = string.unpack("s1", string.pack("s1", "a", "ignored")) == "a"
+                return s1MaxOk, #s1Packed, s1Value == s1max, s1Next,
+                    s1OverflowOk, s1OverflowMessage,
+                    s2MaxOk, #s2Packed, s2Value == s2max, s2Next,
+                    s2OverflowOk, s2OverflowMessage,
+                    charOk, charMessage, zeroOk, zeroMessage,
+                    charOrderOk, charOrderMessage,
+                    sizedOrderOk, sizedOrderMessage,
+                    zeroOrderOk, zeroOrderMessage,
+                    prefixShortOk, prefixShortMessage,
+                    payloadShortOk, payloadShortMessage,
+                    wideOk, wideMessage, unsignedOk, unsignedMessage,
+                    unfinishedOk, unfinishedMessage,
+                    completedLaterOk, completedLaterMessage,
+                    packsizeOk, packsizeMessage,
+                    largeFixedSize, largeFixedOk, largeFixedMessage, ignoredExtra
+                """.trimIndent(),
+                "string-pack-variable-limits.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(256L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals(257L, state.toInteger(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'pack' (string length does not fit in given size)", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals(65537L, state.toInteger(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals(65538L, state.toInteger(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #2 to 'pack' (string length does not fit in given size)", state.toString(12))
+        for (index in listOf(13, 15, 17, 19, 21, 23, 25, 27, 29, 31, 33, 35, 38)) {
+            assertFalse(state.toBoolean(index))
+        }
+        assertEquals("bad argument #2 to 'pack' (string longer than given size)", state.toString(14))
+        assertEquals("bad argument #2 to 'pack' (string contains zeros)", state.toString(16))
+        assertEquals("bad argument #2 to 'pack' (string longer than given size)", state.toString(18))
+        assertEquals("bad argument #2 to 'pack' (string length does not fit in given size)", state.toString(20))
+        assertEquals("bad argument #2 to 'pack' (string contains zeros)", state.toString(22))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(24))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(26))
+        assertEquals("9-byte integer does not fit into Lua Integer", state.toString(28))
+        assertEquals("bad argument #2 to 'unpack' (data string too short)", state.toString(30))
+        assertEquals("bad argument #2 to 'unpack' (unfinished string for format 'z')", state.toString(32))
+        assertEquals("invalid format option '?'", state.toString(34))
+        assertEquals("bad argument #1 to 'packsize' (variable-length format)", state.toString(36))
+        assertEquals(2147483648L, state.toInteger(37))
+        assertEquals("bad argument #1 to 'pack' (result too long)", state.toString(39))
+        assertTrue(state.toBoolean(40))
+    }
+
+    @Test
     fun `string pack and unpack report fixed integer errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
