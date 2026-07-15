@@ -153,6 +153,62 @@ class KLuaCoreRuntimeCoroutineTest {
     }
 
     @Test
+    fun `core coroutine close unwinds suspended to be closed locals without continuing`() {
+        val globals = KLuaCoreGlobals.create()
+        var closed = 0
+        val closeFunction = KLuaCoreRuntime.createFunctionValue(
+            function = { arguments ->
+                assertEquals(1, arguments.size)
+                closed += 1
+                KLuaCoreCallResult.Success(emptyList())
+            },
+        )
+        val metatable = KLuaCoreValue.TableValue(
+            mutableMapOf(KLuaCoreValue.StringValue("__close") to closeFunction),
+        )
+        val resource = KLuaCoreValue.TableValue(mutableMapOf()).also { value ->
+            value.metatable = metatable
+        }
+        globals.set("resource", resource)
+        globals.set(
+            "yield",
+            KLuaCoreRuntime.createFunctionValue(
+                function = { arguments -> KLuaCoreCallResult.Yielded(arguments) },
+                yieldable = true,
+            ),
+        )
+        val chunk = assertIs<KLuaCoreLoad.Success>(
+            KLuaCoreRuntime.compile(
+                """
+                return function()
+                    local value <close> = resource
+                    yield("paused")
+                    return "continued"
+                end
+                """.trimIndent(),
+                "core-coroutine-close-tbc.lua",
+            ),
+        ).chunk
+        val function = assertIs<KLuaCoreValue.FunctionValue>(
+            assertIs<KLuaCoreExecution.Success>(
+                KLuaCoreRuntime.execute(chunk, emptyList(), globals),
+            ).values.single(),
+        )
+        val coroutine = assertNotNull(KLuaCoreRuntime.createCoroutine(function, globals))
+
+        assertEquals(
+            KLuaCoreCoroutineExecution.Yielded(listOf(KLuaCoreValue.StringValue("paused"))),
+            coroutine.resume(emptyList()),
+        )
+        assertEquals(KLuaCoreCoroutineExecution.Returned(emptyList()), coroutine.close())
+        assertEquals(1, closed)
+        assertEquals(
+            KLuaCoreCoroutineExecution.RuntimeError("cannot resume dead coroutine"),
+            coroutine.resume(emptyList()),
+        )
+    }
+
+    @Test
     fun `core coroutine runner resumes top level yieldable native functions`() {
         val globals = KLuaCoreGlobals.create()
         val function = KLuaCoreRuntime.createFunctionValue(

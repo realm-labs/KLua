@@ -17,7 +17,7 @@ internal enum class Opcode {
     CLOSURE,
     GET_UPVALUE,
     SET_UPVALUE,
-    CLOSE_UPVALUES,
+    CLOSE,
     MOVE,
     ADD,
     SUB,
@@ -49,5 +49,5 @@ internal enum class Opcode {
     GET_ENV,
     SET_ENV,
     CHECK_FIELD_NIL,
-    CHECK_CLOSE_FALSE,
+    MARK_TBC,
 }

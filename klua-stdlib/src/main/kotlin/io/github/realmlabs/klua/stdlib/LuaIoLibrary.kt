@@ -28,6 +28,7 @@ internal object LuaIoLibrary {
         val stderr = IoFileHandle.output(System.err, nonClosing = true, closeResult = ::standardFileCloseResult)
         val defaultFiles = IoDefaultFiles(input = stdin, output = stdout)
         state.registerType(IoFileHandle::class.java) { type ->
+            type.method("__close") { receiver, _ -> closeHandleMetamethod(receiver) }
             type.method("close") { receiver, _ -> closeHandle(fileMethodReceiver(receiver, "close")) }
             type.method("flush") { receiver, _ -> flushHandle(fileMethodReceiver(receiver, "flush")) }
             type.method("lines") { receiver, context ->
@@ -324,6 +325,13 @@ internal object LuaIoLibrary {
         } catch (error: IOException) {
             LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         }
+    }
+
+    private fun closeHandleMetamethod(handle: IoFileHandle): LuaReturn {
+        if (!handle.closed) {
+            closeHandle(handle)
+        }
+        return LuaReturn.of()
     }
 
     private fun flushHandle(handle: IoFileHandle): LuaReturn {

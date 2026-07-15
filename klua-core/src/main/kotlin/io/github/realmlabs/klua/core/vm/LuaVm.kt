@@ -61,11 +61,11 @@ internal class LuaVm(
     }
 
     fun execute(prototype: Prototype): List<LuaValue> {
-        return executeReturned(prototype, emptyList(), emptyList())
+        return thread.runNonYieldableCall { executeReturned(prototype, emptyList(), emptyList()) }
     }
 
     fun execute(prototype: Prototype, arguments: List<LuaValue>): List<LuaValue> {
-        return executeReturned(prototype, arguments, emptyList())
+        return thread.runNonYieldableCall { executeReturned(prototype, arguments, emptyList()) }
     }
 
     internal val activeCallDepth: Int
@@ -112,7 +112,7 @@ internal class LuaVm(
     }
 
     internal fun call(callee: LuaValue, arguments: List<LuaValue>): List<LuaValue> {
-        return returnedValues(callValue(callee, arguments))
+        return thread.runNonYieldableCall { returnedValues(callValue(callee, arguments)) }
     }
 
     internal fun lessThan(left: LuaValue, right: LuaValue): Boolean {
@@ -153,22 +153,38 @@ internal class LuaVm(
     }
 
     internal fun resumeYieldable(arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
-        var frame = thread.currentFrame ?: throw LuaVmException("cannot resume a coroutine that is not suspended")
-        if (debugSuspended) {
-            debugSuspended = false
-        } else {
-            applyPendingCallResults(frame, arguments)?.let { return it }
-        }
-        while (true) {
-            when (val result = runFrameAndPopOnCompletion(frame)) {
-                is LuaExecutionResult.Yielded -> return result
-                LuaExecutionResult.DebugSuspended -> return result
-                is LuaExecutionResult.Returned -> {
-                    frame = thread.currentFrame ?: return result
-                    applyPendingCallResults(frame, result.values)?.let { return it }
+        try {
+            var frame = thread.currentFrame ?: throw LuaVmException("cannot resume a coroutine that is not suspended")
+            if (debugSuspended) {
+                debugSuspended = false
+            } else {
+                applyPendingCallResults(frame, arguments)?.let { return it }
+            }
+            while (true) {
+                when (val result = runFrameAndPopOnCompletion(frame)) {
+                    is LuaExecutionResult.Yielded -> return result
+                    LuaExecutionResult.DebugSuspended -> return result
+                    is LuaExecutionResult.Returned -> {
+                        frame = thread.currentFrame ?: return result
+                        applyPendingCallResults(frame, result.values)?.let { return it }
+                    }
                 }
             }
+        } catch (error: LuaVmException) {
+            throw closeSuspendedFrames(error)
         }
+    }
+
+    internal fun closeSuspended() {
+        debugSuspended = false
+        var activeError: LuaVmException? = null
+        while (true) {
+            val frame = thread.currentFrame ?: break
+            activeError = closeFrame(frame, activeError)
+            thread.discardFramesAbove(frame)
+            thread.popFrame(frame)
+        }
+        activeError?.let { error -> throw error }
     }
 
     private fun executeReturned(
@@ -302,11 +318,17 @@ internal class LuaVm(
                         Opcode.GET_ENV -> getEnvironment(stack, frame, instruction)
                         Opcode.SET_ENV -> setEnvironment(stack, frame, instruction)
                         Opcode.CHECK_FIELD_NIL -> checkFieldNil(stack, frame, instruction)
-                        Opcode.CHECK_CLOSE_FALSE -> checkCloseFalse(stack, frame, instruction)
+                        Opcode.MARK_TBC -> markToBeClosed(stack, frame, instruction)
                         Opcode.CLOSURE -> createClosure(stack, frame, instruction)
                         Opcode.GET_UPVALUE -> getUpvalue(stack, frame, instruction)
                         Opcode.SET_UPVALUE -> setUpvalue(stack, frame, instruction)
-                        Opcode.CLOSE_UPVALUES -> stack.closeCapturesFrom(register(frame, Instruction.a(instruction)))
+                        Opcode.CLOSE -> {
+                            val result = startClose(frame, register(frame, Instruction.a(instruction)))
+                            if (result != null) {
+                                suspended = true
+                                return result
+                            }
+                        }
                         Opcode.MOVE -> stack.copy(
                             register(frame, Instruction.b(instruction)),
                             register(frame, Instruction.a(instruction)),
@@ -418,6 +440,11 @@ internal class LuaVm(
             }
 
             throw LuaVmException("prototype completed without RETURN")
+        } catch (error: LuaVmException) {
+            if (suspended) {
+                throw error
+            }
+            throw closeFrameOnError(frame, error)
         } finally {
             if (!suspended) {
                 thread.popFrame(frame)
@@ -534,6 +561,132 @@ internal class LuaVm(
 
         for (index in 0 until expectedResults) {
             stack.set(base + index, results.getOrElse(index) { LuaNil })
+        }
+    }
+
+    private fun startClose(frame: CallFrame, level: Int): LuaExecutionResult? {
+        frame.closeCapturesFrom(level)
+        val continuation = CloseContinuation(frame, level, null, allowYield = thread.isYieldable)
+        return when (val result = continuation.start()) {
+            is LuaExecutionResult.Returned -> null
+            is LuaExecutionResult.Yielded -> {
+                frame.setPendingCall(0, 0, continuation)
+                LuaExecutionResult.Yielded(result.values)
+            }
+            LuaExecutionResult.DebugSuspended -> {
+                frame.setPendingCall(0, 0, continuation)
+                result
+            }
+        }
+    }
+
+    private fun closeFrameOnError(frame: CallFrame, error: LuaVmException): LuaVmException {
+        return checkNotNull(closeFrame(frame, error)) { "error close completed without propagating its error" }
+    }
+
+    private fun closeFrame(frame: CallFrame, error: LuaVmException?): LuaVmException? {
+        frame.closeCapturesFrom(0)
+        return try {
+            CloseContinuation(frame, 0, error, allowYield = false).start()
+            null
+        } catch (closedError: LuaVmException) {
+            closedError
+        }
+    }
+
+    private fun closeSuspendedFrames(error: LuaVmException): LuaVmException {
+        debugSuspended = false
+        var activeError = error
+        while (true) {
+            val frame = thread.currentFrame ?: return activeError
+            val pc = (frame.pc - 1).coerceAtLeast(0)
+            activeError = activeError.withFrame(frame, frame.lineForPc(pc))
+            activeError = closeFrameOnError(frame, activeError)
+            thread.discardFramesAbove(frame)
+            thread.popFrame(frame)
+        }
+    }
+
+    private inner class CloseContinuation(
+        private val frame: CallFrame,
+        private val level: Int,
+        initialError: LuaVmException?,
+        private val allowYield: Boolean,
+    ) : LuaYieldContinuation {
+        private var activeError: LuaVmException? = initialError
+        private var innerContinuation: LuaYieldContinuation? = null
+
+        fun start(): LuaExecutionResult = continueClosing()
+
+        override fun resume(arguments: List<LuaValue>): LuaExecutionResult {
+            val continuation = innerContinuation
+            innerContinuation = null
+            val completed = try {
+                continuation?.resume(arguments) ?: LuaExecutionResult.Returned(arguments)
+            } catch (error: LuaVmException) {
+                activeError = error
+                return continueClosing()
+            }
+            return when (completed) {
+                is LuaExecutionResult.Returned -> continueClosing()
+                is LuaExecutionResult.Yielded -> {
+                    innerContinuation = completed.continuation
+                    LuaExecutionResult.Yielded(completed.values, this)
+                }
+                LuaExecutionResult.DebugSuspended -> {
+                    innerContinuation = continuation
+                    completed
+                }
+            }
+        }
+
+        private fun continueClosing(): LuaExecutionResult {
+            while (true) {
+                val slot = frame.takeToBeClosedFrom(level)
+                if (slot == null) {
+                    activeError?.let { error -> throw error }
+                    return LuaExecutionResult.Returned(emptyList())
+                }
+                val value = frame.get(slot)
+                val close = rawMetamethod(value, CLOSE_KEY)
+                val error = activeError
+                val arguments = if (error == null) {
+                    listOf(value)
+                } else {
+                    listOf(value, error.errorObject ?: LuaString(error.message ?: "runtime error"))
+                }
+                val result = try {
+                    if (allowYield) {
+                        callValue(close, arguments, CLOSE_CALL_SITE_INFO)
+                    } else {
+                        thread.runNonYieldableCall { callValue(close, arguments, CLOSE_CALL_SITE_INFO) }
+                    }
+                } catch (closeError: LuaVmException) {
+                    activeError = closeError
+                    continue
+                }
+                when (result) {
+                    is LuaExecutionResult.Returned -> Unit
+                    is LuaExecutionResult.Yielded -> {
+                        if (!allowYield) {
+                            thread.discardFramesAbove(frame)
+                            activeError = LuaVmException("attempt to yield across a C-call boundary")
+                            continue
+                        }
+                        innerContinuation = result.continuation
+                        return LuaExecutionResult.Yielded(result.values, this)
+                    }
+                    LuaExecutionResult.DebugSuspended -> {
+                        if (!allowYield) {
+                            thread.discardFramesAbove(frame)
+                            activeError = LuaVmException("debugger suspension is not allowed while closing after an error")
+                            continue
+                        }
+                        innerContinuation = null
+                        return result
+                    }
+                }
+            }
         }
     }
 
@@ -996,13 +1149,16 @@ internal class LuaVm(
         }
     }
 
-    private fun checkCloseFalse(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun markToBeClosed(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val value = stack.get(register(frame, Instruction.a(instruction)))
         if (value == LuaNil || value == LuaBoolean(false)) {
             return
         }
         val name = stringConstant(frame.prototype, Instruction.b(instruction))
-        throw LuaVmException("variable '${name.value}' got a non-closable value")
+        if (rawMetamethod(value, CLOSE_KEY) == LuaNil) {
+            throw LuaVmException("variable '${name.value}' got a non-closable value")
+        }
+        frame.markToBeClosed(register(frame, Instruction.a(instruction)))
     }
 
     private fun tableGet(
@@ -1520,7 +1676,10 @@ internal class LuaVm(
     private fun rawMetamethod(value: LuaValue, key: LuaString): LuaValue {
         return when (value) {
             is LuaTable -> value.metatableRawGet(key)
-            is LuaUserData -> metatables?.userDataMetatable(value.value)?.rawGet(key) ?: LuaNil
+            is LuaUserData -> {
+                val explicit = metatables?.userDataMetatable(value.value)
+                explicit?.rawGet(key) ?: value.type?.method(key.value) ?: LuaNil
+            }
             else -> rawTypeMetatable(value)?.rawGet(key) ?: LuaNil
         }
     }
@@ -2349,6 +2508,7 @@ private val NAME_KEY = LuaString("__name")
 private val STRING_LIBRARY_KEY = LuaString("string")
 private val NEW_INDEX_KEY = LuaString("__newindex")
 private val CALL_KEY = LuaString("__call")
+private val CLOSE_KEY = LuaString("__close")
 private val LEN_KEY = LuaString("__len")
 private val EQ_KEY = LuaString("__eq")
 private val LT_KEY = LuaString("__lt")
@@ -2389,6 +2549,7 @@ private val DIV_CALL_SITE_INFO = metamethodCallSiteInfo("div")
 private val IDIV_CALL_SITE_INFO = metamethodCallSiteInfo("idiv")
 private val MOD_CALL_SITE_INFO = metamethodCallSiteInfo("mod")
 private val POW_CALL_SITE_INFO = metamethodCallSiteInfo("pow")
+private val CLOSE_CALL_SITE_INFO = metamethodCallSiteInfo("close")
 private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 200
 private const val TRUTHY_PENDING_RESULT_COUNT = -2

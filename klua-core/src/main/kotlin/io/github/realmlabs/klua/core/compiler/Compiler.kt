@@ -88,7 +88,7 @@ internal class Compiler private constructor(
     private val blockScopePath = mutableListOf(0)
     private var nextLocalRegister = 0
     private var maxRegister = 0
-    private var hasCapturedLocals = false
+    private var needsClose = false
     private var nextBlockScopeId = 1
     private var nextDeclarationOrder = 0
 
@@ -175,9 +175,9 @@ internal class Compiler private constructor(
         enterBlockScope()
         compileStatements(statements, endLabelLocalDepth = savedNextLocalRegister)
         exitBlockScope(savedNextLocalRegister)
-        if (hasCapturedLocals) {
+        if (needsClose) {
             writer.emit(
-                Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister),
+                Instruction.abc(Opcode.CLOSE, savedNextLocalRegister),
                 statements.lastOrNull()?.range?.end?.line ?: 0,
             )
         }
@@ -219,9 +219,9 @@ internal class Compiler private constructor(
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
         exitBlockScope(savedNextLocalRegister)
-        if (hasCapturedLocals) {
+        if (needsClose) {
             writer.emit(
-                Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister),
+                Instruction.abc(Opcode.CLOSE, savedNextLocalRegister),
                 statement.range.start.line,
             )
         }
@@ -250,12 +250,20 @@ internal class Compiler private constructor(
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
         val iteratorBase = nextLocalRegister
-        val valueBase = iteratorBase + 3
+        val valueBase = iteratorBase + 4
         val valueSlots = maxOf(statement.names.size, 3)
-        nextLocalRegister += 3 + valueSlots
+        nextLocalRegister += 4 + valueSlots
         maxRegister = maxRegister.coerceAtLeast(nextLocalRegister)
 
         compileIteratorValues(statement.values, iteratorBase, statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, valueBase, iteratorBase + 3), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, iteratorBase + 3, iteratorBase + 2), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, iteratorBase + 2, valueBase), statement.range.start.line)
+        needsClose = true
+        writer.emit(
+            Instruction.abc(Opcode.MARK_TBC, iteratorBase + 2, stringConstantIndex("(for state)")),
+            statement.range.start.line,
+        )
 
         for ((index, name) in statement.names.withIndex()) {
             val attribute = if (index == 0) LocalAttribute.CONST else LocalAttribute.NONE
@@ -265,7 +273,7 @@ internal class Compiler private constructor(
         val loopStart = writer.size
         writer.emit(Instruction.abc(Opcode.MOVE, valueBase, iteratorBase), statement.range.start.line)
         writer.emit(Instruction.abc(Opcode.MOVE, valueBase + 1, iteratorBase + 1), statement.range.start.line)
-        writer.emit(Instruction.abc(Opcode.MOVE, valueBase + 2, iteratorBase + 2), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, valueBase + 2, iteratorBase + 3), statement.range.start.line)
         emitCall(
             valueBase,
             2,
@@ -273,7 +281,7 @@ internal class Compiler private constructor(
             statement.range.start.line,
             CallSiteInfo(writer.size, "for iterator", "for iterator"),
         )
-        writer.emit(Instruction.abc(Opcode.MOVE, iteratorBase + 2, valueBase), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.MOVE, iteratorBase + 3, valueBase), statement.range.start.line)
 
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.TEST, valueBase), statement.range.start.line)
@@ -281,9 +289,9 @@ internal class Compiler private constructor(
         enterBlockScope()
         compileStatements(statement.block, endLabelLocalDepth = nextLocalRegister)
         exitBlockScope(savedNextLocalRegister)
-        if (hasCapturedLocals) {
+        if (needsClose) {
             writer.emit(
-                Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister),
+                Instruction.abc(Opcode.CLOSE, savedNextLocalRegister),
                 statement.range.start.line,
             )
         }
@@ -305,12 +313,10 @@ internal class Compiler private constructor(
     }
 
     private fun compileIteratorValues(values: List<Expression>, baseRegister: Int, line: Int) {
-        compileAdjustedValues(values, baseRegister, 3, line)
+        compileAdjustedValues(values, baseRegister, 4, line)
     }
 
     private fun compileLocal(statement: LocalStatement) {
-        validateCloseLocalInitializers(statement)
-
         val slots = statement.names.map { name ->
             val slot = nextLocalRegister++
             maxRegister = maxRegister.coerceAtLeast(slot + 1)
@@ -318,49 +324,13 @@ internal class Compiler private constructor(
         }
 
         compileAdjustedValues(statement.values, slots.first(), slots.size, statement.range.start.line)
-        emitCloseLocalChecks(statement, slots)
         registerLocalDeclarations(statement, slots)
-    }
-
-    private fun validateCloseLocalInitializers(statement: LocalStatement) {
         for ((index, attribute) in statement.attributes.withIndex()) {
-            if (attribute == LocalAttribute.CLOSE && statement.closeInitializerKind(index) == CloseInitializerKind.STATIC_NON_FALSE) {
-                throw unsupported(statement, "to-be-closed local variables are not supported")
-            }
-        }
-    }
-
-    private fun emitCloseLocalChecks(statement: LocalStatement, slots: List<Int>) {
-        for ((index, attribute) in statement.attributes.withIndex()) {
-            if (attribute == LocalAttribute.CLOSE && statement.closeInitializerKind(index) == CloseInitializerKind.DYNAMIC) {
+            if (attribute == LocalAttribute.CLOSE) {
+                needsClose = true
                 val name = stringConstantIndex(statement.names[index])
-                writer.emit(Instruction.abc(Opcode.CHECK_CLOSE_FALSE, slots[index], name), statement.range.start.line)
+                writer.emit(Instruction.abc(Opcode.MARK_TBC, slots[index], name), statement.range.start.line)
             }
-        }
-    }
-
-    private fun LocalStatement.closeInitializerKind(index: Int): CloseInitializerKind {
-        val expression = values.getOrNull(index)
-        if (expression == null) {
-            return if (values.lastOrNull().isOpenResultExpression()) {
-                CloseInitializerKind.DYNAMIC
-            } else {
-                CloseInitializerKind.STATIC_FALSE
-            }
-        }
-        if (expression.isOpenResultExpression()) {
-            return CloseInitializerKind.DYNAMIC
-        }
-        return when (expression) {
-            is NilExpression -> CloseInitializerKind.STATIC_FALSE
-            is BooleanExpression -> if (expression.value) CloseInitializerKind.STATIC_NON_FALSE else CloseInitializerKind.STATIC_FALSE
-            is FloatExpression,
-            is FunctionExpression,
-            is IntegerExpression,
-            is StringExpression,
-            is TableExpression,
-            -> CloseInitializerKind.STATIC_NON_FALSE
-            else -> CloseInitializerKind.DYNAMIC
         }
     }
 
@@ -537,7 +507,7 @@ internal class Compiler private constructor(
     private fun validateWritableName(name: String, range: SourceRange, statement: Statement) {
         val localSlot = resolveCurrentLocalSlot(name)
         val currentGlobal = resolveCurrentGlobalDeclaration(name)
-        if (localSlot != null && localAttributes[name] == LocalAttribute.CONST) {
+        if (localSlot != null && localAttributes[name] != LocalAttribute.NONE) {
             throw constAssignmentError(name, range.start)
         }
         if (localSlot == null && currentGlobal == null && parentConstResolver?.invoke(name) == true) {
@@ -707,12 +677,12 @@ internal class Compiler private constructor(
 
         val testIndex = writer.size
         writer.emit(Instruction.abc(Opcode.TEST, conditionRegister), statement.condition.range.start.line)
-        if (hasCapturedLocals) {
-            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister), statement.condition.range.start.line)
+        if (needsClose) {
+            writer.emit(Instruction.abc(Opcode.CLOSE, savedNextLocalRegister), statement.condition.range.start.line)
             val exitJump = writer.size
             writer.emit(Instruction.abc(Opcode.JMP, 0), statement.condition.range.start.line)
             patchTest(testIndex, writer.size)
-            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, savedNextLocalRegister), statement.condition.range.start.line)
+            writer.emit(Instruction.abc(Opcode.CLOSE, savedNextLocalRegister), statement.condition.range.start.line)
             val repeatJump = writer.size
             writer.emit(Instruction.abc(Opcode.JMP, 0), statement.condition.range.start.line)
             patchJump(repeatJump, loopStart)
@@ -737,8 +707,8 @@ internal class Compiler private constructor(
             ?: throw unsupported(statement, "break outside loop")
         val breakJump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
-        val close = if (hasCapturedLocals) {
-            writer.size.also { writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), statement.range.start.line) }
+        val close = if (needsClose) {
+            writer.size.also { writer.emit(Instruction.abc(Opcode.CLOSE, 0), statement.range.start.line) }
         } else {
             null
         }
@@ -749,7 +719,7 @@ internal class Compiler private constructor(
         val jump = writer.size
         writer.emit(Instruction.abc(Opcode.JMP, 0), statement.range.start.line)
         val close = writer.size
-        writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), statement.range.start.line)
+        writer.emit(Instruction.abc(Opcode.CLOSE, 0), statement.range.start.line)
         val pending = PendingGoto(
             name = statement.label,
             jump = jump,
@@ -810,10 +780,10 @@ internal class Compiler private constructor(
             )
         }
         val closeDepth = goto.closeDepth ?: label.localDepth.takeIf { depth ->
-            hasCapturedLocals && depth < goto.localDepth
+            needsClose && depth < goto.localDepth
         }
         if (closeDepth != null) {
-            writer.patch(goto.jump, Instruction.abc(Opcode.CLOSE_UPVALUES, closeDepth))
+            writer.patch(goto.jump, Instruction.abc(Opcode.CLOSE, closeDepth))
             patchJump(goto.close, label.pc)
             return
         }
@@ -852,8 +822,8 @@ internal class Compiler private constructor(
         for ((register, expression) in statement.values.withIndex()) {
             compileExpression(expression, tempBase + register)
         }
-        if (hasCapturedLocals) {
-            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), statement.range.start.line)
+        if (needsClose) {
+            writer.emit(Instruction.abc(Opcode.CLOSE, 0), statement.range.start.line)
         }
         for (register in statement.values.indices) {
             writer.emit(Instruction.abc(Opcode.MOVE, register, tempBase + register), statement.range.start.line)
@@ -868,6 +838,9 @@ internal class Compiler private constructor(
             compileExpression(statement.values[index], tempBase + index)
         }
         compileOpenResultExpression(statement.values[lastIndex], tempBase + lastIndex)
+        if (needsClose) {
+            writer.emit(Instruction.abc(Opcode.CLOSE, 0), statement.range.start.line)
+        }
         emitReturn(tempBase, OPEN_RESULT_COUNT, statement.range.start.line)
     }
 
@@ -1257,7 +1230,7 @@ internal class Compiler private constructor(
     private fun compileFunctionExpression(expression: FunctionExpression, register: Int) {
         val prototype = compileNestedFunction(expression)
         if (prototype.upvalues.any { it.source == UpvalueSource.LOCAL }) {
-            hasCapturedLocals = true
+            needsClose = true
         }
         val nestedIndex = nested.size
         if (nestedIndex > 255) {
@@ -1424,7 +1397,7 @@ internal class Compiler private constructor(
 
     private fun isConstBinding(name: String): Boolean {
         if (resolveCurrentLocalSlot(name) != null) {
-            return localAttributes[name] == LocalAttribute.CONST
+            return localAttributes[name] != LocalAttribute.NONE
         }
         resolveCurrentGlobalDeclaration(name)?.let { global -> return global.isConst }
         return parentConstResolver?.invoke(name) == true
@@ -1614,8 +1587,8 @@ internal class Compiler private constructor(
     }
 
     private fun emitImplicitReturn(line: Int) {
-        if (hasCapturedLocals) {
-            writer.emit(Instruction.abc(Opcode.CLOSE_UPVALUES, 0), line)
+        if (needsClose) {
+            writer.emit(Instruction.abc(Opcode.CLOSE, 0), line)
         }
         emitReturn(0, 0, line)
     }
@@ -1644,7 +1617,7 @@ internal class Compiler private constructor(
         require(loopBreaks.removeLast() === breaks) { "loop break stack is unbalanced" }
         for (breakJump in breaks) {
             if (breakJump.close != null && closeDepth < breakJump.localDepth) {
-                writer.patch(breakJump.jump, Instruction.abc(Opcode.CLOSE_UPVALUES, closeDepth))
+                writer.patch(breakJump.jump, Instruction.abc(Opcode.CLOSE, closeDepth))
                 patchJump(breakJump.close, targetIndex)
             } else {
                 patchJump(breakJump.jump, targetIndex)
@@ -1665,7 +1638,7 @@ internal class Compiler private constructor(
         val outerScopePath = exitingScopePath.dropLast(1)
         for (pending in pendingGotos) {
             if (pending.scopePath.hasPrefix(exitingScopePath)) {
-                if (hasCapturedLocals && pending.localDepth > outerLocalDepth) {
+                if (needsClose && pending.localDepth > outerLocalDepth) {
                     pending.closeDepth = pending.closeDepth ?: outerLocalDepth
                 }
                 pending.localDepth = outerLocalDepth
@@ -1742,12 +1715,6 @@ internal class Compiler private constructor(
         val isConst: Boolean,
         val order: Int?,
     )
-
-    private enum class CloseInitializerKind {
-        STATIC_FALSE,
-        STATIC_NON_FALSE,
-        DYNAMIC,
-    }
 
     private data class PreparedAssignmentTargets(
         val targets: List<PreparedAssignmentTarget>,

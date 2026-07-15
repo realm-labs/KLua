@@ -4,10 +4,6 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 This list is evidence and scope tracking, not a FIFO task queue or a commit map. Select related gaps into a named campaign in `docs/KLua_Codex_Goal.md`, with an owning subsystem or Lua source helper chain, affected entry points, a case matrix, verification, and an exit condition. Group fixes and tests for the same semantic rule; do not create a separate work package or commit for every probe.
 
-## Language And VM
-
-- `<close>` local declarations are parsed; statically nil/false close locals compile as no-op close values, dynamic close initializers are runtime-checked to allow only nil/false, and statically non-false to-be-closed variable semantics are still rejected by the compiler because `__close` handling is not implemented.
-
 ## Debug Library
 
 - Optional thread arguments for `debug.traceback`, `debug.getinfo`, `debug.getlocal`, `debug.setlocal`, `debug.sethook`, and `debug.gethook` are implemented for explicit current threads and suspended, normal, and empty-stack KLua coroutine states such as dead coroutines. Broader cross-thread debug behavior beyond these KLua thread states is not implemented yet.
@@ -19,7 +15,7 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 ## IO Library
 
-- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration, common file read formats, Lua-style numeric write formatting and capped numeric read scanning, explicit file-backed and standard default input/output routing, non-closing standard handles, no-op buffer-mode validation, and stream-backed read/write-mode `io.popen`, but broader `liolib.c` edge-case and platform-mode parity still needs conformance hardening. Because generic-for to-be-closed variables are not wired through yet, `io.lines(filename)` closes its owned file at iterator EOF but does not yet provide Lua's early-exit close behavior through the fourth result.
+- The official Lua 5.5 `linit.c` standard-library list includes `LUA_IOLIBNAME`; KLua now has an initial pure-Kotlin `io` library with basic file handles, file-backed line iteration including fourth-result early-exit closing for `io.lines(filename)`, common file read formats, Lua-style numeric write formatting and capped numeric read scanning, explicit file-backed and standard default input/output routing, non-closing standard handles, no-op buffer-mode validation, and stream-backed read/write-mode `io.popen`, but broader `liolib.c` edge-case and platform-mode parity still needs conformance hardening.
 
 ## Strings And UTF-8
 

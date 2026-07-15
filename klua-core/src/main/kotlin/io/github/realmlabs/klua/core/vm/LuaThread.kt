@@ -205,6 +205,13 @@ internal class LuaThread {
         frames.clear()
     }
 
+    fun discardFramesAbove(frame: CallFrame) {
+        require(frame in frames) { "call frame is not active" }
+        while (frames.lastOrNull() !== frame) {
+            frames.removeAt(frames.lastIndex)
+        }
+    }
+
     fun <T> runNativeCall(block: () -> T): T {
         nativeCallDepth += 1
         return try {

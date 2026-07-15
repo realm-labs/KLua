@@ -3929,6 +3929,42 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `generic for closes named io lines files on early exit`() {
+        val path = Files.createTempFile("klua-io-lines-early-exit-", ".txt")
+        Files.writeString(path, "one\ntwo\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local iterator, iteratorState, control, closeFile = io.lines("${path.luaPath()}")
+                    local first
+                    for line in iterator, iteratorState, control, closeFile do
+                        first = line
+                        break
+                    end
+                    local iteratorOk, iteratorMessage = pcall(iterator, iteratorState, control)
+                    return first, io.type(closeFile), iteratorOk, iteratorMessage
+                    """.trimIndent(),
+                    "io-lines-early-exit.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals("one", state.toString(1))
+            assertEquals("closed file", state.toString(2))
+            assertFalse(state.toBoolean(3))
+            assertEquals("file is already closed", state.toString(4))
+        } finally {
+            Files.deleteIfExists(path)
+        }
+    }
+
+    @Test
     fun `io lines iterator reports file read errors`() {
         val path = Files.createTempFile("klua-io-lines-error-", ".txt")
         val state = LuaState.create()
@@ -9083,7 +9119,7 @@ class LuaStdlibTest {
                         return nil
                     end
                     done = true
-                    return "local x <close> = {}"
+                    return "local ="
                 end)
                 return chunk, message
                 """.trimIndent(),
@@ -9093,7 +9129,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertTrue(state.isNil(1))
-        assertEquals("(load):1:1: to-be-closed local variables are not supported", state.toString(2))
+        assertEquals("(load):1:7: expected local variable name", state.toString(2))
     }
 
     @Test
@@ -9270,7 +9306,7 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local chunk, message = load("local x <close> = {}", "bad-loaded.lua")
+                local chunk, message = load("local =", "bad-loaded.lua")
                 return chunk, message
                 """.trimIndent(),
                 "load-error.lua",
@@ -9280,7 +9316,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, status, state.toString(-1))
 
         assertTrue(state.isNil(1))
-        assertEquals("bad-loaded.lua:1:1: to-be-closed local variables are not supported", state.toString(2))
+        assertEquals("bad-loaded.lua:1:7: expected local variable name", state.toString(2))
     }
 
     @Test
@@ -9550,7 +9586,7 @@ class LuaStdlibTest {
                 "#!/usr/bin/env lua\nreturn 41 + 1".toByteArray(StandardCharsets.UTF_8)
             Files.write(loadFile, loadSource)
             Files.writeString(doFile, "#!/usr/bin/env lua\nreturn 'ok', 42")
-            Files.writeString(errorFile, "#!/usr/bin/env lua\nlocal x <close> = {}")
+            Files.writeString(errorFile, "#!/usr/bin/env lua\nlocal =")
 
             val state = LuaState.create()
             LuaStdlib.openBase(state)
@@ -9573,7 +9609,7 @@ class LuaStdlibTest {
             assertEquals("ok", state.toString(2))
             assertEquals(42L, state.toInteger(3))
             assertTrue(state.isNil(4))
-            assertEquals("$errorFile:2:1: to-be-closed local variables are not supported", state.toString(5))
+            assertEquals("$errorFile:2:7: expected local variable name", state.toString(5))
         } finally {
             Files.deleteIfExists(loadFile)
             Files.deleteIfExists(doFile)
@@ -9820,7 +9856,7 @@ class LuaStdlibTest {
 
     @Test
     fun `loadfile reports stdin as chunk name`() {
-        withStandardInput("local x <close> = {}") {
+        withStandardInput("local =") {
             val state = LuaState.create()
             LuaStdlib.openBase(state)
 
@@ -9828,7 +9864,7 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
             assertTrue(state.isNil(1))
-            assertEquals("stdin:1:1: to-be-closed local variables are not supported", state.toString(2))
+            assertEquals("stdin:1:7: expected local variable name", state.toString(2))
         }
     }
 
@@ -10042,7 +10078,7 @@ class LuaStdlibTest {
     fun `loadfile returns syntax errors`() {
         val file = Files.createTempFile("klua-loadfile-error", ".lua")
         try {
-            Files.writeString(file, "local x <close> = {}")
+            Files.writeString(file, "local =")
             val state = LuaState.create()
             LuaStdlib.openBase(state)
 
@@ -10051,7 +10087,7 @@ class LuaStdlibTest {
             assertEquals(LuaStatus.OK, status, state.toString(-1))
 
             assertTrue(state.isNil(1))
-            assertEquals("${file}:1:1: to-be-closed local variables are not supported", state.toString(2))
+            assertEquals("${file}:1:7: expected local variable name", state.toString(2))
         } finally {
             Files.deleteIfExists(file)
         }
@@ -16316,7 +16352,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `coroutine close reports suspended host continuation failures`() {
+    fun `coroutine close abandons suspended host continuation failures`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
         state.register(
@@ -16349,15 +16385,15 @@ class LuaStdlibTest {
 
         assertTrue(state.toBoolean(1))
         assertEquals("pause", state.toString(2))
-        assertFalse(state.toBoolean(3))
-        assertEquals("close boom", state.toString(4))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.isNil(4))
         assertEquals("dead", state.toString(5))
         assertFalse(state.toBoolean(6))
         assertEquals("cannot resume dead coroutine", state.toString(7))
     }
 
     @Test
-    fun `coroutine close completes suspended host continuations`() {
+    fun `coroutine close abandons suspended host continuations`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
         val closed = mutableListOf<String>()
@@ -16393,7 +16429,7 @@ class LuaStdlibTest {
         assertEquals("pause", state.toString(2))
         assertTrue(state.toBoolean(3))
         assertEquals("dead", state.toString(4))
-        assertEquals(listOf("closed"), closed)
+        assertEquals(emptyList(), closed)
     }
 
     @Test

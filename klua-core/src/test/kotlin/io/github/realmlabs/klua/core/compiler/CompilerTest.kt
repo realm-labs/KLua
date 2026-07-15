@@ -495,12 +495,12 @@ class CompilerTest {
     }
 
     @Test
-    fun `rejects non false to be closed locals until close method semantics exist`() {
-        val error = assertFailsWith<CompilerException> {
-            Compiler.compile("""local resource <close> = {}""", "close-local.lua")
-        }
+    fun `compiles non false to be closed locals with mark and close instructions`() {
+        val prototype = Compiler.compile("""local resource <close> = {}""", "close-local.lua")
+        val disassembly = Disassembler.disassemble(prototype)
 
-        assertEquals("close-local.lua:1:1: to-be-closed local variables are not supported", error.message)
+        assertTrue(disassembly.contains("""TBC R0 K0 ; "resource""""), disassembly)
+        assertTrue(disassembly.contains("CLOSE R0"), disassembly)
     }
 
     @Test
@@ -514,7 +514,7 @@ class CompilerTest {
             """.trimIndent(),
             "close-call-local.lua",
         )
-        assertTrue(Disassembler.disassemble(direct).contains("""CHECK_CLOSE_FALSE R1 K0 ; "resource""""))
+        assertTrue(Disassembler.disassemble(direct).contains("""TBC R1 K0 ; "resource""""))
 
         val adjusted = Compiler.compile(
             """
@@ -525,16 +525,38 @@ class CompilerTest {
             """.trimIndent(),
             "close-adjusted-call-local.lua",
         )
-        assertTrue(Disassembler.disassemble(adjusted).contains("""CHECK_CLOSE_FALSE R2 K0 ; "resource""""))
+        assertTrue(Disassembler.disassemble(adjusted).contains("""TBC R2 K0 ; "resource""""))
     }
 
     @Test
-    fun `rejects prefixed non false to be closed locals until close method semantics exist`() {
-        val error = assertFailsWith<CompilerException> {
-            Compiler.compile("""local <close> resource = {}""", "prefixed-close-local.lua")
+    fun `compiles prefixed to be closed locals`() {
+        val prototype = Compiler.compile("""local <close> resource = false""", "prefixed-close-local.lua")
+
+        assertTrue(Disassembler.disassemble(prototype).contains("""TBC R0 K0 ; "resource""""))
+    }
+
+    @Test
+    fun `rejects reassignment to to be closed locals`() {
+        val direct = assertFailsWith<CompilerException> {
+            Compiler.compile("local resource <close> = nil\nresource = nil", "close-readonly.lua")
+        }
+        val captured = assertFailsWith<CompilerException> {
+            Compiler.compile(
+                """
+                local resource <close> = nil
+                local function replace()
+                    resource = nil
+                end
+                """.trimIndent(),
+                "captured-close-readonly.lua",
+            )
         }
 
-        assertEquals("prefixed-close-local.lua:1:1: to-be-closed local variables are not supported", error.message)
+        assertEquals("close-readonly.lua:2:1: attempt to assign to const variable 'resource'", direct.message)
+        assertEquals(
+            "captured-close-readonly.lua:3:5: attempt to assign to const variable 'resource'",
+            captured.message,
+        )
     }
 
     @Test
@@ -802,7 +824,7 @@ class CompilerTest {
 
         val outer = prototype.nested.single()
         val disassembly = Disassembler.disassemble(outer)
-        assertTrue(disassembly.contains("CLOSE_UPVALUES R1"), disassembly)
+        assertTrue(disassembly.contains("CLOSE R1"), disassembly)
     }
 
     @Test
@@ -1447,7 +1469,7 @@ class CompilerTest {
 
         val outer = prototype.nested.single()
         val disassembly = Disassembler.disassemble(outer)
-        assertTrue(disassembly.contains("CLOSE_UPVALUES R1"), disassembly)
+        assertTrue(disassembly.contains("CLOSE R1"), disassembly)
     }
 
     @Test

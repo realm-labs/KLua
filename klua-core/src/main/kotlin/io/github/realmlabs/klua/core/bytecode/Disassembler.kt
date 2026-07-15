@@ -44,7 +44,7 @@ internal object Disassembler {
             Opcode.CLOSURE -> "CLOSURE R${Instruction.a(instruction)} P${Instruction.b(instruction)}"
             Opcode.GET_UPVALUE -> "GET_UPVALUE R${Instruction.a(instruction)} U${Instruction.b(instruction)}"
             Opcode.SET_UPVALUE -> "SET_UPVALUE U${Instruction.a(instruction)} R${Instruction.b(instruction)}"
-            Opcode.CLOSE_UPVALUES -> "CLOSE_UPVALUES R${Instruction.a(instruction)}"
+            Opcode.CLOSE -> "CLOSE R${Instruction.a(instruction)}"
             Opcode.MOVE -> "MOVE R${Instruction.a(instruction)} R${Instruction.b(instruction)}"
             Opcode.ADD -> binary("ADD", instruction)
             Opcode.SUB -> binary("SUB", instruction)
@@ -76,7 +76,7 @@ internal object Disassembler {
             Opcode.GET_ENV -> "GET_ENV R${Instruction.a(instruction)}"
             Opcode.SET_ENV -> "SET_ENV R${Instruction.a(instruction)}"
             Opcode.CHECK_FIELD_NIL -> fieldNilCheck(instruction, prototype)
-            Opcode.CHECK_CLOSE_FALSE -> closeFalseCheck(instruction, prototype)
+            Opcode.MARK_TBC -> markToBeClosed(instruction, prototype)
         }
     }
 
@@ -122,9 +122,9 @@ internal object Disassembler {
         return "CHECK_FIELD_NIL R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
     }
 
-    private fun closeFalseCheck(instruction: Int, prototype: Prototype): String {
+    private fun markToBeClosed(instruction: Int, prototype: Prototype): String {
         val constant = prototype.constants[Instruction.b(instruction)]
-        return "CHECK_CLOSE_FALSE R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
+        return "TBC R${Instruction.a(instruction)} K${Instruction.b(instruction)} ; ${formatConstant(constant)}"
     }
 
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value

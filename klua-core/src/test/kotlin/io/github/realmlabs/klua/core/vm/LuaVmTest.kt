@@ -13,11 +13,13 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.util.Locale
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
+import kotlin.test.assertIs
 
 class LuaVmTest {
     @Test
@@ -315,6 +317,241 @@ class LuaVmTest {
             )
         }
         assertEquals("variable 'resource' got a non-closable value", adjustedError.message)
+    }
+
+    @Test
+    fun `closes to be closed locals in reverse order across control flow exits`() {
+        val globals = LuaTable()
+        val closed = mutableListOf<Pair<Long, Int>>()
+        globals.rawSet(
+            LuaString("make"),
+            LuaNativeFunction { arguments ->
+                val id = (arguments.single() as LuaInteger).value
+                val resource = LuaTable()
+                resource.metatable = LuaTable().also { metatable ->
+                    metatable.rawSet(
+                        LuaString("__close"),
+                        LuaNativeFunction { closeArguments ->
+                            closed += id to closeArguments.size
+                            emptyList()
+                        },
+                    )
+                }
+                listOf(resource)
+            },
+        )
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                do
+                    local first <close> = make(1)
+                    local second <close> = make(2)
+                end
+                while true do
+                    local third <close> = make(3)
+                    break
+                end
+                do
+                    local fourth <close> = make(4)
+                    goto finished
+                end
+                ::finished::
+                local fifth <close> = make(5)
+                return 42
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(42)), result)
+        assertEquals(listOf(2L, 1L, 3L, 4L, 5L), closed.map { it.first })
+        assertEquals(listOf(1, 1, 1, 1, 1), closed.map { it.second })
+    }
+
+    @Test
+    fun `passes and replaces active errors while running all close methods`() {
+        val globals = LuaTable()
+        val observed = mutableListOf<Pair<Long, LuaValue>>()
+        globals.rawSet(
+            LuaString("make"),
+            LuaNativeFunction { arguments ->
+                val id = (arguments.single() as LuaInteger).value
+                val resource = LuaTable()
+                resource.metatable = LuaTable().also { metatable ->
+                    metatable.rawSet(
+                        LuaString("__close"),
+                        LuaNativeFunction { closeArguments ->
+                            observed += id to closeArguments[1]
+                            if (id == 2L) {
+                                throw LuaVmException("close-2", errorObject = LuaString("close-2"))
+                            }
+                            emptyList()
+                        },
+                    )
+                }
+                listOf(resource)
+            },
+        )
+        globals.rawSet(
+            LuaString("boom"),
+            LuaNativeFunction {
+                throw LuaVmException("body", errorObject = LuaString("body"))
+            },
+        )
+
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm(globals).execute(
+                Compiler.compile(
+                    """
+                    local first <close> = make(1)
+                    local second <close> = make(2)
+                    boom()
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("close-2", error.message)
+        assertEquals(LuaString("close-2"), error.errorObject)
+        assertEquals(
+            listOf<Pair<Long, LuaValue>>(2L to LuaString("body"), 1L to LuaString("close-2")),
+            observed,
+        )
+    }
+
+    @Test
+    fun `accepts callable close metamethod values and resolves them at close time`() {
+        val globals = LuaTable()
+        val resource = LuaTable()
+        val resourceMetatable = LuaTable()
+        val callable = LuaTable()
+        var closed = false
+        callable.metatable = LuaTable().also { metatable ->
+            metatable.rawSet(
+                LuaString("__call"),
+                LuaNativeFunction { arguments ->
+                    assertEquals(resource, arguments[1])
+                    closed = true
+                    emptyList()
+                },
+            )
+        }
+        resourceMetatable.rawSet(LuaString("__close"), callable)
+        resource.metatable = resourceMetatable
+        globals.rawSet(LuaString("resource"), resource)
+        globals.rawSet(
+            LuaString("removeClose"),
+            LuaNativeFunction {
+                resourceMetatable.rawSet(LuaString("__close"), LuaNil)
+                emptyList()
+            },
+        )
+
+        LuaVm(globals).execute(Compiler.compile("local value <close> = resource"))
+        assertEquals(true, closed)
+
+        resourceMetatable.rawSet(LuaString("__close"), callable)
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm(globals).execute(
+                Compiler.compile("local value <close> = resource\nremoveClose()"),
+            )
+        }
+        assertEquals("attempt to call nil", error.message)
+    }
+
+    @Test
+    fun `yielding close methods resume before the return completes`() {
+        val globals = LuaTable()
+        val resumed = mutableListOf<Pair<Long, LuaValue>>()
+        globals.rawSet(
+            LuaString("make"),
+            LuaNativeFunction { arguments ->
+                val id = (arguments.single() as LuaInteger).value
+                val resource = LuaTable()
+                resource.metatable = LuaTable().also { metatable ->
+                    metatable.rawSet(
+                        LuaString("__close"),
+                        LuaNativeFunction { closeArguments ->
+                            assertEquals(1, closeArguments.size)
+                            throw LuaYieldSignal(
+                                listOf(LuaInteger(id)),
+                                LuaYieldSignalContinuation { resumeArguments ->
+                                    resumed += id to resumeArguments.single()
+                                    emptyList()
+                                },
+                            )
+                        }.copy(yieldable = true),
+                    )
+                }
+                listOf(resource)
+            },
+        )
+        val vm = LuaVm(globals)
+
+        val first = assertIs<LuaExecutionResult.Yielded>(
+            vm.executeYieldable(
+                Compiler.compile(
+                    """
+                    local first <close> = make(1)
+                    local second <close> = make(2)
+                    return 42
+                    """.trimIndent(),
+                ),
+            ),
+        )
+        val second = assertIs<LuaExecutionResult.Yielded>(vm.resumeYieldable(listOf(LuaInteger(20))))
+        val returned = assertIs<LuaExecutionResult.Returned>(vm.resumeYieldable(listOf(LuaInteger(10))))
+
+        assertEquals(listOf(LuaInteger(2)), first.values)
+        assertEquals(listOf(LuaInteger(1)), second.values)
+        assertEquals(listOf(LuaInteger(42)), returned.values)
+        assertEquals(
+            listOf<Pair<Long, LuaValue>>(2L to LuaInteger(20), 1L to LuaInteger(10)),
+            resumed,
+        )
+    }
+
+    @Test
+    fun `top level close rejects yields and still runs earlier close methods`() {
+        val globals = LuaTable()
+        val observed = mutableListOf<Pair<Long, List<LuaValue>>>()
+        globals.rawSet(
+            LuaString("make"),
+            LuaNativeFunction { arguments ->
+                val id = (arguments.single() as LuaInteger).value
+                val resource = LuaTable()
+                resource.metatable = LuaTable().also { metatable ->
+                    metatable.rawSet(
+                        LuaString("__close"),
+                        LuaNativeFunction { closeArguments ->
+                            observed += id to closeArguments
+                            if (id == 2L) {
+                                throw LuaYieldSignal(listOf(LuaInteger(id)))
+                            }
+                            emptyList()
+                        }.copy(yieldable = true),
+                    )
+                }
+                listOf(resource)
+            },
+        )
+
+        val error = assertFailsWith<LuaVmException> {
+            LuaVm(globals).execute(
+                Compiler.compile(
+                    """
+                    local first <close> = make(1)
+                    local second <close> = make(2)
+                    return 42
+                    """.trimIndent(),
+                ),
+            )
+        }
+
+        assertEquals("attempt to yield across a C-call boundary", error.message)
+        assertEquals(listOf(2L, 1L), observed.map { it.first })
+        assertEquals(1, observed[0].second.size)
+        assertEquals(LuaString("attempt to yield across a C-call boundary"), observed[1].second[1])
     }
 
     @Test
@@ -2107,7 +2344,7 @@ class LuaVmTest {
                     return nil
                 end
 
-                for value in iter, nil, nil, mark("extra") do
+                for value in iter, nil, nil, nil, mark("extra") do
                 end
 
                 return count
@@ -2116,6 +2353,44 @@ class LuaVmTest {
         )
 
         assertEquals(listOf(LuaInteger(1)), result)
+    }
+
+    @Test
+    fun `generic for closes its fourth iterator value on early exit`() {
+        val globals = LuaTable()
+        var closed = 0
+        lateinit var resource: LuaTable
+        resource = LuaTable().also { value ->
+            value.metatable = LuaTable().also { metatable ->
+                metatable.rawSet(
+                    LuaString("__close"),
+                    LuaNativeFunction { arguments ->
+                        assertEquals(listOf(resource), arguments)
+                        closed += 1
+                        emptyList()
+                    },
+                )
+            }
+        }
+        globals.rawSet(LuaString("resource"), resource)
+        globals.rawSet(
+            LuaString("iter"),
+            LuaNativeFunction { listOf(LuaInteger(1)) },
+        )
+
+        val result = LuaVm(globals).execute(
+            Compiler.compile(
+                """
+                for value in iter, nil, nil, resource do
+                    return value
+                end
+                return 0
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(1)), result)
+        assertEquals(1, closed)
     }
 
     @Test

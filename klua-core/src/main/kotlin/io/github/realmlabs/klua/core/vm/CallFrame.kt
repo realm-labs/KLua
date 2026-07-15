@@ -18,6 +18,7 @@ internal class CallFrame(
 ) : LuaStack(stackSize) {
     private var pendingCall: PendingCallState? = null
     private var debugState: DebugFrameState? = null
+    private var toBeClosedSlots: MutableList<Int>? = null
 
     val globals: LuaValue
         get() = environment.value
@@ -97,6 +98,24 @@ internal class CallFrame(
 
     fun takePendingCall(): PendingCallState? {
         return pendingCall.also { pendingCall = null }
+    }
+
+    fun markToBeClosed(slot: Int) {
+        val slots = toBeClosedSlots ?: mutableListOf<Int>().also { created -> toBeClosedSlots = created }
+        require(slots.lastOrNull()?.let { previous -> slot > previous } ?: true) {
+            "to-be-closed stack slots must be marked in ascending order"
+        }
+        slots += slot
+    }
+
+    fun takeToBeClosedFrom(slot: Int): Int? {
+        val slots = toBeClosedSlots ?: return null
+        val candidate = slots.lastOrNull()?.takeIf { marked -> marked >= slot } ?: return null
+        slots.removeLast()
+        if (slots.isEmpty()) {
+            toBeClosedSlots = null
+        }
+        return candidate
     }
 
     private fun debugState(): DebugFrameState {

@@ -705,7 +705,8 @@ class CompilerFunctionTest {
             0001  [2]  CLOSURE R1 P0
             0002  [5]  MOVE R2 R1
             0003  [5]  CALL R2 0 *
-            0004  [5]  RETURN R2 *
+            0004  [5]  CLOSE R0
+            0005  [5]  RETURN R2 *
             """.trimIndent(),
             Disassembler.disassemble(prototype),
         )
@@ -756,7 +757,7 @@ class CompilerFunctionTest {
             """
             0000  [2]  LOAD_INT R0 0
             0001  [3]  CLOSURE R1 P0
-            0002  [3]  CLOSE_UPVALUES R0
+            0002  [3]  CLOSE R0
             0003  [3]  MOVE R0 R1
             0004  [3]  RETURN R0 1
             """.trimIndent(),
@@ -813,7 +814,7 @@ class CompilerFunctionTest {
             0000  [2]  LOAD_INT R0 42
             0001  [3]  CLOSURE R1 P0
             0002  [8]  MOVE R2 R1
-            0003  [8]  CLOSE_UPVALUES R0
+            0003  [8]  CLOSE R0
             0004  [8]  MOVE R0 R2
             0005  [8]  RETURN R0 1
             """.trimIndent(),
@@ -884,7 +885,7 @@ class CompilerFunctionTest {
             0002  [7]  CLOSURE R2 P1
             0003  [10]  MOVE R3 R1
             0004  [10]  MOVE R4 R2
-            0005  [10]  CLOSE_UPVALUES R0
+            0005  [10]  CLOSE R0
             0006  [10]  MOVE R0 R3
             0007  [10]  MOVE R1 R4
             0008  [10]  RETURN R0 2

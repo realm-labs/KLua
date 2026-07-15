@@ -905,30 +905,20 @@ public class KLuaCoreCoroutine internal constructor(
             return terminalError?.also { terminalError = null }
                 ?: KLuaCoreCoroutineExecution.Returned(emptyList())
         }
-        val continuation = pendingContinuation
         pendingContinuation = null
         dead = true
-        return if (continuation == null) {
+        return try {
+            vm.closeSuspended()
             KLuaCoreCoroutineExecution.Returned(emptyList())
-        } else {
-            try {
-                when (val result = continuation.resume(emptyList())) {
-                    is LuaExecutionResult.Returned -> KLuaCoreCoroutineExecution.Returned(emptyList())
-                    is LuaExecutionResult.Yielded -> KLuaCoreCoroutineExecution.RuntimeError("attempt to yield while closing coroutine")
-                    LuaExecutionResult.DebugSuspended -> KLuaCoreCoroutineExecution.RuntimeError(
-                        "attempt to suspend while closing coroutine",
-                    )
-                }
-            } catch (error: LuaVmException) {
-                KLuaCoreCoroutineExecution.RuntimeError(
-                    error.message ?: "runtime error",
-                    error.sourceName,
-                    error.line,
-                    error.rootCause(),
-                    error.luaFrames.toCoreStackFrames(),
-                    error.errorObject?.let { toPublicValue(it, globals) },
-                )
-            }
+        } catch (error: LuaVmException) {
+            KLuaCoreCoroutineExecution.RuntimeError(
+                error.message ?: "runtime error",
+                error.sourceName,
+                error.line,
+                error.rootCause(),
+                error.luaFrames.toCoreStackFrames(),
+                error.errorObject?.let { toPublicValue(it, globals) },
+            )
         }
     }
 
