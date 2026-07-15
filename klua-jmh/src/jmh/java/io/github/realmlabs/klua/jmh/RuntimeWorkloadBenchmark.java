@@ -30,6 +30,7 @@ import java.util.concurrent.TimeUnit;
 public class RuntimeWorkloadBenchmark {
     private static final List<Object> ARGUMENTS = List.of(10_000L);
     private static final List<Object> CONCAT_ARGUMENTS = List.of(1_000L);
+    private static final List<Object> ENTITY_ARGUMENTS = List.of(1_000L);
     private static final List<Object> FIBONACCI_ARGUMENTS = List.of(20L);
     private static final String LUA_CALL_SOURCE = """
             local iterations = ...
@@ -149,6 +150,43 @@ public class RuntimeWorkloadBenchmark {
             end
             return fibonacci(value)
             """;
+    private static final String VARARG_MULTI_RETURN_SOURCE = """
+            local iterations = ...
+            local function rotate(...)
+                local first, second, third = ...
+                return third, first, second
+            end
+            local first, second, third = 1, 2, 3
+            for index = 1, iterations do
+                first, second, third = rotate(first, second, third)
+            end
+            return first * 100 + second * 10 + third
+            """;
+    private static final String ENTITY_UPDATE_SOURCE = """
+            local entityCount = ...
+            local entities = {}
+            for index = 1, entityCount do
+                entities[index] = {
+                    x = index,
+                    y = index * 2,
+                    velocityX = 2,
+                    velocityY = -1,
+                }
+            end
+            for step = 1, 10 do
+                for index = 1, #entities do
+                    local entity = entities[index]
+                    entity.x = entity.x + entity.velocityX
+                    entity.y = entity.y + entity.velocityY
+                end
+            end
+            local checksum = 0
+            for index = 1, #entities do
+                local entity = entities[index]
+                checksum = checksum + entity.x + entity.y
+            end
+            return checksum
+            """;
 
     private LuaCoroutineFunction luaCalls;
     private LuaCoroutineFunction hostCalls;
@@ -157,6 +195,8 @@ public class RuntimeWorkloadBenchmark {
     private LuaCoroutineFunction closureCounter;
     private LuaCoroutineFunction methodCalls;
     private LuaCoroutineFunction recursiveFibonacci;
+    private LuaCoroutineFunction varargMultiReturn;
+    private LuaCoroutineFunction entityUpdateKernel;
     private LuaState indexMetamethodState;
     private LuaState jvmToLuaState;
     private LuaState coroutineYieldResumeState;
@@ -175,6 +215,14 @@ public class RuntimeWorkloadBenchmark {
                 RECURSIVE_FIBONACCI_SOURCE,
                 "benchmark-recursive-fibonacci.lua"
         ).asCoroutineFunction();
+        varargMultiReturn = lua.load(
+                VARARG_MULTI_RETURN_SOURCE,
+                "benchmark-vararg-multi-return.lua"
+        ).asCoroutineFunction();
+        entityUpdateKernel = lua.load(
+                ENTITY_UPDATE_SOURCE,
+                "benchmark-entity-update.lua"
+        ).asCoroutineFunction();
         verify(luaCalls, 10_000L);
         verify(hostCalls, 10_000L);
         verify(tableReadWrite, 50_005_000L);
@@ -182,6 +230,8 @@ public class RuntimeWorkloadBenchmark {
         verify(closureCounter, 10_000L);
         verify(methodCalls, 10_000L);
         verify(recursiveFibonacci, FIBONACCI_ARGUMENTS, 6_765L);
+        verify(varargMultiReturn, 312L);
+        verify(entityUpdateKernel, ENTITY_ARGUMENTS, 1_511_500L);
 
         indexMetamethodState = LuaState.create();
         LuaStdlib.openBase(indexMetamethodState);
@@ -244,6 +294,16 @@ public class RuntimeWorkloadBenchmark {
     @Benchmark
     public LuaCoroutineResult executeRecursiveFibonacci() {
         return recursiveFibonacci.createCoroutine().resume(FIBONACCI_ARGUMENTS);
+    }
+
+    @Benchmark
+    public LuaCoroutineResult executeVarargMultiReturn() {
+        return varargMultiReturn.createCoroutine().resume(ARGUMENTS);
+    }
+
+    @Benchmark
+    public LuaCoroutineResult executeEntityUpdateKernel() {
+        return entityUpdateKernel.createCoroutine().resume(ENTITY_ARGUMENTS);
     }
 
     @Benchmark
