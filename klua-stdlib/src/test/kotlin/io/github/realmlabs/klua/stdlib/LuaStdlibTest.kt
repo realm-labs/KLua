@@ -21803,6 +21803,104 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string repetitions backtrack across bytes classes and captures`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nul = string.char(0)
+                local nulMatch = string.match("a" .. nul .. nul .. "b", "a%z*%zb")
+                local first, last = string.find("xxabbbc", "ab*bc")
+                return string.match("ac", "ab?c"),
+                    string.match("abc", "ab?c"),
+                    string.match("abc", "ab?bc"),
+                    string.match("abbbc", "ab*bc"),
+                    string.match("aaab", "a+aab"),
+                    string.match("a12b34b", "a.-b"),
+                    string.match("aaaa", "(%a+)%1"),
+                    nulMatch,
+                    first, last
+                """.trimIndent(),
+                "string-pattern-repetition-backtracking.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("ac", state.toString(1))
+        assertEquals("abc", state.toString(2))
+        assertEquals("abc", state.toString(3))
+        assertEquals("abbbc", state.toString(4))
+        assertEquals("aaab", state.toString(5))
+        assertEquals("a12b", state.toString(6))
+        assertEquals("aa", state.toString(7))
+        assertEquals(listOf('a'.code.toByte(), 0, 0, 'b'.code.toByte()), state.toString(8)?.luaRawBytes()?.toList())
+        assertEquals(3L, state.toInteger(9))
+        assertEquals(7L, state.toInteger(10))
+    }
+
+    @Test
+    fun `string repetition consumers make source ordered progress after empty matches`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local optional, optionalCount = string.gsub("ab", "a?", "x")
+                local minimal, minimalCount = string.gsub("ab", "a-", "x")
+                local nulResult, nulCount = string.gsub(string.char(0) .. "a", "%z*", "x")
+                local optionalIterator = string.gmatch("ab", "a?")
+                local optionalFirst, optionalSecond, optionalDone =
+                    optionalIterator(), optionalIterator(), optionalIterator()
+                local minimalIterator = string.gmatch("ab", "a-")
+                local minimalFirst, minimalSecond, minimalThird, minimalDone =
+                    minimalIterator(), minimalIterator(), minimalIterator(), minimalIterator()
+                local initIterator = string.gmatch("ab", "a-", 2)
+                local initFirst, initSecond, initDone = initIterator(), initIterator(), initIterator()
+                local endFirst, endLast = string.find("ab", "a*", 3)
+                local anchored, anchoredCount = string.gsub("ab", "^a*", "x")
+                return optional, optionalCount,
+                    minimal, minimalCount,
+                    nulResult, nulCount,
+                    optionalFirst, optionalSecond, optionalDone,
+                    minimalFirst, minimalSecond, minimalThird, minimalDone,
+                    initFirst, initSecond, initDone,
+                    endFirst, endLast, string.match("ab", "a*", 3),
+                    anchored, anchoredCount
+                """.trimIndent(),
+                "string-pattern-repetition-progress.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("xbx", state.toString(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals("xaxbx", state.toString(3))
+        assertEquals(3L, state.toInteger(4))
+        assertEquals("xax", state.toString(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals("a", state.toString(7))
+        assertEquals("", state.toString(8))
+        assertTrue(state.isNil(9))
+        assertEquals("", state.toString(10))
+        assertEquals("", state.toString(11))
+        assertEquals("", state.toString(12))
+        assertTrue(state.isNil(13))
+        assertEquals("", state.toString(14))
+        assertEquals("", state.toString(15))
+        assertTrue(state.isNil(16))
+        assertEquals(3L, state.toInteger(17))
+        assertEquals(2L, state.toInteger(18))
+        assertEquals("", state.toString(19))
+        assertEquals("xb", state.toString(20))
+        assertEquals(1L, state.toInteger(21))
+    }
+
+    @Test
     fun `string patterns advance after empty matches`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
