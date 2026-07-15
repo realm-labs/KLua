@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.Prototype
+import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaTable
@@ -93,13 +94,11 @@ class LuaThreadTest {
         sourceStack.set(4, LuaInteger(40))
 
         val frame = thread.pushCallFromStack(
-            prototype("chunk", maxStackSize = 2, numParams = 2, isVararg = true),
             sourceStack,
             argumentStart = 1,
             argumentCount = 4,
-            upvalues = emptyList(),
             environment = LuaUpvalue(LuaTable()),
-            function = LuaNil,
+            function = LuaClosure(prototype("chunk", maxStackSize = 2, numParams = 2, isVararg = true)),
         )
         sourceStack.set(3, LuaInteger(30))
 
@@ -127,9 +126,20 @@ class LuaThreadTest {
 
     @Test
     fun `call frame owns its stack storage and captures`() {
-        val frame = LuaThread().pushCall(prototype("chunk", maxStackSize = 1), emptyList())
+        val prototype = prototype("chunk", maxStackSize = 1)
+        val environment = LuaUpvalue(LuaTable())
+        val closure = LuaClosure(prototype, mutableListOf(LuaUpvalue(LuaInteger(10))), environment = environment)
+        val frame = LuaThread().pushCall(
+            prototype,
+            emptyList(),
+            environment = environment,
+            function = closure,
+        )
 
         assertSame(frame, frame.stack)
+        assertSame(closure, frame.function)
+        assertSame(prototype, frame.prototype)
+        assertSame(closure.upvalues, frame.upvalues)
         frame.set(4, LuaInteger(40))
         val captured = frame.capture(4)
         frame.stack.set(4, LuaInteger(50))

@@ -2,15 +2,14 @@ package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.CallSiteInfo
 import io.github.realmlabs.klua.core.bytecode.Prototype
+import io.github.realmlabs.klua.core.value.LuaClosure
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class CallFrame(
-    val prototype: Prototype,
-    val function: LuaValue,
+    val function: LuaClosure,
     stackSize: Int,
     private val varargValues: MutableList<LuaValue>? = null,
-    val upvalues: List<LuaUpvalue> = emptyList(),
     val environment: LuaUpvalue,
     val callSiteInfo: CallSiteInfo? = null,
     var pc: Int = 0,
@@ -22,6 +21,12 @@ internal class CallFrame(
 
     val globals: LuaValue
         get() = environment.value
+
+    val prototype: Prototype
+        get() = function.prototype
+
+    val upvalues: List<LuaUpvalue>
+        get() = function.upvalues
 
     val stack: LuaStack
         get() = this

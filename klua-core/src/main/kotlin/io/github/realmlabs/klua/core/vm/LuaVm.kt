@@ -218,11 +218,9 @@ internal class LuaVm(
         callSiteInfo: CallSiteInfo?,
     ): LuaExecutionResult {
         val frame = thread.pushCallFromStack(
-            function.prototype,
             sourceStack,
             argumentStart,
             argumentCount,
-            function.upvalues,
             environment = function.environment ?: function.globals?.let(::LuaUpvalue) ?: rootEnvironment,
             function = function,
             callSiteInfo = callSiteInfo,
