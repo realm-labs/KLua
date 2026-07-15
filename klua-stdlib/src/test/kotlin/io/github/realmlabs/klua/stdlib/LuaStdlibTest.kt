@@ -12213,6 +12213,53 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `base iterators and raw access canonicalize source function and numeric keys`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {
+                    [0] = "zero",
+                    [1] = "one",
+                    [2] = "two",
+                }
+                local pairIterator, pairState, pairControl, pairClosing = pairs(values, "ignored")
+                local ipairsIterator = ipairs(values, "ignored")
+                local otherIpairsIterator = ipairs({}, "ignored")
+                local nextKey, nextValue = next(values, 1.0, "ignored")
+                local returned = rawset(values, 1.0, "updated", "ignored")
+                local entryCount = 0
+                for _ in pairs(values) do
+                    entryCount = entryCount + 1
+                end
+                return pairIterator == next, ipairsIterator == otherIpairsIterator,
+                    pairState == values, pairControl, pairClosing,
+                    nextKey, nextValue, rawget(values, 1.0, "ignored"),
+                    rawget(values, -0.0), returned == values, entryCount
+                """.trimIndent(),
+                "base-iterator-numeric-key-identity.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.isNil(5))
+        assertEquals(2L, state.toInteger(6))
+        assertEquals("two", state.toString(7))
+        assertEquals("updated", state.toString(8))
+        assertEquals("zero", state.toString(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals(3L, state.toInteger(11))
+    }
+
+    @Test
     fun `pairs uses pairs metamethod`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -13131,6 +13178,64 @@ class LuaStdlibTest {
         assertEquals("from-metatable", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertEquals("cannot change a protected metatable", state.toString(5))
+    }
+
+    @Test
+    fun `base metatable and raw helpers preserve false protection and result arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("protected"))
+        state.setGlobal("host")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function inspect(...)
+                    return select("#", ...), ...
+                end
+                local object = setmetatable({}, { __metatable = false }, "ignored")
+                debug.setmetatable(host, { __metatable = false })
+                local objectCount, objectVisible = inspect(getmetatable(object, "ignored"))
+                local hostCount, hostVisible = inspect(getmetatable(host, "ignored"))
+                local objectOk, objectMessage = pcall(setmetatable, object, nil, "ignored")
+                local hostOk, hostMessage = pcall(setmetatable, host, {})
+                local pairsOk, pairsMessage = pcall(
+                    pairs,
+                    setmetatable({}, { __pairs = false })
+                )
+                local terminal = { only = true }
+                local key = next(terminal)
+                local doneCount, done = inspect(next(terminal, key, "ignored"))
+                return objectCount, objectVisible, hostCount, hostVisible,
+                    objectOk, objectMessage, hostOk, hostMessage, pairsOk, pairsMessage,
+                    doneCount, done,
+                    select("#", rawget({}, nil, "ignored")),
+                    select("#", rawset({}, "key", "value", "ignored")),
+                    select("#", rawlen("raw", "ignored")),
+                    select("#", rawequal(1, 1.0, "ignored"))
+                """.trimIndent(),
+                "base-metatable-raw-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals(1L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("cannot change a protected metatable", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'setmetatable' (table expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("attempt to call a boolean value", state.toString(10))
+        assertEquals(1L, state.toInteger(11))
+        assertTrue(state.isNil(12))
+        assertEquals(1L, state.toInteger(13))
+        assertEquals(1L, state.toInteger(14))
+        assertEquals(1L, state.toInteger(15))
+        assertEquals(1L, state.toInteger(16))
     }
 
     @Test

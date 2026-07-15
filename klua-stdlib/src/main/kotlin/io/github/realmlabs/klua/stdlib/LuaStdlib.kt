@@ -21,6 +21,9 @@ import java.nio.file.Path
 import java.util.function.Consumer
 
 public object LuaStdlib {
+    private val nextFunction = LuaFunction { context -> next(context) }
+    private val ipairsIteratorFunction = LuaFunction { context -> ipairsNext(context) }
+
     @JvmStatic
     public fun openLibs(state: LuaState): LuaState {
         return openLibs(state, standardOutput())
@@ -92,7 +95,7 @@ public object LuaStdlib {
         if (state.config.unsafeStandardLibraryAccessEnabled) {
             state.register("loadfile") { context -> loadfile(context, state) }
         }
-        state.register("next", ::next)
+        state.register("next", nextFunction)
         registerYieldable(state, "pairs", ::pairs)
         registerYieldable(state, "pcall", ::pcall)
         state.register("print") { context -> print(context, output) }
@@ -418,20 +421,21 @@ public object LuaStdlib {
 
     private fun ipairs(context: LuaCallContext): LuaReturn {
         requireAnyArgument(context, "ipairs")
-        val iterator = LuaFunction { iteratorContext ->
-            val nextIndex = requiredNumberInteger(iteratorContext, 2, "ipairs iterator") + 1L
-            val value = try {
-                iteratorContext.getValueField(argumentValue(iteratorContext, 1), nextIndex)
-            } catch (error: IllegalArgumentException) {
-                throw LuaRuntimeException(error.message ?: "attempt to index a ${iteratorContext.typeName(1)} value")
-            }
-            if (value == null) {
-                LuaReturn.of(null)
-            } else {
-                LuaReturn.of(nextIndex, value)
-            }
+        return LuaReturn.ofValues(listOf(ipairsIteratorFunction, argumentValue(context, 1), 0L))
+    }
+
+    private fun ipairsNext(context: LuaCallContext): LuaReturn {
+        val nextIndex = requiredNumberInteger(context, 2, "ipairs iterator") + 1L
+        val value = try {
+            context.getValueField(argumentValue(context, 1), nextIndex)
+        } catch (error: IllegalArgumentException) {
+            throw LuaRuntimeException(error.message ?: "attempt to index a ${context.typeName(1)} value")
         }
-        return LuaReturn.ofValues(listOf(iterator, argumentValue(context, 1), 0L))
+        return if (value == null) {
+            LuaReturn.of(null)
+        } else {
+            LuaReturn.of(nextIndex, value)
+        }
     }
 
     private fun next(context: LuaCallContext): LuaReturn {
@@ -458,7 +462,7 @@ public object LuaStdlib {
                 }
             }
         }
-        return LuaReturn.ofValues(listOf(LuaFunction(::next), argumentValue(context, 1), null, null))
+        return LuaReturn.ofValues(listOf(nextFunction, argumentValue(context, 1), null, null))
     }
 
     private fun pairsReturnResume(yield: LuaYieldException, arguments: List<Any?>): LuaReturn {

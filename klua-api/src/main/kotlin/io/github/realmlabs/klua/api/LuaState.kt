@@ -728,19 +728,7 @@ class LuaState private constructor(
     }
 
     private fun setNativeGlobal(name: String, function: LuaStackValue.NativeFunctionValue) {
-        coreGlobals.set(
-            name,
-            KLuaCoreRuntime.createContextFunctionValue(
-                function = { context ->
-                    callHostFunction(
-                        function.function,
-                        context,
-                        nativeFrameName = name,
-                    )
-                },
-                yieldable = function.function is LuaYieldableFunction,
-            ),
-        )
+        coreGlobals.set(name, function.function.toCoreFunctionValue(nativeFrameName = name))
         coreBackedNativeGlobals += name
         globals.fields[LuaStackValue.StringValue(name)] = function
     }
@@ -1018,13 +1006,14 @@ class LuaState private constructor(
         }
     }
 
-    private fun LuaFunction.toCoreFunctionValue(): KLuaCoreValue.FunctionValue {
+    private fun LuaFunction.toCoreFunctionValue(nativeFrameName: String? = null): KLuaCoreValue.FunctionValue {
         nativeFunctionValues[this]?.let { return it }
         return KLuaCoreRuntime.createContextFunctionValue(
             function = { context ->
                 callHostFunction(
                     this,
                     context,
+                    nativeFrameName = nativeFrameName,
                 )
             },
             yieldable = this is LuaYieldableFunction,
@@ -1115,7 +1104,7 @@ class LuaState private constructor(
                 throw LuaRuntimeException("table index is nil")
             }
             if (value != null) {
-                fields[key.toStackValue()] = value.toStackValue()
+                fields[key.toStackValue().canonicalTableKey()] = value.toStackValue()
             }
         }
         return LuaStackValue.TableValue(fields)
@@ -1311,6 +1300,14 @@ class LuaState private constructor(
         }
         val integer = value.toLong()
         return if (integer.toDouble() == value) integer else null
+    }
+
+    private fun LuaStackValue.canonicalTableKey(): LuaStackValue {
+        return if (this is LuaStackValue.NumberValue) {
+            integerFromNumber(value)?.let { integer -> LuaStackValue.IntegerValue(integer) } ?: this
+        } else {
+            this
+        }
     }
 
     private fun integerFromString(value: String): Long? {
@@ -1971,12 +1968,12 @@ class LuaState private constructor(
 
         override fun getTableValue(index: Int, key: Any?): Any? {
             val table = valueAt(index) as? LuaStackValue.TableValue ?: return null
-            return table.fields[key.toStackValue()]?.toPublicCallReturnValue()
+            return table.fields[key.toStackValue().canonicalTableKey()]?.toPublicCallReturnValue()
         }
 
         override fun getTableField(table: Any?, key: Any?): Any? {
             val tableValue = table as? LuaStackValue.TableValue ?: return null
-            return tableValue.fields[key.toStackValue()]?.toPublicCallReturnValue()
+            return tableValue.fields[key.toStackValue().canonicalTableKey()]?.toPublicCallReturnValue()
         }
 
         override fun getValueField(value: Any?, key: Any?): Any? {
@@ -2008,14 +2005,20 @@ class LuaState private constructor(
             key: LuaStackValue,
             visited: MutableSet<LuaStackValue.TableValue>,
         ): LuaStackValue {
-            val rawValue = table.fields[key]
+            val canonicalKey = key.canonicalTableKey()
+            val rawValue = table.fields[canonicalKey]
             if (rawValue != null) {
                 return rawValue
             }
             if (!visited.add(table)) {
                 throw IllegalArgumentException("cycle in __index chain")
             }
-            return stackMetamethodIndexValue(table, key, table.metatable?.fields?.get(indexMetamethodKey), visited)
+            return stackMetamethodIndexValue(
+                table,
+                canonicalKey,
+                table.metatable?.fields?.get(indexMetamethodKey),
+                visited,
+            )
         }
 
         private fun stackMetamethodIndexValue(
@@ -2109,8 +2112,9 @@ class LuaState private constructor(
             visited: MutableSet<LuaStackValue.TableValue>,
             depth: Int,
         ) {
-            if (table.fields.containsKey(key)) {
-                setStackTableValue(table, key.toPublicCallReturnValue(), value.toPublicCallReturnValue())
+            val canonicalKey = key.canonicalTableKey()
+            if (table.fields.containsKey(canonicalKey)) {
+                setStackTableValue(table, canonicalKey.toPublicCallReturnValue(), value.toPublicCallReturnValue())
                 return
             }
             if (!visited.add(table)) {
@@ -2118,10 +2122,10 @@ class LuaState private constructor(
             }
             val newIndex = table.metatable?.fields?.get(newIndexMetamethodKey)
             if (newIndex == null || newIndex == LuaStackValue.Nil) {
-                setStackTableValue(table, key.toPublicCallReturnValue(), value.toPublicCallReturnValue())
+                setStackTableValue(table, canonicalKey.toPublicCallReturnValue(), value.toPublicCallReturnValue())
                 return
             }
-            stackMetamethodSetValue(table, key, value, newIndex, visited, depth)
+            stackMetamethodSetValue(table, canonicalKey, value, newIndex, visited, depth)
         }
 
         private fun stackMetamethodSetValue(
@@ -2146,7 +2150,7 @@ class LuaState private constructor(
         }
 
         private fun setStackTableValue(table: LuaStackValue.TableValue, key: Any?, value: Any?) {
-            val stackKey = key.toStackValue()
+            val stackKey = key.toStackValue().canonicalTableKey()
             val stackValue = value.toStackValue()
             if (stackValue == LuaStackValue.Nil) {
                 table.fields.remove(stackKey)
@@ -2261,7 +2265,7 @@ class LuaState private constructor(
             val nextIndex = if (key == null) {
                 0
             } else {
-                val stackKey = key.toStackValue()
+                val stackKey = key.toStackValue().canonicalTableKey()
                 val currentIndex = entries.indexOfFirst { entry -> entry.key == stackKey }
                 if (currentIndex < 0) {
                     throw IllegalArgumentException("invalid key to 'next'")
