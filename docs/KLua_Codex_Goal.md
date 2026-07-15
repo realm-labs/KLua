@@ -618,11 +618,17 @@ Lua 5.5's `loslib.c:os_getenv` first applies `luaL_checkstring`, accepting strin
 
 KLua previously passed the complete JVM string to `System.getenv`, so embedded NUL and Java-invalid names leaked `IllegalArgumentException`. It now truncates the checked name at the first NUL and maps Java-invalid or security-denied lookups to the ordinary one-nil result. Focused coverage proves an existing variable through the NUL prefix rule, unavailable and invalid-name nil arity, numeric coercion, ignored extras, and nil/type errors. Java's immutable process environment prevents test-owned empty-value injection, and security-denied lookups are deliberately indistinguishable from absence as the closest pure-JVM equivalent to a failed C lookup. Focused environment and complete repository tests pass.
 
+### M20 OS Difftime Boundary Audit
+
+Lua 5.5's `loslib.c:os_difftime` validates its two configured `l_timet` arguments in order, calls C `difftime(time_t, time_t)`, and pushes exactly one Lua float. The C helper computes the mathematical time difference without overflowing `time_t`; converting each operand to a floating value before subtraction is not equivalent near the limits because adjacent integers can round to the same float.
+
+KLua previously evaluated `first.toDouble() - second.toDouble()`. It happened to produce the expected rounded full signed-range magnitude but returned zero for `maxinteger - (maxinteger - 1)` and the corresponding minimum-edge case. It now subtracts the validated integers exactly with `BigInteger` and converts only the difference to the Lua float. Coverage proves both full-range directions, positive and negative unit differences at the extremes, numeric-string coercion, ignored extras, one-result arity, float subtype, and existing left-before-right validation errors. KLua's fixed 64-bit integer time representation is the deliberate JVM substitute for installation-dependent `time_t` width. Focused difftime and complete repository tests pass.
+
 Use this work-package order:
 
 | Order | Work package | Outcome and exit criteria | Expected commit shape |
 | --- | --- | --- | --- |
-| 1 | M20 OS difftime boundary audit | Audit `loslib.c:os_difftime`, `l_checktime`, and the configured `l_timet` path for ordered exact-time validation, numeric-string conversion, extreme signed ranges, float result subtype, ignored extras, and one-result arity. Keep `time_t`/JVM range substitutions explicit, then run focused and full verification. | One coherent OS difftime commit with tests and gap-record update. |
+| 1 | M20 package searchpath template audit | Audit `loadlib.c:ll_searchpath`, `searchpath`, `pushnexttemplate`, and `findfile` for ordered string/number coercion, default/custom separators and marks, empty and repeated templates, replacement boundaries, readable-file selection, accumulated diagnostics, embedded NULs, ignored extras, and result arity. Keep JVM path/readability substitutions explicit, then run focused and full verification. | One coherent package searchpath commit with tests and gap-record update. |
 
 M20 conformance remains important throughout development, but broad hardening should run as an explicitly selected campaign rather than an open-ended stream of unrelated probes. A campaign should name one subsystem or semantic invariant, list the affected entry points and reference-source functions, define its case matrix, and finish by updating the gap snapshot. Regression, data-integrity, security, or active-milestone blocking fixes may interrupt the order above; incidental edge cases should be queued for the next campaign.
 

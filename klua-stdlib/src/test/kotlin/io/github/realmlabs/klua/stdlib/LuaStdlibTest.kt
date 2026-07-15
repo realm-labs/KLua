@@ -15452,8 +15452,14 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
+                local stringDifference = os.difftime("7", "2", "ignored")
                 return os.difftime(math.maxinteger, math.mininteger),
-                    os.difftime(math.mininteger, math.maxinteger)
+                    os.difftime(math.mininteger, math.maxinteger),
+                    os.difftime(math.maxinteger, math.maxinteger - 1),
+                    os.difftime(math.mininteger + 1, math.mininteger),
+                    os.difftime(math.maxinteger - 1, math.maxinteger),
+                    stringDifference, math.type(stringDifference),
+                    select("#", os.difftime(1, 0))
                 """.trimIndent(),
                 "os-difftime-extreme-range.lua",
             ),
@@ -15463,6 +15469,12 @@ class LuaStdlibTest {
         val fullUnsignedRange = 18446744073709551616.0
         assertEquals(fullUnsignedRange, state.toNumber(1) ?: error("missing positive difftime"), 0.0)
         assertEquals(-fullUnsignedRange, state.toNumber(2) ?: error("missing negative difftime"), 0.0)
+        assertEquals(1.0, state.toNumber(3) ?: error("missing maximum-adjacent difftime"), 0.0)
+        assertEquals(1.0, state.toNumber(4) ?: error("missing minimum-adjacent difftime"), 0.0)
+        assertEquals(-1.0, state.toNumber(5) ?: error("missing reverse-adjacent difftime"), 0.0)
+        assertEquals(5.0, state.toNumber(6) ?: error("missing string difftime"), 0.0)
+        assertEquals("float", state.toString(7))
+        assertEquals(1L, state.toInteger(8))
     }
 
     @Test
