@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.core.KLuaCoreComparison
 import io.github.realmlabs.klua.core.KLuaCoreContinuation
 import io.github.realmlabs.klua.core.KLuaCoreCoroutine
 import io.github.realmlabs.klua.core.KLuaCoreCoroutineExecution
+import io.github.realmlabs.klua.core.KLuaCoreDebugObserver
 import io.github.realmlabs.klua.core.KLuaCoreDebugHook
 import io.github.realmlabs.klua.core.KLuaCoreExecution
 import io.github.realmlabs.klua.core.KLuaCoreExecutionLimits
@@ -1408,6 +1409,12 @@ class LuaState private constructor(
                         local.value.toStackValue().toPublicCallReturnValue(),
                     )
                 },
+                upvalues = frame.upvalues.map { upvalue ->
+                    LuaUpvalueVariable(
+                        upvalue.name,
+                        upvalue.value.toStackValue().toPublicCallReturnValue(),
+                    )
+                },
                 callSiteName = frame.callSiteName,
                 callSiteNameWhat = frame.callSiteNameWhat,
                 transferStart = frame.transferStart,
@@ -1429,6 +1436,7 @@ class LuaState private constructor(
                 is KLuaCoreCoroutineExecution.Yielded -> LuaCoroutineResult.Yielded(
                     result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
                 )
+                KLuaCoreCoroutineExecution.DebugSuspended -> LuaCoroutineResult.DebugSuspended
                 is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(
                     result.message,
                     sourceName = result.sourceName,
@@ -1448,6 +1456,9 @@ class LuaState private constructor(
                 )
                 is KLuaCoreCoroutineExecution.Yielded -> LuaCoroutineResult.RuntimeError(
                     "attempt to yield while closing coroutine",
+                )
+                KLuaCoreCoroutineExecution.DebugSuspended -> LuaCoroutineResult.RuntimeError(
+                    "attempt to suspend while closing coroutine",
                 )
                 is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(
                     result.message,
@@ -1474,6 +1485,16 @@ class LuaState private constructor(
 
         override fun getDebugHook(): LuaReturn {
             return coroutine.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
+        }
+
+        override fun setDebugObserver(observer: LuaDebugObserver?) {
+            coroutine.setDebugObserver(
+                observer?.let { publicObserver ->
+                    KLuaCoreDebugObserver { event, sourceId, line, callDepth ->
+                        publicObserver.shouldSuspend(LuaDebugEvent.valueOf(event.name), sourceId, line, callDepth)
+                    }
+                },
+            )
         }
     }
 

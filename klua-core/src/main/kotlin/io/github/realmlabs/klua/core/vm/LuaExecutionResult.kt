@@ -11,8 +11,14 @@ internal sealed interface LuaExecutionResult {
         val values: List<LuaValue>,
         val continuation: LuaYieldContinuation? = null,
     ) : LuaExecutionResult
+
+    data object DebugSuspended : LuaExecutionResult
 }
 
 internal fun interface LuaYieldContinuation {
     fun resume(arguments: List<LuaValue>): LuaExecutionResult
+}
+
+internal fun interface LuaVmDebugObserver {
+    fun shouldSuspend(sourceId: String, line: Int, callDepth: Int): Boolean
 }

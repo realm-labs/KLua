@@ -129,7 +129,7 @@ public class DebugController(
             StepMode.None -> false
             StepMode.Into -> event == DebugEvent.LINE
             is StepMode.Over -> event == DebugEvent.LINE && callDepth <= mode.startDepth
-            is StepMode.Out -> event == DebugEvent.RETURN && callDepth <= mode.targetDepth
+            is StepMode.Out -> event == DebugEvent.LINE && callDepth <= mode.targetDepth
         }
     }
 

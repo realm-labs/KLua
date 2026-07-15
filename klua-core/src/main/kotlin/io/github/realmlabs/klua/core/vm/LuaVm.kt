@@ -20,6 +20,7 @@ import io.github.realmlabs.klua.core.value.LuaNativeCallContext
 import io.github.realmlabs.klua.core.value.LuaNativeDebugHook
 import io.github.realmlabs.klua.core.value.LuaTableKeyException
 import io.github.realmlabs.klua.core.value.LuaNativeStackFrame
+import io.github.realmlabs.klua.core.value.LuaNativeUpvalue
 import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
@@ -43,6 +44,8 @@ internal class LuaVm(
     private val thread = LuaThread()
     private val rootEnvironment = LuaUpvalue(environment)
     private var debugHook: DebugHookState? = null
+    private var debugObserver: LuaVmDebugObserver? = null
+    private var debugSuspended = false
     private var runningDebugHook = false
     private var remainingInstructions = instructionLimit
 
@@ -66,6 +69,10 @@ internal class LuaVm(
 
     internal fun stackFrames(): List<LuaNativeStackFrame> {
         return luaStackFrames(thread.stackFrames())
+    }
+
+    internal fun setDebugObserver(observer: LuaVmDebugObserver?) {
+        debugObserver = observer
     }
 
     internal fun setLocal(level: Int, index: Int, value: LuaValue): String? {
@@ -129,6 +136,7 @@ internal class LuaVm(
             when (val result = callYieldable(callee, arguments)) {
                 is LuaExecutionResult.Returned -> result
                 is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a C-call boundary")
+                LuaExecutionResult.DebugSuspended -> result
             }
         }
     }
@@ -139,10 +147,15 @@ internal class LuaVm(
 
     internal fun resumeYieldable(arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
         var frame = thread.currentFrame ?: throw LuaVmException("cannot resume a coroutine that is not suspended")
-        applyPendingCallResults(frame, arguments)?.let { return it }
+        if (debugSuspended) {
+            debugSuspended = false
+        } else {
+            applyPendingCallResults(frame, arguments)?.let { return it }
+        }
         while (true) {
             when (val result = runFrameAndPopOnCompletion(frame)) {
                 is LuaExecutionResult.Yielded -> return result
+                LuaExecutionResult.DebugSuspended -> return result
                 is LuaExecutionResult.Returned -> {
                     frame = thread.currentFrame ?: return result
                     applyPendingCallResults(frame, result.values)?.let { return it }
@@ -174,6 +187,10 @@ internal class LuaVm(
                 thread.clearFrames()
                 throw LuaVmException("attempt to yield from outside a coroutine")
             }
+            LuaExecutionResult.DebugSuspended -> {
+                thread.clearFrames()
+                throw LuaVmException("debugger suspension requires a coroutine")
+            }
         }
     }
 
@@ -196,11 +213,16 @@ internal class LuaVm(
 
     private fun runFrameAndPopOnCompletion(frame: CallFrame): LuaExecutionResult {
         val stack = frame.stack
-        var yielded = false
+        var suspended = false
         try {
             dispatchDebugCall(frame)
             while (frame.pc < frame.prototype.code.size) {
                 val pc = frame.pc
+                if (dispatchDebuggerLine(frame, pc)) {
+                    suspended = true
+                    debugSuspended = true
+                    return LuaExecutionResult.DebugSuspended
+                }
                 val instruction = frame.prototype.code[frame.pc++]
                 try {
                     consumeInstructionBudget()
@@ -287,7 +309,7 @@ internal class LuaVm(
                         Opcode.CALL -> {
                             val result = call(stack, frame, instruction)
                             if (result != null) {
-                                yielded = true
+                                suspended = true
                                 return result
                             }
                         }
@@ -306,7 +328,7 @@ internal class LuaVm(
 
             throw LuaVmException("prototype completed without RETURN")
         } finally {
-            if (!yielded) {
+            if (!suspended) {
                 thread.popFrame(frame)
             }
         }
@@ -352,12 +374,18 @@ internal class LuaVm(
             frame.pendingCallContinuation = results.continuation
             return LuaExecutionResult.Yielded(results.values)
         }
+        if (results === LuaExecutionResult.DebugSuspended) {
+            frame.pendingCallResultBase = base
+            frame.pendingCallExpectedResults = expectedResults
+            frame.pendingCallContinuation = null
+            return LuaExecutionResult.DebugSuspended
+        }
         val returnedValues = (results as LuaExecutionResult.Returned).values
         applyCallResults(stack, frame, base, expectedResults, returnedValues)
         return null
     }
 
-    private fun applyPendingCallResults(frame: CallFrame, results: List<LuaValue>): LuaExecutionResult.Yielded? {
+    private fun applyPendingCallResults(frame: CallFrame, results: List<LuaValue>): LuaExecutionResult? {
         val base = frame.pendingCallResultBase
         val expectedResults = frame.pendingCallExpectedResults
         val continuation = frame.pendingCallContinuation
@@ -377,6 +405,12 @@ internal class LuaVm(
                     frame.pendingCallExpectedResults = expectedResults
                     frame.pendingCallContinuation = continued.continuation
                     return LuaExecutionResult.Yielded(continued.values)
+                }
+                LuaExecutionResult.DebugSuspended -> {
+                    frame.pendingCallResultBase = base
+                    frame.pendingCallExpectedResults = expectedResults
+                    frame.pendingCallContinuation = continuation
+                    return LuaExecutionResult.DebugSuspended
                 }
             }
         }
@@ -507,7 +541,11 @@ internal class LuaVm(
 
     private fun luaStackFrames(frames: List<CallFrame>): List<LuaNativeStackFrame> {
         return frames.mapNotNull { frame ->
-            val pc = (frame.pc - 1).coerceAtLeast(0)
+            val pc = if (frame.debuggerSuspendedPc >= 0) {
+                frame.debuggerSuspendedPc
+            } else {
+                (frame.pc - 1).coerceAtLeast(0)
+            }
             val line = frame.lineForPc(pc)
             if (line <= 0) {
                 null
@@ -524,6 +562,7 @@ internal class LuaVm(
                     function = frame.function,
                     varargs = frame.varargs.toList(),
                     locals = activeLocals(frame, pc),
+                    upvalues = activeUpvalues(frame),
                     callSiteName = frame.callSiteName,
                     callSiteNameWhat = frame.callSiteNameWhat,
                     transferStart = frame.hookTransferStart,
@@ -631,6 +670,7 @@ internal class LuaVm(
             when (callValue(function, listOf(LuaString(event), line), CallSiteInfo(0, "?", "hook"))) {
                 is LuaExecutionResult.Returned -> Unit
                 is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield from debug hook")
+                LuaExecutionResult.DebugSuspended -> throw LuaVmException("attempt to suspend from debug hook")
             }
         } finally {
             frame.hookTransferStart = 0
@@ -735,6 +775,15 @@ internal class LuaVm(
         stack.set(register(frame, Instruction.a(instruction)), indexGet(frame.globals, key))
     }
 
+    private fun activeUpvalues(frame: CallFrame): List<LuaNativeUpvalue> {
+        return frame.upvalues.mapIndexed { index, upvalue ->
+            LuaNativeUpvalue(
+                frame.prototype.upvalueNames.getOrElse(index) { "?" },
+                upvalue.value,
+            )
+        }
+    }
+
     private fun getEnvironment(stack: LuaStack, frame: CallFrame, instruction: Int) {
         stack.set(register(frame, Instruction.a(instruction)), frame.globals)
     }
@@ -754,6 +803,36 @@ internal class LuaVm(
         if (indexGet(frame.globals, key) != LuaNil) {
             throw LuaVmException("global '${key.value}' already defined")
         }
+    }
+
+    private fun dispatchDebuggerLine(frame: CallFrame, pc: Int): Boolean {
+        val observer = debugObserver ?: return false
+        if (runningDebugHook || thread.inNativeCall) {
+            return false
+        }
+        if (frame.resumePastDebuggerPc == pc) {
+            frame.resumePastDebuggerPc = -1
+            frame.debuggerSuspendedPc = -1
+            frame.lastDebuggerPc = pc
+            return false
+        }
+        val line = frame.lineForPc(pc)
+        if (line <= 0) {
+            frame.lastDebuggerPc = pc
+            return false
+        }
+        val previousPc = frame.lastDebuggerPc
+        val previousLine = if (previousPc >= 0) frame.lineForPc(previousPc) else 0
+        frame.lastDebuggerPc = pc
+        if (previousPc >= 0 && pc > previousPc && line == previousLine) {
+            return false
+        }
+        if (!observer.shouldSuspend(frame.prototype.sourceId, line, thread.callDepth)) {
+            return false
+        }
+        frame.resumePastDebuggerPc = pc
+        frame.debuggerSuspendedPc = pc
+        return true
     }
 
     private fun checkFieldNil(stack: LuaStack, frame: CallFrame, instruction: Int) {

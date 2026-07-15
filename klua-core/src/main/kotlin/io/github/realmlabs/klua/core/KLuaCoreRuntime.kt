@@ -24,6 +24,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaVm
+import io.github.realmlabs.klua.core.vm.LuaVmDebugObserver
 import io.github.realmlabs.klua.core.vm.LuaVmException
 import io.github.realmlabs.klua.core.vm.LuaVmStackFrame
 import io.github.realmlabs.klua.core.vm.LuaYieldContinuation
@@ -765,6 +766,7 @@ public data class KLuaCoreStackFrame(
     public val function: KLuaCoreValue? = null,
     public val varargs: List<KLuaCoreValue> = emptyList(),
     public val locals: List<KLuaCoreLocalVariable> = emptyList(),
+    public val upvalues: List<KLuaCoreUpvalue> = emptyList(),
     public val callSiteName: String? = null,
     public val callSiteNameWhat: String = "",
     public val transferStart: Int = 0,
@@ -798,6 +800,14 @@ public data class KLuaCoreDebugHook(
     public val mask: String,
     public val count: Int,
 )
+
+public enum class KLuaCoreDebugEvent {
+    LINE,
+}
+
+public fun interface KLuaCoreDebugObserver {
+    public fun shouldSuspend(event: KLuaCoreDebugEvent, sourceId: String, line: Int, callDepth: Int): Boolean
+}
 
 public fun interface KLuaCoreContinuation {
     public fun resume(arguments: List<KLuaCoreValue>): KLuaCoreCallResult
@@ -849,6 +859,7 @@ public class KLuaCoreCoroutine internal constructor(
                             null
                         }
                     }
+                    LuaExecutionResult.DebugSuspended -> Unit
                 }
             }
         } catch (error: LuaVmException) {
@@ -881,6 +892,9 @@ public class KLuaCoreCoroutine internal constructor(
                 when (val result = continuation.resume(emptyList())) {
                     is LuaExecutionResult.Returned -> KLuaCoreCoroutineExecution.Returned(emptyList())
                     is LuaExecutionResult.Yielded -> KLuaCoreCoroutineExecution.RuntimeError("attempt to yield while closing coroutine")
+                    LuaExecutionResult.DebugSuspended -> KLuaCoreCoroutineExecution.RuntimeError(
+                        "attempt to suspend while closing coroutine",
+                    )
                 }
             } catch (error: LuaVmException) {
                 KLuaCoreCoroutineExecution.RuntimeError(
@@ -908,6 +922,16 @@ public class KLuaCoreCoroutine internal constructor(
         return vm.setDebugHook(luaValue, mask, count)
     }
 
+    public fun setDebugObserver(observer: KLuaCoreDebugObserver?) {
+        vm.setDebugObserver(
+            observer?.let { publicObserver ->
+                LuaVmDebugObserver { sourceId, line, callDepth ->
+                    publicObserver.shouldSuspend(KLuaCoreDebugEvent.LINE, sourceId, line, callDepth)
+                }
+            },
+        )
+    }
+
     public fun getDebugHook(): KLuaCoreDebugHook? {
         return vm.getDebugHook()?.let { hook ->
             KLuaCoreDebugHook(
@@ -927,6 +951,7 @@ private fun LuaExecutionResult.toCoroutineExecution(globals: KLuaCoreGlobals): K
         is LuaExecutionResult.Yielded -> KLuaCoreCoroutineExecution.Yielded(
             values.map { value -> toPublicValue(value, globals) },
         )
+        LuaExecutionResult.DebugSuspended -> KLuaCoreCoroutineExecution.DebugSuspended
     }
 }
 
@@ -938,6 +963,8 @@ public sealed interface KLuaCoreCoroutineExecution {
     public data class Yielded(
         public val values: List<KLuaCoreValue>,
     ) : KLuaCoreCoroutineExecution
+
+    public data object DebugSuspended : KLuaCoreCoroutineExecution
 
     public data class RuntimeError(
         public val message: String,
@@ -1185,6 +1212,12 @@ private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaC
                 KLuaCoreLocalVariable(
                     local.name,
                     toPublicValue(local.value, globals),
+                )
+            },
+            upvalues = frame.upvalues.map { upvalue ->
+                KLuaCoreUpvalue(
+                    upvalue.name,
+                    toPublicValue(upvalue.value, globals),
                 )
             },
             callSiteName = frame.callSiteName,
@@ -1594,6 +1627,9 @@ private fun LuaExecutionResult.toCoreCallResult(
                     )
                 }
             },
+        )
+        LuaExecutionResult.DebugSuspended -> KLuaCoreCallResult.RuntimeError(
+            "debugger suspension requires a coroutine",
         )
     }
 }

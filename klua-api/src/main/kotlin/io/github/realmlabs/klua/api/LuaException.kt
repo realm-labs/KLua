@@ -34,6 +34,7 @@ data class LuaStackFrame(
     val function: Any? = null,
     val varargs: List<Any?> = emptyList(),
     val locals: List<LuaLocalVariable> = emptyList(),
+    val upvalues: List<LuaUpvalueVariable> = emptyList(),
     val callSiteName: String? = null,
     val callSiteNameWhat: String = "",
     val transferStart: Int = 0,
@@ -41,6 +42,11 @@ data class LuaStackFrame(
 )
 
 data class LuaLocalVariable(
+    val name: String,
+    val value: Any?,
+)
+
+data class LuaUpvalueVariable(
     val name: String,
     val value: Any?,
 )

@@ -110,6 +110,7 @@ internal data class LuaNativeStackFrame(
     val function: LuaValue? = null,
     val varargs: List<LuaValue> = emptyList(),
     val locals: List<LuaNativeLocalVariable> = emptyList(),
+    val upvalues: List<LuaNativeUpvalue> = emptyList(),
     val callSiteName: String? = null,
     val callSiteNameWhat: String = "",
     val transferStart: Int = 0,
@@ -117,6 +118,11 @@ internal data class LuaNativeStackFrame(
 )
 
 internal data class LuaNativeLocalVariable(
+    val name: String,
+    val value: LuaValue,
+)
+
+internal data class LuaNativeUpvalue(
     val name: String,
     val value: LuaValue,
 )

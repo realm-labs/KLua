@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.debug
 
 import io.github.realmlabs.klua.api.LuaLocalVariable
 import io.github.realmlabs.klua.api.LuaStackFrame
+import io.github.realmlabs.klua.api.LuaUpvalueVariable
 
 public data class DebugFrameView(
     public val level: Int,
@@ -137,6 +138,7 @@ public fun LuaStackFrame.toDebugFrameView(
         lineDefined = lineDefined,
         lastLineDefined = lastLineDefined,
         locals = locals.map { local -> local.toDebugVariable(displayAdapters) },
+        upvalues = upvalues.map { upvalue -> upvalue.toDebugVariable(displayAdapters) },
     )
 }
 
@@ -145,6 +147,15 @@ public fun LuaLocalVariable.toDebugVariable(): DebugVariable {
 }
 
 public fun LuaLocalVariable.toDebugVariable(displayAdapters: DebugDisplayAdapters): DebugVariable {
+    return DebugVariable(
+        name = name,
+        value = value,
+        typeName = debugTypeName(value),
+        displayValue = debugDisplayValue(value, displayAdapters),
+    )
+}
+
+public fun LuaUpvalueVariable.toDebugVariable(displayAdapters: DebugDisplayAdapters = DebugDisplayAdapters.Empty): DebugVariable {
     return DebugVariable(
         name = name,
         value = value,

@@ -100,13 +100,13 @@ class DebugControllerTest {
     }
 
     @Test
-    fun `stepOut stops on return when call depth reaches target depth`() {
+    fun `stepOut stops on the next caller line when call depth reaches target depth`() {
         val controller = DebugController()
 
         controller.stepOut(currentDepth = 3)
         assertEquals(StepMode.Out(targetDepth = 2), controller.currentStepMode())
-        assertNull(controller.shouldStop("main.lua", 2, DebugEvent.RETURN, callDepth = 3))
-        val stop = controller.shouldStop("main.lua", 3, DebugEvent.RETURN, callDepth = 2)
+        assertNull(controller.shouldStop("main.lua", 2, DebugEvent.LINE, callDepth = 3))
+        val stop = controller.shouldStop("main.lua", 3, DebugEvent.LINE, callDepth = 2)
 
         assertEquals(DebugStopReason.STEP, stop?.reason)
         assertEquals(StepMode.None, controller.currentStepMode())

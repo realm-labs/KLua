@@ -9,6 +9,8 @@ sealed interface LuaCoroutineResult {
         val values: List<Any?>,
     ) : LuaCoroutineResult
 
+    data object DebugSuspended : LuaCoroutineResult
+
     data class RuntimeError(
         val message: String,
         val sourceName: String? = null,

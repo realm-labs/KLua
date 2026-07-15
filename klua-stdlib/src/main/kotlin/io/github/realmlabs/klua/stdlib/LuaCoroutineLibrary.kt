@@ -84,6 +84,10 @@ internal object LuaCoroutineLibrary {
                         coroutine.status = CoroutineStatus.SUSPENDED
                         LuaReturn.ofValues(listOf(true) + result.values)
                     }
+                    LuaCoroutineResult.DebugSuspended -> {
+                        coroutine.status = CoroutineStatus.DEAD
+                        LuaReturn.of(false, "coroutine suspended by debugger outside a debug session")
+                    }
                     is LuaCoroutineResult.RuntimeError -> {
                         coroutine.status = CoroutineStatus.DEAD
                         val errorObject = if (result.hasErrorObject) result.errorObject else result.message
@@ -202,6 +206,7 @@ internal object LuaCoroutineLibrary {
         return when (val result = handle.close()) {
             is LuaCoroutineResult.Returned -> LuaReturn.of(true)
             is LuaCoroutineResult.Yielded -> LuaReturn.of(false, "attempt to yield while closing coroutine")
+            LuaCoroutineResult.DebugSuspended -> LuaReturn.of(false, "attempt to suspend while closing coroutine")
             is LuaCoroutineResult.RuntimeError -> {
                 LuaReturn.of(false, if (result.hasErrorObject) result.errorObject else result.message)
             }

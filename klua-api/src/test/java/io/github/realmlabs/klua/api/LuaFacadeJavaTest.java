@@ -5,9 +5,11 @@ import org.junit.jupiter.api.Test;
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class LuaFacadeJavaTest {
@@ -64,6 +66,26 @@ class LuaFacadeJavaTest {
         lua.globals().setFunction("add", context -> LuaReturn.of(context.toInteger(1) + context.toInteger(2)));
 
         assertEquals(42L, lua.load("return add(20, 22)").evalLong());
+    }
+
+    @Test
+    void debuggableCoroutinesExposeJavaFriendlyLineObservers() {
+        Lua lua = Lua.create();
+        LuaCoroutineFunction function = (LuaCoroutineFunction) lua.load("""
+                return function()
+                    local value = 41
+                    return value + 1
+                end
+                """, "java-debug-observer.lua").eval().get(1);
+        LuaDebuggableCoroutineHandle coroutine = (LuaDebuggableCoroutineHandle) function.createCoroutine();
+        coroutine.setDebugObserver((event, sourceId, line, callDepth) -> line == 2);
+
+        assertSame(LuaCoroutineResult.DebugSuspended.INSTANCE, coroutine.resume(List.of()));
+        assertEquals(2, coroutine.getLuaFrames().get(0).getLine());
+
+        coroutine.setDebugObserver(null);
+        LuaCoroutineResult.Returned returned = (LuaCoroutineResult.Returned) coroutine.resume(List.of());
+        assertEquals(List.of(42L), returned.getValues());
     }
 
     @Test

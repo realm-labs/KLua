@@ -9,4 +9,14 @@ interface LuaDebuggableCoroutineHandle : LuaCoroutineHandle {
     fun setDebugHook(function: Any?, mask: String, count: Int): Boolean = false
 
     fun getDebugHook(): LuaReturn = LuaReturn.of(null)
+
+    fun setDebugObserver(observer: LuaDebugObserver?) {}
+}
+
+enum class LuaDebugEvent {
+    LINE,
+}
+
+fun interface LuaDebugObserver {
+    fun shouldSuspend(event: LuaDebugEvent, sourceId: String, line: Int, callDepth: Int): Boolean
 }
