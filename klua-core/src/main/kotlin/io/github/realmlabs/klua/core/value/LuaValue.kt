@@ -89,30 +89,22 @@ internal class LuaNativeFunction(
     }
 }
 
-internal class LuaNativeCallContext(
+internal open class LuaNativeCallContext(
     val arguments: List<LuaValue>,
-    private val luaFramesProvider: () -> List<LuaNativeStackFrame>,
     val isYieldable: Boolean = false,
-    private val setLocalValue: (level: Int, index: Int, value: LuaValue) -> String? = { _, _, _ -> null },
-    private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
-    private val getDebugHookValue: () -> LuaNativeDebugHook? = { null },
 ) {
     private var cachedLuaFrames: List<LuaNativeStackFrame>? = null
 
     val luaFrames: List<LuaNativeStackFrame>
-        get() = cachedLuaFrames ?: luaFramesProvider().also { frames -> cachedLuaFrames = frames }
+        get() = cachedLuaFrames ?: loadLuaFrames().also { frames -> cachedLuaFrames = frames }
 
-    fun setLocal(level: Int, index: Int, value: LuaValue): String? {
-        return setLocalValue(level, index, value)
-    }
+    protected open fun loadLuaFrames(): List<LuaNativeStackFrame> = emptyList()
 
-    fun setDebugHook(index: Int, mask: String, count: Int): Boolean {
-        return setDebugHookValue(index, mask, count)
-    }
+    open fun setLocal(level: Int, index: Int, value: LuaValue): String? = null
 
-    fun getDebugHook(): LuaNativeDebugHook? {
-        return getDebugHookValue()
-    }
+    open fun setDebugHook(index: Int, mask: String, count: Int): Boolean = false
+
+    open fun getDebugHook(): LuaNativeDebugHook? = null
 }
 
 internal data class LuaNativeStackFrame(

@@ -528,18 +528,34 @@ internal class LuaVm(
     }
 
     private fun nativeCallContext(function: LuaNativeFunction, arguments: List<LuaValue>): LuaNativeCallContext {
-        var frames: List<CallFrame>? = null
-        fun frames(): List<CallFrame> {
-            return frames ?: thread.stackFrames().also { currentFrames -> frames = currentFrames }
+        return VmNativeCallContext(function, arguments)
+    }
+
+    private inner class VmNativeCallContext(
+        function: LuaNativeFunction,
+        arguments: List<LuaValue>,
+    ) : LuaNativeCallContext(arguments, thread.isYieldable && function.yieldable) {
+        private var cachedFrames: List<CallFrame>? = null
+
+        private fun frames(): List<CallFrame> {
+            return cachedFrames ?: thread.stackFrames().also { frames -> cachedFrames = frames }
         }
-        return LuaNativeCallContext(
-            arguments,
-            luaFramesProvider = { luaStackFrames(frames()) },
-            isYieldable = thread.isYieldable && function.yieldable,
-            setLocalValue = { level, index, value -> setLocal(frames(), level, index, value) },
-            setDebugHookValue = { index, mask, count -> setDebugHook(arguments, index, mask, count) },
-            getDebugHookValue = { debugHook?.toNativeHook() },
-        )
+
+        override fun loadLuaFrames(): List<LuaNativeStackFrame> {
+            return luaStackFrames(frames())
+        }
+
+        override fun setLocal(level: Int, index: Int, value: LuaValue): String? {
+            return this@LuaVm.setLocal(frames(), level, index, value)
+        }
+
+        override fun setDebugHook(index: Int, mask: String, count: Int): Boolean {
+            return this@LuaVm.setDebugHook(arguments, index, mask, count)
+        }
+
+        override fun getDebugHook(): LuaNativeDebugHook? {
+            return debugHook?.toNativeHook()
+        }
     }
 
     private fun luaStackFrames(frames: List<CallFrame>): List<LuaNativeStackFrame> {

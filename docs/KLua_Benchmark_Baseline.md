@@ -285,3 +285,36 @@ The full twelve-workload suite after the change measured:
 | Execute 10,000 coroutine yield/resume cycles | 20,698.180 | ±3,602.873 |
 
 The full-suite method score is 64.2% below its 13,690.815 µs/op coverage baseline. Growing concatenation remains within its established range because non-key strings do not materialize the cache. The complete Gradle test suite passes. Coroutine yield/resume remains the largest runtime workload after its first optimization and is the next residual profiling target.
+
+## 2026-07-15 Native-Call Context Checkpoint
+
+After the Lua-string hash change, a new matched GC baseline placed the coroutine workload at 27,119,173.255 B/op and 16,753.175 µs/op. JFR allocation sampling no longer selected string bytes or identity maps; the largest KLua-attributed groups were the layered host/native adapters in `LuaState.callHostFunction`, `LuaVm.nativeCallContext`, and their core/API continuation conversions. The VM-side native context created a captured frame-cache closure plus callbacks for frames, local mutation, hook mutation, and hook lookup on every native call, although ordinary coroutine operations do not inspect those debug services.
+
+Lua 5.5's `ldo.c` `precallC` path exposes the active call state to a C function without constructing per-service callbacks. KLua now uses one VM-backed native-call context object that accesses the active VM directly. Lua frame materialization remains lazy and memoized; local mutation, hook access, and yieldability retain the same context methods. Existing API, debug-library, coroutine, and debugger tests exercise these services.
+
+The matched GC-profiler checkpoint measured:
+
+| Benchmark | Metric | Before | After | Delta |
+| --- | --- | ---: | ---: | ---: |
+| 10,000 coroutine yield/resume cycles | Average time | 16,753.175 µs/op | 14,809.104 µs/op | -11.6% |
+| 10,000 coroutine yield/resume cycles | Allocation | 27,119,173.255 B/op | 25,118,948.376 B/op | -7.4% |
+| 10,000 host calls | Allocation | 9,518,434.574 B/op | 8,158,434.655 B/op | -14.3% |
+
+The full twelve-workload suite after the change measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 7.906 | ±0.918 |
+| Execute numeric loop | 1,095.518 | ±249.661 |
+| Execute 10,000 Lua calls | 2,413.860 | ±272.444 |
+| Execute 10,000 closure-counter calls | 2,498.739 | ±498.721 |
+| Execute 10,000 host calls | 2,884.707 | ±452.812 |
+| Execute 10,000 `__index` metamethod calls | 2,969.671 | ±287.213 |
+| Execute 10,000 JVM-to-Lua calls | 3,656.762 | ±872.227 |
+| Execute 10,000 method calls | 5,260.093 | ±1,373.698 |
+| Execute recursive `fib(20)` | 6,393.035 | ±651.734 |
+| Execute 10,000 table writes and reads | 2,626.674 | ±949.929 |
+| Execute 1,000 growing string concatenations | 3,669.386 | ±1,256.241 |
+| Execute 10,000 coroutine yield/resume cycles | 15,635.268 | ±1,539.794 |
+
+The full-suite coroutine score is 24.5% below its 20,698.180 µs/op post-string-cache checkpoint. The complete Gradle test suite passes. The remaining API-side host context and continuation adapters require a fresh post-change profile before another optimization.
