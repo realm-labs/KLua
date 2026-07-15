@@ -19052,6 +19052,67 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math rounding and modf preserve lua ieee boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nan = 0.0 / 0.0
+                local negativeZero = -0.0
+                local modfZeroInteger, modfZeroFraction = math.modf(negativeZero)
+                local modfNanInteger, modfNanFraction = math.modf(nan)
+                local modfInfinityInteger, modfInfinityFraction = math.modf(math.huge)
+                local modfNegativeInfinityInteger, modfNegativeInfinityFraction = math.modf(-math.huge)
+                local modfUpperInteger, modfUpperFraction = math.modf("0x1p63")
+                local modfLowerInteger, modfLowerFraction = math.modf("-0x1p63")
+                return math.abs(negativeZero), math.type(math.abs(negativeZero)),
+                    math.floor(negativeZero), math.type(math.floor(negativeZero)),
+                    math.ceil(negativeZero), math.type(math.ceil(negativeZero)),
+                    math.floor(nan), math.type(math.floor(nan)),
+                    math.ceil(math.huge), math.ceil(-math.huge),
+                    modfZeroInteger, math.type(modfZeroInteger), modfZeroFraction,
+                    modfNanInteger, modfNanFraction,
+                    modfInfinityInteger, modfInfinityFraction,
+                    modfNegativeInfinityInteger, modfNegativeInfinityFraction,
+                    modfUpperInteger, math.type(modfUpperInteger), modfUpperFraction,
+                    modfLowerInteger, math.type(modfLowerInteger), modfLowerFraction
+                """.trimIndent(),
+                "math-ieee-rounding-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0.0.toRawBits(), state.toNumber(1)?.toRawBits())
+        assertEquals("float", state.toString(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals("integer", state.toString(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals("integer", state.toString(6))
+        assertTrue(state.toNumber(7)?.isNaN() == true)
+        assertEquals("float", state.toString(8))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(9))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(10))
+        assertEquals(0L, state.toInteger(11))
+        assertEquals("integer", state.toString(12))
+        assertEquals(0.0.toRawBits(), state.toNumber(13)?.toRawBits())
+        assertTrue(state.toNumber(14)?.isNaN() == true)
+        assertTrue(state.toNumber(15)?.isNaN() == true)
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(16))
+        assertEquals(0.0.toRawBits(), state.toNumber(17)?.toRawBits())
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(18))
+        assertEquals(0.0.toRawBits(), state.toNumber(19)?.toRawBits())
+        assertEquals(9223372036854775808.0, state.toNumber(20))
+        assertEquals("float", state.toString(21))
+        assertEquals(0.0.toRawBits(), state.toNumber(22)?.toRawBits())
+        assertEquals(Long.MIN_VALUE, state.toInteger(23))
+        assertEquals("integer", state.toString(24))
+        assertEquals(0.0.toRawBits(), state.toNumber(25)?.toRawBits())
+    }
+
+    @Test
     fun `openMath installs trigonometric functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -19229,6 +19290,104 @@ class LuaStdlibTest {
         assertEquals("float", state.toString(2))
         assertTrue(state.toNumber(3)?.isNaN() == true)
         assertEquals("float", state.toString(4))
+    }
+
+    @Test
+    fun `math fmod tointeger and ult cover signed integer boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local negativeZeroRemainder = math.fmod(-0.0, 3.0)
+                local zeroDivisor = math.fmod(1.0, -0.0)
+                local infiniteDividend = math.fmod(math.huge, 3.0)
+                return math.fmod(math.mininteger, math.maxinteger),
+                    math.fmod(math.maxinteger, math.mininteger),
+                    math.fmod(math.mininteger, -1),
+                    negativeZeroRemainder, zeroDivisor, infiniteDividend,
+                    math.tointeger(-0.0),
+                    math.tointeger("0x1p63"),
+                    math.tointeger("-0x1p63"),
+                    math.tointeger(0.0 / 0.0),
+                    math.tointeger(math.huge),
+                    math.tointeger(false),
+                    math.ult(0, math.mininteger),
+                    math.ult(math.maxinteger, math.mininteger),
+                    math.ult(math.mininteger, -1),
+                    math.ult(-1, math.mininteger),
+                    math.ult(-1, -1)
+                """.trimIndent(),
+                "math-signed-integer-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(-1L, state.toInteger(1))
+        assertEquals(Long.MAX_VALUE, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals((-0.0).toRawBits(), state.toNumber(4)?.toRawBits())
+        assertTrue(state.toNumber(5)?.isNaN() == true)
+        assertTrue(state.toNumber(6)?.isNaN() == true)
+        assertEquals(0L, state.toInteger(7))
+        assertTrue(state.isNil(8))
+        assertEquals(Long.MIN_VALUE, state.toInteger(9))
+        assertTrue(state.isNil(10))
+        assertTrue(state.isNil(11))
+        assertTrue(state.isNil(12))
+        assertTrue(state.toBoolean(13))
+        assertTrue(state.toBoolean(14))
+        assertTrue(state.toBoolean(15))
+        assertFalse(state.toBoolean(16))
+        assertFalse(state.toBoolean(17))
+    }
+
+    @Test
+    fun `math integer boundary helpers retain source arity and error order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local leftOk, leftMessage = pcall(math.fmod, {}, 0)
+                local rightOk, rightMessage = pcall(math.fmod, 1, {})
+                local ultLeftOk, ultLeftMessage = pcall(math.ult, 1.5, {})
+                local ultRightOk, ultRightMessage = pcall(math.ult, 1, 2.5)
+                return select("#", math.abs(-1, "ignored")),
+                    select("#", math.floor(1.5, "ignored")),
+                    select("#", math.ceil(1.5, "ignored")),
+                    select("#", math.fmod(5, 2, "ignored")),
+                    select("#", math.modf(1.5, "ignored")),
+                    select("#", math.tointeger(nil, "ignored")),
+                    select("#", math.ult(0, 1, "ignored")),
+                    leftOk, leftMessage, rightOk, rightMessage,
+                    ultLeftOk, ultLeftMessage, ultRightOk, ultRightMessage
+                """.trimIndent(),
+                "math-boundary-arity-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #1 to 'fmod' (number expected)", state.toString(9))
+        assertFalse(state.toBoolean(10))
+        assertEquals("bad argument #2 to 'fmod' (number expected)", state.toString(11))
+        assertFalse(state.toBoolean(12))
+        assertEquals("bad argument #1 to 'ult' (number has no integer representation)", state.toString(13))
+        assertFalse(state.toBoolean(14))
+        assertEquals("bad argument #2 to 'ult' (number has no integer representation)", state.toString(15))
     }
 
     @Test
