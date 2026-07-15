@@ -15140,6 +15140,177 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `newindex field metamethod can yield repeatedly and discard its results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, {
+                    __newindex = function(self, key, value)
+                        local firstResume = coroutine.yield("field", self, key, value)
+                        coroutine.yield("again", firstResume)
+                        return "ignored", "also ignored"
+                    end,
+                })
+                local co = coroutine.create(function()
+                    target.answer = 42
+                    return "done"
+                end)
+                local firstOk, firstMarker, yieldedSelf, yieldedKey, yieldedValue = coroutine.resume(co)
+                local secondOk, secondMarker, firstResume = coroutine.resume(co, "resume-one")
+                local thirdOk, done = coroutine.resume(co, "resume-two")
+                return firstOk, firstMarker, yieldedSelf == target, yieldedKey, yieldedValue,
+                    secondOk, secondMarker, firstResume, thirdOk, done,
+                    rawget(target, "answer"), coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-newindex-field.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("field", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("answer", state.toString(4))
+        assertEquals(42L, state.toInteger(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("again", state.toString(7))
+        assertEquals("resume-one", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("done", state.toString(10))
+        assertTrue(state.isNil(11))
+        assertEquals("dead", state.toString(12))
+    }
+
+    @Test
+    fun `newindex computed assignment can yield through a table chain`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local prototype = setmetatable({}, {
+                    __newindex = function(self, key, value)
+                        coroutine.yield("chain", self, key, value)
+                    end,
+                })
+                local target = setmetatable({}, { __newindex = prototype })
+                local key = "dynamic"
+                local co = coroutine.create(function()
+                    target[key] = 43
+                    return "done"
+                end)
+                local firstOk, marker, yieldedSelf, yieldedKey, yieldedValue = coroutine.resume(co)
+                local secondOk, done = coroutine.resume(co)
+                return firstOk, marker, yieldedSelf == prototype, yieldedKey, yieldedValue,
+                    secondOk, done, rawget(target, key), rawget(prototype, key), coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-newindex-chain.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("chain", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("dynamic", state.toString(4))
+        assertEquals(43L, state.toInteger(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("done", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertTrue(state.isNil(9))
+        assertEquals("dead", state.toString(10))
+    }
+
+    @Test
+    fun `global newindex metamethod can yield and resume`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                setmetatable(_ENV, {
+                    __newindex = function(self, key, value)
+                        coroutine.yield("global-write", self, key, value)
+                    end,
+                })
+                local co = coroutine.create(function()
+                    missingGlobal = 44
+                    return "done"
+                end)
+                local firstOk, marker, yieldedEnvironment, yieldedKey, yieldedValue = coroutine.resume(co)
+                local secondOk, done = coroutine.resume(co)
+                return firstOk, marker, yieldedEnvironment == _ENV, yieldedKey, yieldedValue,
+                    secondOk, done, rawget(_ENV, "missingGlobal"), coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-global-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("global-write", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("missingGlobal", state.toString(4))
+        assertEquals(44L, state.toInteger(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("done", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals("dead", state.toString(9))
+    }
+
+    @Test
+    fun `native newindex metamethod can yield and resume`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostNewIndex",
+            LuaYieldableFunction { context ->
+                context.yield(listOf("native-write", context.get(2), context.get(3)))
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, { __newindex = hostNewIndex })
+                local co = coroutine.create(function()
+                    target.answer = 45
+                    return "done"
+                end)
+                local firstOk, marker, yieldedKey, yieldedValue = coroutine.resume(co)
+                local secondOk, done = coroutine.resume(co, "ignored result")
+                return firstOk, marker, yieldedKey, yieldedValue,
+                    secondOk, done, rawget(target, "answer"), coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-native-newindex.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1), state.toString(2))
+        assertEquals("native-write", state.toString(2))
+        assertEquals("answer", state.toString(3))
+        assertEquals(45L, state.toInteger(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("done", state.toString(6))
+        assertTrue(state.isNil(7))
+        assertEquals("dead", state.toString(8))
+    }
+
+    @Test
     fun `coroutine yield and resume preserve cyclic table identity`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
@@ -22989,6 +23160,36 @@ class LuaStdlibTest {
                 return ok, message, coroutine.status(co)
                 """.trimIndent(),
                 "table-concat-index-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+    }
+
+    @Test
+    fun `table move newindex metamethod cannot yield across its native boundary`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, {
+                    __newindex = function()
+                        coroutine.yield("paused")
+                    end,
+                })
+                local co = coroutine.create(function()
+                    table.move({ 7 }, 1, 1, 1, target)
+                end)
+                local ok, message = coroutine.resume(co)
+                return ok, message, coroutine.status(co)
+                """.trimIndent(),
+                "table-move-newindex-yield-boundary.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
