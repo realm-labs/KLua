@@ -29154,6 +29154,72 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table concat terminates at full width range endpoints`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = setmetatable({}, {
+                    __index = function(_, key)
+                        if key == math.maxinteger then return "max" end
+                        if key == math.maxinteger - 1 then return "before" end
+                        if key == math.mininteger then return "min" end
+                        return "unexpected"
+                    end,
+                })
+                return table.concat(values, "|", math.maxinteger, math.maxinteger),
+                    table.concat(values, "|", math.maxinteger - 1, math.maxinteger),
+                    table.concat(values, "|", math.mininteger, math.mininteger),
+                    table.concat(values, "|", math.maxinteger, math.mininteger),
+                    select("#", table.concat(values, "|", math.maxinteger, math.mininteger))
+                """.trimIndent(),
+                "table-concat-full-width-ranges.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("max", state.toString(1))
+        assertEquals("before|max", state.toString(2))
+        assertEquals("min", state.toString(3))
+        assertEquals("", state.toString(4))
+        assertEquals(1L, state.toInteger(5))
+    }
+
+    @Test
+    fun `table concat preserves raw value and separator bytes`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = string.char(0, 128, 255)
+                local second = "é"
+                local separator = string.char(1, 0, 255)
+                local joined = table.concat({ first, second }, separator, 1, 2, "ignored")
+                return joined, string.len(joined), table.concat({ "a", "b" }, 12)
+                """.trimIndent(),
+                "table-concat-raw-byte-layout.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            listOf(0, 128, 255, 1, 0, 255, 195, 169),
+            state.toString(1)?.luaRawBytes()?.map { byte -> byte.toInt() and 0xff },
+        )
+        assertEquals(8L, state.toInteger(2))
+        assertEquals("a12b", state.toString(3))
+    }
+
+    @Test
     fun `table concat formats numbers like lua`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)

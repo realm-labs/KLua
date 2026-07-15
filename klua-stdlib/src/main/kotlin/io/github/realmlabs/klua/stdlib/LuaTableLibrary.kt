@@ -51,12 +51,13 @@ internal object LuaTableLibrary {
 
         val builder = StringBuilder()
         var index = start
-        while (index <= end) {
-            if (index > start) {
-                builder.append(separator)
-            }
+        while (index < end) {
             builder.append(tableConcatValue(context, 1, index))
+            builder.append(separator)
             index++
+        }
+        if (index == end) {
+            builder.append(tableConcatValue(context, 1, index))
         }
         return LuaReturn.of(builder.toString())
     }
