@@ -14868,13 +14868,22 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local shellAvailable = os.execute()
-                local ok, okKind, okCode = os.execute("exit 0")
-                local failed, failedKind, failedCode = os.execute("exit 7")
+                local shellCount, shellAvailable = (function(...)
+                    return select("#", ...), ...
+                end)(os.execute(nil, "ignored"))
+                local okCount, ok, okKind, okCode = (function(...)
+                    return select("#", ...), ...
+                end)(os.execute("exit 0", "ignored"))
+                local failedCount, failed, failedKind, failedCode = (function(...)
+                    return select("#", ...), ...
+                end)(os.execute("exit 7"))
+                local missing, missingKind, missingCode =
+                    os.execute("KLUA_COMMAND_THAT_DOES_NOT_EXIST_0123456789")
                 local typeOk, typeMessage = pcall(os.execute, {})
-                return shellAvailable,
-                    ok, okKind, okCode,
-                    failed, failedKind, failedCode,
+                return shellCount, shellAvailable,
+                    okCount, ok, okKind, okCode,
+                    failedCount, failed, failedKind, failedCode,
+                    missing, missingKind, missingCode,
                     typeOk, typeMessage
                 """.trimIndent(),
                 "os-execute.lua",
@@ -14882,15 +14891,21 @@ class LuaStdlibTest {
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertTrue(state.toBoolean(1))
+        assertEquals(1L, state.toInteger(1))
         assertTrue(state.toBoolean(2))
-        assertEquals("exit", state.toString(3))
-        assertEquals(0L, state.toInteger(4))
-        assertTrue(state.isNil(5))
-        assertEquals("exit", state.toString(6))
-        assertEquals(7L, state.toInteger(7))
-        assertFalse(state.toBoolean(8))
-        assertEquals("bad argument #1 to 'os.execute' (string expected)", state.toString(9))
+        assertEquals(3L, state.toInteger(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("exit", state.toString(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals(3L, state.toInteger(7))
+        assertTrue(state.isNil(8))
+        assertEquals("exit", state.toString(9))
+        assertEquals(7L, state.toInteger(10))
+        assertTrue(state.isNil(11))
+        assertEquals("exit", state.toString(12))
+        assertTrue((state.toInteger(13) ?: 0L) != 0L)
+        assertFalse(state.toBoolean(14))
+        assertEquals("bad argument #1 to 'os.execute' (string expected)", state.toString(15))
     }
 
     @Test

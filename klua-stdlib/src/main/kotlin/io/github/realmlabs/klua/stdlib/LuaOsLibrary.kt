@@ -55,7 +55,7 @@ internal object LuaOsLibrary {
 
     private fun execute(context: LuaCallContext): LuaReturn {
         if (context.isNone(1) || context.isNil(1)) {
-            return LuaReturn.of(true)
+            return LuaReturn.of(shellAvailable())
         }
         val command = requiredString(context, 1, "os.execute")
         val exitCode = try {
@@ -63,15 +63,33 @@ internal object LuaOsLibrary {
                 .inheritIO()
                 .start()
                 .waitFor()
-        } catch (_: IOException) {
-            return LuaReturn.of(null, "exit", 1L)
-        } catch (_: SecurityException) {
-            return LuaReturn.of(null, "exit", 1L)
+        } catch (error: IOException) {
+            return LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+        } catch (error: SecurityException) {
+            return LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
         } catch (_: InterruptedException) {
             Thread.currentThread().interrupt()
             throw LuaRuntimeException("interrupted while executing command")
         }
         return executeResult(exitCode)
+    }
+
+    private fun shellAvailable(): Boolean {
+        return try {
+            val process = ProcessBuilder(shellCommand("exit 0"))
+                .redirectOutput(ProcessBuilder.Redirect.DISCARD)
+                .redirectError(ProcessBuilder.Redirect.DISCARD)
+                .start()
+            process.outputStream.close()
+            process.waitFor() == 0
+        } catch (_: IOException) {
+            false
+        } catch (_: SecurityException) {
+            false
+        } catch (_: InterruptedException) {
+            Thread.currentThread().interrupt()
+            throw LuaRuntimeException("interrupted while probing command shell")
+        }
     }
 
     private fun exit(context: LuaCallContext, exitHandler: LuaExitHandler): LuaReturn {
