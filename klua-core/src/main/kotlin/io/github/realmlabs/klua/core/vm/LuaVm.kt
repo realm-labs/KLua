@@ -210,6 +210,26 @@ internal class LuaVm(
         return runFrameAndPopOnCompletion(frame)
     }
 
+    private fun executeFrame(
+        function: LuaClosure,
+        sourceStack: LuaStack,
+        argumentStart: Int,
+        argumentCount: Int,
+        callSiteInfo: CallSiteInfo?,
+    ): LuaExecutionResult {
+        val frame = thread.pushCallFromStack(
+            function.prototype,
+            sourceStack,
+            argumentStart,
+            argumentCount,
+            function.upvalues,
+            environment = function.environment ?: function.globals?.let(::LuaUpvalue) ?: rootEnvironment,
+            function = function,
+            callSiteInfo = callSiteInfo,
+        )
+        return runFrameAndPopOnCompletion(frame)
+    }
+
     private fun runFrameAndPopOnCompletion(frame: CallFrame): LuaExecutionResult {
         val stack = frame.stack
         var suspended = false
@@ -367,8 +387,13 @@ internal class LuaVm(
     private fun call(stack: LuaStack, frame: CallFrame, instruction: Int): LuaExecutionResult? {
         val base = register(frame, Instruction.a(instruction))
         val callee = stack.get(base)
-        val arguments = stack.slice(base + 1, argumentCount(frame, base, Instruction.b(instruction)))
-        val results = callValue(callee, arguments, callSiteInfo(frame, frame.pc - 1))
+        val argumentCount = argumentCount(frame, base, Instruction.b(instruction))
+        val callSiteInfo = callSiteInfo(frame, frame.pc - 1)
+        val results = if (callee is LuaClosure) {
+            executeFrame(callee, stack, base + 1, argumentCount, callSiteInfo)
+        } else {
+            callValue(callee, stack.slice(base + 1, argumentCount), callSiteInfo)
+        }
         val expectedResults = Instruction.c(instruction)
         if (results is LuaExecutionResult.Yielded) {
             frame.setPendingCall(base, expectedResults, results.continuation)

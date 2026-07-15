@@ -3,6 +3,8 @@ package io.github.realmlabs.klua.core.vm
 import io.github.realmlabs.klua.core.bytecode.Prototype
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -78,6 +80,32 @@ class LuaThreadTest {
         assertTrue(frame.setVararg(1, LuaInteger(50)))
 
         assertEquals(listOf<LuaValue>(LuaInteger(10), LuaInteger(20), LuaInteger(30), LuaInteger(40)), arguments)
+    }
+
+    @Test
+    fun `push call copies fixed parameters and varargs from a stack range`() {
+        val thread = LuaThread()
+        val sourceStack = LuaStack(5)
+        sourceStack.set(0, LuaInteger(5))
+        sourceStack.set(1, LuaInteger(10))
+        sourceStack.set(2, LuaInteger(20))
+        sourceStack.set(3, LuaNil)
+        sourceStack.set(4, LuaInteger(40))
+
+        val frame = thread.pushCallFromStack(
+            prototype("chunk", maxStackSize = 2, numParams = 2, isVararg = true),
+            sourceStack,
+            argumentStart = 1,
+            argumentCount = 4,
+            upvalues = emptyList(),
+            environment = LuaUpvalue(LuaTable()),
+            function = LuaNil,
+        )
+        sourceStack.set(3, LuaInteger(30))
+
+        assertEquals(LuaInteger(10), frame.stack.get(0))
+        assertEquals(LuaInteger(20), frame.stack.get(1))
+        assertEquals(listOf<LuaValue>(LuaNil, LuaInteger(40)), frame.varargs)
     }
 
     @Test

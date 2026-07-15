@@ -42,6 +42,42 @@ internal class LuaThread {
         } else {
             null
         }
+        return createAndPushFrame(prototype, function, stack, varargs, upvalues, environment, callSiteInfo)
+    }
+
+    fun pushCallFromStack(
+        prototype: Prototype,
+        sourceStack: LuaStack,
+        argumentStart: Int,
+        argumentCount: Int,
+        upvalues: List<LuaUpvalue>,
+        environment: LuaUpvalue,
+        function: LuaValue,
+        callSiteInfo: CallSiteInfo? = null,
+    ): CallFrame {
+        require(argumentCount >= 0) { "argument count must be non-negative" }
+        val stack = LuaStack(prototype.maxStackSize.coerceAtLeast(argumentCount))
+        for (index in 0 until prototype.numParams) {
+            val value = if (index < argumentCount) sourceStack.get(argumentStart + index) else LuaNil
+            stack.set(index, value)
+        }
+        val varargs: MutableList<LuaValue>? = if (prototype.isVararg) {
+            copyVarargs(sourceStack, argumentStart, argumentCount, prototype.numParams)
+        } else {
+            null
+        }
+        return createAndPushFrame(prototype, function, stack, varargs, upvalues, environment, callSiteInfo)
+    }
+
+    private fun createAndPushFrame(
+        prototype: Prototype,
+        function: LuaValue,
+        stack: LuaStack,
+        varargs: MutableList<LuaValue>?,
+        upvalues: List<LuaUpvalue>,
+        environment: LuaUpvalue,
+        callSiteInfo: CallSiteInfo?,
+    ): CallFrame {
         val frame = CallFrame(
             prototype,
             function,
@@ -59,6 +95,19 @@ internal class LuaThread {
         val varargs = ArrayList<LuaValue>((arguments.size - firstVararg).coerceAtLeast(0))
         for (index in firstVararg until arguments.size) {
             varargs += arguments[index]
+        }
+        return varargs
+    }
+
+    private fun copyVarargs(
+        sourceStack: LuaStack,
+        argumentStart: Int,
+        argumentCount: Int,
+        firstVararg: Int,
+    ): MutableList<LuaValue> {
+        val varargs = ArrayList<LuaValue>((argumentCount - firstVararg).coerceAtLeast(0))
+        for (index in firstVararg until argumentCount) {
+            varargs += sourceStack.get(argumentStart + index)
         }
         return varargs
     }
