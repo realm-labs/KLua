@@ -21806,6 +21806,195 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string byte primitives preserve raw layouts and coerce numbers`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local raw = string.char(0, 1, 127, 128, 255)
+                local reverse1, reverse2, reverse3, reverse4, reverse5 =
+                    string.byte(string.reverse(raw), 1, -1)
+                local slice = string.sub(raw, 2, -2)
+                local slice1, slice2, slice3 = string.byte(slice, 1, -1)
+                local repeated = string.rep(string.sub(raw, 4, 5), 2, string.char(0))
+                local rep1, rep2, rep3, rep4, rep5 = string.byte(repeated, 1, -1)
+                return string.len(raw),
+                    reverse1, reverse2, reverse3, reverse4, reverse5,
+                    string.len(slice), slice1, slice2, slice3,
+                    string.len(repeated), rep1, rep2, rep3, rep4, rep5,
+                    string.len(123), string.reverse(1200), string.sub(12345, 2, 4),
+                    string.byte(65), string.rep(12, 2, 34), string.char() == "",
+                    string.len("abc", {}), string.reverse("abc", {}),
+                    string.sub("abc", 1, 2, {}), string.byte("abc", 1, 1, {}),
+                    string.rep("x", 2, "-", {})
+                """.trimIndent(),
+                "string-byte-primitives-raw-layouts.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val expectedIntegers = listOf(
+            5L,
+            255L, 128L, 127L, 1L, 0L,
+            3L, 1L, 127L, 128L,
+            5L, 128L, 255L, 0L, 128L, 255L,
+            3L,
+        )
+        expectedIntegers.forEachIndexed { index, expected ->
+            assertEquals(expected, state.toInteger(index + 1), "result ${index + 1}")
+        }
+        assertEquals("0021", state.toString(18))
+        assertEquals("234", state.toString(19))
+        assertEquals('6'.code.toLong(), state.toInteger(20))
+        assertEquals("123412", state.toString(21))
+        assertTrue(state.toBoolean(22))
+        assertEquals(3L, state.toInteger(23))
+        assertEquals("cba", state.toString(24))
+        assertEquals("ab", state.toString(25))
+        assertEquals('a'.code.toLong(), state.toInteger(26))
+        assertEquals("x-x", state.toString(27))
+    }
+
+    @Test
+    fun `string byte and char round trip the complete raw byte domain`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local parts = {}
+                for value = 0, 255 do
+                    parts[#parts + 1] = string.char(value)
+                end
+                local all = table.concat(parts)
+                local rebuilt = string.char(string.byte(all, 1, -1))
+                return all, string.reverse(all), rebuilt, string.len(all)
+                """.trimIndent(),
+                "string-byte-char-complete-domain.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val allBytes = ByteArray(256) { value -> value.toByte() }
+        assertEquals(allBytes.toList(), state.toString(1)?.luaRawBytes()?.toList())
+        assertEquals(allBytes.reversed(), state.toString(2)?.luaRawBytes()?.toList())
+        assertEquals(allBytes.toList(), state.toString(3)?.luaRawBytes()?.toList())
+        assertEquals(256L, state.toInteger(4))
+    }
+
+    @Test
+    fun `string sub and byte normalize extreme byte positions`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local text = "ABC"
+                local whole1, whole2, whole3 = string.byte(text, math.mininteger, math.maxinteger)
+                local zero1, zero2, zero3 = string.byte(text, 0, -1)
+                local function arity(...)
+                    return select("#", ...)
+                end
+                return string.sub(text, 0, 0),
+                    string.sub(text, 0),
+                    string.sub(text, -4, -1),
+                    string.sub(text, -3, -3),
+                    string.sub(text, -1, -1),
+                    string.sub(text, 4, math.maxinteger),
+                    string.sub(text, math.mininteger, math.maxinteger),
+                    string.sub(text, math.maxinteger, math.mininteger),
+                    string.sub(text, 1, math.mininteger),
+                    arity(string.byte(text, 0)),
+                    arity(string.byte(text, -4)),
+                    arity(string.byte(text, math.maxinteger)),
+                    arity(string.byte(text, math.mininteger, math.maxinteger)),
+                    whole1, whole2, whole3,
+                    zero1, zero2, zero3,
+                    arity(string.byte(""))
+                """.trimIndent(),
+                "string-byte-primitives-extreme-positions.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val expectedStrings = listOf("", "ABC", "ABC", "A", "C", "", "ABC", "", "")
+        expectedStrings.forEachIndexed { index, expected ->
+            assertEquals(expected, state.toString(index + 1), "result ${index + 1}")
+        }
+        val expectedIntegers = listOf(
+            0L, 0L, 0L, 3L,
+            65L, 66L, 67L,
+            65L, 66L, 67L,
+            0L,
+        )
+        expectedIntegers.forEachIndexed { index, expected ->
+            assertEquals(expected, state.toInteger(index + 10), "result ${index + 10}")
+        }
+    }
+
+    @Test
+    fun `string byte primitives preserve source validation order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local subStartOk, subStartMessage = pcall(string.sub, "ABC", "bad", {})
+                local subEndOk, subEndMessage = pcall(string.sub, "ABC", 10, {})
+                local byteStartOk, byteStartMessage = pcall(string.byte, "ABC", "bad", {})
+                local byteEndOk, byteEndMessage = pcall(string.byte, "ABC", 10, {})
+                local repCountOk, repCountMessage = pcall(string.rep, "x", "bad", {})
+                local repSeparatorOk, repSeparatorMessage = pcall(string.rep, "x", 0, {})
+                local repHugeOk, repHugeMessage = pcall(string.rep, "x", math.maxinteger)
+                local repEmptyOk, repEmpty = pcall(string.rep, "", math.maxinteger, "")
+                local charFirstOk, charFirstMessage = pcall(string.char, -1, {})
+                local charSecondOk, charSecondMessage = pcall(string.char, 65, {})
+                return subStartOk, subStartMessage, subEndOk, subEndMessage,
+                    byteStartOk, byteStartMessage, byteEndOk, byteEndMessage,
+                    repCountOk, repCountMessage, repSeparatorOk, repSeparatorMessage,
+                    repHugeOk, repHugeMessage, repEmptyOk, repEmpty,
+                    charFirstOk, charFirstMessage, charSecondOk, charSecondMessage
+                """.trimIndent(),
+                "string-byte-primitives-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val failures = listOf(
+            1 to "bad argument #2 to 'sub' (number expected)",
+            3 to "bad argument #3 to 'sub' (number expected)",
+            5 to "bad argument #2 to 'byte' (number expected)",
+            7 to "bad argument #3 to 'byte' (number expected)",
+            9 to "bad argument #2 to 'rep' (number expected)",
+            11 to "bad argument #3 to 'rep' (string expected)",
+            13 to "resulting string too large",
+            17 to "bad argument #1 to 'char' (value out of range)",
+            19 to "bad argument #2 to 'char' (number expected)",
+        )
+        failures.forEach { (okIndex, expectedMessage) ->
+            assertFalse(state.toBoolean(okIndex), "result $okIndex")
+            assertEquals(expectedMessage, state.toString(okIndex + 1), "result ${okIndex + 1}")
+        }
+        assertTrue(state.toBoolean(15))
+        assertEquals("", state.toString(16))
+    }
+
+    @Test
     fun `string byte observes source byte escapes`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
