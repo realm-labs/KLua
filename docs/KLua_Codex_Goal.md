@@ -191,6 +191,7 @@ Current implemented areas:
 - `string.gsub` supports string, function, and table replacements with Lua-style capture arguments and nil/false preservation.
 - `string.packsize`, `string.pack`, and `string.unpack` cover Lua 5.5 format parsing, endian directives, alignment, fixed and variable strings, integer formats, and floating-point formats.
 - Table-library conformance includes table-like primitive receivers for `table.concat`, `table.unpack`, `table.insert`, `table.remove`, `table.move`, and `table.sort` when Lua 5.5 `checktab`/metamethod requirements are met.
+- IO-library conformance includes source-ordered read-format parsing and execution across direct reads and captured line iterators, including partial progress before later argument errors and short-circuiting after EOF or file errors.
 - Live debugger runtime registration assigns stable thread IDs to independent coroutine sessions; debug-disabled API configurations reject execution observers, and the normal VM opcode path performs only a null-observer check.
 - Focused parser, compiler, VM, API, Kotlin helper, conformance, and foundation tests.
 
@@ -547,11 +548,17 @@ Lua 5.5's `liolib.c:f_lines` validates an open caller-owned handle before captur
 
 KLua already matched delayed format validation, format limits and source positions, manual/stateless iteration, named/default/file-handle ownership, EOF closure, already-closed iterator errors, named open errors, read errors, and early generic-for closing. The audit found one ordering mismatch in the default branch: KLua enforced the format cap before validating the default handle, whereas Lua's `tofile` check happens first. Default-handle lookup/open validation now precedes the count check, so a closed default plus 251 formats reports `attempt to use a closed file`; file-handle and named-file branches retain their source order. Focused ownership tests and the complete repository suite pass.
 
+### M20 IO Ordered Read-Format Audit
+
+Lua 5.5's `liolib.c:g_read` parses and executes one format per loop iteration and stops as soon as a read fails. Therefore a later invalid format is diagnosed only after every earlier successful read has advanced the file, but is never inspected after EOF or a file error. The same helper drives `f_read`, `io_read`, and `io_readline`; the iterator returns no values at clean EOF and raises only when the failed read supplied error details.
+
+KLua previously converted the entire format list before performing any input, so a later invalid format could prevent earlier valid reads and could surface even when EOF or a direction error should have ended processing. Direct reads and captured line iterators now retain raw format arguments and parse each immediately before its read. For a non-readable handle, only the first format is validated before the file-error result, matching the source's first attempted operation while leaving later formats unobserved. Focused coverage proves partial line consumption before a later format error, zero-byte success before later validation, EOF arity and short-circuiting, iterator reuse after partial progress, iterator no-result EOF, and first-versus-later invalid formats on a write-only handle. Focused IO and complete repository tests pass; numeric scanner token grammar remains a separate campaign.
+
 Use this work-package order:
 
 | Order | Work package | Outcome and exit criteria | Expected commit shape |
 | --- | --- | --- | --- |
-| 1 | M20 IO ordered read-format audit | Audit `liolib.c:g_read`, `f_read`, `io_read`, and `io_readline` for incremental format validation/execution, later invalid formats after prior reads, EOF short-circuiting, direction errors, zero/count formats, result arity, and iterator reuse after partial progress. Preserve source ordering rather than pre-validating a whole format list, then run focused and full verification. | One coherent IO read-order commit; keep numeric scanner token grammar separate. |
+| 1 | M20 IO ordered write/error audit | Audit `liolib.c:g_write`, `f_write`, and `io_write` for per-argument conversion/write ordering, invalid first and later values, empty argument lists, direction and closed-default failures, partial progress, result arity, and the source's cumulative byte count on short writes. Preserve argument conversion timing and document any JVM stream limitation, then run focused and full verification. | One coherent IO write-order commit; keep platform-specific failure injection bounded and explicit. |
 
 M20 conformance remains important throughout development, but broad hardening should run as an explicitly selected campaign rather than an open-ended stream of unrelated probes. A campaign should name one subsystem or semantic invariant, list the affected entry points and reference-source functions, define its case matrix, and finish by updating the gap snapshot. Regression, data-integrity, security, or active-milestone blocking fixes may interrupt the order above; incidental edge cases should be queued for the next campaign.
 

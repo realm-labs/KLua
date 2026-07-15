@@ -356,11 +356,15 @@ internal object LuaIoLibrary {
         firstArgumentIndex: Int = 1,
     ): LuaReturn {
         handle.ensureOpen()
+        val arguments = readFormatArgumentsFromContext(context, 1)
         if (!handle.readable) {
+            arguments.firstOrNull()?.let { argument ->
+                readFormatFromArgument(argument, firstArgumentIndex, "read")
+            }
             return LuaReturn.of(null, "Bad file descriptor", 1L)
         }
         return LuaReturn.ofValues(
-            readFormats(handle, readFormatsFromContext(context, 1, "read", firstArgumentIndex)),
+            readFormats(handle, arguments, firstArgumentIndex, "read"),
         )
     }
 
@@ -388,10 +392,12 @@ internal object LuaIoLibrary {
                 throw LuaRuntimeException("file is already closed")
             }
             if (!handle.readable) {
+                arguments.firstOrNull()?.let { argument ->
+                    readFormatFromArgument(argument, firstArgumentIndex, functionName)
+                }
                 throw LuaRuntimeException("Bad file descriptor")
             }
-            val formats = readFormatsFromArguments(arguments, firstArgumentIndex, functionName)
-            val values = readFormats(handle, formats)
+            val values = readFormats(handle, arguments, firstArgumentIndex, functionName)
             if (values.firstOrNull() == null) {
                 if (closeOnEnd && !handle.closed) {
                     closeHandle(handle)
@@ -403,13 +409,19 @@ internal object LuaIoLibrary {
         }
     }
 
-    private fun readFormats(handle: IoFileHandle, formats: List<IoReadFormat>): List<Any?> {
+    private fun readFormats(
+        handle: IoFileHandle,
+        arguments: List<IoReadArgument>,
+        firstArgumentIndex: Int,
+        functionName: String,
+    ): List<Any?> {
         handle.ensureOpen()
-        if (formats.isEmpty()) {
+        if (arguments.isEmpty()) {
             return listOf(handle.readLine(chop = true))
         }
         val values = mutableListOf<Any?>()
-        for (format in formats) {
+        for ((offset, argument) in arguments.withIndex()) {
+            val format = readFormatFromArgument(argument, firstArgumentIndex + offset, functionName)
             val value = when (format) {
                 IoReadFormat.All -> handle.readAll()
                 IoReadFormat.Line -> handle.readLine(chop = true)
@@ -423,19 +435,6 @@ internal object LuaIoLibrary {
             }
         }
         return values
-    }
-
-    private fun readFormatsFromContext(
-        context: LuaCallContext,
-        firstIndex: Int,
-        functionName: String,
-        firstArgumentIndex: Int = firstIndex,
-    ): List<IoReadFormat> {
-        return readFormatsFromArguments(
-            readFormatArgumentsFromContext(context, firstIndex),
-            firstArgumentIndex,
-            functionName,
-        )
     }
 
     private fun checkLineFormatCount(
@@ -459,36 +458,33 @@ internal object LuaIoLibrary {
         }
     }
 
-    private fun readFormatsFromArguments(
-        arguments: List<IoReadArgument>,
-        firstIndex: Int,
+    private fun readFormatFromArgument(
+        argument: IoReadArgument,
+        index: Int,
         functionName: String,
-    ): List<IoReadFormat> {
-        return arguments.mapIndexed { offset, argument ->
-            val index = firstIndex + offset
-            if (argument.typeName == "number") {
-                val integer = integerReadFormat(argument.value)
-                if (integer != null) {
-                    if (integer < 0L || integer > Int.MAX_VALUE) {
-                        throw LuaRuntimeException("bad argument #$index to '$functionName' (out of range)")
-                    }
-                    return@mapIndexed IoReadFormat.Chars(integer.toInt())
+    ): IoReadFormat {
+        if (argument.typeName == "number") {
+            val integer = integerReadFormat(argument.value)
+            if (integer != null) {
+                if (integer < 0L || integer > Int.MAX_VALUE) {
+                    throw LuaRuntimeException("bad argument #$index to '$functionName' (out of range)")
                 }
-                throw LuaRuntimeException(
-                    "bad argument #$index to '$functionName' (number has no integer representation)",
-                )
+                return IoReadFormat.Chars(integer.toInt())
             }
-            val format = argument.value as? CharSequence
-                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
-            val text = format.toString()
-            val selectorIndex = if (text.startsWith("*")) 1 else 0
-            when (text.getOrNull(selectorIndex)) {
-                'a' -> IoReadFormat.All
-                'l' -> IoReadFormat.Line
-                'L' -> IoReadFormat.LineWithNewline
-                'n' -> IoReadFormat.Number
-                else -> throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid format)")
-            }
+            throw LuaRuntimeException(
+                "bad argument #$index to '$functionName' (number has no integer representation)",
+            )
+        }
+        val format = argument.value as? CharSequence
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+        val text = format.toString()
+        val selectorIndex = if (text.startsWith("*")) 1 else 0
+        return when (text.getOrNull(selectorIndex)) {
+            'a' -> IoReadFormat.All
+            'l' -> IoReadFormat.Line
+            'L' -> IoReadFormat.LineWithNewline
+            'n' -> IoReadFormat.Number
+            else -> throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid format)")
         }
     }
 

@@ -4240,6 +4240,86 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io read formats execute incrementally and stop after failed reads`() {
+        val path = Files.createTempFile("klua-io-read-format-order-", ".txt")
+        val writeOnlyPath = Files.createTempFile("klua-io-read-format-direction-", ".txt")
+        Files.writeString(path, "first\nsecond\n")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local handle = assert(io.open("${path.luaPath()}", "r"))
+                    local laterOk, laterMessage = pcall(handle.read, handle, "l", "?")
+                    local afterLaterError = handle:read("l")
+
+                    handle:seek("set", 0)
+                    local zeroOk, zeroMessage = pcall(handle.read, handle, 0, "?")
+                    local afterZeroError = handle:read(1)
+
+                    handle:seek("end", 0)
+                    local eofCount = select("#", pcall(handle.read, handle, "l", "?"))
+                    local eofOk, eofValue = pcall(handle.read, handle, "l", "?")
+                    handle:close()
+
+                    local iteratorHandle = assert(io.open("${path.luaPath()}", "r"))
+                    local iterator = iteratorHandle:lines("l", "?")
+                    local iteratorOk, iteratorMessage = pcall(iterator)
+                    local afterIteratorError = iteratorHandle:read("l")
+                    iteratorHandle:seek("end", 0)
+                    local eofIterator = iteratorHandle:lines("l", "?")
+                    local eofIteratorCount = select("#", pcall(eofIterator))
+                    iteratorHandle:close()
+
+                    local writeOnly = assert(io.open("${writeOnlyPath.luaPath()}", "w"))
+                    local invalidDirectionOk, invalidDirectionMessage =
+                        pcall(writeOnly.read, writeOnly, "?")
+                    local directionOk, directionValue, directionMessage, directionCode =
+                        pcall(writeOnly.read, writeOnly, "l", "?")
+                    writeOnly:close()
+
+                    return laterOk, laterMessage, afterLaterError,
+                        zeroOk, zeroMessage, afterZeroError,
+                        eofCount, eofOk, eofValue,
+                        iteratorOk, iteratorMessage, afterIteratorError, eofIteratorCount,
+                        invalidDirectionOk, invalidDirectionMessage,
+                        directionOk, directionValue, type(directionMessage), type(directionCode)
+                    """.trimIndent(),
+                    "io-read-format-order.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertFalse(state.toBoolean(1))
+            assertEquals("bad argument #3 to 'read' (invalid format)", state.toString(2))
+            assertEquals("second", state.toString(3))
+            assertFalse(state.toBoolean(4))
+            assertEquals("bad argument #3 to 'read' (invalid format)", state.toString(5))
+            assertEquals("f", state.toString(6))
+            assertEquals(2L, state.toInteger(7))
+            assertTrue(state.toBoolean(8))
+            assertTrue(state.isNil(9))
+            assertFalse(state.toBoolean(10))
+            assertEquals("bad argument #3 to 'lines' (invalid format)", state.toString(11))
+            assertEquals("second", state.toString(12))
+            assertEquals(1L, state.toInteger(13))
+            assertFalse(state.toBoolean(14))
+            assertEquals("bad argument #2 to 'read' (invalid format)", state.toString(15))
+            assertTrue(state.toBoolean(16))
+            assertTrue(state.isNil(17))
+            assertEquals("string", state.toString(18))
+            assertEquals("number", state.toString(19))
+        } finally {
+            Files.deleteIfExists(path)
+            Files.deleteIfExists(writeOnlyPath)
+        }
+    }
+
+    @Test
     fun `io read supports source file formats`() {
         val path = Files.createTempFile("klua-io-read-", ".txt")
         Files.writeString(path, "  42 tail\n0x10 3.5\nabc")
