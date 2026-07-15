@@ -107,13 +107,13 @@ internal object LuaStringLibrary {
         val text = requiredString(context, 1, "gsub")
         val pattern = requiredString(context, 2, "gsub")
         val replacementType = context.typeName(3)
-        if (replacementType !in GSUB_REPLACEMENT_TYPES) {
-            throw LuaRuntimeException("bad argument #3 to 'gsub' ($GSUB_REPLACEMENT_EXPECTED_TYPE expected)")
-        }
         val limit = if (context.isNone(4) || context.isNil(4)) {
             Long.MAX_VALUE
         } else {
             requiredInteger(context, 4, "gsub")
+        }
+        if (replacementType !in GSUB_REPLACEMENT_TYPES) {
+            throw LuaRuntimeException("bad argument #3 to 'gsub' ($GSUB_REPLACEMENT_EXPECTED_TYPE expected)")
         }
         if (limit <= 0L) {
             return LuaReturn.of(text, 0L)

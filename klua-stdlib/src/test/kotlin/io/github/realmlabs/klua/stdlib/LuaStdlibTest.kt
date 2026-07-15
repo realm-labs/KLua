@@ -23931,6 +23931,55 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string gsub preserves raw replacement bytes across replacement kinds`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local direct, directCount = string.gsub(
+                    "x",
+                    "x",
+                    string.char(0, 255, 128) .. "%0" .. "é" .. string.char(254)
+                )
+                local called, calledCount = string.gsub("x", "x", function()
+                    return string.char(0, 255)
+                end)
+                local indexed, indexedCount = string.gsub("x", "x", {
+                    x = string.char(128) .. "é",
+                })
+                local positioned, positionedCount = string.gsub("ab", "()(%a)", {
+                    [1] = string.char(128),
+                    [2] = "é",
+                })
+                local captured = string.gsub("a", "()(%a)", function(position, value)
+                    return value .. position
+                end)
+                return direct, directCount, called, calledCount,
+                    indexed, indexedCount, positioned, positionedCount, captured
+                """.trimIndent(),
+                "string-gsub-raw-replacements.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            listOf(0, 255, 128, 'x'.code, 195, 169, 254).map(Int::toByte),
+            state.toString(1)?.luaRawBytes()?.toList(),
+        )
+        assertEquals(1L, state.toInteger(2))
+        assertEquals(listOf(0, 255).map(Int::toByte), state.toString(3)?.luaRawBytes()?.toList())
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(listOf(128, 195, 169).map(Int::toByte), state.toString(5)?.luaRawBytes()?.toList())
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(listOf(128, 195, 169).map(Int::toByte), state.toString(7)?.luaRawBytes()?.toList())
+        assertEquals(2L, state.toInteger(8))
+        assertEquals("a1", state.toString(9))
+    }
+
+    @Test
     fun `string gsub supports empty patterns`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
@@ -24325,6 +24374,83 @@ class LuaStdlibTest {
         assertEquals("bad argument #4 to 'gsub' (number has no integer representation)", state.toString(4))
         assertFalse(state.toBoolean(5))
         assertEquals("bad argument #4 to 'gsub' (number has no integer representation)", state.toString(6))
+    }
+
+    @Test
+    fun `string gsub validates the limit before the replacement type`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local stringOk, stringMessage = pcall(string.gsub, "abc", "a", false, "bad")
+                local fractionOk, fractionMessage = pcall(string.gsub, "abc", "a", nil, 1.5)
+                local replacementOk, replacementMessage = pcall(string.gsub, "abc", "a", false, 1)
+                local defaultOk, defaultMessage = pcall(string.gsub, "abc", "a", false, nil)
+                return stringOk, stringMessage,
+                    fractionOk, fractionMessage,
+                    replacementOk, replacementMessage,
+                    defaultOk, defaultMessage
+                """.trimIndent(),
+                "string-gsub-validation-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #4 to 'gsub' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #4 to 'gsub' (number has no integer representation)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #3 to 'gsub' (string/function/table expected)", state.toString(8))
+    }
+
+    @Test
+    fun `string gsub replacement callbacks cannot yield across the library boundary`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local functionThread = coroutine.create(function()
+                    return string.gsub("a", "a", function()
+                        return coroutine.yield("function pause")
+                    end)
+                end)
+                local functionOk, functionMessage = coroutine.resume(functionThread)
+
+                local replacement = setmetatable({}, {
+                    __index = function()
+                        return coroutine.yield("table pause")
+                    end,
+                })
+                local tableThread = coroutine.create(function()
+                    return string.gsub("a", "a", replacement)
+                end)
+                local tableOk, tableMessage = coroutine.resume(tableThread)
+                return functionOk, functionMessage, coroutine.status(functionThread),
+                    tableOk, tableMessage, coroutine.status(tableThread)
+                """.trimIndent(),
+                "string-gsub-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(5))
+        assertEquals("dead", state.toString(6))
     }
 
     @Test
