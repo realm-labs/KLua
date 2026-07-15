@@ -705,10 +705,11 @@ internal object LuaTableLibrary {
 
         val values = mutableListOf<Any?>()
         var index = start
-        while (index <= end) {
+        while (index < end) {
             values += tableUnpackIndexValue(context, sourceType, index)
             index++
         }
+        values += tableUnpackIndexValue(context, sourceType, end)
         return LuaReturn.ofValues(values)
     }
 

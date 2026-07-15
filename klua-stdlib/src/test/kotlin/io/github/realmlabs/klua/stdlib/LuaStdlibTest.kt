@@ -32341,6 +32341,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table unpack terminates at full width range endpoints`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local reads = {}
+                local values = setmetatable({}, {
+                    __index = function(_, key)
+                        reads[#reads + 1] = key
+                        if key == math.maxinteger then return "max" end
+                        if key == math.maxinteger - 1 then return "before" end
+                        if key == math.mininteger then return "min" end
+                        return nil
+                    end,
+                })
+                local maxCount = select("#", table.unpack(values, math.maxinteger, math.maxinteger))
+                local maxValue = table.unpack(values, math.maxinteger, math.maxinteger)
+                local before, last = table.unpack(values, math.maxinteger - 1, math.maxinteger)
+                local minValue = table.unpack(values, math.mininteger, math.mininteger)
+                local nilCount = select("#", table.unpack(values, 0, 0))
+                local reversedCount = select("#", table.unpack(42, math.maxinteger, math.mininteger))
+                local hugeOk, hugeMessage = pcall(
+                    table.unpack, values, math.mininteger, math.maxinteger
+                )
+                return maxCount, maxValue, before, last, minValue, nilCount,
+                    reversedCount, hugeOk, hugeMessage, #reads
+                """.trimIndent(),
+                "table-unpack-full-width-ranges.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("max", state.toString(2))
+        assertEquals("before", state.toString(3))
+        assertEquals("max", state.toString(4))
+        assertEquals("min", state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(0L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("too many results to unpack", state.toString(9))
+        assertEquals(6L, state.toInteger(10))
+    }
+
+    @Test
     fun `table unpack accepts table-like non-table values`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
