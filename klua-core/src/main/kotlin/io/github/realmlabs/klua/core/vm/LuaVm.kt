@@ -962,7 +962,7 @@ internal class LuaVm(
             } else {
                 when (val index = table.metatableRawGet(INDEX_KEY)) {
                     is LuaTable -> tableGet(index, key, mutableSetOf(table))
-                    is LuaClosure -> executeMetamethod(index, listOf(table, key), INDEX_KEY).firstOrNull() ?: LuaNil
+                    is LuaClosure -> executeMetamethod(index, table, key, INDEX_KEY).firstOrNull() ?: LuaNil
                     is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
                     LuaNil -> LuaNil
                     else -> indexGet(index, key)
@@ -1024,7 +1024,7 @@ internal class LuaVm(
     private fun metamethodIndexGet(receiver: LuaValue, key: LuaValue, index: LuaValue): LuaValue {
         return when (index) {
             is LuaTable -> tableGet(index, key)
-            is LuaClosure -> executeMetamethod(index, listOf(receiver, key), INDEX_KEY).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(index, receiver, key, INDEX_KEY).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(index, listOf(receiver, key)).firstOrNull() ?: LuaNil
             else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
         }
@@ -1081,7 +1081,7 @@ internal class LuaVm(
 
         return when (val index = table.metatableRawGet(INDEX_KEY)) {
             is LuaTable -> tableGet(index, key, visited)
-            is LuaClosure -> executeMetamethod(index, listOf(table, key), INDEX_KEY).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(index, table, key, INDEX_KEY).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(index, listOf(table, key)).firstOrNull() ?: LuaNil
             LuaNil -> LuaNil
             else -> indexGet(index, key)
@@ -1198,14 +1198,63 @@ internal class LuaVm(
     ) {
         when (newIndex) {
             is LuaTable -> tableSet(newIndex, key, value, visited, depth)
-            is LuaClosure -> executeMetamethod(newIndex, listOf(receiver, key, value), NEW_INDEX_KEY)
+            is LuaClosure -> executeMetamethod(newIndex, receiver, key, value, NEW_INDEX_KEY)
             is LuaNativeFunction -> callNative(newIndex, listOf(receiver, key, value))
             else -> primitiveSet(newIndex, key, value, visited, depth)
         }
     }
 
-    private fun executeMetamethod(closure: LuaClosure, arguments: List<LuaValue>, metamethod: LuaString): List<LuaValue> {
-        return executeReturned(closure, arguments, metamethodCallSiteInfo(metamethod))
+    private fun executeMetamethod(
+        closure: LuaClosure,
+        firstArgument: LuaValue,
+        secondArgument: LuaValue,
+        metamethod: LuaString,
+    ): List<LuaValue> {
+        return executeFixedMetamethod(
+            closure,
+            2,
+            firstArgument,
+            secondArgument,
+            LuaNil,
+            metamethod,
+        )
+    }
+
+    private fun executeMetamethod(
+        closure: LuaClosure,
+        firstArgument: LuaValue,
+        secondArgument: LuaValue,
+        thirdArgument: LuaValue,
+        metamethod: LuaString,
+    ): List<LuaValue> {
+        return executeFixedMetamethod(
+            closure,
+            3,
+            firstArgument,
+            secondArgument,
+            thirdArgument,
+            metamethod,
+        )
+    }
+
+    private fun executeFixedMetamethod(
+        closure: LuaClosure,
+        argumentCount: Int,
+        firstArgument: LuaValue,
+        secondArgument: LuaValue,
+        thirdArgument: LuaValue,
+        metamethod: LuaString,
+    ): List<LuaValue> {
+        val frame = thread.pushFixedCall(
+            function = closure,
+            argumentCount = argumentCount,
+            firstArgument = firstArgument,
+            secondArgument = secondArgument,
+            thirdArgument = thirdArgument,
+            environment = closure.environment ?: closure.globals?.let(::LuaUpvalue) ?: rootEnvironment,
+            callSiteInfo = metamethodCallSiteInfo(metamethod),
+        )
+        return returnedValues(runFrameAndPopOnCompletion(frame))
     }
 
     private fun metamethodCallSiteInfo(metamethod: LuaString): CallSiteInfo {
@@ -1279,7 +1328,7 @@ internal class LuaVm(
         }
         val metamethod = binaryMetamethod(left, right, operation.metamethodKey)
         if (metamethod != null) {
-            return callOperatorMetamethod(metamethod, listOf(left, right), operation.metamethodKey)
+            return callOperatorMetamethod(metamethod, left, right, operation.metamethodKey)
         }
         throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(arithmeticErrorOperand(left, right))}")
     }
@@ -1305,11 +1354,18 @@ internal class LuaVm(
         }
     }
 
-    private fun callOperatorMetamethod(metamethod: LuaValue, arguments: List<LuaValue>, key: LuaString): LuaValue {
+    private fun callOperatorMetamethod(
+        metamethod: LuaValue,
+        firstArgument: LuaValue,
+        secondArgument: LuaValue,
+        key: LuaString,
+    ): LuaValue {
         return when (metamethod) {
-            is LuaClosure -> executeMetamethod(metamethod, arguments, key).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callNative(metamethod, arguments).firstOrNull() ?: LuaNil
-            else -> returnedValues(callValue(metamethod, arguments, metamethodCallSiteInfo(key))).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(metamethod, firstArgument, secondArgument, key).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callNative(metamethod, listOf(firstArgument, secondArgument)).firstOrNull() ?: LuaNil
+            else -> returnedValues(
+                callValue(metamethod, listOf(firstArgument, secondArgument), metamethodCallSiteInfo(key)),
+            ).firstOrNull() ?: LuaNil
         }
     }
 
@@ -1321,7 +1377,7 @@ internal class LuaVm(
             else -> {
                 val metamethod = rawMetamethod(value, UNM_KEY)
                 if (metamethod != LuaNil) {
-                    callOperatorMetamethod(metamethod, listOf(value, value), UNM_KEY)
+                    callOperatorMetamethod(metamethod, value, value, UNM_KEY)
                 } else {
                     throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(value)}")
                 }
@@ -1375,7 +1431,7 @@ internal class LuaVm(
 
     private fun callLengthMetamethod(value: LuaValue, length: LuaValue): LuaValue {
         return when (length) {
-            is LuaClosure -> executeMetamethod(length, listOf(value, value), LEN_KEY).firstOrNull() ?: LuaNil
+            is LuaClosure -> executeMetamethod(length, value, value, LEN_KEY).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> callNative(length, listOf(value, value)).firstOrNull() ?: LuaNil
             else -> returnedValues(callValue(length, listOf(value, value), metamethodCallSiteInfo(LEN_KEY))).firstOrNull() ?: LuaNil
         }
@@ -1399,7 +1455,7 @@ internal class LuaVm(
             }
             val metamethod = binaryMetamethod(left, right, EQ_KEY)
             if (metamethod != null) {
-                val result = callOperatorMetamethod(metamethod, listOf(left, right), EQ_KEY)
+                val result = callOperatorMetamethod(metamethod, left, right, EQ_KEY)
                 return isTruthy(result)
             }
             return false
@@ -1411,7 +1467,7 @@ internal class LuaVm(
             if (metamethod == null) {
                 throw comparisonError(left, right)
             }
-            return isTruthy(callOperatorMetamethod(metamethod, listOf(left, right), comparison.metamethodKey))
+            return isTruthy(callOperatorMetamethod(metamethod, left, right, comparison.metamethodKey))
         }
     }
 
@@ -1435,7 +1491,7 @@ internal class LuaVm(
             if (metamethod != null) {
                 stack.set(
                     register(frame, Instruction.a(instruction)),
-                    callOperatorMetamethod(metamethod, listOf(leftValue, rightValue), CONCAT_KEY),
+                    callOperatorMetamethod(metamethod, leftValue, rightValue, CONCAT_KEY),
                 )
                 return
             }
@@ -1456,7 +1512,7 @@ internal class LuaVm(
             if (metamethod != null) {
                 stack.set(
                     register(frame, Instruction.a(instruction)),
-                    callOperatorMetamethod(metamethod, listOf(leftValue, rightValue), operation.metamethodKey),
+                    callOperatorMetamethod(metamethod, leftValue, rightValue, operation.metamethodKey),
                 )
                 return
             }
@@ -1474,7 +1530,7 @@ internal class LuaVm(
             if (metamethod != LuaNil) {
                 stack.set(
                     register(frame, Instruction.a(instruction)),
-                    callOperatorMetamethod(metamethod, listOf(value, value), BNOT_KEY),
+                    callOperatorMetamethod(metamethod, value, value, BNOT_KEY),
                 )
                 return
             }

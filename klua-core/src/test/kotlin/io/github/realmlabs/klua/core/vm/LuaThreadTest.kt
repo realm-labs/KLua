@@ -108,6 +108,37 @@ class LuaThreadTest {
     }
 
     @Test
+    fun `push fixed call places two or three arguments without a source list`() {
+        val thread = LuaThread()
+        val environment = LuaUpvalue(LuaTable())
+        val fixed = thread.pushFixedCall(
+            function = LuaClosure(prototype("fixed", numParams = 3)),
+            argumentCount = 2,
+            firstArgument = LuaInteger(10),
+            secondArgument = LuaInteger(20),
+            environment = environment,
+        )
+
+        assertEquals(LuaInteger(10), fixed.get(0))
+        assertEquals(LuaInteger(20), fixed.get(1))
+        assertEquals(LuaNil, fixed.get(2))
+        assertEquals(emptyList(), fixed.varargs)
+        thread.popFrame(fixed)
+
+        val vararg = thread.pushFixedCall(
+            function = LuaClosure(prototype("vararg", numParams = 1, isVararg = true)),
+            argumentCount = 3,
+            firstArgument = LuaInteger(30),
+            secondArgument = LuaNil,
+            thirdArgument = LuaInteger(50),
+            environment = environment,
+        )
+
+        assertEquals(LuaInteger(30), vararg.get(0))
+        assertEquals(listOf<LuaValue>(LuaNil, LuaInteger(50)), vararg.varargs)
+    }
+
+    @Test
     fun `push call fills missing fixed parameters with nil`() {
         val thread = LuaThread()
 
