@@ -370,6 +370,21 @@ internal class LuaVm(
                         Opcode.GET_TABLE,
                         Opcode.GET_FIELD,
                         Opcode.GET_GLOBAL,
+                        Opcode.ADD,
+                        Opcode.SUB,
+                        Opcode.MUL,
+                        Opcode.DIV,
+                        Opcode.IDIV,
+                        Opcode.MOD,
+                        Opcode.POW,
+                        Opcode.BAND,
+                        Opcode.BOR,
+                        Opcode.BXOR,
+                        Opcode.SHL,
+                        Opcode.SHR,
+                        Opcode.BNOT,
+                        Opcode.LEN,
+                        Opcode.UNM,
                         -> register(frame, Instruction.a(instruction)) to 1
                         Opcode.SET_TABLE,
                         Opcode.SET_FIELD,
@@ -1458,7 +1473,13 @@ internal class LuaVm(
         }
         val metamethod = binaryMetamethod(left, right, operation.metamethodKey)
         if (metamethod != null) {
-            return callOperatorMetamethod(metamethod, left, right, operation.metamethodKey)
+            return callOperatorMetamethod(
+                metamethod,
+                left,
+                right,
+                operation.metamethodKey,
+                allowSuspension = true,
+            )
         }
         throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(arithmeticErrorOperand(left, right))}")
     }
@@ -1489,12 +1510,24 @@ internal class LuaVm(
         firstArgument: LuaValue,
         secondArgument: LuaValue,
         key: LuaString,
+        allowSuspension: Boolean = false,
     ): LuaValue {
+        val canSuspend = allowSuspension && thread.currentFrame != null && !thread.inNativeCall
         return when (metamethod) {
-            is LuaClosure -> executeMetamethod(metamethod, firstArgument, secondArgument, key).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callNative(metamethod, listOf(firstArgument, secondArgument)).firstOrNull() ?: LuaNil
-            else -> returnedValues(
+            is LuaClosure -> executeMetamethod(
+                metamethod,
+                firstArgument,
+                secondArgument,
+                key,
+                allowSuspension,
+            ).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> metamethodValues(
+                callNativeResult(metamethod, listOf(firstArgument, secondArgument)),
+                canSuspend,
+            ).firstOrNull() ?: LuaNil
+            else -> metamethodValues(
                 callValue(metamethod, listOf(firstArgument, secondArgument), metamethodCallSiteInfo(key)),
+                canSuspend,
             ).firstOrNull() ?: LuaNil
         }
     }
@@ -1507,7 +1540,7 @@ internal class LuaVm(
             else -> {
                 val metamethod = rawMetamethod(value, UNM_KEY)
                 if (metamethod != LuaNil) {
-                    callOperatorMetamethod(metamethod, value, value, UNM_KEY)
+                    callOperatorMetamethod(metamethod, value, value, UNM_KEY, allowSuspension = true)
                 } else {
                     throw LuaVmException("attempt to perform arithmetic on ${operationTypeName(value)}")
                 }
@@ -1525,46 +1558,46 @@ internal class LuaVm(
         val value = stack.get(register(frame, Instruction.b(instruction)))
         val result = when (value) {
             is LuaString -> LuaInteger(value.value.luaRawBytes().size.toLong())
-            is LuaTable -> tableLength(value)
-            is LuaUserData -> userDataLength(value)
-            else -> primitiveLength(value)
+            is LuaTable -> tableLength(value, allowSuspension = true)
+            is LuaUserData -> userDataLength(value, allowSuspension = true)
+            else -> primitiveLength(value, allowSuspension = true)
         }
         stack.set(register(frame, Instruction.a(instruction)), result)
     }
 
-    private fun tableLength(table: LuaTable): LuaValue {
+    private fun tableLength(table: LuaTable, allowSuspension: Boolean): LuaValue {
         return when (val length = table.metatableRawGet(LEN_KEY)) {
             LuaNil -> LuaInteger(table.rawLength())
-            else -> callLengthMetamethod(table, length)
+            else -> callLengthMetamethod(table, length, allowSuspension)
         }
     }
 
-    private fun userDataLength(value: LuaUserData): LuaValue {
+    private fun userDataLength(value: LuaUserData, allowSuspension: Boolean): LuaValue {
         val metatable = currentUserDataMetatable?.invoke(value.value)
             ?: throw LuaVmException("attempt to get length of userdata")
         val length = metatable.rawGet(LEN_KEY)
         if (length == LuaNil) {
             throw LuaVmException("attempt to get length of a ${userDataObjectTypeName(metatable)} value")
         }
-        return callLengthMetamethod(value, length)
+        return callLengthMetamethod(value, length, allowSuspension)
     }
 
-    private fun primitiveLength(value: LuaValue): LuaValue {
+    private fun primitiveLength(value: LuaValue, allowSuspension: Boolean): LuaValue {
         val metatable = rawTypeMetatable(value)
             ?: throw LuaVmException("attempt to get length of ${typeName(value)}")
         val length = metatable.rawGet(LEN_KEY)
         if (length == LuaNil) {
             throw LuaVmException("attempt to get length of ${typeName(value)}")
         }
-        return callLengthMetamethod(value, length)
+        return callLengthMetamethod(value, length, allowSuspension)
     }
 
-    private fun callLengthMetamethod(value: LuaValue, length: LuaValue): LuaValue {
-        return when (length) {
-            is LuaClosure -> executeMetamethod(length, value, value, LEN_KEY).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callNative(length, listOf(value, value)).firstOrNull() ?: LuaNil
-            else -> returnedValues(callValue(length, listOf(value, value), metamethodCallSiteInfo(LEN_KEY))).firstOrNull() ?: LuaNil
-        }
+    private fun callLengthMetamethod(
+        value: LuaValue,
+        length: LuaValue,
+        allowSuspension: Boolean,
+    ): LuaValue {
+        return callOperatorMetamethod(length, value, value, LEN_KEY, allowSuspension)
     }
 
     private fun compare(stack: LuaStack, frame: CallFrame, instruction: Int, comparison: Comparison) {
@@ -1642,7 +1675,13 @@ internal class LuaVm(
             if (metamethod != null) {
                 stack.set(
                     register(frame, Instruction.a(instruction)),
-                    callOperatorMetamethod(metamethod, leftValue, rightValue, operation.metamethodKey),
+                    callOperatorMetamethod(
+                        metamethod,
+                        leftValue,
+                        rightValue,
+                        operation.metamethodKey,
+                        allowSuspension = true,
+                    ),
                 )
                 return
             }
@@ -1660,7 +1699,7 @@ internal class LuaVm(
             if (metamethod != LuaNil) {
                 stack.set(
                     register(frame, Instruction.a(instruction)),
-                    callOperatorMetamethod(metamethod, value, value, BNOT_KEY),
+                    callOperatorMetamethod(metamethod, value, value, BNOT_KEY, allowSuspension = true),
                 )
                 return
             }

@@ -15311,6 +15311,123 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `value producing operator metamethods can yield and resume their first results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local markers = {
+                    "add", "sub", "mul", "div", "idiv", "mod", "pow",
+                    "band", "bor", "bxor", "shl", "shr", "bnot", "unm", "len",
+                }
+                local mt = {}
+                for _, marker in ipairs(markers) do
+                    mt["__" .. marker] = function(left, right)
+                        local resumed = coroutine.yield(marker, left == right)
+                        return resumed, "ignored"
+                    end
+                end
+                local value = setmetatable({}, mt)
+                local results = {}
+                local co = coroutine.create(function()
+                    results[1] = value + value
+                    results[2] = value - value
+                    results[3] = value * value
+                    results[4] = value / value
+                    results[5] = value // value
+                    results[6] = value % value
+                    results[7] = value ^ value
+                    results[8] = value & value
+                    results[9] = value | value
+                    results[10] = value ~ value
+                    results[11] = value << value
+                    results[12] = value >> value
+                    results[13] = ~value
+                    results[14] = -value
+                    results[15] = #value
+                    return "done"
+                end)
+
+                local ok, marker, duplicate = coroutine.resume(co)
+                local allOk = ok
+                for index, expected in ipairs(markers) do
+                    allOk = allOk and marker == expected and duplicate
+                    ok, marker, duplicate = coroutine.resume(co, index * 10)
+                    allOk = allOk and ok
+                end
+                return allOk, marker, coroutine.status(co),
+                    results[1], results[2], results[3], results[4], results[5],
+                    results[6], results[7], results[8], results[9], results[10],
+                    results[11], results[12], results[13], results[14], results[15]
+                """.trimIndent(),
+                "coroutine-value-operators.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("done", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        for (index in 1..15) {
+            assertEquals(index * 10L, state.toInteger(index + 3))
+        }
+    }
+
+    @Test
+    fun `native and callable value operator metamethods resume with nil padding`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostAdd",
+            LuaYieldableFunction { context -> context.yield(listOf("native-add")) },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nativeValue = setmetatable({}, { __add = hostAdd })
+                local callable = setmetatable({}, {
+                    __call = function()
+                        coroutine.yield("callable-mul")
+                    end,
+                })
+                local callableValue = setmetatable({}, { __mul = callable })
+                local nativeResult
+                local callableResult
+                local co = coroutine.create(function()
+                    nativeResult = nativeValue + nativeValue
+                    callableResult = callableValue * callableValue
+                    return "done"
+                end)
+                local firstOk, firstMarker = coroutine.resume(co)
+                local secondOk, secondMarker = coroutine.resume(co, "native-result")
+                local thirdOk, done = coroutine.resume(co, "discarded")
+                return firstOk, firstMarker, secondOk, secondMarker, thirdOk, done,
+                    nativeResult, callableResult, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-native-callable-operators.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1), state.toString(2))
+        assertEquals("native-add", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("callable-mul", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("done", state.toString(6))
+        assertEquals("native-result", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals("dead", state.toString(9))
+    }
+
+    @Test
     fun `coroutine yield and resume preserve cyclic table identity`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
@@ -23190,6 +23307,39 @@ class LuaStdlibTest {
                 return ok, message, coroutine.status(co)
                 """.trimIndent(),
                 "table-move-newindex-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+    }
+
+    @Test
+    fun `table unpack length metamethod cannot yield across its native boundary`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local target = setmetatable({}, {
+                    __len = function()
+                        coroutine.yield("paused")
+                    end,
+                    __index = function()
+                        return "value"
+                    end,
+                })
+                local co = coroutine.create(function()
+                    return table.unpack(target)
+                end)
+                local ok, message = coroutine.resume(co)
+                return ok, message, coroutine.status(co)
+                """.trimIndent(),
+                "table-unpack-length-yield-boundary.lua",
             ),
         )
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
