@@ -196,6 +196,28 @@ Lua source
   -> optional JVM bytecode compiler later
 ```
 
+## Benchmarks
+
+The `klua-jmh` module contains JMH baselines for two deliberately separate costs:
+
+- `CompileBenchmark.compileNumericLoop` recompiles a fixed numeric-loop source through parsing, compilation, and KLua bytecode-package encoding.
+- `VmExecutionBenchmark.executeNumericLoop` reuses a compiled top-level function and measures creation and execution of a fresh VM coroutine running 10,000 numeric-loop iterations.
+
+Build and list the generated benchmark jar:
+
+```text
+./gradlew :klua-jmh:jmhJar
+java -jar klua-jmh/build/libs/klua-jmh-0.1.0-SNAPSHOT-jmh.jar -l
+```
+
+Run the configured warmup, measurement, and fork settings with:
+
+```text
+./gradlew :klua-jmh:jmh
+```
+
+Benchmark numbers are only comparable when the JVM, hardware, operating system, power settings, and JMH arguments are held constant. The short smoke commands used during development prove that benchmarks execute; they are not optimization evidence.
+
 See [docs/KLua_Architecture.md](docs/KLua_Architecture.md) for the full architecture notes.
 
 ## Roadmap
