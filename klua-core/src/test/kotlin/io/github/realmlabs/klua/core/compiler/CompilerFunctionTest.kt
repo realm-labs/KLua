@@ -10,6 +10,106 @@ import kotlin.test.assertFailsWith
 
 class CompilerFunctionTest {
     @Test
+    fun `call site metadata substitutes lua compile time const bindings`() {
+        val prototype = Compiler.compile(
+            """
+            local direct <const> = "literal"
+            direct()
+
+            local first <const>, last <const> = "first", "last"
+            first()
+            last()
+
+            local adjusted <const> = "adjusted", "discarded"
+            adjusted()
+
+            local key <const> = "field"
+            local folded <const> = 250 + 5
+            local dynamic <const> = makeKey()
+            object[key]()
+            object[folded]()
+            object[dynamic]()
+
+            do
+                local key <const> = makeKey()
+                object[key]()
+            end
+            object[key]()
+
+            local function nested()
+                object[key]()
+            end
+            nested()
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            listOf(
+                "literal" to "constant",
+                "first" to "local",
+                "last" to "constant",
+                "adjusted" to "local",
+                "makeKey" to "global",
+                "field" to "field",
+                "integer index" to "field",
+                "?" to "field",
+                "makeKey" to "global",
+                "?" to "field",
+                "field" to "field",
+                "nested" to "local",
+            ),
+            prototype.callSiteInfo.map { info -> info.name to info.nameWhat },
+        )
+        assertEquals(
+            listOf("field" to "field"),
+            prototype.nested.single().callSiteInfo.map { info -> info.name to info.nameWhat },
+        )
+    }
+
+    @Test
+    fun `call site metadata follows lua safe constant folding boundaries`() {
+        val prototype = Compiler.compile(
+            """
+            local viaAnd <const> = true and "and value"
+            local blockedAnd <const> = false and "and value"
+            local viaOr <const> = false or "or value"
+            local blockedOr <const> = true or "or value"
+            viaAnd()
+            blockedAnd()
+            viaOr()
+            blockedOr()
+
+            local foldedZero <const> = 1.0 - 1.0
+            local literalZero <const> = 0.0
+            foldedZero()
+            literalZero()
+
+            local shifted <const> = 1 << 7
+            local inverted <const> = ~(-256)
+            object[shifted]()
+            object[inverted]()
+
+            local divideByZero <const> = 1 // 0
+            divideByZero()
+            """.trimIndent(),
+        )
+
+        assertEquals(
+            listOf(
+                "and value" to "constant",
+                "blockedAnd" to "local",
+                "or value" to "constant",
+                "blockedOr" to "local",
+                "foldedZero" to "local",
+                "integer index" to "field",
+                "integer index" to "field",
+                "divideByZero" to "local",
+            ),
+            prototype.callSiteInfo.map { info -> info.name to info.nameWhat },
+        )
+    }
+
+    @Test
     fun `compiles function expression into nested prototype`() {
         val prototype = Compiler.compile("return function(a, b) return a + b end")
 

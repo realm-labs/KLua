@@ -1282,6 +1282,96 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getinfo substitutes compile time const call site values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local seen = {}
+                local function remember()
+                    local info = debug.getinfo(1, "n")
+                    seen[#seen + 1] = info.name
+                    seen[#seen + 1] = info.namewhat
+                end
+
+                debug.setmetatable("", {
+                    __call = function()
+                        local info = debug.getinfo(1, "n")
+                        seen[#seen + 1] = info.name
+                        seen[#seen + 1] = info.namewhat
+                    end,
+                })
+                local direct <const> = "literal"
+                direct()
+                local registered <const>, substituted <const> = "registered", "substituted"
+                registered()
+                substituted()
+                debug.setmetatable("", nil)
+
+                debug.setmetatable(0, {
+                    __call = function()
+                        local info = debug.getinfo(1, "n")
+                        seen[#seen + 1] = info.name == nil and "<nil>" or info.name
+                        seen[#seen + 1] = info.namewhat
+                    end,
+                })
+                local numeric <const> = 42
+                numeric()
+                local function runtimeNumber()
+                    return 42
+                end
+                local dynamicNumeric <const> = runtimeNumber()
+                dynamicNumeric()
+                debug.setmetatable(0, nil)
+
+                local object = {field = remember, [255] = remember}
+                local key <const> = "field"
+                local folded <const> = 250 + 5
+                local function nested()
+                    object[key]()
+                end
+                nested()
+                object[folded]()
+
+                local function runtimeKey()
+                    return "field"
+                end
+                do
+                    local key <const> = runtimeKey()
+                    object[key]()
+                end
+
+                return seen[1], seen[2], seen[3], seen[4], seen[5], seen[6],
+                    seen[7], seen[8], seen[9], seen[10], seen[11], seen[12],
+                    seen[13], seen[14], seen[15], seen[16]
+                """.trimIndent(),
+                "debug-getinfo-const-call-names.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("literal", state.toString(1))
+        assertEquals("constant", state.toString(2))
+        assertEquals("registered", state.toString(3))
+        assertEquals("local", state.toString(4))
+        assertEquals("substituted", state.toString(5))
+        assertEquals("constant", state.toString(6))
+        assertEquals("<nil>", state.toString(7))
+        assertEquals("", state.toString(8))
+        assertEquals("dynamicNumeric", state.toString(9))
+        assertEquals("local", state.toString(10))
+        assertEquals("field", state.toString(11))
+        assertEquals("field", state.toString(12))
+        assertEquals("integer index", state.toString(13))
+        assertEquals("field", state.toString(14))
+        assertEquals("?", state.toString(15))
+        assertEquals("field", state.toString(16))
+    }
+
+    @Test
     fun `debug getinfo reports operator metamethod call site names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

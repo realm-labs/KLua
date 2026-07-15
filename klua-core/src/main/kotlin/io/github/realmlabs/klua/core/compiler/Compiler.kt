@@ -54,9 +54,12 @@ import io.github.realmlabs.klua.core.bytecode.UpvalueSource
 import io.github.realmlabs.klua.core.parser.Parser
 import io.github.realmlabs.klua.core.source.SourcePosition
 import io.github.realmlabs.klua.core.source.SourceRange
+import io.github.realmlabs.klua.core.value.LuaBoolean
 import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
+import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.LuaValue
 
 internal class Compiler private constructor(
     private val sourceName: String,
@@ -64,6 +67,7 @@ internal class Compiler private constructor(
     private val parentLocalResolver: ((String) -> Int?)? = null,
     private val parentUpvalueResolver: ((String) -> Int?)? = null,
     private val parentConstResolver: ((String) -> Boolean)? = null,
+    private val parentCompileTimeConstantResolver: ((String) -> LuaValue?)? = null,
     private val parentGlobalResolver: ((String) -> GlobalLookup)? = null,
 ) {
     private val writer = BytecodeWriter()
@@ -71,6 +75,7 @@ internal class Compiler private constructor(
     private val nested = mutableListOf<Prototype>()
     private val locals = linkedMapOf<String, Int>()
     private val localAttributes = linkedMapOf<String, LocalAttribute>()
+    private var localCompileTimeConstants: LinkedHashMap<String, LuaValue>? = null
     private val localDeclarationOrders = linkedMapOf<String, Int>()
     private val globalDeclarations = mutableListOf<GlobalDeclaration>()
     private val upvalues = mutableListOf<UpvalueDescriptor>()
@@ -163,6 +168,7 @@ internal class Compiler private constructor(
     private fun compileScopedBlock(statements: List<Statement>) {
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalCompileTimeConstants = localCompileTimeConstants?.let { constants -> LinkedHashMap(constants) }
         val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
@@ -175,7 +181,13 @@ internal class Compiler private constructor(
                 statements.lastOrNull()?.range?.end?.line ?: 0,
             )
         }
-        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
+        restoreLocals(
+            savedLocals,
+            savedLocalAttributes,
+            savedLocalCompileTimeConstants,
+            savedLocalDeclarationOrders,
+            savedNextLocalRegister,
+        )
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -183,6 +195,7 @@ internal class Compiler private constructor(
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalCompileTimeConstants = localCompileTimeConstants?.let { constants -> LinkedHashMap(constants) }
         val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
@@ -218,7 +231,13 @@ internal class Compiler private constructor(
         patchForTest(testIndex, writer.size)
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
-        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
+        restoreLocals(
+            savedLocals,
+            savedLocalAttributes,
+            savedLocalCompileTimeConstants,
+            savedLocalDeclarationOrders,
+            savedNextLocalRegister,
+        )
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -226,6 +245,7 @@ internal class Compiler private constructor(
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalCompileTimeConstants = localCompileTimeConstants?.let { constants -> LinkedHashMap(constants) }
         val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
@@ -274,7 +294,13 @@ internal class Compiler private constructor(
         patchTest(testIndex, writer.size)
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
-        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
+        restoreLocals(
+            savedLocals,
+            savedLocalAttributes,
+            savedLocalCompileTimeConstants,
+            savedLocalDeclarationOrders,
+            savedNextLocalRegister,
+        )
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -379,14 +405,38 @@ internal class Compiler private constructor(
     }
 
     private fun registerLocalDeclarations(statement: LocalStatement, slots: List<Int>) {
+        // Lua 5.5 localstat promotes only the final const when no value-count adjustment is needed.
+        val promotedConstant = statement.names.lastIndex.takeIf { index ->
+            statement.names.size == statement.values.size && statement.attributes[index] == LocalAttribute.CONST
+        }?.let { index ->
+            compileTimeConstant(statement.values[index])?.let { value -> index to value }
+        }
         for ((index, name) in statement.names.withIndex()) {
-            registerLocal(name, slots[index], statement.attributes[index])
+            registerLocal(
+                name,
+                slots[index],
+                statement.attributes[index],
+                if (index == promotedConstant?.first) promotedConstant.second else null,
+            )
         }
     }
 
-    private fun registerLocal(name: String, slot: Int, attribute: LocalAttribute) {
+    private fun registerLocal(
+        name: String,
+        slot: Int,
+        attribute: LocalAttribute,
+        compileTimeConstant: LuaValue? = null,
+    ) {
         locals[name] = slot
         localAttributes[name] = attribute
+        if (compileTimeConstant == null) {
+            localCompileTimeConstants?.remove(name)
+        } else {
+            val constants = localCompileTimeConstants ?: linkedMapOf<String, LuaValue>().also { created ->
+                localCompileTimeConstants = created
+            }
+            constants[name] = compileTimeConstant
+        }
         localDeclarationOrders[name] = nextDeclarationOrder++
         localVars += LocalVarBuilder(name, slot, writer.size)
     }
@@ -642,6 +692,7 @@ internal class Compiler private constructor(
         val breaks = pushLoopBreaks()
         val savedLocals = LinkedHashMap(locals)
         val savedLocalAttributes = LinkedHashMap(localAttributes)
+        val savedLocalCompileTimeConstants = localCompileTimeConstants?.let { constants -> LinkedHashMap(constants) }
         val savedLocalDeclarationOrders = LinkedHashMap(localDeclarationOrders)
         val savedNextLocalRegister = nextLocalRegister
         val savedGlobalDeclarationCount = globalDeclarations.size
@@ -671,7 +722,13 @@ internal class Compiler private constructor(
         }
         patchLoopBreaks(breaks, writer.size, savedNextLocalRegister)
 
-        restoreLocals(savedLocals, savedLocalAttributes, savedLocalDeclarationOrders, savedNextLocalRegister)
+        restoreLocals(
+            savedLocals,
+            savedLocalAttributes,
+            savedLocalCompileTimeConstants,
+            savedLocalDeclarationOrders,
+            savedNextLocalRegister,
+        )
         restoreGlobalDeclarations(savedGlobalDeclarationCount)
     }
 
@@ -988,8 +1045,15 @@ internal class Compiler private constructor(
     }
 
     private fun callSiteInfo(callee: Expression): CallSiteInfo? {
+        val constant = compileTimeConstant(callee)
+        if (constant != null) {
+            return if (constant is LuaString) {
+                CallSiteInfo(0, constant.value, "constant")
+            } else {
+                null
+            }
+        }
         return when (callee) {
-            is StringExpression -> CallSiteInfo(0, callee.value, "constant")
             is VariableExpression -> CallSiteInfo(0, callee.name, callSiteNameWhat(callee.name))
             is IndexExpression -> {
                 val name = indexCallSiteKeyName(callee.key)
@@ -1005,19 +1069,175 @@ internal class Compiler private constructor(
     }
 
     private fun indexCallSiteKeyName(key: Expression): String {
-        return when (key) {
-            is StringExpression -> key.value
-            is IntegerExpression -> if (key.value.fitsUnsignedCOperand()) "integer index" else "?"
-            is UnaryExpression -> {
-                if (key.operator == UnaryOperator.NEGATE && key.expression is IntegerExpression) {
-                    val value = key.expression.value
-                    if (value != Long.MIN_VALUE && (-value).fitsUnsignedCOperand()) "integer index" else "?"
-                } else {
-                    "?"
-                }
-            }
+        return when (val constant = compileTimeConstant(key)) {
+            is LuaString -> constant.value
+            is LuaInteger -> if (constant.value.fitsUnsignedCOperand()) "integer index" else "?"
             else -> "?"
         }
+    }
+
+    private fun compileTimeConstant(expression: Expression): LuaValue? {
+        return when (expression) {
+            is NilExpression -> LuaNil
+            is BooleanExpression -> LuaBoolean(expression.value)
+            is IntegerExpression -> LuaInteger(expression.value)
+            is FloatExpression -> LuaFloat(expression.value)
+            is StringExpression -> LuaString(expression.value)
+            is VariableExpression -> resolveCompileTimeConstant(expression.name)
+            is UnaryExpression -> foldCompileTimeUnary(expression)
+            is BinaryExpression -> foldCompileTimeBinary(expression)
+            else -> null
+        }
+    }
+
+    private fun foldCompileTimeUnary(expression: UnaryExpression): LuaValue? {
+        val value = compileTimeConstant(expression.expression) ?: return null
+        return when (expression.operator) {
+            UnaryOperator.NEGATE -> when (value) {
+                is LuaInteger -> LuaInteger(-value.value)
+                is LuaFloat -> foldedFloat(-value.value)
+                else -> null
+            }
+            UnaryOperator.NOT -> LuaBoolean(value == LuaNil || value == LuaBoolean(false))
+            UnaryOperator.BITWISE_NOT -> exactInteger(value)?.let { integer -> LuaInteger(integer.inv()) }
+            UnaryOperator.LENGTH -> null
+        }
+    }
+
+    private fun foldCompileTimeBinary(expression: BinaryExpression): LuaValue? {
+        if (expression.operator == BinaryOperator.AND || expression.operator == BinaryOperator.OR) {
+            val left = compileTimeConstant(expression.left) ?: return null
+            val leftIsTruthy = left != LuaNil && left != LuaBoolean(false)
+            return when {
+                expression.operator == BinaryOperator.AND && leftIsTruthy -> compileTimeConstant(expression.right)
+                expression.operator == BinaryOperator.OR && !leftIsTruthy -> compileTimeConstant(expression.right)
+                else -> null
+            }
+        }
+        if (expression.operator !in FOLDABLE_BINARY_OPERATORS) {
+            return null
+        }
+        val left = compileTimeConstant(expression.left) ?: return null
+        val right = compileTimeConstant(expression.right) ?: return null
+        val leftNumber = numericValue(left) ?: return null
+        val rightNumber = numericValue(right) ?: return null
+
+        if (expression.operator in BITWISE_BINARY_OPERATORS) {
+            val leftInteger = exactInteger(left) ?: return null
+            val rightInteger = exactInteger(right) ?: return null
+            return LuaInteger(
+                when (expression.operator) {
+                    BinaryOperator.BITWISE_OR -> leftInteger or rightInteger
+                    BinaryOperator.BITWISE_XOR -> leftInteger xor rightInteger
+                    BinaryOperator.BITWISE_AND -> leftInteger and rightInteger
+                    BinaryOperator.LEFT_SHIFT -> shiftLeft(leftInteger, rightInteger)
+                    BinaryOperator.RIGHT_SHIFT -> shiftRight(leftInteger, rightInteger)
+                    else -> error("non-bitwise operator in bitwise constant fold")
+                },
+            )
+        }
+
+        if (
+            expression.operator in ZERO_DIVISOR_OPERATORS &&
+            rightNumber == 0.0
+        ) {
+            return null
+        }
+
+        if (left is LuaInteger && right is LuaInteger) {
+            return when (expression.operator) {
+                BinaryOperator.ADD -> LuaInteger(left.value + right.value)
+                BinaryOperator.SUBTRACT -> LuaInteger(left.value - right.value)
+                BinaryOperator.MULTIPLY -> LuaInteger(left.value * right.value)
+                BinaryOperator.FLOOR_DIVIDE -> LuaInteger(integerFloorDivide(left.value, right.value))
+                BinaryOperator.MODULO -> LuaInteger(integerModulo(left.value, right.value))
+                BinaryOperator.DIVIDE -> foldedFloat(leftNumber / rightNumber)
+                BinaryOperator.POWER -> foldedFloat(Math.pow(leftNumber, rightNumber))
+                else -> null
+            }
+        }
+
+        val result = when (expression.operator) {
+            BinaryOperator.ADD -> leftNumber + rightNumber
+            BinaryOperator.SUBTRACT -> leftNumber - rightNumber
+            BinaryOperator.MULTIPLY -> leftNumber * rightNumber
+            BinaryOperator.DIVIDE -> leftNumber / rightNumber
+            BinaryOperator.FLOOR_DIVIDE -> kotlin.math.floor(leftNumber / rightNumber)
+            BinaryOperator.MODULO -> floatModulo(leftNumber, rightNumber)
+            BinaryOperator.POWER -> Math.pow(leftNumber, rightNumber)
+            else -> return null
+        }
+        return foldedFloat(result)
+    }
+
+    private fun resolveCompileTimeConstant(name: String): LuaValue? {
+        if (resolveCurrentLocalSlot(name) != null) {
+            return localCompileTimeConstants?.get(name)
+        }
+        if (resolveCurrentGlobalDeclaration(name) != null) {
+            return null
+        }
+        return parentCompileTimeConstantResolver?.invoke(name)
+    }
+
+    private fun numericValue(value: LuaValue): Double? {
+        return when (value) {
+            is LuaInteger -> value.value.toDouble()
+            is LuaFloat -> value.value
+            else -> null
+        }
+    }
+
+    private fun exactInteger(value: LuaValue): Long? {
+        return when (value) {
+            is LuaInteger -> value.value
+            is LuaFloat -> if (
+                java.lang.Double.isFinite(value.value) &&
+                value.value % 1.0 == 0.0 &&
+                value.value >= Long.MIN_VALUE.toDouble() &&
+                value.value < LONG_MAX_EXCLUSIVE
+            ) {
+                value.value.toLong()
+            } else {
+                null
+            }
+            else -> null
+        }
+    }
+
+    private fun foldedFloat(value: Double): LuaFloat? {
+        // lcode.c:constfolding deliberately leaves NaN and both signed zeroes for runtime evaluation.
+        return if (value.isNaN() || value == 0.0) null else LuaFloat(value)
+    }
+
+    private fun integerFloorDivide(left: Long, right: Long): Long {
+        return if (left == Long.MIN_VALUE && right == -1L) Long.MIN_VALUE else Math.floorDiv(left, right)
+    }
+
+    private fun integerModulo(left: Long, right: Long): Long {
+        return if (right == -1L) 0L else Math.floorMod(left, right)
+    }
+
+    private fun floatModulo(left: Double, right: Double): Double {
+        var result = left % right
+        if (if (result > 0.0) right < 0.0 else result < 0.0 && right > 0.0) {
+            result += right
+        }
+        return result
+    }
+
+    private fun shiftLeft(value: Long, distance: Long): Long {
+        if (distance <= -LONG_BITS || distance >= LONG_BITS) {
+            return 0L
+        }
+        return if (distance < 0) value ushr (-distance).toInt() else value shl distance.toInt()
+    }
+
+    private fun shiftRight(value: Long, distance: Long): Long {
+        if (distance <= -LONG_BITS || distance >= LONG_BITS) {
+            return 0L
+        }
+        return if (distance < 0) value shl (-distance).toInt() else value ushr distance.toInt()
     }
 
     private fun Long.fitsUnsignedCOperand(): Boolean {
@@ -1060,6 +1280,7 @@ internal class Compiler private constructor(
                 }
             },
             parentConstResolver = { name -> isConstBinding(name) },
+            parentCompileTimeConstantResolver = { name -> resolveCompileTimeConstant(name) },
             parentGlobalResolver = { name -> resolveGlobalDeclaration(name) },
         )
         for (parameter in expression.parameters) {
@@ -1462,6 +1683,7 @@ internal class Compiler private constructor(
     private fun restoreLocals(
         savedLocals: LinkedHashMap<String, Int>,
         savedLocalAttributes: LinkedHashMap<String, LocalAttribute>,
+        savedLocalCompileTimeConstants: LinkedHashMap<String, LuaValue>?,
         savedLocalDeclarationOrders: LinkedHashMap<String, Int>,
         savedNextLocalRegister: Int,
     ) {
@@ -1470,6 +1692,7 @@ internal class Compiler private constructor(
         locals.putAll(savedLocals)
         localAttributes.clear()
         localAttributes.putAll(savedLocalAttributes)
+        localCompileTimeConstants = savedLocalCompileTimeConstants
         localDeclarationOrders.clear()
         localDeclarationOrders.putAll(savedLocalDeclarationOrders)
         nextLocalRegister = savedNextLocalRegister
@@ -1583,6 +1806,34 @@ internal class Compiler private constructor(
     companion object {
         private const val LUA_ENV_NAME = "_ENV"
         private const val UNSIGNED_C_OPERAND_MAX = 255L
+        private const val LONG_BITS = 64L
+        private const val LONG_MAX_EXCLUSIVE = 9223372036854775808.0
+        private val FOLDABLE_BINARY_OPERATORS = setOf(
+            BinaryOperator.ADD,
+            BinaryOperator.SUBTRACT,
+            BinaryOperator.MULTIPLY,
+            BinaryOperator.DIVIDE,
+            BinaryOperator.FLOOR_DIVIDE,
+            BinaryOperator.MODULO,
+            BinaryOperator.POWER,
+            BinaryOperator.BITWISE_OR,
+            BinaryOperator.BITWISE_XOR,
+            BinaryOperator.BITWISE_AND,
+            BinaryOperator.LEFT_SHIFT,
+            BinaryOperator.RIGHT_SHIFT,
+        )
+        private val BITWISE_BINARY_OPERATORS = setOf(
+            BinaryOperator.BITWISE_OR,
+            BinaryOperator.BITWISE_XOR,
+            BinaryOperator.BITWISE_AND,
+            BinaryOperator.LEFT_SHIFT,
+            BinaryOperator.RIGHT_SHIFT,
+        )
+        private val ZERO_DIVISOR_OPERATORS = setOf(
+            BinaryOperator.DIVIDE,
+            BinaryOperator.FLOOR_DIVIDE,
+            BinaryOperator.MODULO,
+        )
 
         fun compile(
             source: String,
