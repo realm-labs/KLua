@@ -19224,6 +19224,125 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math asin acos and sqrt follow ieee domain boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local positiveZero = 0.0
+                local negativeZero = -0.0
+                local inside = 0x1.fffffffffffffp-1
+                local outside = 0x1.0000000000001p0
+                local minimumSubnormal = 0x0.0000000000001p-1022
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local asinTyped = math.asin(0)
+                local acosTyped = math.acos(0)
+                local sqrtTyped = math.sqrt(0)
+                return 1 / math.asin(positiveZero), 1 / math.asin(negativeZero),
+                    math.asin(1), math.asin(-1), math.asin(inside), math.asin(-inside),
+                    math.asin(outside), math.asin(-outside),
+                    math.asin(infinity), math.asin(nan),
+                    1 / math.acos(1), math.acos(-1), math.acos(positiveZero), math.acos(negativeZero),
+                    math.acos(inside), math.acos(-inside),
+                    math.acos(outside), math.acos(-outside),
+                    math.acos(infinity), math.acos(nan),
+                    1 / math.sqrt(positiveZero), 1 / math.sqrt(negativeZero),
+                    math.sqrt(minimumSubnormal), math.sqrt(-minimumSubnormal),
+                    math.sqrt(infinity), math.sqrt(-infinity), math.sqrt(nan),
+                    math.type(asinTyped), math.type(acosTyped), math.type(sqrtTyped),
+                    select("#", math.asin(0)), select("#", math.acos(0)), select("#", math.sqrt(0))
+                """.trimIndent(),
+                "math-unary-domains.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val inside = Math.nextDown(1.0)
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(1))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(2))
+        assertEquals(Math.PI / 2, state.toNumber(3))
+        assertEquals(-Math.PI / 2, state.toNumber(4))
+        assertEquals(kotlin.math.asin(inside), state.toNumber(5))
+        assertEquals(kotlin.math.asin(-inside), state.toNumber(6))
+        assertTrue(state.toNumber(7)?.isNaN() == true)
+        assertTrue(state.toNumber(8)?.isNaN() == true)
+        assertTrue(state.toNumber(9)?.isNaN() == true)
+        assertTrue(state.toNumber(10)?.isNaN() == true)
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(11))
+        assertEquals(Math.PI, state.toNumber(12))
+        assertEquals(Math.PI / 2, state.toNumber(13))
+        assertEquals(Math.PI / 2, state.toNumber(14))
+        assertEquals(kotlin.math.acos(inside), state.toNumber(15))
+        assertEquals(kotlin.math.acos(-inside), state.toNumber(16))
+        assertTrue(state.toNumber(17)?.isNaN() == true)
+        assertTrue(state.toNumber(18)?.isNaN() == true)
+        assertTrue(state.toNumber(19)?.isNaN() == true)
+        assertTrue(state.toNumber(20)?.isNaN() == true)
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(21))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(22))
+        assertEquals(Math.scalb(1.0, -537), state.toNumber(23))
+        assertTrue(state.toNumber(24)?.isNaN() == true)
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(25))
+        assertTrue(state.toNumber(26)?.isNaN() == true)
+        assertTrue(state.toNumber(27)?.isNaN() == true)
+        assertEquals("float", state.toString(28))
+        assertEquals("float", state.toString(29))
+        assertEquals("float", state.toString(30))
+        assertEquals(1L, state.toInteger(31))
+        assertEquals(1L, state.toInteger(32))
+        assertEquals(1L, state.toInteger(33))
+    }
+
+    @Test
+    fun `math asin acos and sqrt validate and coerce their first argument`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local asinMissingOk, asinMissingError = pcall(math.asin)
+                local asinTypeOk, asinTypeError = pcall(math.asin, false)
+                local acosMissingOk, acosMissingError = pcall(math.acos)
+                local acosTypeOk, acosTypeError = pcall(math.acos, false)
+                local sqrtMissingOk, sqrtMissingError = pcall(math.sqrt)
+                local sqrtTypeOk, sqrtTypeError = pcall(math.sqrt, false)
+                return asinMissingOk, asinMissingError, asinTypeOk, asinTypeError,
+                    acosMissingOk, acosMissingError, acosTypeOk, acosTypeError,
+                    sqrtMissingOk, sqrtMissingError, sqrtTypeOk, sqrtTypeError,
+                    math.asin("0x1p-1", false), math.acos("0x1p0", false),
+                    math.sqrt("0x1p2", false)
+                """.trimIndent(),
+                "math-unary-domain-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'asin' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'asin' (number expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'acos' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'acos' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'sqrt' (number expected)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #1 to 'sqrt' (number expected)", state.toString(12))
+        assertEquals(kotlin.math.asin(0.5), state.toNumber(13))
+        assertEquals(0.0, state.toNumber(14))
+        assertEquals(2.0, state.toNumber(15))
+    }
+
+    @Test
     fun `openMath installs exponential and angle functions`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
