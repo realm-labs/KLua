@@ -386,6 +386,10 @@ internal class LuaVm(
                         Opcode.LEN,
                         Opcode.UNM,
                         -> register(frame, Instruction.a(instruction)) to 1
+                        Opcode.EQ,
+                        Opcode.LT,
+                        Opcode.LE,
+                        -> register(frame, Instruction.a(instruction)) to TRUTHY_PENDING_RESULT_COUNT
                         Opcode.SET_TABLE,
                         Opcode.SET_FIELD,
                         Opcode.SET_GLOBAL,
@@ -499,6 +503,10 @@ internal class LuaVm(
                     return LuaExecutionResult.DebugSuspended
                 }
             }
+        }
+        if (expectedResults == TRUTHY_PENDING_RESULT_COUNT) {
+            frame.stack.set(base, LuaBoolean(isTruthy(returnedValues.firstOrNull() ?: LuaNil)))
+            return null
         }
         applyCallResults(frame.stack, frame, base, expectedResults, returnedValues)
         return null
@@ -1399,6 +1407,10 @@ internal class LuaVm(
         if (allowSuspension && result !is LuaExecutionResult.Returned) {
             throw LuaMetamethodSuspension(result)
         }
+        if (result is LuaExecutionResult.Yielded && thread.inNativeCall) {
+            thread.clearFrames()
+            throw LuaVmException("attempt to yield across a C-call boundary")
+        }
         return returnedValues(result)
     }
 
@@ -1603,10 +1615,22 @@ internal class LuaVm(
     private fun compare(stack: LuaStack, frame: CallFrame, instruction: Int, comparison: Comparison) {
         val left = stack.get(register(frame, Instruction.b(instruction)))
         val right = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(compare(left, right, comparison)))
+        stack.set(
+            register(frame, Instruction.a(instruction)),
+            LuaBoolean(compare(left, right, comparison, allowSuspension = true)),
+        )
     }
 
     private fun compare(left: LuaValue, right: LuaValue, comparison: Comparison): Boolean {
+        return compare(left, right, comparison, allowSuspension = false)
+    }
+
+    private fun compare(
+        left: LuaValue,
+        right: LuaValue,
+        comparison: Comparison,
+        allowSuspension: Boolean,
+    ): Boolean {
         if (comparison == Comparison.EQ) {
             if (comparison.apply(left, right)) {
                 return true
@@ -1618,7 +1642,13 @@ internal class LuaVm(
             }
             val metamethod = binaryMetamethod(left, right, EQ_KEY)
             if (metamethod != null) {
-                val result = callOperatorMetamethod(metamethod, left, right, EQ_KEY)
+                val result = callOperatorMetamethod(
+                    metamethod,
+                    left,
+                    right,
+                    EQ_KEY,
+                    allowSuspension,
+                )
                 return isTruthy(result)
             }
             return false
@@ -1630,7 +1660,15 @@ internal class LuaVm(
             if (metamethod == null) {
                 throw comparisonError(left, right)
             }
-            return isTruthy(callOperatorMetamethod(metamethod, left, right, comparison.metamethodKey))
+            return isTruthy(
+                callOperatorMetamethod(
+                    metamethod,
+                    left,
+                    right,
+                    comparison.metamethodKey,
+                    allowSuspension,
+                ),
+            )
         }
     }
 
@@ -2320,6 +2358,7 @@ private val MOD_CALL_SITE_INFO = metamethodCallSiteInfo("mod")
 private val POW_CALL_SITE_INFO = metamethodCallSiteInfo("pow")
 private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 200
+private const val TRUTHY_PENDING_RESULT_COUNT = -2
 private const val VARARG_LOCAL_NAME = "(vararg)"
 
 private fun metamethodCallSiteInfo(name: String): CallSiteInfo {

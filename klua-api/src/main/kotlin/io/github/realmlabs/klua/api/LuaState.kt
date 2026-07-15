@@ -1629,46 +1629,39 @@ class LuaState private constructor(
         private fun equalCoreValues(left: KLuaCoreValue, right: KLuaCoreValue): Boolean {
             return when (val comparison = KLuaCoreRuntime.equal(left, right, coreGlobals)) {
                 is KLuaCoreComparison.Success -> comparison.value
-                is KLuaCoreComparison.RuntimeError -> throw LuaRuntimeException(
-                    comparison.message,
-                    sourceName = comparison.sourceName,
-                    line = comparison.line,
-                    cause = comparison.cause,
-                    luaFrames = toApiStackFrames(comparison.luaFrames),
-                    errorObject = comparison.errorObject?.toStackValue()?.toPublicCallReturnValue(),
-                    hasErrorObject = comparison.errorObject != null,
-                )
+                is KLuaCoreComparison.RuntimeError -> throw nativeComparisonError(comparison)
             }
         }
 
         private fun lessThanCoreValues(left: KLuaCoreValue, right: KLuaCoreValue): Boolean {
             return when (val comparison = KLuaCoreRuntime.lessThan(left, right, coreGlobals)) {
                 is KLuaCoreComparison.Success -> comparison.value
-                is KLuaCoreComparison.RuntimeError -> throw LuaRuntimeException(
-                    comparison.message,
-                    sourceName = comparison.sourceName,
-                    line = comparison.line,
-                    cause = comparison.cause,
-                    luaFrames = toApiStackFrames(comparison.luaFrames),
-                    errorObject = comparison.errorObject?.toStackValue()?.toPublicCallReturnValue(),
-                    hasErrorObject = comparison.errorObject != null,
-                )
+                is KLuaCoreComparison.RuntimeError -> throw nativeComparisonError(comparison)
             }
         }
 
         private fun luaEqualsCoreValues(left: KLuaCoreValue, right: KLuaCoreValue): Boolean {
             return when (val comparison = KLuaCoreRuntime.luaEquals(left, right, coreGlobals)) {
                 is KLuaCoreComparison.Success -> comparison.value
-                is KLuaCoreComparison.RuntimeError -> throw LuaRuntimeException(
-                    comparison.message,
-                    sourceName = comparison.sourceName,
-                    line = comparison.line,
-                    cause = comparison.cause,
-                    luaFrames = toApiStackFrames(comparison.luaFrames),
-                    errorObject = comparison.errorObject?.toStackValue()?.toPublicCallReturnValue(),
-                    hasErrorObject = comparison.errorObject != null,
-                )
+                is KLuaCoreComparison.RuntimeError -> throw nativeComparisonError(comparison)
             }
+        }
+
+        private fun nativeComparisonError(comparison: KLuaCoreComparison.RuntimeError): LuaRuntimeException {
+            val message = if (comparison.message == "attempt to yield from outside a coroutine") {
+                "attempt to yield across a C-call boundary"
+            } else {
+                comparison.message
+            }
+            return LuaRuntimeException(
+                message,
+                sourceName = comparison.sourceName,
+                line = comparison.line,
+                cause = comparison.cause,
+                luaFrames = toApiStackFrames(comparison.luaFrames),
+                errorObject = comparison.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                hasErrorObject = comparison.errorObject != null,
+            )
         }
 
         override fun call(index: Int, arguments: List<Any?>): LuaReturn {

@@ -15428,6 +15428,232 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `comparison metamethods can repeatedly yield and resume through source operators`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function yieldingComparison(marker)
+                    return function(left, right)
+                        local result = coroutine.yield(marker .. ":first", left.name, right.name)
+                        coroutine.yield(marker .. ":second", result)
+                        return result, "ignored"
+                    end
+                end
+
+                local eqLeft = setmetatable({ name = "eq-left" }, {})
+                local eqRight = setmetatable({ name = "eq-right" }, {
+                    __eq = yieldingComparison("eq"),
+                })
+                local orderLeft = setmetatable({ name = "order-left" }, {})
+                local orderRight = setmetatable({ name = "order-right" }, {
+                    __lt = yieldingComparison("lt"),
+                    __le = yieldingComparison("le"),
+                })
+                local results = {}
+                local co = coroutine.create(function()
+                    results[1] = eqLeft == eqRight
+                    results[2] = eqLeft ~= eqRight
+                    results[3] = orderLeft < orderRight
+                    results[4] = orderLeft > orderRight
+                    results[5] = orderLeft <= orderRight
+                    results[6] = orderLeft >= orderRight
+                    return "done"
+                end)
+
+                local expected = {
+                    { "eq", "eq-left", "eq-right" },
+                    { "eq", "eq-left", "eq-right" },
+                    { "lt", "order-left", "order-right" },
+                    { "lt", "order-right", "order-left" },
+                    { "le", "order-left", "order-right" },
+                    { "le", "order-right", "order-left" },
+                }
+                local nilResult = {}
+                local resumeResults = { 0, false, "truthy", nilResult, {}, false }
+                local ok, marker, leftName, rightName = coroutine.resume(co)
+                local traceOk = true
+                for index, entry in ipairs(expected) do
+                    traceOk = traceOk and ok and marker == entry[1] .. ":first"
+                        and leftName == entry[2] and rightName == entry[3]
+                    local wanted = resumeResults[index]
+                    local observed
+                    if wanted == nilResult then
+                        ok, marker, observed = coroutine.resume(co)
+                        traceOk = traceOk and observed == nil
+                    else
+                        ok, marker, observed = coroutine.resume(co, wanted)
+                        traceOk = traceOk and observed == wanted
+                    end
+                    traceOk = traceOk and ok and marker == entry[1] .. ":second"
+                    ok, marker, leftName, rightName = coroutine.resume(co, "discarded")
+                end
+
+                return traceOk and ok, marker, coroutine.status(co),
+                    results[1], results[2], results[3], results[4], results[5], results[6]
+                """.trimIndent(),
+                "coroutine-comparisons.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("done", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertFalse(state.toBoolean(9))
+    }
+
+    @Test
+    fun `native and callable comparison metamethods resume with truth conversion`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostEq",
+            LuaYieldableFunction { context -> context.yield(listOf("native-eq")) },
+        )
+        state.register(
+            "hostLe",
+            LuaYieldableFunction { context -> context.yield(listOf("native-le")) },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local eqLeft = setmetatable({}, {})
+                local eqRight = setmetatable({}, { __eq = hostEq })
+                local ltLeft = setmetatable({}, {})
+                local ltRight
+                local callable = setmetatable({}, {
+                    __call = function(_, left, right)
+                        coroutine.yield("callable-lt", left == ltLeft, right == ltRight)
+                    end,
+                })
+                ltRight = setmetatable({}, { __lt = callable })
+                local leLeft = setmetatable({}, { __le = hostLe })
+                local leRight = setmetatable({}, {})
+                local eqResult
+                local ltResult
+                local leResult
+                local co = coroutine.create(function()
+                    eqResult = eqLeft == eqRight
+                    ltResult = ltLeft < ltRight
+                    leResult = leLeft <= leRight
+                    return "done"
+                end)
+
+                local firstOk, firstMarker = coroutine.resume(co)
+                local secondOk, secondMarker, leftOk, rightOk = coroutine.resume(co, 0)
+                local thirdOk, thirdMarker = coroutine.resume(co, "discarded")
+                local fourthOk, done = coroutine.resume(co, false)
+                return firstOk, firstMarker, secondOk, secondMarker, leftOk, rightOk,
+                    thirdOk, thirdMarker, fourthOk, done, eqResult, ltResult, leResult,
+                    coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-native-callable-comparisons.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("native-eq", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("callable-lt", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("native-le", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("done", state.toString(10))
+        assertTrue(state.toBoolean(11))
+        assertFalse(state.toBoolean(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("dead", state.toString(14))
+    }
+
+    @Test
+    fun `yielded comparison errors propagate and native comparison boundaries reject yields`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local failing = setmetatable({}, {
+                    __lt = function()
+                        coroutine.yield("before-error")
+                        error("comparison boom")
+                    end,
+                })
+                local failureCo = coroutine.create(function()
+                    return failing < failing
+                end)
+                local firstOk, marker = coroutine.resume(failureCo)
+                local secondOk, failureMessage = coroutine.resume(failureCo)
+
+                local orderValue = setmetatable({}, {
+                    __lt = function()
+                        coroutine.yield("order-boundary")
+                    end,
+                })
+                local orderCo = coroutine.create(function()
+                    return math.min(orderValue, orderValue)
+                end)
+                local orderOk, orderMessage = coroutine.resume(orderCo)
+
+                local storage = { "value" }
+                local moveMetatable = {
+                    __eq = function()
+                        coroutine.yield("equality-boundary")
+                    end,
+                    __index = function(_, key)
+                        return storage[key]
+                    end,
+                    __newindex = function(_, key, value)
+                        storage[key] = value
+                    end,
+                }
+                local source = setmetatable({}, moveMetatable)
+                local destination = setmetatable({}, moveMetatable)
+                local equalityCo = coroutine.create(function()
+                    return table.move(source, 1, 1, 1, destination)
+                end)
+                local equalityOk, equalityMessage = coroutine.resume(equalityCo)
+
+                return firstOk, marker, secondOk, failureMessage, coroutine.status(failureCo),
+                    orderOk, orderMessage, coroutine.status(orderCo),
+                    equalityOk, equalityMessage, coroutine.status(equalityCo)
+                """.trimIndent(),
+                "coroutine-comparison-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("before-error", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toString(4)?.endsWith("comparison boom") == true, state.toString(4))
+        assertEquals("dead", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(7))
+        assertEquals("dead", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(10))
+        assertEquals("dead", state.toString(11))
+    }
+
+    @Test
     fun `coroutine yield and resume preserve cyclic table identity`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
