@@ -450,9 +450,16 @@ internal object LuaTableLibrary {
         return LuaReturn.none()
     }
 
-    private fun tableSortRange(context: LuaCallContext, lowIndex: Long, highIndex: Long, hasComparator: Boolean) {
+    private fun tableSortRange(
+        context: LuaCallContext,
+        lowIndex: Long,
+        highIndex: Long,
+        hasComparator: Boolean,
+        randomizedPivot: Long = 0L,
+    ) {
         var low = lowIndex
         var high = highIndex
+        var pivotRandomizer = randomizedPivot
         while (low < high) {
             if (tableSortBefore(context, tableIndexValue(context, high), tableIndexValue(context, low), hasComparator)) {
                 tableSortSwap(context, low, high)
@@ -461,7 +468,11 @@ internal object LuaTableLibrary {
                 return
             }
 
-            val pivotIndex = (low + high) / 2L
+            val pivotIndex = if (high - low < TABLE_SORT_RANDOM_PIVOT_LIMIT || pivotRandomizer == 0L) {
+                (low + high) / 2L
+            } else {
+                tableSortRandomizedPivot(low, high, pivotRandomizer)
+            }
             if (tableSortBefore(context, tableIndexValue(context, pivotIndex), tableIndexValue(context, low), hasComparator)) {
                 tableSortSwap(context, pivotIndex, low)
             } else if (tableSortBefore(
@@ -482,14 +493,26 @@ internal object LuaTableLibrary {
             tableSetValue(context, 1, high - 1L, pivot)
             val partitionIndex = tableSortPartition(context, low, high, pivot, hasComparator)
 
+            val smallerPartitionSize: Long
             if (partitionIndex - low < high - partitionIndex) {
-                tableSortRange(context, low, partitionIndex - 1L, hasComparator)
+                tableSortRange(context, low, partitionIndex - 1L, hasComparator, pivotRandomizer)
+                smallerPartitionSize = partitionIndex - low
                 low = partitionIndex + 1L
             } else {
-                tableSortRange(context, partitionIndex + 1L, high, hasComparator)
+                tableSortRange(context, partitionIndex + 1L, high, hasComparator, pivotRandomizer)
+                smallerPartitionSize = high - partitionIndex
                 high = partitionIndex - 1L
             }
+            if ((high - low) / TABLE_SORT_IMBALANCE_DIVISOR > smallerPartitionSize) {
+                pivotRandomizer = TABLE_SORT_DETERMINISTIC_RANDOMIZER
+            }
         }
+    }
+
+    private fun tableSortRandomizedPivot(low: Long, high: Long, randomizer: Long): Long {
+        val quarter = (high - low) / 4L
+        val offset = ((randomizer xor low xor high) and TABLE_SORT_DETERMINISTIC_RANDOMIZER) % (quarter * 2L)
+        return low + quarter + offset
     }
 
     private fun tableSortPartition(
@@ -906,4 +929,7 @@ internal object LuaTableLibrary {
 
     private val UINT64_MODULUS: BigInteger = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
     private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
+    private const val TABLE_SORT_RANDOM_PIVOT_LIMIT = 100L
+    private const val TABLE_SORT_IMBALANCE_DIVISOR = 128L
+    private const val TABLE_SORT_DETERMINISTIC_RANDOMIZER = 0xffff_ffffL
 }

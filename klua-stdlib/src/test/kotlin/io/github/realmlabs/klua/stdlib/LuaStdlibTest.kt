@@ -26113,6 +26113,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table sort changes pivots after severely imbalanced partitions`() {
+        val state = LuaState.create()
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local values = {}
+                for value = 1, 256 do
+                    values[#values + 1] = value
+                end
+                for value = 256, 1, -1 do
+                    values[#values + 1] = value
+                end
+
+                local comparisons = 0
+                table.sort(values, function(left, right)
+                    comparisons = comparisons + 1
+                    return left < right
+                end)
+
+                local ordered = true
+                for index = 2, #values do
+                    ordered = ordered and values[index - 1] <= values[index]
+                end
+                return comparisons, ordered, values[1], values[#values]
+                """.trimIndent(),
+                "table-sort-imbalanced-pivot.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue((state.toInteger(1) ?: Long.MAX_VALUE) < 7_000L, state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(256L, state.toInteger(4))
+    }
+
+    @Test
     fun `table sort writes missing slots through newindex metamethod`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
