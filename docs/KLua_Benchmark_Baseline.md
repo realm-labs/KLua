@@ -318,3 +318,37 @@ The full twelve-workload suite after the change measured:
 | Execute 10,000 coroutine yield/resume cycles | 15,635.268 | ±1,539.794 |
 
 The full-suite coroutine score is 24.5% below its 20,698.180 µs/op post-string-cache checkpoint. The complete Gradle test suite passes. The remaining API-side host context and continuation adapters require a fresh post-change profile before another optimization.
+
+## 2026-07-15 API Host-Context Checkpoint
+
+Fresh JFR profiles after VM native-context consolidation compared coroutine yield/resume with plain host calls. Both selected `LuaState.callHostFunction` and core/API context adaptation; plain host calls in particular were dominated by `ArrayList`, backing-array, `DefaultLuaCallContext`, and per-invocation adapter-lambda allocation. Both registered globals and converted host functions already receive one `KLuaCoreCallContext`, but KLua unpacked that object into separate frame, local, hook-set, and hook-get lambdas and then wrapped those callbacks in another API context.
+
+KLua now passes the core call context directly into one specialized API call context. Frame conversion is still lazy and memoized, and local mutation, debug-hook access, yieldability, table synchronization, native-frame errors, and yield/result conversion retain their previous paths. This continues the `ldo.c` `precallC` principle of exposing active call state without constructing independent service closures.
+
+The matched GC-profiler checkpoint measured:
+
+| Benchmark | Before allocation | After allocation | Delta |
+| --- | ---: | ---: | ---: |
+| 10,000 coroutine yield/resume cycles | 25,118,948.376 B/op | 23,358,773.389 B/op | -7.0% |
+| 10,000 host calls | 8,158,434.655 B/op | 7,278,434.446 B/op | -10.8% |
+
+Focused timing was noisy and does not support a timing claim: coroutine averages were 14,809.104 µs/op before and 16,603.648 µs/op after, with the latter carrying a ±4,491.583 µs/op 99.9% error. The deterministic normalized allocation delta is the acceptance evidence.
+
+The full twelve-workload regression screen measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 8.196 | ±1.339 |
+| Execute numeric loop | 1,028.727 | ±174.571 |
+| Execute 10,000 Lua calls | 2,385.166 | ±322.362 |
+| Execute 10,000 closure-counter calls | 2,389.848 | ±893.124 |
+| Execute 10,000 host calls | 3,061.394 | ±806.747 |
+| Execute 10,000 `__index` metamethod calls | 2,736.694 | ±270.192 |
+| Execute 10,000 JVM-to-Lua calls | 3,381.129 | ±786.472 |
+| Execute 10,000 method calls | 4,944.629 | ±301.308 |
+| Execute recursive `fib(20)` | 7,095.810 | ±3,865.169 |
+| Execute 10,000 table writes and reads | 2,359.413 | ±336.230 |
+| Execute 1,000 growing string concatenations | 3,672.558 | ±876.935 |
+| Execute 10,000 coroutine yield/resume cycles | 18,167.585 | ±8,093.663 |
+
+No workload shows a supported regression, and the complete Gradle test suite passes. Core/public result-list and continuation conversion remain visible in the profiles and require a fresh matched investigation before another change.
