@@ -23499,6 +23499,152 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `balanced patterns preserve nul high byte and identical delimiters`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nul = string.char(0)
+                local control = string.char(1)
+                local highOpen = string.char(128)
+                local highClose = string.char(255)
+                local nulPattern = "%b" .. nul .. control
+                local nulSubject = nul .. "a" .. nul .. "b" .. control .. "c" .. control
+                local highPattern = "%b" .. highOpen .. highClose
+                local highSubject = highOpen .. "a" .. highOpen .. "b" .. highClose .. "c" .. highClose
+                local sameNulSubject = nul .. "a" .. nul .. "b" .. nul
+                local sameNulMatch = string.match(sameNulSubject, "%b" .. nul .. nul)
+                local quoted = string.match("'a''b'", "%b''")
+                local first, last = string.find("x" .. highSubject .. "y", highPattern)
+                local iterator = string.gmatch(highSubject .. "!" .. highSubject, highPattern)
+                local replaced, count = string.gsub(highSubject .. "!" .. highSubject, highPattern, "X")
+                return string.match(nulSubject, nulPattern) == nulSubject,
+                    string.match(highSubject, highPattern) == highSubject,
+                    sameNulMatch == nul .. "a" .. nul,
+                    quoted == "'a'", first, last,
+                    iterator() == highSubject, iterator() == highSubject, iterator(),
+                    replaced, count
+                """.trimIndent(),
+                "string-pattern-balanced-raw-bytes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals(2L, state.toInteger(5))
+        assertEquals(8L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.isNil(9))
+        assertEquals("X!X", state.toString(10))
+        assertEquals(2L, state.toInteger(11))
+    }
+
+    @Test
+    fun `balanced patterns compose with captures suffixes and every consumer`() {
+        val state = LuaState.create()
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local subject = "x(a(b)c)y(d)e"
+                local findFirst, findLast, findCapture = string.find(subject, "(%b())")
+                local firstCapture, secondCapture = string.match(subject, "^x(%b())y(%b())e$")
+                local iterator = string.gmatch(subject, "%b()")
+                local replaced, count = string.gsub(subject, "(%b())", "<%1>")
+                local repeatedCapture = string.match("(a)(a)", "^(%b())%1$")
+                local suffixFirst, suffixLast = string.find("(a)X (b)Y", "%b()Y")
+                local starredLiteral = string.match("(a)*(b)", "%b()*")
+                return findFirst, findLast, findCapture,
+                    firstCapture, secondCapture,
+                    iterator(), iterator(), iterator(),
+                    replaced, count, repeatedCapture,
+                    suffixFirst, suffixLast, starredLiteral
+                """.trimIndent(),
+                "string-pattern-balanced-composition.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(8L, state.toInteger(2))
+        assertEquals("(a(b)c)", state.toString(3))
+        assertEquals("(a(b)c)", state.toString(4))
+        assertEquals("(d)", state.toString(5))
+        assertEquals("(a(b)c)", state.toString(6))
+        assertEquals("(d)", state.toString(7))
+        assertTrue(state.isNil(8))
+        assertEquals("x<(a(b)c)>y<(d)>e", state.toString(9))
+        assertEquals(2L, state.toInteger(10))
+        assertEquals("(a)", state.toString(11))
+        assertEquals(6L, state.toInteger(12))
+        assertEquals(9L, state.toInteger(13))
+        assertEquals("(a)*", state.toString(14))
+    }
+
+    @Test
+    fun `malformed balanced items retain source consumer reachability`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local skippedMatchOk, skippedMatch = pcall(string.match, "abc", "z%b(")
+                local skippedFindOk, skippedFind = pcall(string.find, "abc", "z%b(")
+                local plainOk, plainFirst, plainLast = pcall(string.find, "%b(", "%b(", 1, true)
+                local outsideOk, outsideResult = pcall(string.find, "x", "%b(", 3)
+                local gsubOk, gsubResult, gsubCount = pcall(string.gsub, "x", "%b(", "y", 0)
+                local skippedIterator = string.gmatch("abc", "z%b(")
+                local skippedIteratorOk, skippedIteratorResult = pcall(skippedIterator)
+                local reachedIterator = string.gmatch("z", "z%b(")
+                local reachedIteratorOk, reachedIteratorError = pcall(reachedIterator)
+                local directOk, directError = pcall(string.match, "x", "%b(")
+                return skippedMatchOk, skippedMatch,
+                    skippedFindOk, skippedFind,
+                    plainOk, plainFirst, plainLast,
+                    outsideOk, outsideResult,
+                    gsubOk, gsubResult, gsubCount,
+                    skippedIteratorOk, skippedIteratorResult,
+                    reachedIteratorOk, reachedIteratorError,
+                    directOk, directError
+                """.trimIndent(),
+                "string-pattern-balanced-reachability.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.isNil(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(3L, state.toInteger(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.isNil(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals("x", state.toString(11))
+        assertEquals(0L, state.toInteger(12))
+        assertTrue(state.toBoolean(13))
+        assertTrue(state.isNil(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("malformed pattern (missing arguments to '%b')", state.toString(16))
+        assertFalse(state.toBoolean(17))
+        assertEquals("malformed pattern (missing arguments to '%b')", state.toString(18))
+    }
+
+    @Test
     fun `string patterns report malformed balanced match arguments`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
