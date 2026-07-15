@@ -620,7 +620,11 @@ class LuaState private constructor(
         getDebugHook: (() -> LuaReturn)? = null,
         isYieldable: Boolean = false,
     ): KLuaCoreCallResult {
-        val stackTableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
+        val stackTableCache = if (arguments.any { value -> value is KLuaCoreValue.TableValue }) {
+            IdentityHashMap<KLuaCoreValue.TableValue, LuaStackValue.TableValue>()
+        } else {
+            null
+        }
         val stackArguments = arguments.map { it.toStackValue(stackTableCache) }
         return try {
             val result = function.call(
@@ -928,7 +932,7 @@ class LuaState private constructor(
     ): KLuaCoreValue {
         val stackTable = this as? LuaStackValue.TableValue
         if (stackTable != null) {
-            val tableCache = seedCoreTableCache(stackArguments, coreArguments)
+            val tableCache = seedCoreTableCache(stackArguments, coreArguments) ?: IdentityHashMap()
             return stackTable.toCoreTableValue(tableCache)
         }
         return toCoreReturnValue()
@@ -1100,7 +1104,7 @@ class LuaState private constructor(
         coreArguments: List<KLuaCoreValue>,
         stackArguments: List<LuaStackValue>,
     ) {
-        val tableCache = seedCoreTableCache(stackArguments, coreArguments)
+        val tableCache = seedCoreTableCache(stackArguments, coreArguments) ?: return
         for (index in coreArguments.indices) {
             val coreTable = coreArguments[index] as? KLuaCoreValue.TableValue ?: continue
             val stackTable = stackArguments.getOrNull(index) as? LuaStackValue.TableValue ?: continue
@@ -1111,12 +1115,16 @@ class LuaState private constructor(
     private fun seedCoreTableCache(
         stackValues: List<LuaStackValue>,
         coreValues: List<KLuaCoreValue>,
-    ): MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue> {
-        val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+    ): MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>? {
+        var tableCache: MutableMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>? = null
         for (index in stackValues.indices) {
             val stackTable = stackValues[index] as? LuaStackValue.TableValue ?: continue
             val coreTable = coreValues.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
-            seedCoreTableCache(stackTable, coreTable, tableCache)
+            val resolvedTableCache = tableCache
+                ?: IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>().also {
+                    tableCache = it
+                }
+            seedCoreTableCache(stackTable, coreTable, resolvedTableCache)
         }
         return tableCache
     }
@@ -1454,8 +1462,13 @@ class LuaState private constructor(
         private val coroutine: KLuaCoreCoroutine,
     ) : LuaDebuggableCoroutineHandle {
         override fun resume(arguments: List<Any?>): LuaCoroutineResult {
-            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
-            val coreArguments = arguments.map { argument -> argument.toStackValue().toCoreValue(tableCache) }
+            val stackArguments = arguments.map { argument -> argument.toStackValue() }
+            val tableCache = if (stackArguments.any { value -> value is LuaStackValue.TableValue }) {
+                IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            } else {
+                null
+            }
+            val coreArguments = stackArguments.map { argument -> argument.toCoreValue(tableCache) }
             return when (val result = coroutine.resume(coreArguments)) {
                 is KLuaCoreCoroutineExecution.Returned -> LuaCoroutineResult.Returned(
                     result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },

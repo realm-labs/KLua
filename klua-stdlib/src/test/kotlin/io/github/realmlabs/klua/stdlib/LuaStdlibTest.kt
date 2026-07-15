@@ -14953,6 +14953,38 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine yield and resume preserve cyclic table identity`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = {}
+                first.self = first
+                local second = {}
+                second.self = second
+                local co = coroutine.create(function(value)
+                    local resumed = coroutine.yield(value)
+                    return resumed
+                end)
+                local firstOk, yielded = coroutine.resume(co, first)
+                local secondOk, returned = coroutine.resume(co, second)
+                return firstOk, yielded == first, yielded.self == yielded,
+                    secondOk, returned == second, returned.self == returned
+                """.trimIndent(),
+                "coroutine-table-identity.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for (index in 1..6) {
+            assertTrue(state.toBoolean(index))
+        }
+    }
+
+    @Test
     fun `coroutine resume rejects plain host function yield`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)

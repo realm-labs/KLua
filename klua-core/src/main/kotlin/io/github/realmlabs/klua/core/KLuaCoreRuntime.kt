@@ -1359,7 +1359,11 @@ private fun callCoreFunction(
     globals: KLuaCoreGlobals,
     call: (List<KLuaCoreValue>) -> KLuaCoreCallResult,
 ): List<LuaValue> {
-    val tableCache = IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
+    val tableCache = if (arguments.any { value -> value is LuaTable }) {
+        IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
+    } else {
+        null
+    }
     val publicArguments = arguments.map { value -> toPublicValue(value, globals, tableCache) }
     return try {
         when (val result = call(publicArguments)) {
@@ -1448,7 +1452,7 @@ private fun syncPublicTablesToLua(
     publicArguments: List<KLuaCoreValue>,
     globals: KLuaCoreGlobals,
 ) {
-    val tableCache = seedLuaTableCache(luaArguments, publicArguments)
+    val tableCache = seedLuaTableCache(luaArguments, publicArguments) ?: return
     for (index in luaArguments.indices) {
         val luaTable = luaArguments[index] as? LuaTable ?: continue
         val publicTable = publicArguments.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
@@ -1477,10 +1481,15 @@ private fun syncPublicTableToLua(
 private fun seedLuaTableCache(
     luaValues: List<LuaValue>,
     publicValues: List<KLuaCoreValue>,
-): MutableMap<KLuaCoreValue.TableValue, LuaTable> {
-    val tableCache = IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>()
+): MutableMap<KLuaCoreValue.TableValue, LuaTable>? {
+    var tableCache: MutableMap<KLuaCoreValue.TableValue, LuaTable>? = null
     for (index in luaValues.indices) {
-        seedLuaTableCache(luaValues[index], publicValues.getOrNull(index), tableCache)
+        val luaTable = luaValues[index] as? LuaTable ?: continue
+        val publicTable = publicValues.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
+        val resolvedTableCache = tableCache ?: IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>().also {
+            tableCache = it
+        }
+        seedLuaTableCache(luaTable, publicTable, resolvedTableCache)
     }
     return tableCache
 }

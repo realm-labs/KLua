@@ -186,3 +186,33 @@ The expanded nine-workload suite measured:
 | Execute 10,000 coroutine yield/resume cycles | 26,011.328 | ±1,975.760 |
 
 The complete Gradle test suite passes. Growing concatenation intentionally copies an increasing result and therefore needs a differently shaped control before any representation conclusion. Coroutine transfer has the largest total measured allocation and a directly comparable per-cycle cost, so coroutine yield/resume is the next bounded profiling target.
+
+## 2026-07-15 Coroutine Transfer-Cache Checkpoint
+
+Stack profiling placed host/API adaptation on the coroutine hot path. JFR allocation-by-site profiling then attributed about 45% of allocation pressure to `IdentityHashMap.init`, primarily from core/native argument synchronization, return/yield conversion, and API coroutine resume. These identity maps preserve aliases and cycles when table graphs cross a boundary, but scalar `coroutine.resume` success flags, yielded integers, and resume arguments do not require them.
+
+KLua now creates the specialized synchronization caches only when paired table arguments or table resume arguments exist. Multiple table arguments still share one cache, and returned/yielded table graphs still allocate a cache on demand. A focused standard-library regression passes self-referential tables into a coroutine, yields one back, resumes with another, and verifies identity and cycles on both transfers. This preserves the `lcorolib.c` `auxresume` value-transfer semantics while removing scalar-only graph state.
+
+The matched GC-profiler checkpoint measured:
+
+| Benchmark | Metric | Before | After | Delta |
+| --- | --- | ---: | ---: | ---: |
+| 10,000 coroutine yield/resume cycles | Average time | 24,746.339 µs/op | 23,918.230 µs/op | -3.3% |
+| 10,000 coroutine yield/resume cycles | Allocation | 89,285,731.446 B/op | 57,602,250.770 B/op | -35.5% |
+| 1,000 growing string concatenations | Allocation | 16,633,514.487 B/op | 16,633,331.532 B/op | effectively unchanged |
+
+The full nine-workload suite after the change measured:
+
+| Benchmark | Score (µs/op) | 99.9% error |
+| --- | ---: | ---: |
+| Compile numeric loop | 7.963 | ±1.062 |
+| Execute numeric loop | 1,024.128 | ±96.112 |
+| Execute 10,000 Lua calls | 2,499.410 | ±335.054 |
+| Execute 10,000 host calls | 5,637.406 | ±2,569.825 |
+| Execute 10,000 `__index` metamethod calls | 4,598.839 | ±1,201.256 |
+| Execute 10,000 JVM-to-Lua calls | 3,124.115 | ±275.988 |
+| Execute 10,000 table writes and reads | 2,510.404 | ±665.893 |
+| Execute 1,000 growing string concatenations | 4,055.632 | ±190.823 |
+| Execute 10,000 coroutine yield/resume cycles | 21,867.310 | ±2,244.246 |
+
+The full-suite coroutine score is 15.9% below its 26,011.328 µs/op coverage baseline, and the complete Gradle test suite passes. The next M19 package should add closure-counter, method-call, and representative application-kernel controls before selecting another optimization.
