@@ -63,6 +63,24 @@ class LuaThreadTest {
     }
 
     @Test
+    fun `push call snapshots mutable vararg arguments`() {
+        val thread = LuaThread()
+        val arguments = mutableListOf<LuaValue>(LuaInteger(10), LuaInteger(20), LuaNil, LuaInteger(40))
+
+        val frame = thread.pushCall(
+            prototype("chunk", maxStackSize = 2, numParams = 2, isVararg = true),
+            arguments,
+        )
+        arguments[2] = LuaInteger(30)
+
+        assertEquals(listOf<LuaValue>(LuaNil, LuaInteger(40)), frame.varargs)
+
+        frame.varargs[1] = LuaInteger(50)
+
+        assertEquals(listOf<LuaValue>(LuaInteger(10), LuaInteger(20), LuaInteger(30), LuaInteger(40)), arguments)
+    }
+
+    @Test
     fun `push call fills missing fixed parameters with nil`() {
         val thread = LuaThread()
 

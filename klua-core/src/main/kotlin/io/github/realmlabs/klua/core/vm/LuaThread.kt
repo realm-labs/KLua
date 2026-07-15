@@ -38,7 +38,7 @@ internal class LuaThread {
             stack.set(index, arguments.getOrElse(index) { LuaNil })
         }
         val varargs = if (prototype.isVararg) {
-            arguments.drop(prototype.numParams).toMutableList()
+            copyVarargs(arguments, prototype.numParams)
         } else {
             mutableListOf()
         }
@@ -54,6 +54,14 @@ internal class LuaThread {
         )
         pushFrame(frame)
         return frame
+    }
+
+    private fun copyVarargs(arguments: List<LuaValue>, firstVararg: Int): MutableList<LuaValue> {
+        val varargs = ArrayList<LuaValue>((arguments.size - firstVararg).coerceAtLeast(0))
+        for (index in firstVararg until arguments.size) {
+            varargs += arguments[index]
+        }
+        return varargs
     }
 
     private fun pushFrame(frame: CallFrame) {
