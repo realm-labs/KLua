@@ -1209,7 +1209,30 @@ internal class LuaVm(
     }
 
     private fun metamethodCallSiteInfo(metamethod: LuaString): CallSiteInfo {
-        return CallSiteInfo(0, metamethod.value.removePrefix("__"), "metamethod")
+        return when {
+            metamethod === INDEX_KEY -> INDEX_CALL_SITE_INFO
+            metamethod === NEW_INDEX_KEY -> NEW_INDEX_CALL_SITE_INFO
+            metamethod === LEN_KEY -> LEN_CALL_SITE_INFO
+            metamethod === EQ_KEY -> EQ_CALL_SITE_INFO
+            metamethod === LT_KEY -> LT_CALL_SITE_INFO
+            metamethod === LE_KEY -> LE_CALL_SITE_INFO
+            metamethod === CONCAT_KEY -> CONCAT_CALL_SITE_INFO
+            metamethod === UNM_KEY -> UNM_CALL_SITE_INFO
+            metamethod === BAND_KEY -> BAND_CALL_SITE_INFO
+            metamethod === BOR_KEY -> BOR_CALL_SITE_INFO
+            metamethod === BXOR_KEY -> BXOR_CALL_SITE_INFO
+            metamethod === SHL_KEY -> SHL_CALL_SITE_INFO
+            metamethod === SHR_KEY -> SHR_CALL_SITE_INFO
+            metamethod === BNOT_KEY -> BNOT_CALL_SITE_INFO
+            metamethod === ADD_KEY -> ADD_CALL_SITE_INFO
+            metamethod === SUB_KEY -> SUB_CALL_SITE_INFO
+            metamethod === MUL_KEY -> MUL_CALL_SITE_INFO
+            metamethod === DIV_KEY -> DIV_CALL_SITE_INFO
+            metamethod === IDIV_KEY -> IDIV_CALL_SITE_INFO
+            metamethod === MOD_KEY -> MOD_CALL_SITE_INFO
+            metamethod === POW_KEY -> POW_CALL_SITE_INFO
+            else -> CallSiteInfo(0, metamethod.value.removePrefix("__"), "metamethod")
+        }
     }
 
     private fun setOpenResults(stack: LuaStack, frame: CallFrame, base: Int, results: List<LuaValue>) {
@@ -2049,9 +2072,34 @@ private val DIV_KEY = LuaString("__div")
 private val IDIV_KEY = LuaString("__idiv")
 private val MOD_KEY = LuaString("__mod")
 private val POW_KEY = LuaString("__pow")
+private val INDEX_CALL_SITE_INFO = metamethodCallSiteInfo("index")
+private val NEW_INDEX_CALL_SITE_INFO = metamethodCallSiteInfo("newindex")
+private val LEN_CALL_SITE_INFO = metamethodCallSiteInfo("len")
+private val EQ_CALL_SITE_INFO = metamethodCallSiteInfo("eq")
+private val LT_CALL_SITE_INFO = metamethodCallSiteInfo("lt")
+private val LE_CALL_SITE_INFO = metamethodCallSiteInfo("le")
+private val CONCAT_CALL_SITE_INFO = metamethodCallSiteInfo("concat")
+private val UNM_CALL_SITE_INFO = metamethodCallSiteInfo("unm")
+private val BAND_CALL_SITE_INFO = metamethodCallSiteInfo("band")
+private val BOR_CALL_SITE_INFO = metamethodCallSiteInfo("bor")
+private val BXOR_CALL_SITE_INFO = metamethodCallSiteInfo("bxor")
+private val SHL_CALL_SITE_INFO = metamethodCallSiteInfo("shl")
+private val SHR_CALL_SITE_INFO = metamethodCallSiteInfo("shr")
+private val BNOT_CALL_SITE_INFO = metamethodCallSiteInfo("bnot")
+private val ADD_CALL_SITE_INFO = metamethodCallSiteInfo("add")
+private val SUB_CALL_SITE_INFO = metamethodCallSiteInfo("sub")
+private val MUL_CALL_SITE_INFO = metamethodCallSiteInfo("mul")
+private val DIV_CALL_SITE_INFO = metamethodCallSiteInfo("div")
+private val IDIV_CALL_SITE_INFO = metamethodCallSiteInfo("idiv")
+private val MOD_CALL_SITE_INFO = metamethodCallSiteInfo("mod")
+private val POW_CALL_SITE_INFO = metamethodCallSiteInfo("pow")
 private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 200
 private const val VARARG_LOCAL_NAME = "(vararg)"
+
+private fun metamethodCallSiteInfo(name: String): CallSiteInfo {
+    return CallSiteInfo(0, name, "metamethod")
+}
 
 private fun normalizedDebugHookMask(mask: String): String {
     return buildString {
