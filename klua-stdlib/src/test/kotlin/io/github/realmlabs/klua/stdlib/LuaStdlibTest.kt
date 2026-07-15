@@ -29823,6 +29823,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table create ignores extras after ordered hint conversion`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local created = table.create("0x0", nil, "ignored")
+                local resultCount = select("#", table.create(0, 0, {}))
+                local secondOk, secondMessage = pcall(table.create, -1, {}, "ignored")
+                local firstOk, firstMessage = pcall(table.create, -1, -1, "ignored")
+                local maxOk, maxMessage = pcall(table.create, math.maxinteger)
+                local minOk, minMessage = pcall(table.create, 0, math.mininteger)
+                return type(created), next(created) == nil, getmetatable(created) == nil,
+                    resultCount, secondOk, secondMessage, firstOk, firstMessage,
+                    maxOk, maxMessage, minOk, minMessage
+                """.trimIndent(),
+                "table-create-order-and-extras.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("table", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals(1L, state.toInteger(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #2 to 'create' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'create' (out of range)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #1 to 'create' (out of range)", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("bad argument #2 to 'create' (out of range)", state.toString(12))
+    }
+
+    @Test
     fun `table create reports argument errors`() {
         val typeState = LuaState.create()
         LuaStdlib.openTable(typeState)
@@ -30489,6 +30529,54 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(1))
         assertTrue(state.toBoolean(2))
         assertEquals("inner", state.toString(3))
+    }
+
+    @Test
+    fun `table pack preserves every lua value kind and result identity`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+        LuaStdlib.openDebug(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openTable(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local raw = string.char(0, 255)
+                local captured = "function"
+                local fn = function() return captured end
+                local nested = { name = "nested" }
+                local thread = coroutine.create(function() end)
+                local userdata = debug.upvalueid(fn, 1)
+                local packed = table.pack(nil, false, 1, 1.5, raw, fn, nested, thread, userdata)
+                local empty = table.pack()
+                local other = table.pack("other")
+                return packed.n, rawget(packed, 1) == nil, packed[2] == false,
+                    packed[3], packed[4], packed[5] == raw, packed[6] == fn,
+                    packed[7] == nested, packed[8] == thread, packed[9] == userdata,
+                    getmetatable(packed) == nil, empty.n, next(empty) == "n",
+                    packed ~= empty and packed ~= other and empty ~= other,
+                    select("#", table.pack(nil, false, fn, nested, thread, userdata))
+                """.trimIndent(),
+                "table-pack-all-value-kinds.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(9L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(1.5, state.toNumber(5))
+        for (index in 6..11) {
+            assertTrue(state.toBoolean(index), "result $index")
+        }
+        assertEquals(0L, state.toInteger(12))
+        assertTrue(state.toBoolean(13))
+        assertTrue(state.toBoolean(14))
+        assertEquals(1L, state.toInteger(15))
     }
 
     @Test

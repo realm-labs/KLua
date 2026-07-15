@@ -314,7 +314,7 @@ internal object LuaTableLibrary {
     private fun tablePack(context: LuaCallContext): LuaReturn {
         val table = linkedMapOf<Any, Any?>("n" to context.argumentCount.toLong())
         for (index in 1..context.argumentCount) {
-            table[index.toLong()] = argumentValue(context, index)
+            table[index.toLong()] = context.getLuaValue(index)
         }
         return LuaReturn.of(table)
     }

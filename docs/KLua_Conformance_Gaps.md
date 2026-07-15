@@ -10,6 +10,7 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 
 ## Table Library
 
+- `table.create` and `table.pack` are source-backed across zero, negative, oversized, and full-width allocation hints; optional and ignored arguments; numeric-string conversion; ordered diagnostics; nil holes; every Lua value kind; exact `n` metadata; result arity; and independent result identity. Allocation hints are validated but intentionally do not force eager JVM allocation.
 - `table.insert` and `table.remove` are source-backed across ordinary, sparse, and table-like sequences; wrapped full-width and negative lengths/positions; numeric coercion; exact result arity; indexed metamethod routing; source-ordered validation and callbacks; and retained partial mutations after later shift failures.
 - `table.concat` is source-backed across ordinary and table-like receivers, raw byte values and separators, Lua numeric conversion, custom and full-width ranges, exact result arity, indexed metamethod routing, and ordered diagnostics. Result allocation remains limited by JVM indexed strings.
 - `table.unpack` is source-backed across ordinary, sparse, string, and table-like receivers; default, empty, and full-width ranges; nil/result arity; span overflow; length/index routing; coercion; and diagnostics. KLua's JVM result list has no direct equivalent of Lua's dynamically available C-stack slots, so very large otherwise-valid result counts remain capacity-model dependent.
