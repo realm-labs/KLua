@@ -23,6 +23,7 @@ internal object LuaStringLibrary {
     private const val FORMAT_SPECIFIER_PREFIX = "$FORMAT_FLAGS.123456789"
     private const val MAX_FORMAT_SPECIFIER_LENGTH = 22
     private const val MAX_PACK_RESULT_SIZE = 2147483647L
+    private const val LUA_PATTERN_SPECIALS = "^\$*+?.([%-"
     private val GSUB_REPLACEMENT_TYPES = setOf("number", "string", "function", "table")
     private const val GSUB_REPLACEMENT_EXPECTED_TYPE = "string/function/table"
     private val UINT64_MODULUS = BigInteger.ONE.shiftLeft(Long.SIZE_BITS)
@@ -279,7 +280,7 @@ internal object LuaStringLibrary {
         if (startIndex > subject.text.length) {
             return LuaReturn.of(null)
         }
-        val match = if (plain) {
+        val match = if (plain || patternSubject.text.none { char -> char in LUA_PATTERN_SPECIALS }) {
             LuaStringPattern.literal(patternSubject.text).find(subject.text, startIndex)
         } else {
             LuaStringPattern.compile(patternSubject.text).find(subject.text, startIndex)

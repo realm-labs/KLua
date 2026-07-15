@@ -22142,6 +22142,151 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string find plain search preserves raw bytes and extreme starts`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local pair = string.char(0, 128)
+                local subject = string.char(255, 0, 128) .. "é" .. string.char(0, 255, 0, 128)
+                local firstStart, firstEnd = string.find(subject, pair)
+                local secondStart, secondEnd = string.find(subject, pair, 3)
+                local suffixStart, suffixEnd = string.find(subject, string.char(169, 0, 255), 5, true)
+                local utf8Start, utf8End = string.find(subject, "é", 1, true)
+                local continuationStart, continuationEnd = string.find(subject, string.char(169), 5)
+                local overlapStart, overlapEnd = string.find("aaaa", "aa", 2)
+                local emptyFirstStart, emptyFirstEnd = string.find(subject, "", 0)
+                local emptyLastStart, emptyLastEnd = string.find(subject, "", -1, true)
+                local emptySentinelStart, emptySentinelEnd = string.find(subject, "", 10)
+                local minimumStart, minimumEnd = string.find(subject, zero, math.mininteger, true)
+                local maximumResult = string.find(subject, "", math.maxinteger, true)
+                return firstStart, firstEnd, secondStart, secondEnd,
+                    suffixStart, suffixEnd, utf8Start, utf8End,
+                    continuationStart, continuationEnd, overlapStart, overlapEnd,
+                    emptyFirstStart, emptyFirstEnd, emptyLastStart, emptyLastEnd,
+                    emptySentinelStart, emptySentinelEnd, minimumStart, minimumEnd,
+                    maximumResult, select("#", string.find(subject, pair)),
+                    select("#", string.find(subject, "missing"))
+                """.trimIndent(),
+                "string-find-plain-raw-byte-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val expectedIntegers = listOf(
+            2L, 3L, 8L, 9L,
+            5L, 7L, 4L, 5L,
+            5L, 5L, 2L, 3L,
+            1L, 0L, 9L, 8L,
+            10L, 9L, 2L, 2L,
+        )
+        expectedIntegers.forEachIndexed { index, expected ->
+            assertEquals(expected, state.toInteger(index + 1), "result ${index + 1}")
+        }
+        assertTrue(state.isNil(21))
+        assertEquals(2L, state.toInteger(22))
+        assertEquals(1L, state.toInteger(23))
+    }
+
+    @Test
+    fun `string find scans for specials beyond embedded nul bytes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local subject = "x" .. zero .. "[abc" .. zero .. "%tail" .. zero .. "abc"
+                local literalStart, literalEnd = string.find(subject, zero .. "abc")
+                local plainBracketStart, plainBracketEnd = string.find(subject, zero .. "[", 1, true)
+                local bracketOk, bracketMessage = pcall(string.find, subject, zero .. "[")
+                local plainPercentStart, plainPercentEnd = string.find(subject, zero .. "%", 1, true)
+                local percentOk, percentMessage = pcall(string.find, subject, zero .. "%")
+                local unreachable = string.find("no zero prefix", zero .. "[")
+                local pastEnd = string.find(subject, zero .. "[", math.maxinteger)
+                local subjectOk, subjectMessage = pcall(string.find, {}, {}, "bad")
+                local patternOk, patternMessage = pcall(string.find, "abc", {}, "bad")
+                local startOk, startMessage = pcall(string.find, "abc", "a", "bad")
+                local numericStart, numericEnd = string.find(12345, 23, "0x2", false, {})
+                return literalStart, literalEnd, plainBracketStart, plainBracketEnd,
+                    bracketOk, bracketMessage, plainPercentStart, plainPercentEnd,
+                    percentOk, percentMessage, unreachable, pastEnd,
+                    subjectOk, subjectMessage, patternOk, patternMessage,
+                    startOk, startMessage, numericStart, numericEnd
+                """.trimIndent(),
+                "string-find-embedded-nul-special-scan.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(13L, state.toInteger(1))
+        assertEquals(16L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(3L, state.toInteger(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("malformed pattern (missing ']')", state.toString(6))
+        assertEquals(7L, state.toInteger(7))
+        assertEquals(8L, state.toInteger(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("malformed pattern (ends with '%')", state.toString(10))
+        assertTrue(state.isNil(11))
+        assertTrue(state.isNil(12))
+        assertFalse(state.toBoolean(13))
+        assertEquals("bad argument #1 to 'find' (string expected)", state.toString(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("bad argument #2 to 'find' (string expected)", state.toString(16))
+        assertFalse(state.toBoolean(17))
+        assertEquals("bad argument #3 to 'find' (number expected)", state.toString(18))
+        assertEquals(2L, state.toInteger(19))
+        assertEquals(3L, state.toInteger(20))
+    }
+
+    @Test
+    fun `string find automatic plain search treats closing parentheses literally`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local closeStart, closeEnd = string.find("a)b", ")")
+                local pairStart, pairEnd = string.find("a)b", "a)", 1, false)
+                local rawStart, rawEnd = string.find("x" .. zero .. ")", zero .. ")")
+                local forcedStart, forcedEnd = string.find(")$", ")$", 1, true)
+                local specialOk, specialMessage = pcall(string.find, "a)b", ")$")
+                local matchOk, matchMessage = pcall(string.match, "a)b", ")")
+                return closeStart, closeEnd, pairStart, pairEnd, rawStart, rawEnd,
+                    forcedStart, forcedEnd, specialOk, specialMessage, matchOk, matchMessage
+                """.trimIndent(),
+                "string-find-closing-parenthesis-plain-search.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        val expectedIntegers = listOf(2L, 2L, 1L, 2L, 2L, 3L, 1L, 2L)
+        expectedIntegers.forEachIndexed { index, expected ->
+            assertEquals(expected, state.toInteger(index + 1), "result ${index + 1}")
+        }
+        assertFalse(state.toBoolean(9))
+        assertEquals("invalid pattern capture", state.toString(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals("invalid pattern capture", state.toString(12))
+    }
+
+    @Test
     fun `string patterns match utf8 text by raw bytes`() {
         val state = LuaState.create()
         LuaStdlib.openString(state)
