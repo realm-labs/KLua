@@ -16456,6 +16456,78 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os filesystem names use source c string boundaries`() {
+        val root = Files.createTempDirectory("klua-os-files-c-string-")
+        val source = root.resolve("source.txt")
+        val target = root.resolve("target.txt")
+        val missing = root.resolve("missing.txt")
+        Files.writeString(source, "payload")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openOs(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local suffix = "\0ignored"
+                    local renameCount, renamed = (function(...)
+                        return select("#", ...), ...
+                    end)(os.rename(
+                        "${source.luaPath()}" .. suffix,
+                        "${target.luaPath()}" .. suffix,
+                        "ignored"
+                    ))
+                    local removeCount, removed = (function(...)
+                        return select("#", ...), ...
+                    end)(os.remove("${target.luaPath()}" .. suffix, "ignored"))
+                    local missingCount, missingValue, missingMessage, missingCode = (function(...)
+                        return select("#", ...), ...
+                    end)(os.remove("${missing.luaPath()}" .. suffix, "ignored"))
+                    local renameMissingCount, renameMissingValue,
+                        renameMissingMessage, renameMissingCode = (function(...)
+                        return select("#", ...), ...
+                    end)(os.rename(
+                        "${missing.luaPath()}" .. suffix,
+                        "${target.luaPath()}" .. suffix,
+                        "ignored"
+                    ))
+                    return renameCount, renamed, removeCount, removed,
+                        missingCount, missingValue, missingMessage, missingCode,
+                        renameMissingCount, renameMissingValue,
+                        renameMissingMessage, renameMissingCode
+                    """.trimIndent(),
+                    "os-filesystem-c-string-boundaries.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(1L, state.toInteger(1))
+            assertTrue(state.toBoolean(2))
+            assertEquals(1L, state.toInteger(3))
+            assertTrue(state.toBoolean(4))
+            assertEquals(3L, state.toInteger(5))
+            assertTrue(state.isNil(6))
+            assertTrue(state.toString(7)?.startsWith("$missing: ") == true, state.toString(7))
+            assertFalse(state.toString(7)?.contains("ignored") == true, state.toString(7))
+            assertEquals(1L, state.toInteger(8))
+            assertEquals(3L, state.toInteger(9))
+            assertTrue(state.isNil(10))
+            assertEquals("string", state.typeName(11))
+            assertFalse(state.toString(11)?.contains("ignored") == true, state.toString(11))
+            assertEquals(1L, state.toInteger(12))
+            assertFalse(Files.exists(source))
+            assertFalse(Files.exists(target))
+        } finally {
+            Files.deleteIfExists(source)
+            Files.deleteIfExists(target)
+            Files.deleteIfExists(missing)
+            Files.deleteIfExists(root)
+        }
+    }
+
+    @Test
     fun `os string arguments use lua numeric formatting`() {
         val removeName = "1e-05"
         val renameSourceName = "1e+15"

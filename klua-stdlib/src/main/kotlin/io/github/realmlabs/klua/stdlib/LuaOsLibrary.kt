@@ -11,6 +11,7 @@ import java.lang.management.ManagementFactory
 import java.math.BigInteger
 import java.nio.file.FileSystemException
 import java.nio.file.Files
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.nio.file.StandardCopyOption
 import java.time.DateTimeException
@@ -139,15 +140,15 @@ internal object LuaOsLibrary {
     }
 
     private fun remove(context: LuaCallContext): LuaReturn {
-        val filename = requiredString(context, 1, "os.remove")
+        val filename = requiredString(context, 1, "os.remove").substringBefore('\u0000')
         return fileResult(filename) {
             Files.delete(Path.of(filename))
         }
     }
 
     private fun rename(context: LuaCallContext): LuaReturn {
-        val source = requiredString(context, 1, "os.rename")
-        val target = requiredString(context, 2, "os.rename")
+        val source = requiredString(context, 1, "os.rename").substringBefore('\u0000')
+        val target = requiredString(context, 2, "os.rename").substringBefore('\u0000')
         return fileResult(null) {
             if (isWindows()) {
                 Files.move(Path.of(source), Path.of(target))
@@ -239,6 +240,8 @@ internal object LuaOsLibrary {
             LuaReturn.of(null, fileErrorMessage(filename, error), 1L)
         } catch (error: SecurityException) {
             LuaReturn.of(null, fileErrorMessage(filename, error), 1L)
+        } catch (error: InvalidPathException) {
+            LuaReturn.of(null, fileErrorMessage(filename, error), 1L)
         }
     }
 
@@ -253,6 +256,11 @@ internal object LuaOsLibrary {
 
     private fun fileErrorMessage(filename: String?, error: SecurityException): String {
         val reason = error.message ?: error::class.java.simpleName
+        return if (filename == null) reason else "$filename: $reason"
+    }
+
+    private fun fileErrorMessage(filename: String?, error: InvalidPathException): String {
+        val reason = error.reason.ifEmpty { error::class.java.simpleName }
         return if (filename == null) reason else "$filename: $reason"
     }
 
