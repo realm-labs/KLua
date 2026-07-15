@@ -15200,6 +15200,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os clock reports process cpu without library reset`() {
+        val first = LuaState.create()
+        LuaStdlib.openBase(first)
+        LuaStdlib.openOs(first)
+        assertEquals(
+            LuaStatus.OK,
+            first.load(
+                """
+                local before = os.clock()
+                local sum = 0
+                for i = 1, 200000 do
+                    sum = sum + i
+                end
+                local function inspect(...)
+                    return select("#", ...), ...
+                end
+                local count, after = inspect(os.clock("ignored"))
+                return before, after, count, sum
+                """.trimIndent(),
+                "os-clock-process-cpu.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, first.pcall(0, -1), first.toString(-1))
+
+        val before = first.toNumber(1) ?: error("missing initial clock")
+        val after = first.toNumber(2) ?: error("missing final clock")
+        assertTrue(before.isFinite() && before >= 0.0)
+        assertTrue(after >= before)
+        assertEquals(1L, first.toInteger(3))
+
+        val second = LuaState.create()
+        LuaStdlib.openOs(second)
+        assertEquals(LuaStatus.OK, second.load("return os.clock()", "os-clock-second-state.lua"))
+        assertEquals(LuaStatus.OK, second.pcall(0, -1), second.toString(-1))
+        val afterReopen = second.toNumber(1) ?: error("missing second-state clock")
+        assertTrue(afterReopen >= after)
+    }
+
+    @Test
     fun `os exit signals configured process exit without returning`() {
         val exits = mutableListOf<Pair<Int, Boolean>>()
         val state = LuaState.create(
@@ -15260,6 +15299,34 @@ class LuaStdlibTest {
         assertEquals(7, exit.status)
         assertFalse(exit.closeState)
         assertEquals(listOf(7 to false), exits)
+    }
+
+    @Test
+    fun `os exit maps source status and close flag forms`() {
+        fun invoke(arguments: String): Pair<Int, Boolean> {
+            val exits = mutableListOf<Pair<Int, Boolean>>()
+            val state = LuaState.create(
+                LuaConfig(
+                    exitHandler = LuaExitHandler { status, closeState ->
+                        exits += status to closeState
+                    },
+                ),
+            )
+            LuaStdlib.openOs(state)
+            assertEquals(LuaStatus.OK, state.load("os.exit($arguments)", "os-exit-forms.lua"))
+            val exit = assertFailsWith<LuaExitException> {
+                state.pcall(0, -1)
+            }
+            assertEquals(listOf(exit.status to exit.closeState), exits)
+            return exit.status to exit.closeState
+        }
+
+        assertEquals(0 to false, invoke(""))
+        assertEquals(0 to false, invoke("true"))
+        assertEquals(1 to false, invoke("false"))
+        assertEquals(7 to true, invoke("\"7\", 0, \"ignored\""))
+        assertEquals(1 to false, invoke("4294967297, false"))
+        assertEquals(0 to true, invoke("nil, {}"))
     }
 
     @Test

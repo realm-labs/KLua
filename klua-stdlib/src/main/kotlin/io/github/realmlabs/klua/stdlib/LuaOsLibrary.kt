@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
 import java.io.IOException
+import java.lang.management.ManagementFactory
 import java.math.BigInteger
 import java.nio.file.FileSystemException
 import java.nio.file.Files
@@ -28,9 +29,8 @@ internal object LuaOsLibrary {
     private val availableLocales: List<Locale> = Locale.getAvailableLocales().toList()
 
     fun open(state: LuaState): LuaState {
-        val startNanos = System.nanoTime()
         state.newTable()
-        setFunctionField(state, "clock") { context -> clock(context, startNanos) }
+        setFunctionField(state, "clock", ::clock)
         setFunctionField(state, "date", ::date)
         setFunctionField(state, "difftime", ::difftime)
         setFunctionField(state, "execute", ::execute)
@@ -45,8 +45,24 @@ internal object LuaOsLibrary {
         return state
     }
 
-    private fun clock(context: LuaCallContext, startNanos: Long): LuaReturn {
-        return LuaReturn.of((System.nanoTime() - startNanos).toDouble() / NANOS_PER_SECOND)
+    private fun clock(context: LuaCallContext): LuaReturn {
+        val processDuration = try {
+            ProcessHandle.current().info().totalCpuDuration().orElse(null)
+        } catch (_: SecurityException) {
+            null
+        }
+        val seconds = if (processDuration != null) {
+            processDuration.seconds.toDouble() + processDuration.nano.toDouble() / NANOS_PER_SECOND
+        } else {
+            val processNanos = (ManagementFactory.getOperatingSystemMXBean() as? com.sun.management.OperatingSystemMXBean)
+                ?.processCpuTime
+                ?.takeIf { it >= 0L }
+            val threadBean = ManagementFactory.getThreadMXBean()
+            val nanos = processNanos
+                ?: if (threadBean.isCurrentThreadCpuTimeSupported) threadBean.currentThreadCpuTime else 0L
+            nanos.coerceAtLeast(0L).toDouble() / NANOS_PER_SECOND
+        }
+        return LuaReturn.of(seconds)
     }
 
     private fun difftime(context: LuaCallContext): LuaReturn {
