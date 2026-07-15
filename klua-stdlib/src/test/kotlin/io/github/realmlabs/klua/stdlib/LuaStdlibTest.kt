@@ -635,6 +635,62 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `production policy suppresses every standard library filesystem and OS surface`() {
+        val state = LuaState.create(
+            LuaConfig.production().copy(standardLibraries = LuaStandardLibrary.all()),
+        )
+        state.register("hostAnswer") { LuaReturn.of(42L) }
+        LuaStdlib.openLibs(state)
+        LuaStdlib.openPackage(state)
+        LuaStdlib.openIo(state)
+        LuaStdlib.openOs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return type(dofile), type(loadfile), type(package), type(require), type(io), type(os), type(debug),
+                    type(math), type(string), type(table), type(utf8), type(coroutine), hostAnswer()
+                """.trimIndent(),
+                "production-policy.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        repeat(7) { index -> assertEquals("nil", state.toString(index + 1)) }
+        repeat(5) { index -> assertEquals("table", state.toString(index + 8)) }
+        assertEquals(42L, state.toInteger(13))
+    }
+
+    @Test
+    fun `unsafe standard library access remains an explicit compatibility opt in`() {
+        val state = LuaState.create(
+            LuaConfig(
+                debugEnabled = false,
+                standardLibraries = LuaStandardLibrary.all(),
+                unsafeStandardLibraryAccessEnabled = true,
+            ),
+        )
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                "return type(dofile), type(loadfile), type(package), type(require), type(io), type(os)",
+                "unsafe-stdlib-opt-in.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("function", state.toString(1))
+        assertEquals("function", state.toString(2))
+        assertEquals("table", state.toString(3))
+        assertEquals("function", state.toString(4))
+        assertEquals("table", state.toString(5))
+        assertEquals("table", state.toString(6))
+    }
+
+    @Test
     fun `debug traceback includes lua stack frames`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

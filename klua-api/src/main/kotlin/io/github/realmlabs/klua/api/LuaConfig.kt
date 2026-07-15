@@ -12,6 +12,7 @@ data class LuaConfig @JvmOverloads constructor(
     },
     val instructionLimit: Long = 0,
     val standardLibraries: Set<LuaStandardLibrary> = LuaStandardLibrary.all(),
+    val unsafeStandardLibraryAccessEnabled: Boolean = true,
     val exitHandler: LuaExitHandler = LuaExitHandler { _, _ -> },
 ) {
     init {
@@ -20,6 +21,23 @@ data class LuaConfig @JvmOverloads constructor(
 
     internal fun snapshot(): LuaConfig {
         return copy(standardLibraries = Collections.unmodifiableSet(standardLibraries.toSet()))
+    }
+
+    companion object {
+        const val DEFAULT_PRODUCTION_INSTRUCTION_LIMIT: Long = 1_000_000
+
+        @JvmStatic
+        @JvmOverloads
+        fun production(
+            instructionLimit: Long = DEFAULT_PRODUCTION_INSTRUCTION_LIMIT,
+        ): LuaConfig {
+            return LuaConfig(
+                debugEnabled = false,
+                instructionLimit = instructionLimit,
+                standardLibraries = LuaStandardLibrary.safe(),
+                unsafeStandardLibraryAccessEnabled = false,
+            )
+        }
     }
 }
 

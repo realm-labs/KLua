@@ -16,6 +16,19 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `production config is bounded and keeps explicit host exposure available`() {
+        val config = LuaConfig.production()
+        val lua = Lua.create(config)
+        lua.globals().set("hostAnswer", 42L)
+
+        assertEquals(false, config.debugEnabled)
+        assertEquals(false, config.unsafeStandardLibraryAccessEnabled)
+        assertEquals(LuaConfig.DEFAULT_PRODUCTION_INSTRUCTION_LIMIT, config.instructionLimit)
+        assertEquals(LuaStandardLibrary.safe(), config.standardLibraries)
+        assertEquals(42L, lua.load("return hostAnswer", "production-host.lua").evalLong())
+    }
+
+    @Test
     fun `loaded chunk keeps source identity`() {
         val chunk = Lua.create().load("return 42", "smoke.lua")
 

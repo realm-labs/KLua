@@ -46,13 +46,13 @@ public object LuaStdlib {
         if (LuaStandardLibrary.COROUTINE in libraries) {
             openCoroutine(state)
         }
-        if (LuaStandardLibrary.PACKAGE in libraries) {
+        if (LuaStandardLibrary.PACKAGE in libraries && state.config.unsafeStandardLibraryAccessEnabled) {
             openPackage(state)
         }
-        if (LuaStandardLibrary.IO in libraries) {
+        if (LuaStandardLibrary.IO in libraries && state.config.unsafeStandardLibraryAccessEnabled) {
             openIo(state)
         }
-        if (LuaStandardLibrary.OS in libraries) {
+        if (LuaStandardLibrary.OS in libraries && state.config.unsafeStandardLibraryAccessEnabled) {
             openOs(state)
         }
         if (LuaStandardLibrary.DEBUG in libraries && state.config.debugEnabled) {
@@ -81,12 +81,16 @@ public object LuaStdlib {
             garbageCollectorMode = result.mode
             result.returnValue
         }
-        state.register("dofile", LuaYieldableFunction { context -> dofile(context, state) })
+        if (state.config.unsafeStandardLibraryAccessEnabled) {
+            state.register("dofile", LuaYieldableFunction { context -> dofile(context, state) })
+        }
         state.register("error", ::error)
         state.register("getmetatable", ::getmetatable)
         state.register("ipairs", ::ipairs)
         state.register("load", ::load)
-        state.register("loadfile") { context -> loadfile(context, state) }
+        if (state.config.unsafeStandardLibraryAccessEnabled) {
+            state.register("loadfile") { context -> loadfile(context, state) }
+        }
         state.register("next", ::next)
         registerYieldable(state, "pairs", ::pairs)
         registerYieldable(state, "pcall", ::pcall)
@@ -157,17 +161,17 @@ public object LuaStdlib {
 
     @JvmStatic
     public fun openPackage(state: LuaState): LuaState {
-        return LuaPackageLibrary.open(state)
+        return if (state.config.unsafeStandardLibraryAccessEnabled) LuaPackageLibrary.open(state) else state
     }
 
     @JvmStatic
     public fun openIo(state: LuaState): LuaState {
-        return LuaIoLibrary.open(state)
+        return if (state.config.unsafeStandardLibraryAccessEnabled) LuaIoLibrary.open(state) else state
     }
 
     @JvmStatic
     public fun openOs(state: LuaState): LuaState {
-        return LuaOsLibrary.open(state)
+        return if (state.config.unsafeStandardLibraryAccessEnabled) LuaOsLibrary.open(state) else state
     }
 
     @JvmStatic

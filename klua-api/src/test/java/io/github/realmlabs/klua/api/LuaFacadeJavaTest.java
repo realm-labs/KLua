@@ -70,6 +70,19 @@ class LuaFacadeJavaTest {
     }
 
     @Test
+    void productionConfigIsJavaFriendlyAndPreservesExplicitHostFunctions() {
+        LuaConfig config = LuaConfig.production(50_000);
+        Lua lua = Lua.create(config);
+        lua.globals().setFunction("hostAnswer", context -> LuaReturn.of(42L));
+
+        assertFalse(config.getDebugEnabled());
+        assertFalse(config.getUnsafeStandardLibraryAccessEnabled());
+        assertEquals(50_000, config.getInstructionLimit());
+        assertEquals(LuaStandardLibrary.safe(), config.getStandardLibraries());
+        assertEquals(42L, lua.load("return hostAnswer()", "java-production-host.lua").evalLong());
+    }
+
+    @Test
     void debuggableCoroutinesExposeJavaFriendlyLineObservers() {
         Lua lua = Lua.create();
         LuaCoroutineFunction function = (LuaCoroutineFunction) lua.load("""

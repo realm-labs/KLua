@@ -162,6 +162,26 @@ val state = LuaState.create(
 LuaStdlib.openLibs(state)
 ```
 
+For untrusted or game-server scripts, start with `LuaConfig.production()`. The preset disables debugger attachment, applies a default one-million-instruction limit, selects the base/math/string/table/utf8/coroutine libraries, and disables unsafe standard-library host access. That last policy removes base `dofile`/`loadfile` and prevents package, I/O, and OS libraries from opening even if they are accidentally included in `standardLibraries` or opened directly. Explicit host globals and registered userdata types remain available.
+
+```kotlin
+val state = LuaState.create(LuaConfig.production(instructionLimit = 250_000))
+state.register("hostTick") { LuaReturn.of(42L) }
+LuaStdlib.openLibs(state)
+```
+
+Filesystem, module-path, process, environment, and OS access require an explicit compatibility opt-in:
+
+```kotlin
+val config = LuaConfig(
+    instructionLimit = 250_000,
+    standardLibraries = LuaStandardLibrary.all(),
+    unsafeStandardLibraryAccessEnabled = true,
+)
+```
+
+The general-purpose `LuaConfig()` default keeps `unsafeStandardLibraryAccessEnabled = true` for backward compatibility; use the production preset when executing untrusted scripts.
+
 ## Architecture
 
 KLua is designed as a Lua-compatible runtime on the JVM, not as a direct port of PUC Lua internals. The intended runtime path is:
