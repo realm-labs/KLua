@@ -579,13 +579,13 @@ internal object LuaIoLibrary {
         } else {
             requiredString(context, 1, "seek", argumentIndex = 2).substringBefore('\u0000')
         }
+        if (whence !in FILE_SEEK_MODES) {
+            throw LuaRuntimeException("bad argument #2 to 'seek' (invalid option '$whence')")
+        }
         val offset = if (context.isNone(2) || context.isNil(2)) {
             0L
         } else {
             requiredInteger(context, 2, "seek", argumentIndex = 3)
-        }
-        if (whence !in FILE_SEEK_MODES) {
-            throw LuaRuntimeException("bad argument #2 to 'seek' (invalid option '$whence')")
         }
         if (!handle.seekable) {
             return LuaReturn.of(null, "Illegal seek", 1L)

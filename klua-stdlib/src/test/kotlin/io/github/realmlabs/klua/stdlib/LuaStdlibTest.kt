@@ -6183,7 +6183,7 @@ class LuaStdlibTest {
 
                     local endValue, endMessage, endCode = handle:seek("end", maximum)
                     local afterEndOverflow = handle:seek()
-                    local successCount = select("#", handle:seek("set", 0))
+                    local successCount = select("#", handle:seek("set", 0, {}, "ignored"))
                     local failureCount = select("#", handle:seek("set", -1))
                     handle:close()
                     return cStringPosition, maximumPosition,
@@ -6236,11 +6236,13 @@ class LuaStdlibTest {
                     local badWhenceOk, badWhenceMessage = pcall(function()
                         return handle:seek("bad")
                     end)
+                    local badBothOk, badBothMessage = pcall(handle.seek, handle, "bad", {})
                     local badOffsetOk, badOffsetMessage = pcall(function()
                         return handle:seek("set", 1.5)
                     end)
                     handle:close()
-                    return badWhenceOk, badWhenceMessage, badOffsetOk, badOffsetMessage
+                    return badWhenceOk, badWhenceMessage,
+                        badBothOk, badBothMessage, badOffsetOk, badOffsetMessage
                     """.trimIndent(),
                     "io-seek-argument-positions.lua",
                 ),
@@ -6250,7 +6252,9 @@ class LuaStdlibTest {
             assertFalse(state.toBoolean(1))
             assertEquals("bad argument #2 to 'seek' (invalid option 'bad')", state.toString(2))
             assertFalse(state.toBoolean(3))
-            assertEquals("bad argument #3 to 'seek' (number has no integer representation)", state.toString(4))
+            assertEquals("bad argument #2 to 'seek' (invalid option 'bad')", state.toString(4))
+            assertFalse(state.toBoolean(5))
+            assertEquals("bad argument #3 to 'seek' (number has no integer representation)", state.toString(6))
         } finally {
             Files.deleteIfExists(path)
         }
@@ -6459,11 +6463,20 @@ class LuaStdlibTest {
                     local zero = handle:setvbuf("line", 0)
                     local negativeValue, negativeMessage, negativeCode = handle:setvbuf("full", -1)
                     local hugeValue, hugeMessage, hugeCode = handle:setvbuf("line", 2147483648)
-                    local noNegative = handle:setvbuf("no", -1)
+                    local maximumValue, maximumMessage, maximumCode =
+                        handle:setvbuf("full", 9223372036854775807)
+                    local minimumValue, minimumMessage, minimumCode =
+                        handle:setvbuf("line", -9223372036854775807 - 1)
+                    local noNegative = handle:setvbuf("no", -1, {}, "ignored")
+                    local noMaximumCount = select("#",
+                        handle:setvbuf("no", 9223372036854775807, {}, "ignored"))
                     handle:close()
                     return nulModeCount, readOnly, zero,
                         negativeValue, negativeMessage, negativeCode,
-                        hugeValue, hugeMessage, hugeCode, noNegative
+                        hugeValue, hugeMessage, hugeCode,
+                        maximumValue, maximumMessage, maximumCode,
+                        minimumValue, minimumMessage, minimumCode,
+                        noNegative, noMaximumCount
                     """.trimIndent(),
                     "io-setvbuf-boundaries.lua",
                 ),
@@ -6479,7 +6492,14 @@ class LuaStdlibTest {
             assertTrue(state.isNil(7))
             assertEquals("Invalid argument", state.toString(8))
             assertEquals(1L, state.toInteger(9))
-            assertTrue(state.toBoolean(10))
+            assertTrue(state.isNil(10))
+            assertEquals("Invalid argument", state.toString(11))
+            assertEquals(1L, state.toInteger(12))
+            assertTrue(state.isNil(13))
+            assertEquals("Invalid argument", state.toString(14))
+            assertEquals(1L, state.toInteger(15))
+            assertTrue(state.toBoolean(16))
+            assertEquals(1L, state.toInteger(17))
         } finally {
             Files.deleteIfExists(path)
         }
