@@ -19802,6 +19802,56 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math min and max retain the first value on ties and nan comparisons`() {
+        val state = LuaState.create()
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nan = 0 / 0
+                local minNanFirst = math.min(nan, -1)
+                local maxNanFirst = math.max(nan, 1)
+                local minNanLater = math.min(1, nan, 0)
+                local maxNanLater = math.max(1, nan, 2)
+                local minTie = math.min(1.0, 1)
+                local maxTie = math.max(1, 1.0)
+                local upper = 0x1p63
+                local lower = -0x1p63
+                local mixedMin = math.min(math.maxinteger, upper)
+                local mixedMax = math.max(math.maxinteger, upper)
+                local equalMin = math.min(math.mininteger, lower)
+                local equalMax = math.max(lower, math.mininteger)
+                return minNanFirst, maxNanFirst, minNanLater, maxNanLater,
+                    minTie, math.type(minTie), maxTie, math.type(maxTie),
+                    mixedMin, math.type(mixedMin), mixedMax, math.type(mixedMax),
+                    equalMin, math.type(equalMin), equalMax, math.type(equalMax)
+                """.trimIndent(),
+                "math-min-max-ties.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toNumber(1)?.isNaN() == true)
+        assertTrue(state.toNumber(2)?.isNaN() == true)
+        assertEquals(0L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertEquals(1.0, state.toNumber(5))
+        assertEquals("float", state.toString(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals("integer", state.toString(8))
+        assertEquals(Long.MAX_VALUE, state.toInteger(9))
+        assertEquals("integer", state.toString(10))
+        assertEquals(Long.MAX_VALUE.toDouble(), state.toNumber(11))
+        assertEquals("float", state.toString(12))
+        assertEquals(Long.MIN_VALUE, state.toInteger(13))
+        assertEquals("integer", state.toString(14))
+        assertEquals(Long.MIN_VALUE.toDouble(), state.toNumber(15))
+        assertEquals("float", state.toString(16))
+    }
+
+    @Test
     fun `math min and max use lua comparison and return selected value`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -19869,6 +19919,146 @@ class LuaStdlibTest {
 
         assertTrue(state.toBoolean(1))
         assertTrue(state.toBoolean(2))
+    }
+
+    @Test
+    fun `math min and max preserve table ties and comparison argument order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local calls = {}
+                local metatable = {
+                    __lt = function(left, right)
+                        calls[#calls + 1] = left.name .. ":" .. right.name
+                        return left.rank < right.rank
+                    end,
+                }
+                local first = setmetatable({ name = "first", rank = 1 }, metatable)
+                local second = setmetatable({ name = "second", rank = 1 }, metatable)
+                local minValue = math.min(first, second)
+                local maxValue = math.max(first, second)
+                return rawequal(minValue, first), rawequal(maxValue, first),
+                    calls[1], calls[2]
+                """.trimIndent(),
+                "math-min-max-table-ties.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("second:first", state.toString(3))
+        assertEquals("first:second", state.toString(4))
+    }
+
+    @Test
+    fun `math min and max select userdata metamethods by comparison operand`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val firstUserData = Any()
+        val secondUserData = Any()
+        val fallbackUserData = Any()
+        state.register("firstUserData") { LuaReturn.of(firstUserData) }
+        state.register("secondUserData") { LuaReturn.of(secondUserData) }
+        state.register("fallbackUserData") { LuaReturn.of(fallbackUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = firstUserData()
+                local second = secondUserData()
+                local fallback = fallbackUserData()
+                local calls = {}
+                debug.setmetatable(first, {
+                    __lt = function(left, right)
+                        calls[#calls + 1] = { "first", left, right }
+                        return true
+                    end,
+                })
+                debug.setmetatable(second, {
+                    __lt = function(left, right)
+                        calls[#calls + 1] = { "second", left, right }
+                        return true
+                    end,
+                })
+                debug.setmetatable(fallback, {})
+
+                local minValue = math.min(first, second)
+                local maxValue = math.max(first, second)
+                local fallbackValue = math.max(fallback, second)
+                return rawequal(minValue, second), rawequal(maxValue, second),
+                    rawequal(fallbackValue, second),
+                    calls[1][1], rawequal(calls[1][2], second), rawequal(calls[1][3], first),
+                    calls[2][1], rawequal(calls[2][2], first), rawequal(calls[2][3], second),
+                    calls[3][1], rawequal(calls[3][2], fallback), rawequal(calls[3][3], second)
+                """.trimIndent(),
+                "math-min-max-userdata-metamethods.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("second", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("first", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("second", state.toString(10))
+        assertTrue(state.toBoolean(11))
+        assertTrue(state.toBoolean(12))
+    }
+
+    @Test
+    fun `math min and max stop comparisons at the first error`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local calls = {}
+                local first = setmetatable({}, {})
+                local bomb = setmetatable({}, {
+                    __lt = function(left, right)
+                        calls[#calls + 1] = left == bomb and "bomb:first" or "bomb:second"
+                        error("comparison boom")
+                    end,
+                })
+                local later = setmetatable({}, {
+                    __lt = function()
+                        calls[#calls + 1] = "later"
+                        return true
+                    end,
+                })
+                local minOk, minError = pcall(math.min, first, bomb, later)
+                local minCalls = #calls
+                calls = {}
+                local maxOk, maxError = pcall(math.max, first, bomb, later)
+                return minOk, minError, minCalls, maxOk, maxError, #calls,
+                    calls[1]
+                """.trimIndent(),
+                "math-min-max-first-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toString(2)?.endsWith("comparison boom") == true, state.toString(2))
+        assertEquals(1L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(state.toString(5)?.endsWith("comparison boom") == true, state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals("bomb:second", state.toString(7))
     }
 
     @Test
