@@ -15654,6 +15654,195 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `concatenation metamethods resume right associative progress without reevaluation`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local evaluations = {}
+                local reductionMetatable
+                reductionMetatable = {
+                    __concat = function(left, right)
+                        local resumed = coroutine.yield("reduce:first", left.label, right.label)
+                        coroutine.yield("reduce:second", resumed)
+                        return setmetatable({ label = left.label .. right.label }, reductionMetatable), "ignored"
+                    end,
+                }
+                local function operand(label)
+                    evaluations[label] = (evaluations[label] or 0) + 1
+                    return setmetatable({ label = label }, reductionMetatable)
+                end
+
+                local rawLeft = setmetatable({}, {
+                    __concat = function(_, right)
+                        local result = coroutine.yield("raw", right)
+                        return result, "ignored"
+                    end,
+                })
+                local nilLeft = setmetatable({}, {
+                    __concat = function()
+                        coroutine.yield("nil-result")
+                    end,
+                })
+                local nilRight = {}
+                local reduced
+                local rawResult
+                local nilResult = "unset"
+                local co = coroutine.create(function()
+                    reduced = operand("a") .. operand("b") .. operand("c") .. operand("d")
+                    rawResult = rawLeft .. "b" .. 2 .. "c"
+                    nilResult = nilLeft .. nilRight
+                    return "done"
+                end)
+
+                local expected = {
+                    { "c", "d" },
+                    { "b", "cd" },
+                    { "a", "bcd" },
+                }
+                local ok, marker, leftLabel, rightLabel = coroutine.resume(co)
+                local traceOk = evaluations.a == 1 and evaluations.b == 1
+                    and evaluations.c == 1 and evaluations.d == 1
+                for index, pair in ipairs(expected) do
+                    traceOk = traceOk and ok and marker == "reduce:first"
+                        and leftLabel == pair[1] and rightLabel == pair[2]
+                    local resumed = "resume-" .. index
+                    local observed
+                    ok, marker, observed = coroutine.resume(co, resumed)
+                    traceOk = traceOk and ok and marker == "reduce:second" and observed == resumed
+                    ok, marker, leftLabel, rightLabel = coroutine.resume(co, "discarded")
+                end
+
+                traceOk = traceOk and ok and marker == "raw" and leftLabel == "b2c"
+                ok, marker = coroutine.resume(co, "raw-result")
+                traceOk = traceOk and ok and marker == "nil-result"
+                ok, marker = coroutine.resume(co, "discarded")
+                traceOk = traceOk and evaluations.a == 1 and evaluations.b == 1
+                    and evaluations.c == 1 and evaluations.d == 1
+                return traceOk and ok, marker, coroutine.status(co), reduced.label, rawResult, nilResult == nil
+                """.trimIndent(),
+                "coroutine-concat-progress.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("done", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        assertEquals("abcd", state.toString(4))
+        assertEquals("raw-result", state.toString(5))
+        assertTrue(state.toBoolean(6))
+    }
+
+    @Test
+    fun `native and callable concatenation metamethods resume one chain`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+        state.register(
+            "hostConcat",
+            LuaYieldableFunction { context -> context.yield(listOf("native-concat")) },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nativeLeft = setmetatable({}, { __concat = hostConcat })
+                local nativeRight = {}
+                local callableLeft
+                local callable = setmetatable({}, {
+                    __call = function(_, left, right)
+                        coroutine.yield("callable-concat", left == callableLeft, right == "native-result")
+                    end,
+                })
+                callableLeft = setmetatable({}, { __concat = callable })
+                local result = "unset"
+                local co = coroutine.create(function()
+                    result = callableLeft .. nativeLeft .. nativeRight
+                    return "done"
+                end)
+
+                local firstOk, firstMarker = coroutine.resume(co)
+                local secondOk, secondMarker, leftOk, rightOk = coroutine.resume(co, "native-result")
+                local thirdOk, done = coroutine.resume(co, "discarded")
+                return firstOk, firstMarker, secondOk, secondMarker, leftOk, rightOk,
+                    thirdOk, done, result == nil, coroutine.status(co)
+                """.trimIndent(),
+                "coroutine-native-callable-concat.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("native-concat", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("callable-concat", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("done", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("dead", state.toString(10))
+    }
+
+    @Test
+    fun `yielded concatenation errors propagate and table sort rejects comparator yields`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local failing = setmetatable({}, {
+                    __concat = function()
+                        coroutine.yield("before-error")
+                        error("concat boom")
+                    end,
+                })
+                local failureCo = coroutine.create(function()
+                    return failing .. failing
+                end)
+                local firstOk, marker = coroutine.resume(failureCo)
+                local secondOk, failureMessage = coroutine.resume(failureCo)
+
+                local boundaryValue = setmetatable({}, {
+                    __concat = function()
+                        coroutine.yield("sort-boundary")
+                    end,
+                })
+                local sortCo = coroutine.create(function()
+                    local values = { 2, 1 }
+                    table.sort(values, function()
+                        return boundaryValue .. boundaryValue
+                    end)
+                end)
+                local sortOk, sortMessage = coroutine.resume(sortCo)
+
+                return firstOk, marker, secondOk, failureMessage, coroutine.status(failureCo),
+                    sortOk, sortMessage, coroutine.status(sortCo)
+                """.trimIndent(),
+                "coroutine-concat-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("before-error", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertTrue(state.toString(4)?.endsWith("concat boom") == true, state.toString(4))
+        assertEquals("dead", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(7))
+        assertEquals("dead", state.toString(8))
+    }
+
+    @Test
     fun `coroutine yield and resume preserve cyclic table identity`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)

@@ -385,6 +385,7 @@ internal class LuaVm(
                         Opcode.BNOT,
                         Opcode.LEN,
                         Opcode.UNM,
+                        Opcode.CONCAT,
                         -> register(frame, Instruction.a(instruction)) to 1
                         Opcode.EQ,
                         Opcode.LT,
@@ -1692,7 +1693,7 @@ internal class LuaVm(
             if (metamethod != null) {
                 stack.set(
                     register(frame, Instruction.a(instruction)),
-                    callOperatorMetamethod(metamethod, leftValue, rightValue, CONCAT_KEY),
+                    callConcatMetamethod(metamethod, leftValue, rightValue),
                 )
                 return
             }
@@ -1701,6 +1702,31 @@ internal class LuaVm(
         }
         val bytes = left.luaRawBytes() + right.luaRawBytes()
         stack.set(register(frame, Instruction.a(instruction)), LuaString(bytes.toLuaByteString()))
+    }
+
+    private fun callConcatMetamethod(
+        metamethod: LuaValue,
+        firstArgument: LuaValue,
+        secondArgument: LuaValue,
+    ): LuaValue {
+        val canSuspend = thread.currentFrame != null && !thread.inNativeCall
+        return when (metamethod) {
+            is LuaClosure -> executeMetamethod(
+                metamethod,
+                firstArgument,
+                secondArgument,
+                CONCAT_KEY,
+                allowSuspension = true,
+            ).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> metamethodValues(
+                callNativeResult(metamethod, listOf(firstArgument, secondArgument)),
+                canSuspend,
+            ).firstOrNull() ?: LuaNil
+            else -> metamethodValues(
+                callValue(metamethod, listOf(firstArgument, secondArgument), metamethodCallSiteInfo(CONCAT_KEY)),
+                canSuspend,
+            ).firstOrNull() ?: LuaNil
+        }
     }
 
     private fun bitwise(stack: LuaStack, frame: CallFrame, instruction: Int, operation: Bitwise) {
