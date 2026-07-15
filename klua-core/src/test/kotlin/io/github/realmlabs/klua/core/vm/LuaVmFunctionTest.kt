@@ -301,6 +301,49 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `transfers zero one fixed and open Lua call results`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local calls = 0
+                local function none()
+                    calls = calls + 1
+                end
+                local function one()
+                    return 11
+                end
+                local function many()
+                    return nil, 22, nil
+                end
+                local function relay()
+                    return many()
+                end
+
+                none()
+                local first = one()
+                local a, b, c, d = many()
+                return calls, first, a, b, c, d, relay()
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(
+                LuaInteger(1),
+                LuaInteger(11),
+                LuaNil,
+                LuaInteger(22),
+                LuaNil,
+                LuaNil,
+                LuaNil,
+                LuaInteger(22),
+                LuaNil,
+            ),
+            result,
+        )
+    }
+
+    @Test
     fun `executes indexed function call statements`() {
         val result = LuaVm().execute(
             Compiler.compile(

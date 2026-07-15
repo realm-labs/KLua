@@ -210,13 +210,16 @@ internal class LuaVm(
         return runFrameAndPopOnCompletion(frame)
     }
 
-    private fun executeFrame(
+    private fun executeFrameInto(
         function: LuaClosure,
         sourceStack: LuaStack,
         argumentStart: Int,
         argumentCount: Int,
         callSiteInfo: CallSiteInfo?,
-    ): LuaExecutionResult {
+        callerFrame: CallFrame,
+        resultBase: Int,
+        expectedResults: Int,
+    ): LuaExecutionResult? {
         val frame = thread.pushCallFromStack(
             sourceStack,
             argumentStart,
@@ -225,10 +228,21 @@ internal class LuaVm(
             function = function,
             callSiteInfo = callSiteInfo,
         )
-        return runFrameAndPopOnCompletion(frame)
+        return runFrameAndPopOnCompletion(frame, callerFrame, resultBase, expectedResults)
     }
 
     private fun runFrameAndPopOnCompletion(frame: CallFrame): LuaExecutionResult {
+        return checkNotNull(runFrameAndPopOnCompletion(frame, null, 0, 0)) {
+            "top-level frame returned into a caller"
+        }
+    }
+
+    private fun runFrameAndPopOnCompletion(
+        frame: CallFrame,
+        callerFrame: CallFrame?,
+        resultBase: Int,
+        expectedResults: Int,
+    ): LuaExecutionResult? {
         val stack = frame.stack
         var suspended = false
         try {
@@ -336,9 +350,19 @@ internal class LuaVm(
                         Opcode.RETURN -> {
                             val base = register(frame, Instruction.a(instruction))
                             val count = returnCount(frame, base, Instruction.b(instruction))
-                            val values = stack.snapshotResults(base, count)
                             dispatchDebugReturn(frame, base + 1, count)
-                            return LuaExecutionResult.Returned(values)
+                            if (callerFrame != null) {
+                                transferCallResults(
+                                    callerFrame,
+                                    resultBase,
+                                    expectedResults,
+                                    stack,
+                                    base,
+                                    count,
+                                )
+                                return null
+                            }
+                            return LuaExecutionResult.Returned(stack.snapshotResults(base, count))
                         }
                     }
                 } catch (error: LuaVmException) {
@@ -386,13 +410,25 @@ internal class LuaVm(
         val base = register(frame, Instruction.a(instruction))
         val callee = stack.get(base)
         val argumentCount = argumentCount(frame, base, Instruction.b(instruction))
+        val expectedResults = Instruction.c(instruction)
         val callSiteInfo = callSiteInfo(frame, frame.pc - 1)
         val results = if (callee is LuaClosure) {
-            executeFrame(callee, stack, base + 1, argumentCount, callSiteInfo)
+            executeFrameInto(
+                callee,
+                stack,
+                base + 1,
+                argumentCount,
+                callSiteInfo,
+                frame,
+                base,
+                expectedResults,
+            )
         } else {
             callValue(callee, stack.slice(base + 1, argumentCount), callSiteInfo)
         }
-        val expectedResults = Instruction.c(instruction)
+        if (results == null) {
+            return null
+        }
         if (results is LuaExecutionResult.Yielded) {
             frame.setPendingCall(base, expectedResults, results.continuation)
             return LuaExecutionResult.Yielded(results.values)
@@ -447,6 +483,29 @@ internal class LuaVm(
 
         for (index in 0 until expectedResults) {
             stack.set(base + index, results.getOrElse(index) { LuaNil })
+        }
+    }
+
+    private fun transferCallResults(
+        frame: CallFrame,
+        base: Int,
+        expectedResults: Int,
+        sourceStack: LuaStack,
+        sourceBase: Int,
+        sourceCount: Int,
+    ) {
+        if (expectedResults == OPEN_RESULT_COUNT) {
+            for (index in 0 until sourceCount) {
+                frame.set(base + index, sourceStack.get(sourceBase + index))
+            }
+            frame.openResultBase = base
+            frame.openResultCount = sourceCount
+            return
+        }
+
+        for (index in 0 until expectedResults) {
+            val value = if (index < sourceCount) sourceStack.get(sourceBase + index) else LuaNil
+            frame.set(base + index, value)
         }
     }
 

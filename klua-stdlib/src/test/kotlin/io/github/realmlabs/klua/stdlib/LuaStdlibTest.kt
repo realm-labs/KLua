@@ -5524,6 +5524,41 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `return hook local writes affect values transferred to the caller`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function hook(event, line)
+                    if event == "return" then
+                        local info = debug.getinfo(2, "n")
+                        if info.name == "leaf" then
+                            debug.setlocal(2, 1, 99)
+                        end
+                    end
+                end
+
+                local function leaf(value)
+                    return value
+                end
+
+                debug.sethook(hook, "r", 0)
+                local result = leaf(42)
+                debug.sethook()
+                return result
+                """.trimIndent(),
+                "debug-return-hook-write.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(99L, state.toInteger(1))
+    }
+
+    @Test
     fun `debug getinfo reports hook call site names`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
