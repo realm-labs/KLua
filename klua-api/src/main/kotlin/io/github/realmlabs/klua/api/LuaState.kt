@@ -42,6 +42,7 @@ class LuaState private constructor(
     }
     private val registry = LuaStackValue.TableValue(coreValue = registryCore)
     private val userMetatables = IdentityHashMap<Any, LuaStackValue.TableValue>()
+    private val nativeFunctionValues = IdentityHashMap<LuaFunction, KLuaCoreValue.FunctionValue>()
     private val coreBackedNativeGlobals = mutableSetOf<String>()
     private val userValues = IdentityHashMap<Any, MutableMap<Int, LuaStackValue>>()
     private val callMetamethodKey = LuaStackValue.StringValue("__call")
@@ -1014,6 +1015,7 @@ class LuaState private constructor(
     }
 
     private fun LuaFunction.toCoreFunctionValue(): KLuaCoreValue.FunctionValue {
+        nativeFunctionValues[this]?.let { return it }
         return KLuaCoreRuntime.createContextFunctionValue(
             function = { context ->
                 callHostFunction(
@@ -1022,7 +1024,7 @@ class LuaState private constructor(
                 )
             },
             yieldable = this is LuaYieldableFunction,
-        )
+        ).also { nativeFunctionValues[this] = it }
     }
 
     private fun LuaCallContext.argumentToCoreValue(index: Int): KLuaCoreValue {

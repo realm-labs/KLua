@@ -18906,6 +18906,121 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openMath installs the exact lua 55 surface and constants`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local expected = {
+                    abs = true, acos = true, asin = true, atan = true,
+                    ceil = true, cos = true, deg = true, exp = true,
+                    tointeger = true, floor = true, fmod = true, frexp = true,
+                    ult = true, ldexp = true, log = true, max = true,
+                    min = true, modf = true, rad = true, sin = true,
+                    sqrt = true, tan = true, type = true,
+                    random = true, randomseed = true,
+                    pi = true, huge = true, maxinteger = true, mininteger = true,
+                }
+                local count = 0
+                local unexpected
+                for key in pairs(math) do
+                    count = count + 1
+                    if not expected[key] then unexpected = key end
+                end
+                local missing
+                for key in pairs(expected) do
+                    if math[key] == nil then missing = key end
+                end
+                return count, unexpected, missing,
+                    math.pi == 0x1.921fb54442d18p1, math.type(math.pi),
+                    math.huge == 1 / 0, math.type(math.huge),
+                    math.maxinteger == 0x7fffffffffffffff, math.type(math.maxinteger),
+                    math.mininteger == -0x8000000000000000, math.type(math.mininteger),
+                    math.atan2, math.cosh, math.sinh, math.tanh, math.pow, math.log10
+                """.trimIndent(),
+                "math-surface.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(29L, state.toInteger(1))
+        assertTrue(state.isNil(2))
+        assertTrue(state.isNil(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("float", state.toString(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("float", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("integer", state.toString(9))
+        assertTrue(state.toBoolean(10))
+        assertEquals("integer", state.toString(11))
+        for (index in 12..17) {
+            assertTrue(state.isNil(index), "compatibility field at index $index")
+        }
+    }
+
+    @Test
+    fun `openMath replaces its table while preserving light function identity and random state ownership`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                oldMath = math
+                oldAbs = math.abs
+                oldSin = math.sin
+                oldRandom = math.random
+                oldRandomseed = math.randomseed
+                oldMath.randomseed(0x1234, 0x5678)
+                oldFirst = oldMath.random()
+                oldMath.abs = "mutated"
+                return true
+                """.trimIndent(),
+                "math-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+        assertTrue(state.toBoolean(-1))
+        state.setTop(0)
+
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local newMath = math
+                newMath.randomseed(0x1234, 0x5678)
+                local newFirst = newMath.random()
+                local oldSecond = oldMath.random()
+                local newSecond = newMath.random()
+                return oldMath ~= newMath,
+                    oldAbs == newMath.abs, oldSin == newMath.sin,
+                    oldRandom ~= newMath.random,
+                    oldRandomseed ~= newMath.randomseed,
+                    oldMath.abs == "mutated", type(newMath.abs) == "function",
+                    oldFirst == newFirst, oldSecond == newSecond,
+                    oldMath.random ~= newMath.random,
+                    oldMath.randomseed ~= newMath.randomseed
+                """.trimIndent(),
+                "math-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for (index in 1..11) {
+            assertTrue(state.toBoolean(index), "math reopen result $index")
+        }
+    }
+
+    @Test
     fun `math numeric arguments accept locale decimal numeric strings`() {
         val previousLocale = Locale.getDefault()
         try {

@@ -161,6 +161,28 @@ class LuaApiSmokeTest {
     }
 
     @Test
+    fun `state preserves repeated native function object identity`() {
+        val state = LuaState.create()
+        val shared = LuaFunction { LuaReturn.of("shared") }
+        val distinct = LuaFunction { LuaReturn.of("shared") }
+        state.pushFunction(shared)
+        state.setGlobal("first")
+        state.pushFunction(shared)
+        state.setGlobal("second")
+        state.pushFunction(distinct)
+        state.setGlobal("distinct")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("return first == second, first == distinct", "api-native-function-identity.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(false, state.toBoolean(2))
+    }
+
+    @Test
     fun `state raw equals compares numbers without losing integer precision`() {
         val state = LuaState.create()
         state.register("probe") { context ->

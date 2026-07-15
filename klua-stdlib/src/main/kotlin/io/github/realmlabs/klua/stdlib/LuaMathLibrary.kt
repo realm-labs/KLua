@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
+import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
@@ -22,35 +23,15 @@ internal object LuaMathLibrary {
     fun open(state: LuaState): LuaState {
         val randomState = MathRandomState()
         state.newTable()
-        setFunctionField(state, "abs", ::mathAbs)
-        setFunctionField(state, "acos", ::mathAcos)
-        setFunctionField(state, "asin", ::mathAsin)
-        setFunctionField(state, "atan", ::mathAtan)
-        setFunctionField(state, "ceil", ::mathCeil)
-        setFunctionField(state, "cos", ::mathCos)
-        setFunctionField(state, "deg", ::mathDeg)
-        setFunctionField(state, "exp", ::mathExp)
-        setFunctionField(state, "floor", ::mathFloor)
-        setFunctionField(state, "fmod", ::mathFmod)
-        setFunctionField(state, "frexp", ::mathFrexp)
-        setFunctionField(state, "ldexp", ::mathLdexp)
-        setFunctionField(state, "log", ::mathLog)
-        setFunctionField(state, "max", ::mathMax)
-        setFunctionField(state, "min", ::mathMin)
-        setFunctionField(state, "modf", ::mathModf)
-        setFunctionField(state, "rad", ::mathRad)
-        setFunctionField(state, "random") { context -> mathRandom(context, randomState) }
-        setFunctionField(state, "randomseed") { context -> mathRandomSeed(context, randomState) }
-        setFunctionField(state, "sin", ::mathSin)
-        setFunctionField(state, "sqrt", ::mathSqrt)
-        setFunctionField(state, "tan", ::mathTan)
-        setFunctionField(state, "type", ::mathType)
-        setFunctionField(state, "tointeger", ::mathToInteger)
-        setFunctionField(state, "ult", ::mathUnsignedLessThan)
+        for ((name, function) in STATELESS_FUNCTIONS) {
+            setFunctionField(state, name, function)
+        }
         setNumberField(state, "huge", Double.POSITIVE_INFINITY)
         setIntegerField(state, "maxinteger", Long.MAX_VALUE)
         setIntegerField(state, "mininteger", Long.MIN_VALUE)
         setNumberField(state, "pi", Math.PI)
+        setFunctionField(state, "random", LuaFunction { context -> mathRandom(context, randomState) })
+        setFunctionField(state, "randomseed", LuaFunction { context -> mathRandomSeed(context, randomState) })
         state.setGlobal("math")
         return state
     }
@@ -451,7 +432,7 @@ internal object LuaMathLibrary {
         return lower + randomState.project(randomValue, width)
     }
 
-    private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
+    private fun setFunctionField(state: LuaState, name: String, function: LuaFunction) {
         state.pushFunction(function)
         state.setField(-2, name)
     }
@@ -522,6 +503,31 @@ internal object LuaMathLibrary {
     }
 
     private const val SUBNORMAL_SCALE_BITS = 54
+    private val STATELESS_FUNCTIONS = listOf(
+        "abs" to LuaFunction(::mathAbs),
+        "acos" to LuaFunction(::mathAcos),
+        "asin" to LuaFunction(::mathAsin),
+        "atan" to LuaFunction(::mathAtan),
+        "ceil" to LuaFunction(::mathCeil),
+        "cos" to LuaFunction(::mathCos),
+        "deg" to LuaFunction(::mathDeg),
+        "exp" to LuaFunction(::mathExp),
+        "tointeger" to LuaFunction(::mathToInteger),
+        "floor" to LuaFunction(::mathFloor),
+        "fmod" to LuaFunction(::mathFmod),
+        "frexp" to LuaFunction(::mathFrexp),
+        "ult" to LuaFunction(::mathUnsignedLessThan),
+        "ldexp" to LuaFunction(::mathLdexp),
+        "log" to LuaFunction(::mathLog),
+        "max" to LuaFunction(::mathMax),
+        "min" to LuaFunction(::mathMin),
+        "modf" to LuaFunction(::mathModf),
+        "rad" to LuaFunction(::mathRad),
+        "sin" to LuaFunction(::mathSin),
+        "sqrt" to LuaFunction(::mathSqrt),
+        "tan" to LuaFunction(::mathTan),
+        "type" to LuaFunction(::mathType),
+    )
     private val LUA_LN_2 = ln(2.0)
     private val LUA_INTEGER_EXCLUSIVE_UPPER_BOUND = -Long.MIN_VALUE.toDouble()
     private const val RANDOM_STATE_SIZE = 4

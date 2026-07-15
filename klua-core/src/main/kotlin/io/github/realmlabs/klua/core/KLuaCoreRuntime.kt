@@ -460,6 +460,7 @@ public class KLuaCoreGlobals internal constructor(
     internal val table: LuaTable = LuaTable(),
     internal val environment: LuaValue = table,
 ) {
+    private val nativeFunctionValues = IdentityHashMap<KLuaCoreValue.FunctionValue, LuaNativeFunction>()
     private val userDataTypes = linkedMapOf<Class<*>, MutableMap<String, LuaNativeFunction>>()
     private val userDataProperties = linkedMapOf<Class<*>, MutableMap<String, LuaUserDataProperty>>()
     internal var stringLibrary: LuaTable? = null
@@ -486,6 +487,17 @@ public class KLuaCoreGlobals internal constructor(
     }
 
     internal fun userDataMetatable(value: Any): LuaTable? = userDataMetatables[value]
+
+    internal fun nativeFunctionValue(value: KLuaCoreValue.FunctionValue): LuaNativeFunction {
+        nativeFunctionValues[value]?.let { return it }
+        return LuaNativeFunction(
+            yieldable = value.yieldable,
+            function = { arguments -> callCoreFunction(value.function, arguments, this) },
+            contextualFunction = value.contextFunction?.let { function ->
+                { context -> callCoreContextFunction(function, context, this) }
+            },
+        ).also { nativeFunctionValues[value] = it }
+    }
 
     public companion object {
         @JvmStatic
@@ -1129,13 +1141,7 @@ private fun KLuaCoreValue.toLuaValueOrNull(
         is KLuaCoreValue.StringValue -> LuaString(value)
         is KLuaCoreValue.FunctionValue -> sourceFunction
             ?.takeIf { sourceGlobals == null || sourceGlobals === globals }
-            ?: LuaNativeFunction(
-                yieldable = yieldable,
-                function = { arguments -> callCoreFunction(function, arguments, globals) },
-                contextualFunction = contextFunction?.let { function ->
-                    { context -> callCoreContextFunction(function, context, globals) }
-                },
-            )
+            ?: globals.nativeFunctionValue(this)
         is KLuaCoreValue.TableValue -> {
             val resolvedTableCache = tableCache ?: IdentityHashMap()
             val cached = resolvedTableCache[this]
