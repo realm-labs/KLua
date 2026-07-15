@@ -19951,6 +19951,75 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `math frexp preserves ieee endpoints and exact reconstruction`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local minimumSubnormal = 0x0.0000000000001p-1022
+                local minimumNormal = 0x1p-1022
+                local maximumFinite = 0x1.fffffffffffffp1023
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local positiveZeroMantissa, positiveZeroExponent = math.frexp(0.0)
+                local negativeZeroMantissa, negativeZeroExponent = math.frexp(-0.0)
+                local subnormalMantissa, subnormalExponent = math.frexp(minimumSubnormal)
+                local negativeSubnormalMantissa, negativeSubnormalExponent = math.frexp(-minimumSubnormal)
+                local normalMantissa, normalExponent = math.frexp(minimumNormal)
+                local maximumMantissa, maximumExponent = math.frexp(maximumFinite)
+                local infinityMantissa, infinityExponent = math.frexp(infinity)
+                local negativeInfinityMantissa, negativeInfinityExponent = math.frexp(-infinity)
+                local nanMantissa, nanExponent = math.frexp(nan)
+                local roundTrips = math.ldexp(subnormalMantissa, subnormalExponent) == minimumSubnormal
+                    and math.ldexp(negativeSubnormalMantissa, negativeSubnormalExponent) == -minimumSubnormal
+                    and math.ldexp(normalMantissa, normalExponent) == minimumNormal
+                    and math.ldexp(maximumMantissa, maximumExponent) == maximumFinite
+                return 1 / positiveZeroMantissa, positiveZeroExponent,
+                    1 / negativeZeroMantissa, negativeZeroExponent,
+                    subnormalMantissa, subnormalExponent,
+                    negativeSubnormalMantissa, negativeSubnormalExponent,
+                    normalMantissa, normalExponent,
+                    maximumMantissa, maximumExponent,
+                    infinityMantissa, infinityExponent,
+                    negativeInfinityMantissa, negativeInfinityExponent,
+                    nanMantissa, nanExponent, roundTrips,
+                    math.type(subnormalMantissa), math.type(subnormalExponent),
+                    select("#", math.frexp(1))
+                """.trimIndent(),
+                "math-frexp-ieee.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(3))
+        assertEquals(0L, state.toInteger(4))
+        assertEquals(0.5, state.toNumber(5))
+        assertEquals(-1073L, state.toInteger(6))
+        assertEquals(-0.5, state.toNumber(7))
+        assertEquals(-1073L, state.toInteger(8))
+        assertEquals(0.5, state.toNumber(9))
+        assertEquals(-1021L, state.toInteger(10))
+        assertEquals(Math.nextDown(1.0), state.toNumber(11))
+        assertEquals(1024L, state.toInteger(12))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(13))
+        assertEquals(0L, state.toInteger(14))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(15))
+        assertEquals(0L, state.toInteger(16))
+        assertTrue(state.toNumber(17)?.isNaN() == true)
+        assertEquals(0L, state.toInteger(18))
+        assertTrue(state.toBoolean(19))
+        assertEquals("float", state.toString(20))
+        assertEquals("integer", state.toString(21))
+        assertEquals(2L, state.toInteger(22))
+    }
+
+    @Test
     fun `math ldexp scales mantissa by binary exponent`() {
         val state = LuaState.create()
         LuaStdlib.openMath(state)
@@ -20002,6 +20071,96 @@ class LuaStdlibTest {
         assertEquals(0.0, state.toNumber(3) ?: error("missing wrapped negative exponent result"), 0.0)
         assertEquals(0.0, state.toNumber(4) ?: error("missing min int exponent result"), 0.0)
         assertTrue((state.toNumber(5) ?: error("missing wrapped max int exponent result")).isInfinite())
+    }
+
+    @Test
+    fun `math ldexp preserves special values and full integer narrowing`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local infinity = 1 / 0
+                local nan = 0 / 0
+                local maximumMantissa = 0x1.fffffffffffffp-1
+                local typed = math.ldexp(1, 0)
+                return 1 / math.ldexp(0.0, 2147483647),
+                    1 / math.ldexp(-0.0, 2147483647),
+                    math.ldexp(0.5, -1073),
+                    math.ldexp(maximumMantissa, 1024),
+                    math.ldexp(1, 1024), math.ldexp(1, -1075),
+                    math.ldexp(infinity, -2147483648),
+                    math.ldexp(-infinity, 2147483647),
+                    math.ldexp(nan, 0),
+                    math.ldexp(1, math.maxinteger),
+                    math.ldexp(1, math.mininteger),
+                    math.type(typed), select("#", math.ldexp(1, 0))
+                """.trimIndent(),
+                "math-ldexp-ieee.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(1))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(2))
+        assertEquals(Double.MIN_VALUE, state.toNumber(3))
+        assertEquals(Double.MAX_VALUE, state.toNumber(4))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(5))
+        assertEquals(0.0, state.toNumber(6))
+        assertEquals(Double.POSITIVE_INFINITY, state.toNumber(7))
+        assertEquals(Double.NEGATIVE_INFINITY, state.toNumber(8))
+        assertTrue(state.toNumber(9)?.isNaN() == true)
+        assertEquals(0.5, state.toNumber(10))
+        assertEquals(1.0, state.toNumber(11))
+        assertEquals("float", state.toString(12))
+        assertEquals(1L, state.toInteger(13))
+    }
+
+    @Test
+    fun `math frexp and ldexp validate used arguments in source order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openMath(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local frexpMissingOk, frexpMissingError = pcall(math.frexp)
+                local frexpTypeOk, frexpTypeError = pcall(math.frexp, false)
+                local ldexpMissingOk, ldexpMissingError = pcall(math.ldexp)
+                local ldexpFirstOk, ldexpFirstError = pcall(math.ldexp, false, false)
+                local ldexpSecondOk, ldexpSecondError = pcall(math.ldexp, 1)
+                local coercedMantissa, coercedExponent = math.frexp("0x1p3", false)
+                return frexpMissingOk, frexpMissingError,
+                    frexpTypeOk, frexpTypeError,
+                    ldexpMissingOk, ldexpMissingError,
+                    ldexpFirstOk, ldexpFirstError,
+                    ldexpSecondOk, ldexpSecondError,
+                    coercedMantissa, coercedExponent,
+                    math.ldexp("0x1p-1", "0x1p2", false)
+                """.trimIndent(),
+                "math-frexp-ldexp-arguments.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'frexp' (number expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'frexp' (number expected)", state.toString(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("bad argument #1 to 'ldexp' (number expected)", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("bad argument #1 to 'ldexp' (number expected)", state.toString(8))
+        assertFalse(state.toBoolean(9))
+        assertEquals("bad argument #2 to 'ldexp' (number expected)", state.toString(10))
+        assertEquals(0.5, state.toNumber(11))
+        assertEquals(4L, state.toInteger(12))
+        assertEquals(8.0, state.toNumber(13))
     }
 
     @Test
