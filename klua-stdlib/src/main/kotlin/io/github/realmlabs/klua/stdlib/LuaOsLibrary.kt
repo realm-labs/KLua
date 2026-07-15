@@ -468,8 +468,12 @@ internal object LuaOsLibrary {
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
-        return context.toString(index)
-            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+        return if (context.typeName(index) == "number") {
+            luaNumberToString(context.get(index))
+        } else {
+            context.toString(index)
+                ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+        }
     }
 
     private fun requiredDateField(context: LuaCallContext, key: String, delta: Int): Long {

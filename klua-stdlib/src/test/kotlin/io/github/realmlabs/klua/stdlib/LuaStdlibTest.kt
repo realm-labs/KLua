@@ -14821,6 +14821,49 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `os string arguments use lua numeric formatting`() {
+        val removeName = "1e-05"
+        val renameSourceName = "1e+15"
+        val renameTargetName = "2e+15"
+        val removePath = Path.of(removeName)
+        val renameSource = Path.of(renameSourceName)
+        val renameTarget = Path.of(renameTargetName)
+        Files.deleteIfExists(removePath)
+        Files.deleteIfExists(renameSource)
+        Files.deleteIfExists(renameTarget)
+        Files.writeString(removePath, "remove")
+        Files.writeString(renameSource, "rename")
+
+        val state = LuaState.create()
+        LuaStdlib.openOs(state)
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local removed = os.remove(1e-5)
+                    local renamed = os.rename(1e15, 2e15)
+                    return removed, renamed, os.date(1e15, 0)
+                    """.trimIndent(),
+                    "os-string-number-format.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertTrue(state.toBoolean(2))
+            assertEquals("1e+15", state.toString(3))
+            assertFalse(Files.exists(removePath))
+            assertFalse(Files.exists(renameSource))
+            assertEquals("rename", Files.readString(renameTarget))
+        } finally {
+            Files.deleteIfExists(removePath)
+            Files.deleteIfExists(renameSource)
+            Files.deleteIfExists(renameTarget)
+        }
+    }
+
+    @Test
     fun `os tmpname returns unique writable file names`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
