@@ -65,6 +65,7 @@ internal object LuaCoroutineLibrary {
             return LuaReturn.of(false, "cannot resume non-suspended coroutine")
         }
 
+        coroutine.needsErrorClose = false
         coroutine.status = CoroutineStatus.RUNNING
         val previousRunning = runtime.running
         runtime.running = coroutine
@@ -86,10 +87,12 @@ internal object LuaCoroutineLibrary {
                     }
                     LuaCoroutineResult.DebugSuspended -> {
                         coroutine.status = CoroutineStatus.DEAD
+                        coroutine.needsErrorClose = true
                         LuaReturn.of(false, "coroutine suspended by debugger outside a debug session")
                     }
                     is LuaCoroutineResult.RuntimeError -> {
                         coroutine.status = CoroutineStatus.DEAD
+                        coroutine.needsErrorClose = true
                         val errorObject = if (result.hasErrorObject) result.errorObject else result.message
                         LuaReturn.of(false, errorObject)
                     }
@@ -106,6 +109,7 @@ internal object LuaCoroutineLibrary {
                         coroutine.status = CoroutineStatus.DEAD
                         val errorValue = "attempt to yield across a C-call boundary"
                         coroutine.rememberCloseError(errorValue)
+                        coroutine.needsErrorClose = true
                         return LuaReturn.of(false, errorValue)
                     }
                     suspendHostYieldableCoroutine(coroutine, yield)
@@ -115,11 +119,13 @@ internal object LuaCoroutineLibrary {
             coroutine.status = CoroutineStatus.DEAD
             val errorObject = coroutineErrorObject(exception)
             coroutine.terminalError = CoroutineTerminalError(errorObject)
+            coroutine.needsErrorClose = true
             LuaReturn.of(false, errorObject)
         } catch (exception: RuntimeException) {
             coroutine.status = CoroutineStatus.DEAD
             val errorObject = exception.message ?: exception::class.java.simpleName
             coroutine.terminalError = CoroutineTerminalError(errorObject)
+            coroutine.needsErrorClose = true
             LuaReturn.of(false, errorObject)
         } finally {
             runtime.running = previousRunning
@@ -174,18 +180,23 @@ internal object LuaCoroutineLibrary {
             }
             throw LuaRuntimeException("cannot close a normal coroutine")
         }
-        if (coroutine.hasCloseError) {
-            val errorValue = coroutine.closeError
-            coroutine.clearCloseError()
-            coroutine.status = CoroutineStatus.DEAD
-            return LuaReturn.of(false, errorValue)
-        }
         if (coroutine.status == CoroutineStatus.RUNNING) {
             if (!isRunningCoroutine(coroutine, runtime)) {
                 throw LuaRuntimeException("cannot close a normal coroutine")
             }
             coroutine.status = CoroutineStatus.DEAD
             context.yield(listOf(SelfCloseSignal))
+        }
+        return closeInactiveCoroutine(coroutine)
+    }
+
+    private fun closeInactiveCoroutine(coroutine: LuaCoroutine): LuaReturn {
+        coroutine.needsErrorClose = false
+        if (coroutine.hasCloseError) {
+            val errorValue = coroutine.closeError
+            coroutine.clearCloseError()
+            coroutine.status = CoroutineStatus.DEAD
+            return LuaReturn.of(false, errorValue)
         }
         coroutine.terminalError?.let { terminalError ->
             coroutine.terminalError = null
@@ -280,7 +291,13 @@ internal object LuaCoroutineLibrary {
                 },
             )
             if (result.get(1) != true) {
-                throwCoroutineWrapError(wrapperContext, result.get(2), creationFrames)
+                val errorValue = if (created.needsErrorClose) {
+                    val closeResult = closeInactiveCoroutine(created)
+                    if (closeResult.get(1) == false) closeResult.get(2) else result.get(2)
+                } else {
+                    result.get(2)
+                }
+                throwCoroutineWrapError(wrapperContext, errorValue, creationFrames)
             }
             LuaReturn.ofValues(result.values.drop(1))
         }
@@ -380,6 +397,7 @@ internal object LuaCoroutineLibrary {
         var status: CoroutineStatus = CoroutineStatus.SUSPENDED,
         var pendingYield: LuaYieldException? = null,
         var terminalError: CoroutineTerminalError? = null,
+        var needsErrorClose: Boolean = false,
         val isMain: Boolean = false,
         var closeError: Any? = null,
         var hasCloseError: Boolean = false,

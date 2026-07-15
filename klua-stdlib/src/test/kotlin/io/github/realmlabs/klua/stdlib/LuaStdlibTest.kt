@@ -14948,6 +14948,57 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine wrap closes failed threads before propagating their final error`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local original = {name = "original"}
+                local preservedClosedWithOriginal = false
+                local preserved = coroutine.wrap(function()
+                    local value <close> = setmetatable({}, {
+                        __close = function(_, err)
+                            preservedClosedWithOriginal = err == original
+                        end,
+                    })
+                    error(original)
+                end)
+                local preservedOk, preservedError = pcall(preserved)
+
+                local replacement = {name = "replacement"}
+                local replacedClosedWithOriginal = false
+                local replaced = coroutine.wrap(function()
+                    local value <close> = setmetatable({}, {
+                        __close = function(_, err)
+                            replacedClosedWithOriginal = err == original
+                            error(replacement)
+                        end,
+                    })
+                    error(original)
+                end)
+                local replacedOk, replacedError = pcall(replaced)
+
+                return preservedOk, preservedError == original, preservedClosedWithOriginal,
+                    replacedOk, replacedError == replacement, replacedClosedWithOriginal
+                """.trimIndent(),
+                "coroutine-wrap-close-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+    }
+
+    @Test
     fun `coroutine resume and close normalize nil error objects`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

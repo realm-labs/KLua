@@ -198,7 +198,7 @@ Remaining major gaps:
 
 - Broader Lua language and conformance hardening.
 - Broader standard library implementation, including table edge cases, string pattern/format, math edge cases, and utf8 coverage.
-- Broader coroutine runtime hardening, including additional nested coroutine edge cases and Lua 5.5 conformance coverage beyond the current Lua-backed, protected-call, index/newindex read/write-opcode, and arithmetic/bitwise/unary/length/comparison/concatenation metamethod yield/resume paths.
+- Broader coroutine runtime hardening and Lua 5.5 conformance coverage beyond the current Lua-backed, protected-call, index/newindex read/write-opcode, and arithmetic/bitwise/unary/length/comparison/concatenation metamethod yield/resume paths.
 - Broader error, traceback, and debug-library conformance beyond the closed M14 foundation criteria.
 - A packaged standalone DAP adapter host and richer debugger scheduling/evaluation policy beyond the closed M16 library-level integration.
 - Broader script packaging workflow, including optional Gradle/plugin integration.
@@ -481,11 +481,17 @@ Lua 5.5's `ldblib.c:getthread` accepts an optional thread without restricting it
 
 The failed state was the one missing family. Coroutine VMs now retain unhandled frames and open captures instead of closing and popping them during `resume`; `debug.getinfo`, `debug.traceback`, `debug.getlocal`, and `debug.setlocal` therefore operate on the failed stack, while hook state remains independently targetable as in the other states. `coroutine.close` passes the active error through pending close handlers, resets the frames, reports the final error once, and leaves subsequent debug inspection with the same empty-stack behavior as a successfully dead coroutine. Focused core and Lua-source tests cover fresh and failed targets, live local mutation, deferred `<close>` timing and error arguments, reset-after-close, and the existing full state families. The vague broader cross-thread debug gap was stale and has been removed.
 
+### M20 Nested Coroutine State Audit
+
+Lua 5.5's `lcorolib.c:auxstatus` derives `running`, `normal`, `suspended`, and `dead` from thread identity, `lua_status`, live stack frames, and the initial function slot. `luaB_coresume` returns resume errors without resetting the target, and `luaB_close` only resets dead or suspended threads; current main and normal resumer states reject close, while a non-main coroutine may close itself. Existing KLua coverage already exercises those current/main, nested-normal, fresh, yielded, dead-success, dead-error, explicit-close, self-close, and protected resume-error transitions.
+
+The missing transition was `lcorolib.c:luaB_auxwrap`'s special failed-thread path. A wrapper owns a hidden coroutine that callers cannot close explicitly, so after an execution error Lua distinguishes the target's error status from ordinary dead/normal resume failures, calls `lua_closethread`, and only then propagates the final error. KLua now records genuine resume failures separately from state-validation errors. A failed wrapper runs its hidden thread's pending close handlers with the original error, accepts a replacement close error, resets the thread, and then preserves the final error object's identity through `pcall`; attempts to call an already dead or recursively running wrapper retain their existing messages without an inappropriate reset. Focused Lua-source tests cover both preserved and replaced table error objects and the active error passed to `__close`; the complete coroutine/stdlib and repository suites pass. The vague additional nested-coroutine edge-case wording has been retired from the gap snapshot.
+
 Use this work-package order:
 
 | Order | Work package | Outcome and exit criteria | Expected commit shape |
 | --- | --- | --- | --- |
-| 1 | M20 nested coroutine state audit | Audit nested resume/status/close behavior against `lcorolib.c:auxstatus`, `luaB_coresume`, and `luaB_close`. Define the current/main/normal/yielded/dead and protected-error transitions, close one bounded missing family or retire stale wording, and finish with focused Lua-source cases plus the full suite. | One coherent coroutine-conformance commit; do not mix unrelated library behavior. |
+| 1 | M20 `table.move` boundary audit | Audit `ltablib.c:tmove` and `checktab` across overlapping directions, empty ranges, integer-wrap guards, same/different receivers, and table-like metamethod receivers. Close one bounded missing family or retire stale wording, then finish with focused Lua-source cases plus the full suite. | One coherent table-conformance commit; do not mix unrelated library behavior. |
 
 M20 conformance remains important throughout development, but broad hardening should run as an explicitly selected campaign rather than an open-ended stream of unrelated probes. A campaign should name one subsystem or semantic invariant, list the affected entry points and reference-source functions, define its case matrix, and finish by updating the gap snapshot. Regression, data-integrity, security, or active-milestone blocking fixes may interrupt the order above; incidental edge cases should be queued for the next campaign.
 
