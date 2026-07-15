@@ -506,21 +506,24 @@ internal object LuaIoLibrary {
         firstArgumentIndex: Int = 1,
     ): LuaReturn {
         handle.ensureOpen()
-        if (!handle.writable) {
-            return LuaReturn.of(null, "Bad file descriptor", 1L)
-        }
-        return try {
-            for (index in 1..context.argumentCount) {
-                val value = writeArgumentString(context, index)
-                    ?: throw LuaRuntimeException(
-                        "bad argument #${firstArgumentIndex + index - 1} to 'write' (string expected)",
-                    )
-                handle.write(value.luaRawBytes())
+        var totalBytes = 0L
+        for (index in 1..context.argumentCount) {
+            val value = writeArgumentString(context, index)
+                ?: throw LuaRuntimeException(
+                    "bad argument #${firstArgumentIndex + index - 1} to 'write' (string expected)",
+                )
+            val bytes = value.luaRawBytes()
+            if (!handle.writable) {
+                return LuaReturn.of(null, "Bad file descriptor", 1L, totalBytes)
             }
-            LuaReturn.of(handle)
-        } catch (error: IOException) {
-            LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L)
+            try {
+                handle.write(bytes)
+                totalBytes += bytes.size
+            } catch (error: IOException) {
+                return LuaReturn.of(null, error.message ?: error::class.java.simpleName, 1L, totalBytes)
+            }
         }
+        return LuaReturn.of(handle)
     }
 
     private fun writeArgumentString(context: LuaCallContext, index: Int): String? {

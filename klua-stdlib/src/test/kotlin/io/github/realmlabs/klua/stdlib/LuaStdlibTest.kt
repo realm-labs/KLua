@@ -3941,6 +3941,83 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io write converts arguments incrementally and reports failure byte counts`() {
+        val path = Files.createTempFile("klua-io-write-order-", ".txt")
+        val partialPath = Files.createTempFile("klua-io-write-partial-", ".txt")
+        Files.writeString(path, "seed")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local readOnly = assert(io.open("${path.luaPath()}", "r"))
+                    local emptyReturned = readOnly:write() == readOnly
+                    local invalidOk, invalidMessage = pcall(readOnly.write, readOnly, {})
+                    local directionCount = select("#", readOnly:write("x", {}))
+                    local directionValue, directionMessage, directionCode, directionBytes =
+                        readOnly:write("x", {})
+
+                    io.output(readOnly)
+                    local moduleEmptyReturned = io.write() == readOnly
+                    local moduleInvalidOk, moduleInvalidMessage = pcall(io.write, {})
+                    local moduleValue, moduleMessage, moduleCode, moduleBytes = io.write("x", {})
+                    readOnly:close()
+
+                    local partial = assert(io.open("${partialPath.luaPath()}", "w+"))
+                    local laterOk, laterMessage = pcall(partial.write, partial, "prefix", {})
+                    partial:seek("set", 0)
+                    local partialText = partial:read("a")
+                    partial:close()
+
+                    local closedDefault = assert(io.open("${partialPath.luaPath()}", "w"))
+                    io.output(closedDefault)
+                    closedDefault:close()
+                    local closedOk, closedMessage = pcall(io.write, {})
+
+                    return emptyReturned, invalidOk, invalidMessage,
+                        directionCount, directionValue, directionMessage,
+                        type(directionCode), directionBytes,
+                        moduleEmptyReturned, moduleInvalidOk, moduleInvalidMessage,
+                        moduleValue, moduleMessage, type(moduleCode), moduleBytes,
+                        laterOk, laterMessage, partialText,
+                        closedOk, closedMessage
+                    """.trimIndent(),
+                    "io-write-order.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertFalse(state.toBoolean(2))
+            assertEquals("bad argument #2 to 'write' (string expected)", state.toString(3))
+            assertEquals(4L, state.toInteger(4))
+            assertTrue(state.isNil(5))
+            assertEquals("Bad file descriptor", state.toString(6))
+            assertEquals("number", state.toString(7))
+            assertEquals(0L, state.toInteger(8))
+            assertTrue(state.toBoolean(9))
+            assertFalse(state.toBoolean(10))
+            assertEquals("bad argument #1 to 'write' (string expected)", state.toString(11))
+            assertTrue(state.isNil(12))
+            assertEquals("Bad file descriptor", state.toString(13))
+            assertEquals("number", state.toString(14))
+            assertEquals(0L, state.toInteger(15))
+            assertFalse(state.toBoolean(16))
+            assertEquals("bad argument #3 to 'write' (string expected)", state.toString(17))
+            assertEquals("prefix", state.toString(18))
+            assertFalse(state.toBoolean(19))
+            assertEquals("default output file is closed", state.toString(20))
+        } finally {
+            Files.deleteIfExists(path)
+            Files.deleteIfExists(partialPath)
+        }
+    }
+
+    @Test
     fun `io tmpfile returns closeable file handles`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
