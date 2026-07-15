@@ -16,6 +16,7 @@ import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.io.IOException
 import java.math.BigInteger
 import java.nio.file.Files
+import java.nio.file.InvalidPathException
 import java.nio.file.Path
 import java.util.function.Consumer
 
@@ -255,12 +256,12 @@ public object LuaStdlib {
         val mode = loadMode(context, 3, "load")
         val chunkName = if (context.isNone(2) || context.isNil(2)) {
             if (sourceString != null) {
-                sourceString
+                sourceString.substringBefore('\u0000')
             } else {
                 "=(load)"
             }
         } else {
-            requiredString(context, 2, "load")
+            requiredString(context, 2, "load").substringBefore('\u0000')
         }
         val source = if (sourceString != null) {
             sourceString
@@ -323,22 +324,22 @@ public object LuaStdlib {
     }
 
     private fun loadfile(context: LuaCallContext, state: LuaState): LuaReturn {
+        val filename = if (context.isNone(1) || context.isNil(1)) {
+            null
+        } else {
+            requiredString(context, 1, "loadfile").substringBefore('\u0000')
+        }
         val mode = loadMode(context, 2, "loadfile")
-        return loadFile(context, state, "loadfile", mode, environmentIndex = 3)
+        return loadFile(context, state, filename, mode, environmentIndex = 3)
     }
 
     private fun loadFile(
         context: LuaCallContext,
         state: LuaState,
-        functionName: String,
+        filename: String?,
         mode: String,
         environmentIndex: Int?,
     ): LuaReturn {
-        val filename = if (context.isNone(1) || context.isNil(1)) {
-            null
-        } else {
-            requiredString(context, 1, functionName)
-        }
         val read = readLoadFileSource(filename, state)
         val source = read.source
             ?: return LuaReturn.of(null, read.error ?: "cannot read file '$filename'")
@@ -368,7 +369,7 @@ public object LuaStdlib {
         val filename = if (context.isNone(1) || context.isNil(1)) {
             null
         } else {
-            requiredString(context, 1, "dofile")
+            requiredString(context, 1, "dofile").substringBefore('\u0000')
         }
         val read = readLoadFileSource(filename, state)
         val source = read.source
@@ -395,6 +396,10 @@ public object LuaStdlib {
                 return LoadFileRead(source = LoadFileSource(content.source, "@$filename", content.bytes))
             }
         } catch (error: IOException) {
+            return LoadFileRead(error = error.message ?: "cannot read file '$filename'")
+        } catch (error: InvalidPathException) {
+            return LoadFileRead(error = error.reason.ifEmpty { "cannot read file '$filename'" })
+        } catch (error: SecurityException) {
             return LoadFileRead(error = error.message ?: "cannot read file '$filename'")
         }
     }
@@ -820,7 +825,7 @@ public object LuaStdlib {
     }
 
     private fun loadMode(context: LuaCallContext, index: Int, functionName: String): String {
-        val mode = optionalString(context, index, "bt", functionName)
+        val mode = optionalString(context, index, "bt", functionName).substringBefore('\u0000')
         if ('B' in mode) {
             throw LuaRuntimeException("bad argument #$index to '$functionName' (invalid mode)")
         }

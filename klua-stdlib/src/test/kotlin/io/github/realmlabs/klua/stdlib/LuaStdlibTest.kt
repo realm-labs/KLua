@@ -11368,6 +11368,46 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `string dump truthiness and truncated loads preserve result boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function inspect(...)
+                    return select("#", ...), ...
+                end
+                local function sample()
+                    return 42
+                end
+
+                local dumpCount, dumped = inspect(string.dump(sample, 0, "ignored"))
+                local loaded = assert(load(dumped, "stripped-truthiness", "b"))
+                local info = debug.getinfo(loaded, "S")
+                local truncated = string.sub(dumped, 1, -2)
+                local loadCount, truncatedFunction, message = inspect(
+                    load(truncated, "truncated-dump", "b", "ignored")
+                )
+                return dumpCount, type(dumped), loaded(), info.source,
+                    loadCount, truncatedFunction, message
+                """.trimIndent(),
+                "string-dump-result-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("string", state.toString(2))
+        assertEquals(42L, state.toInteger(3))
+        assertEquals("", state.toString(4))
+        assertEquals(2L, state.toInteger(5))
+        assertTrue(state.isNil(6))
+        assertEquals("truncated KLua bytecode payload", state.toString(7))
+    }
+
+    @Test
     fun `binary load applies supplied environments to dumped chunks`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -11411,6 +11451,55 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals("bad argument #1 to 'dump' (Lua function expected)", state.toString(2))
+    }
+
+    @Test
+    fun `load controls use c string boundaries and source validation order`() {
+        val file = Files.createTempFile("klua-load-c-string-controls", ".lua")
+        Files.writeString(file, "return 11")
+        try {
+            val state = LuaState.create()
+            LuaStdlib.openLibs(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local zero = string.char(0)
+                    local text = assert(load(
+                        "return 5", "text-name" .. zero .. "ignored", "t" .. zero .. "B"
+                    ))
+                    local dumped = string.dump(function() return 7 end)
+                    local binary = assert(load(
+                        dumped, "binary-name" .. zero .. "ignored", "b" .. zero .. "B"
+                    ))
+                    local syntax, syntaxMessage = load(
+                        "local =", "prefix.lua" .. zero .. "ignored", "t" .. zero .. "B"
+                    )
+                    local loadedFile = assert(loadfile(
+                        "${file.luaPath()}" .. zero .. "ignored", "t" .. zero .. "B"
+                    ))
+                    local filenameOk, filenameMessage = pcall(loadfile, false, "B")
+                    return text(), binary(), syntax, syntaxMessage,
+                        loadedFile(), dofile("${file.luaPath()}" .. zero .. "ignored", "ignored"),
+                        filenameOk, filenameMessage
+                    """.trimIndent(),
+                    "load-c-string-controls.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertEquals(5L, state.toInteger(1))
+            assertEquals(7L, state.toInteger(2))
+            assertTrue(state.isNil(3))
+            assertEquals("prefix.lua:1:7: expected local variable name", state.toString(4))
+            assertEquals(11L, state.toInteger(5))
+            assertEquals(11L, state.toInteger(6))
+            assertFalse(state.toBoolean(7))
+            assertEquals("bad argument #1 to 'loadfile' (string expected)", state.toString(8))
+        } finally {
+            Files.deleteIfExists(file)
+        }
     }
 
     @Test
