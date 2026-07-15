@@ -372,15 +372,11 @@ internal class LuaVm(
         val results = callValue(callee, arguments, callSiteInfo(frame, frame.pc - 1))
         val expectedResults = Instruction.c(instruction)
         if (results is LuaExecutionResult.Yielded) {
-            frame.pendingCallResultBase = base
-            frame.pendingCallExpectedResults = expectedResults
-            frame.pendingCallContinuation = results.continuation
+            frame.setPendingCall(base, expectedResults, results.continuation)
             return LuaExecutionResult.Yielded(results.values)
         }
         if (results === LuaExecutionResult.DebugSuspended) {
-            frame.pendingCallResultBase = base
-            frame.pendingCallExpectedResults = expectedResults
-            frame.pendingCallContinuation = null
+            frame.setPendingCall(base, expectedResults, null)
             return LuaExecutionResult.DebugSuspended
         }
         val returnedValues = (results as LuaExecutionResult.Returned).values
@@ -389,30 +385,24 @@ internal class LuaVm(
     }
 
     private fun applyPendingCallResults(frame: CallFrame, results: List<LuaValue>): LuaExecutionResult? {
-        val base = frame.pendingCallResultBase
-        val expectedResults = frame.pendingCallExpectedResults
-        val continuation = frame.pendingCallContinuation
-        if (base < 0 || expectedResults < 0) {
+        val pendingCall = frame.takePendingCall()
+        if (pendingCall == null) {
             throw LuaVmException("suspended frame has no pending call")
         }
-        frame.pendingCallResultBase = -1
-        frame.pendingCallExpectedResults = -1
-        frame.pendingCallContinuation = null
+        val base = pendingCall.resultBase
+        val expectedResults = pendingCall.expectedResults
+        val continuation = pendingCall.continuation
         val returnedValues = if (continuation == null) {
             results
         } else {
             when (val continued = continuation.resume(results)) {
                 is LuaExecutionResult.Returned -> continued.values
                 is LuaExecutionResult.Yielded -> {
-                    frame.pendingCallResultBase = base
-                    frame.pendingCallExpectedResults = expectedResults
-                    frame.pendingCallContinuation = continued.continuation
+                    frame.setPendingCall(base, expectedResults, continued.continuation)
                     return LuaExecutionResult.Yielded(continued.values)
                 }
                 LuaExecutionResult.DebugSuspended -> {
-                    frame.pendingCallResultBase = base
-                    frame.pendingCallExpectedResults = expectedResults
-                    frame.pendingCallContinuation = continuation
+                    frame.setPendingCall(base, expectedResults, continuation)
                     return LuaExecutionResult.DebugSuspended
                 }
             }
