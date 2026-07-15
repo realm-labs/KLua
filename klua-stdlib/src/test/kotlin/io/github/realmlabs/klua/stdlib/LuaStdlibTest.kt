@@ -4770,6 +4770,78 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `io failed default replacements preserve prior handles`() {
+        val directory = Files.createTempDirectory("klua-io-default-atomic-")
+        val inputPath = directory.resolve("input.txt")
+        val outputPath = directory.resolve("output.txt")
+        val missingPath = directory.resolve("missing").resolve("file.txt")
+        Files.writeString(inputPath, "kept-input")
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openIo(state)
+
+        try {
+            assertEquals(
+                LuaStatus.OK,
+                state.load(
+                    """
+                    local input = assert(io.open("${inputPath.luaPath()}", nil))
+                    io.input(input)
+                    local nilInput = io.input(nil)
+                    local inputOk, inputMessage = pcall(io.input, "${missingPath.luaPath()}")
+                    local inputAfter = io.input()
+                    local inputText = io.read("a")
+                    input:close()
+
+                    local output = assert(io.open("${outputPath.luaPath()}", "w"))
+                    io.output(output)
+                    local nilOutput = io.output(nil)
+                    local outputOk, outputMessage = pcall(io.output, "${missingPath.luaPath()}")
+                    local outputAfter = io.output()
+                    io.write("kept-output")
+                    io.close()
+
+                    local openValue, openMessage, openCode = io.open("${missingPath.luaPath()}", "r")
+                    local invalidModeOk, invalidModeMessage =
+                        pcall(io.open, "${missingPath.luaPath()}", "invalid")
+                    local filenameFirstOk, filenameFirstMessage = pcall(io.open, {}, "invalid")
+                    return nilInput == input, inputOk, inputMessage, inputAfter == input, inputText,
+                        nilOutput == output, outputOk, outputMessage, outputAfter == output,
+                        openValue, type(openMessage), type(openCode),
+                        invalidModeOk, invalidModeMessage, filenameFirstOk, filenameFirstMessage
+                    """.trimIndent(),
+                    "io-default-replacement-atomicity.lua",
+                ),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+            assertTrue(state.toBoolean(1))
+            assertFalse(state.toBoolean(2))
+            assertTrue(state.toString(3)?.startsWith("cannot open file '") == true, state.toString(3))
+            assertTrue(state.toBoolean(4))
+            assertEquals("kept-input", state.toString(5))
+            assertTrue(state.toBoolean(6))
+            assertFalse(state.toBoolean(7))
+            assertTrue(state.toString(8)?.startsWith("cannot open file '") == true, state.toString(8))
+            assertTrue(state.toBoolean(9))
+            assertTrue(state.isNil(10))
+            assertEquals("string", state.toString(11))
+            assertEquals("number", state.toString(12))
+            assertFalse(state.toBoolean(13))
+            assertEquals("bad argument #2 to 'io.open' (invalid mode)", state.toString(14))
+            assertFalse(state.toBoolean(15))
+            assertEquals("bad argument #1 to 'io.open' (string expected)", state.toString(16))
+            assertEquals("kept-output", Files.readString(outputPath))
+        } finally {
+            Files.deleteIfExists(inputPath)
+            Files.deleteIfExists(outputPath)
+            Files.deleteIfExists(missingPath)
+            Files.deleteIfExists(missingPath.parent)
+            Files.deleteIfExists(directory)
+        }
+    }
+
+    @Test
     fun `io filename arguments accept numeric values like lua`() {
         val numericFilename = (
             100_000_000_000L + (System.nanoTime() and Long.MAX_VALUE) % 800_000_000_000L
