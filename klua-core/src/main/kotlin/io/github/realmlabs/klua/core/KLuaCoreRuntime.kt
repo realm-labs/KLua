@@ -397,6 +397,10 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun setLifecycleWarningOutput(globals: KLuaCoreGlobals, output: (String) -> Unit) {
+        globals.lifecycle.setAutomaticWarningOutput(output)
+    }
+
     public fun close(globals: KLuaCoreGlobals): List<String> {
         val warnings = mutableListOf<String>()
         close(globals, warnings::add)
@@ -821,6 +825,10 @@ public class KLuaCoreCallContext internal constructor(
         arguments: List<KLuaCoreValue>,
     ) -> KLuaCoreCallResult?,
     private val collectGarbageValue: (reportWarning: (String) -> Unit) -> Unit,
+    private val isGarbageCollectorAvailableValue: () -> Boolean,
+    private val stepGarbageCollectorValue: (reportWarning: (String) -> Unit) -> Boolean,
+    private val setGarbageCollectorRunningValue: (Boolean) -> Unit,
+    private val setGarbageCollectorStepSizeValue: (Long) -> Unit,
 ) {
     private var cachedLuaFrames: List<KLuaCoreStackFrame>? = null
 
@@ -843,6 +851,10 @@ public class KLuaCoreCallContext internal constructor(
             arguments: List<KLuaCoreValue>,
         ) -> KLuaCoreCallResult? = { _, _ -> null },
         collectGarbageValue: (reportWarning: (String) -> Unit) -> Unit = {},
+        isGarbageCollectorAvailableValue: () -> Boolean = { true },
+        stepGarbageCollectorValue: (reportWarning: (String) -> Unit) -> Boolean = { false },
+        setGarbageCollectorRunningValue: (Boolean) -> Unit = {},
+        setGarbageCollectorStepSizeValue: (Long) -> Unit = {},
     ) : this(
         arguments,
         luaFramesProvider = { luaFrames },
@@ -855,6 +867,10 @@ public class KLuaCoreCallContext internal constructor(
         callValue,
         callFunctionValue,
         collectGarbageValue,
+        isGarbageCollectorAvailableValue,
+        stepGarbageCollectorValue,
+        setGarbageCollectorRunningValue,
+        setGarbageCollectorStepSizeValue,
     )
 
     public val luaFrames: List<KLuaCoreStackFrame>
@@ -889,6 +905,20 @@ public class KLuaCoreCallContext internal constructor(
 
     public fun collectGarbage(reportWarning: (String) -> Unit) {
         collectGarbageValue(reportWarning)
+    }
+
+    public fun isGarbageCollectorAvailable(): Boolean = isGarbageCollectorAvailableValue()
+
+    public fun stepGarbageCollector(reportWarning: (String) -> Unit): Boolean {
+        return stepGarbageCollectorValue(reportWarning)
+    }
+
+    public fun setGarbageCollectorRunning(running: Boolean) {
+        setGarbageCollectorRunningValue(running)
+    }
+
+    public fun setGarbageCollectorStepSize(stepSize: Long) {
+        setGarbageCollectorStepSizeValue(stepSize)
     }
 }
 
@@ -1597,6 +1627,10 @@ private fun callCoreContextFunction(
                     }
                 },
                 collectGarbageValue = { reportWarning -> context.collectGarbage(reportWarning) },
+                isGarbageCollectorAvailableValue = context::isGarbageCollectorAvailable,
+                stepGarbageCollectorValue = context::stepGarbageCollector,
+                setGarbageCollectorRunningValue = context::setGarbageCollectorRunning,
+                setGarbageCollectorStepSizeValue = context::setGarbageCollectorStepSize,
             ),
         )
     }

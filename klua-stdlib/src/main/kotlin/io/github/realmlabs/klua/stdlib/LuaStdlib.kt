@@ -281,33 +281,68 @@ public object LuaStdlib {
     ): LuaReturn {
         return when (val option = optionalString(context, 1, "collect", "collectgarbage").substringBefore('\u0000')) {
             "collect" -> {
+                if (!context.isGarbageCollectorAvailable()) {
+                    return LuaReturn.of(null)
+                }
                 context.collectGarbage(Consumer(state.warningState::emitLifecycleWarning))
                 System.gc()
                 LuaReturn.of(0L)
             }
             "stop" -> {
+                if (!context.isGarbageCollectorAvailable()) {
+                    return LuaReturn.of(null)
+                }
                 state.running = false
+                context.setGarbageCollectorRunning(false)
                 LuaReturn.of(0L)
             }
             "restart" -> {
+                if (!context.isGarbageCollectorAvailable()) {
+                    return LuaReturn.of(null)
+                }
                 state.running = true
+                context.setGarbageCollectorRunning(true)
                 LuaReturn.of(0L)
             }
-            "count" -> LuaReturn.of(usedMemoryKilobytes())
+            "count" -> {
+                if (!context.isGarbageCollectorAvailable()) {
+                    LuaReturn.of(null)
+                } else {
+                    LuaReturn.of(usedMemoryKilobytes())
+                }
+            }
             "step" -> {
                 if (!context.isNone(2) && !context.isNil(2)) {
                     requiredIntegerLikeLuaL(context, 2, "collectgarbage")
                 }
+                if (!context.isGarbageCollectorAvailable()) {
+                    return LuaReturn.of(null)
+                }
+                val completed = context.stepGarbageCollector(
+                    Consumer(state.warningState::emitLifecycleWarning),
+                )
                 System.gc()
-                LuaReturn.of(false)
+                LuaReturn.of(completed)
             }
-            "isrunning" -> LuaReturn.of(state.running)
+            "isrunning" -> {
+                if (!context.isGarbageCollectorAvailable()) {
+                    LuaReturn.of(null)
+                } else {
+                    LuaReturn.of(state.running)
+                }
+            }
             "incremental" -> {
+                if (!context.isGarbageCollectorAvailable()) {
+                    return LuaReturn.of(null)
+                }
                 val previous = state.mode
                 state.mode = "incremental"
                 LuaReturn.of(previous)
             }
             "generational" -> {
+                if (!context.isGarbageCollectorAvailable()) {
+                    return LuaReturn.of(null)
+                }
                 val previous = state.mode
                 state.mode = "generational"
                 LuaReturn.of(previous)
@@ -317,10 +352,21 @@ public object LuaStdlib {
                 val encodedPrevious = state.params[parameter]
                     ?: throw LuaRuntimeException("bad argument #2 to 'collectgarbage' (invalid option '$parameter')")
                 val previous = decodeGarbageCollectorParam(encodedPrevious)
-                if (!context.isNone(3) && !context.isNil(3)) {
-                    val value = requiredIntegerLikeLuaL(context, 3, "collectgarbage").toInt()
+                val value = if (!context.isNone(3) && !context.isNil(3)) {
+                    requiredIntegerLikeLuaL(context, 3, "collectgarbage").toInt()
+                } else {
+                    null
+                }
+                if (!context.isGarbageCollectorAvailable()) {
+                    return LuaReturn.of(-1L)
+                }
+                if (value != null) {
                     if (value >= 0) {
-                        state.params[parameter] = encodeGarbageCollectorParam(value.toLong())
+                        val encoded = encodeGarbageCollectorParam(value.toLong())
+                        state.params[parameter] = encoded
+                        if (parameter == "stepsize") {
+                            context.setGarbageCollectorStepSize(decodeGarbageCollectorParam(encoded))
+                        }
                     }
                 }
                 LuaReturn.of(previous)

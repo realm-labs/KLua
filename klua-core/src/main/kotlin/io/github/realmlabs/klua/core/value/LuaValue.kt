@@ -126,6 +126,14 @@ internal open class LuaNativeCallContext(
     open fun collectGarbage(reportWarning: (String) -> Unit) {
         collectGarbage().forEach(reportWarning)
     }
+
+    open fun isGarbageCollectorAvailable(): Boolean = true
+
+    open fun stepGarbageCollector(reportWarning: (String) -> Unit): Boolean = false
+
+    open fun setGarbageCollectorRunning(running: Boolean) = Unit
+
+    open fun setGarbageCollectorStepSize(stepSize: Long) = Unit
 }
 
 internal data class LuaNativeStackFrame(

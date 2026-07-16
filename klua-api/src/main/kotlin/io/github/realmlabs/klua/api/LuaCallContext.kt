@@ -82,6 +82,19 @@ interface LuaCallContext {
         collectGarbage().forEach(warningOutput::accept)
     }
 
+    /** Whether collector control is available for the current call. */
+    fun isGarbageCollectorAvailable(): Boolean = true
+
+    /** Advances one logical collection slice and reports whether a cycle completed. */
+    fun stepGarbageCollector(warningOutput: Consumer<String>): Boolean {
+        System.gc()
+        return false
+    }
+
+    fun setGarbageCollectorRunning(running: Boolean) = Unit
+
+    fun setGarbageCollectorStepSize(stepSize: Long) = Unit
+
     fun callWithErrorHandler(index: Int, arguments: List<Any?>, handlerIndex: Int): LuaReturn {
         return call(index, arguments)
     }

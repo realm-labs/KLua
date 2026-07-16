@@ -13268,6 +13268,307 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage step completes a logical cycle and runs one finalizer per slice`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                events = {}
+                local mt = {
+                    __gc = function(value) events[#events + 1] = value.name end,
+                }
+                local old = setmetatable({name = "old"}, mt)
+                local new = setmetatable({name = "new"}, mt)
+                old, new = nil, nil
+
+                local started = collectgarbage("step")
+                local beforeFinalizers = #events
+                local afterNew = collectgarbage("step")
+                local first = events[1]
+                local completed = collectgarbage("step")
+                local second = events[2]
+                local nextStarted = collectgarbage("step")
+                local nextCompleted = collectgarbage("step")
+                return started, beforeFinalizers, afterNew, first, completed, second,
+                    nextStarted, nextCompleted
+                """.trimIndent(),
+                "collectgarbage-logical-step.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals(0L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("new", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("old", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+    }
+
+    @Test
+    fun `collectgarbage step advances while user stopped and preserves stopped state`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                finalized = 0
+                local value = setmetatable({}, {
+                    __gc = function() finalized = finalized + 1 end,
+                })
+                value = nil
+                collectgarbage("stop")
+                local started = collectgarbage("step")
+                local stoppedDuringCycle = collectgarbage("isrunning")
+                local completed = collectgarbage("step")
+                local stoppedAfterCycle = collectgarbage("isrunning")
+                collectgarbage("restart")
+                return started, completed, finalized, stoppedDuringCycle, stoppedAfterCycle
+                """.trimIndent(),
+                "collectgarbage-stopped-step.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(1L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+    }
+
+    @Test
+    fun `collector automatically advances logical slices from Lua allocations`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                events = {}
+                local mt = {__gc = function() events[#events + 1] = "finalized" end}
+                collectgarbage("param", "stepsize", 128)
+                local target = setmetatable({}, mt)
+                target = nil
+                local first = {}
+                local second = {}
+                local afterAtomicSlice = #events
+                local third = {}
+                return afterAtomicSlice, #events, events[1]
+                """.trimIndent(),
+                "collectgarbage-automatic-slices.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertEquals("finalized", state.toString(3))
+    }
+
+    @Test
+    fun `automatic finalizer failures use lifecycle warning output`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer(output::add))
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mt = {__gc = function() error("automatic failure", 0) end}
+                collectgarbage("param", "stepsize", 128)
+                local target = setmetatable({}, mt)
+                target = nil
+                local first, second, third = {}, {}, {}
+                """.trimIndent(),
+                "collectgarbage-automatic-warning.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        assertEquals(listOf("Lua warning: error in __gc (automatic failure)"), output)
+    }
+
+    @Test
+    fun `collector stop pauses automatic slices until restart`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                finalized = 0
+                local mt = {__gc = function() finalized = finalized + 1 end}
+                collectgarbage("param", "stepsize", 128)
+                local target = setmetatable({}, mt)
+                target = nil
+                collectgarbage("stop")
+                local stopped1, stopped2, stopped3, stopped4 = {}, {}, {}, {}
+                local stopped5, stopped6 = {}, {}
+                local beforeRestart = finalized
+                collectgarbage("restart")
+                local running1, running2, running3, running4 = {}, {}, {}, {}
+                return beforeRestart, finalized, collectgarbage("isrunning")
+                """.trimIndent(),
+                "collectgarbage-automatic-stop.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+        assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `collectgarbage nested finalizer calls match Lua 5_5 invalid collector results`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                events = {}
+                local nestedResults, parameterResult, validationOk, validationMessage
+
+                local function capture(option, ...)
+                    local count = select("#", collectgarbage(option, ...))
+                    local value = collectgarbage(option, ...)
+                    return count, value
+                end
+
+                local older = setmetatable({}, {
+                    __gc = function() events[#events + 1] = "older" end,
+                })
+                local probe = setmetatable({}, {
+                    __gc = function()
+                        events[#events + 1] = "probe-start"
+                        local collectCount, collectValue = capture("collect")
+                        local stopCount, stopValue = capture("stop")
+                        local restartCount, restartValue = capture("restart")
+                        local countCount, countValue = capture("count")
+                        local stepCount, stepValue = capture("step", 0)
+                        local runningCount, runningValue = capture("isrunning")
+                        local genCount, genValue = capture("generational")
+                        local incCount, incValue = capture("incremental")
+                        local parameterCount
+                        parameterCount, parameterResult = capture("param", "pause", 999)
+                        nestedResults = collectCount == 1 and collectValue == nil
+                            and stopCount == 1 and stopValue == nil
+                            and restartCount == 1 and restartValue == nil
+                            and countCount == 1 and countValue == nil
+                            and stepCount == 1 and stepValue == nil
+                            and runningCount == 1 and runningValue == nil
+                            and genCount == 1 and genValue == nil
+                            and incCount == 1 and incValue == nil
+                            and parameterCount == 1
+                        validationOk, validationMessage = pcall(collectgarbage, "step", "bad-size")
+                        events[#events + 1] = "probe-end"
+                    end,
+                })
+                older, probe = nil, nil
+                local pauseBefore = collectgarbage("param", "pause")
+                collectgarbage()
+                local modeAfter = collectgarbage("incremental")
+                local pauseAfter = collectgarbage("param", "pause")
+                return nestedResults, parameterResult, validationOk, validationMessage,
+                    modeAfter, pauseBefore, pauseAfter, events[1], events[2], events[3]
+                """.trimIndent(),
+                "collectgarbage-nested-finalizer.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(-1L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #2 to 'collectgarbage' (number expected)", state.toString(4))
+        assertEquals("incremental", state.toString(5))
+        assertEquals(state.toInteger(6), state.toInteger(7))
+        assertEquals("probe-start", state.toString(8))
+        assertEquals("probe-end", state.toString(9))
+        assertEquals("older", state.toString(10))
+    }
+
+    @Test
+    fun `coroutine close runs suspended close slots before later gc finalizers`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                events = {}
+                local mt = {
+                    __close = function() events[#events + 1] = "close" end,
+                    __gc = function() events[#events + 1] = "gc" end,
+                }
+                local co = coroutine.create(function()
+                    local resource <close> = setmetatable({}, mt)
+                    coroutine.yield()
+                end)
+                local resumed = coroutine.resume(co)
+                local closed = coroutine.close(co)
+                local afterClose = events[1]
+                collectgarbage()
+                return resumed, closed, afterClose, events[2]
+                """.trimIndent(),
+                "coroutine-close-before-finalizer.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("close", state.toString(3))
+        assertEquals("gc", state.toString(4))
+    }
+
+    @Test
+    fun `state close does not invoke suspended coroutine close slots`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer(output::add))
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mt = {
+                    __close = function() warn("close") end,
+                    __gc = function() warn("gc") end,
+                }
+                suspended = coroutine.create(function()
+                    local resource <close> = setmetatable({}, mt)
+                    coroutine.yield()
+                end)
+                assert(coroutine.resume(suspended))
+                """.trimIndent(),
+                "state-close-suspended-coroutine.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        state.close()
+
+        assertEquals(listOf("Lua warning: gc"), output)
+    }
+
+    @Test
     fun `collectgarbage reports invalid option errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -13350,7 +13651,7 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertFalse(state.toBoolean(2))
+        assertTrue(state.toBoolean(2))
         assertEquals("number", state.toString(3))
         assertFalse(state.toBoolean(4))
         assertEquals("bad argument #2 to 'collectgarbage' (number expected)", state.toString(5))

@@ -8,6 +8,7 @@ import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaValue
 import java.lang.ref.WeakReference
+import java.util.ArrayDeque
 import java.util.IdentityHashMap
 
 /** Deterministic ownership for Lua values that have been marked for finalization. */
@@ -21,6 +22,45 @@ internal class LuaLifecycle(
     private var nextSequence = 0L
     private var closing = false
     private var runningFinalizers = false
+    private var stepQueue: ArrayDeque<FinalizableEntry>? = null
+    private var automaticRunning = true
+    private var automaticStepSize = DEFAULT_AUTOMATIC_STEP_SIZE
+    private var allocationDebt = 0L
+    private var automaticWarningOutput: (String) -> Unit = {}
+
+    fun isCollectorAvailable(): Boolean = !closing && !runningFinalizers
+
+    fun setAutomaticRunning(running: Boolean) {
+        if (running && !automaticRunning) {
+            allocationDebt = 0L
+        }
+        automaticRunning = running
+    }
+
+    fun setAutomaticStepSize(stepSize: Long) {
+        automaticStepSize = stepSize.coerceAtLeast(1L)
+        allocationDebt = 0L
+    }
+
+    fun setAutomaticWarningOutput(output: (String) -> Unit) {
+        automaticWarningOutput = output
+    }
+
+    fun allocation(
+        estimatedBytes: Long,
+        roots: List<LuaValue>,
+        callFinalizer: (function: LuaValue, target: LuaValue) -> String?,
+    ) {
+        if (!automaticRunning || !isCollectorAvailable()) {
+            return
+        }
+        allocationDebt += estimatedBytes.coerceAtLeast(0L)
+        if (allocationDebt < automaticStepSize) {
+            return
+        }
+        allocationDebt -= automaticStepSize
+        step(roots, callFinalizer, automaticWarningOutput)
+    }
 
     fun register(vm: LuaVm) {
         virtualMachines += WeakReference(vm)
@@ -57,6 +97,37 @@ internal class LuaLifecycle(
         if (closing || runningFinalizers) {
             return emptyList()
         }
+        stepQueue = null
+        val selected = prepareCycle(roots)
+        return run(selected, callFinalizer, reportWarning)
+    }
+
+    fun step(
+        roots: List<LuaValue>,
+        callFinalizer: (function: LuaValue, target: LuaValue) -> String?,
+        reportWarning: (String) -> Unit = {},
+    ): Boolean {
+        if (!isCollectorAvailable()) {
+            return false
+        }
+        val activeQueue = stepQueue
+        if (activeQueue == null) {
+            stepQueue = ArrayDeque(prepareCycle(roots))
+            return false
+        }
+        val next = activeQueue.pollFirst()
+        if (next != null) {
+            run(listOf(next), callFinalizer, reportWarning)
+        }
+        return if (activeQueue.isEmpty()) {
+            stepQueue = null
+            true
+        } else {
+            false
+        }
+    }
+
+    private fun prepareCycle(roots: List<LuaValue>): List<FinalizableEntry> {
         val trace = ReachabilityTrace(userDataMetatable, userDataValues)
         trace.mark(allRoots() + roots)
         val originalWeakValueTables = trace.weakValueTableIdentities()
@@ -69,7 +140,7 @@ internal class LuaLifecycle(
         trace.clearWeakValues(
             trace.weakValueTables().filterNot { table -> originalWeakValueTables.containsKey(table) },
         )
-        return run(selected, callFinalizer, reportWarning)
+        return selected
     }
 
     fun close(
@@ -80,6 +151,9 @@ internal class LuaLifecycle(
             return emptyList()
         }
         closing = true
+        stepQueue = null
+        automaticRunning = false
+        allocationDebt = 0L
         val selected = pending.values.sortedByDescending { entry -> entry.sequence }
         return run(selected, callFinalizer, reportWarning).also { pending.clear() }
     }
@@ -282,3 +356,4 @@ private fun isClearable(value: LuaValue): Boolean {
 
 private val GC_KEY = LuaString("__gc")
 private val MODE_KEY = LuaString("__mode")
+private const val DEFAULT_AUTOMATIC_STEP_SIZE = 9600L

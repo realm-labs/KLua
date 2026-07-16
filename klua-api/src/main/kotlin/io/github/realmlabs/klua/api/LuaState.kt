@@ -86,6 +86,7 @@ class LuaState private constructor(
                 ?.map { userValue -> userValue.toCoreValue(tableCache) }
                 ?: emptyList()
         }
+        KLuaCoreRuntime.setLifecycleWarningOutput(coreGlobals, finalizerWarningOutput::accept)
     }
 
     companion object {
@@ -101,6 +102,7 @@ class LuaState private constructor(
     /** Configures where protected `__gc` failures are reported. */
     fun setFinalizerWarningOutput(output: Consumer<String>) {
         finalizerWarningOutput = output
+        KLuaCoreRuntime.setLifecycleWarningOutput(coreGlobals, output::accept)
     }
 
     override fun close() {
@@ -2532,6 +2534,22 @@ class LuaState private constructor(
 
         override fun collectGarbage(warningOutput: Consumer<String>) {
             coreContext.collectGarbage(warningOutput::accept)
+        }
+
+        override fun isGarbageCollectorAvailable(): Boolean {
+            return coreContext.isGarbageCollectorAvailable()
+        }
+
+        override fun stepGarbageCollector(warningOutput: Consumer<String>): Boolean {
+            return coreContext.stepGarbageCollector(warningOutput::accept)
+        }
+
+        override fun setGarbageCollectorRunning(running: Boolean) {
+            coreContext.setGarbageCollectorRunning(running)
+        }
+
+        override fun setGarbageCollectorStepSize(stepSize: Long) {
+            coreContext.setGarbageCollectorStepSize(stepSize)
         }
 
         override fun callWithErrorHandler(

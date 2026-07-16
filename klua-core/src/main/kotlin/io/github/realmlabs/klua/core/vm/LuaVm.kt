@@ -445,10 +445,13 @@ internal class LuaVm(
                             constant(frame.prototype, Instruction.b(instruction)),
                         )
                         Opcode.VARARG -> loadVarargs(stack, frame, instruction)
-                        Opcode.NEW_TABLE -> stack.set(
-                            register(frame, Instruction.a(instruction)),
-                            LuaTable(Instruction.b(instruction)),
-                        )
+                        Opcode.NEW_TABLE -> {
+                            stack.set(
+                                register(frame, Instruction.a(instruction)),
+                                LuaTable(Instruction.b(instruction)),
+                            )
+                            recordLifecycleAllocation(TABLE_ALLOCATION_ESTIMATE)
+                        }
                         Opcode.GET_TABLE -> getTable(stack, frame, instruction)
                         Opcode.SET_TABLE -> setTable(stack, frame, instruction)
                         Opcode.GET_FIELD -> getField(stack, frame, instruction)
@@ -1201,25 +1204,56 @@ internal class LuaVm(
             val roots = lifecycleRoots() + arguments
             managedLifecycle.collect(
                 roots,
-                callFinalizer = { finalizer, target ->
-                    val wasRunningDebugHook = runningDebugHook
-                    runningDebugHook = true
-                    try {
-                        callProtectedContextValue(
-                            finalizer,
-                            listOf(target),
-                            selectedErrorHandler = null,
-                            isYieldable = false,
-                        )
-                        null
-                    } catch (error: LuaVmException) {
-                        error.message ?: "runtime error"
-                    } finally {
-                        runningDebugHook = wasRunningDebugHook
-                    }
-                },
+                callFinalizer = ::callLifecycleFinalizer,
                 reportWarning = reportWarning,
             )
+        }
+
+        override fun isGarbageCollectorAvailable(): Boolean {
+            return lifecycle?.isCollectorAvailable() ?: true
+        }
+
+        override fun stepGarbageCollector(reportWarning: (String) -> Unit): Boolean {
+            val managedLifecycle = lifecycle ?: return false
+            return managedLifecycle.step(
+                lifecycleRoots() + arguments,
+                callFinalizer = ::callLifecycleFinalizer,
+                reportWarning = reportWarning,
+            )
+        }
+
+        override fun setGarbageCollectorRunning(running: Boolean) {
+            lifecycle?.setAutomaticRunning(running)
+        }
+
+        override fun setGarbageCollectorStepSize(stepSize: Long) {
+            lifecycle?.setAutomaticStepSize(stepSize)
+        }
+    }
+
+    private fun recordLifecycleAllocation(estimatedBytes: Long) {
+        lifecycle?.allocation(
+            estimatedBytes,
+            lifecycleRoots(),
+            ::callLifecycleFinalizer,
+        )
+    }
+
+    private fun callLifecycleFinalizer(finalizer: LuaValue, target: LuaValue): String? {
+        val wasRunningDebugHook = runningDebugHook
+        runningDebugHook = true
+        return try {
+            callProtectedContextValue(
+                finalizer,
+                listOf(target),
+                selectedErrorHandler = null,
+                isYieldable = false,
+            )
+            null
+        } catch (error: LuaVmException) {
+            error.message ?: "runtime error"
+        } finally {
+            runningDebugHook = wasRunningDebugHook
         }
     }
 
@@ -1576,6 +1610,7 @@ internal class LuaVm(
             }
         }.toMutableList()
         stack.set(register(frame, Instruction.a(instruction)), LuaClosure(prototype, upvalues, environment = frame.environment))
+        recordLifecycleAllocation(CLOSURE_ALLOCATION_ESTIMATE)
     }
 
     private fun getUpvalue(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -2849,6 +2884,9 @@ private fun numberValue(value: LuaValue): Double? {
         else -> null
     }
 }
+
+private const val TABLE_ALLOCATION_ESTIMATE = 64L
+private const val CLOSURE_ALLOCATION_ESTIMATE = 64L
 
 private fun forNumberValue(value: LuaValue): Double? {
     return when (value) {
