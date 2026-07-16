@@ -4256,6 +4256,122 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug uservalue functions preserve wrapped slots identity and result arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        val hostUserData = Any()
+        state.register("hostUserData") { LuaReturn.of(hostUserData) }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+                local captured = "captured"
+                local function closure()
+                    return captured
+                end
+
+                local userdata = hostUserData()
+                local setCount, returned = pack(
+                    debug.setuservalue(userdata, closure, 4294967297, "ignored")
+                )
+                local getCount, stored, present = pack(
+                    debug.getuservalue(userdata, 4294967297, "ignored")
+                )
+                local setNilCount, nilReturned = pack(debug.setuservalue(userdata, nil, 1, "ignored"))
+                local getNilCount, nilValue, nilPresent = pack(debug.getuservalue(userdata, 1, "ignored"))
+                local invalidSetCount, invalidSet = pack(debug.setuservalue(userdata, "value", 4294967296))
+                local invalidGetCount, invalidGet = pack(debug.getuservalue(userdata, 4294967296, "ignored"))
+                local nonUserCount, nonUserValue = pack(debug.getuservalue({}, 4294967297, "ignored"))
+
+                return setCount, returned == userdata,
+                    getCount, stored == closure, present,
+                    debug.upvalueid(stored, 1) == debug.upvalueid(closure, 1),
+                    setNilCount, nilReturned == userdata,
+                    getNilCount, nilValue, nilPresent,
+                    invalidSetCount, invalidSet,
+                    invalidGetCount, invalidGet,
+                    nonUserCount, nonUserValue
+                """.trimIndent(),
+                "debug-uservalue-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(2L, state.toInteger(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals(1L, state.toInteger(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals(2L, state.toInteger(9))
+        assertTrue(state.isNil(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals(1L, state.toInteger(12))
+        assertTrue(state.isNil(13))
+        assertEquals(1L, state.toInteger(14))
+        assertTrue(state.isNil(15))
+        assertEquals(1L, state.toInteger(16))
+        assertTrue(state.isNil(17))
+    }
+
+    @Test
+    fun `debug metatable functions bypass protection and preserve result arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local object = {}
+                local locked = {__metatable = "locked"}
+                local replacement = {name = "replacement"}
+                local firstSetCount, firstReturned = pack(debug.setmetatable(object, locked, "ignored"))
+                local publicValue = getmetatable(object)
+                local rawCount, rawValue = pack(debug.getmetatable(object, "ignored"))
+                local replaceCount, replaceReturned = pack(debug.setmetatable(object, replacement, "ignored"))
+                local replacedCount, replacedValue = pack(debug.getmetatable(object, "ignored"))
+                local clearCount, clearReturned = pack(debug.setmetatable(object, nil, "ignored"))
+                local missingCount, missingValue = pack(debug.getmetatable(object, "ignored"))
+
+                return firstSetCount, firstReturned == object, publicValue,
+                    rawCount, rawValue == locked,
+                    replaceCount, replaceReturned == object,
+                    replacedCount, replacedValue == replacement,
+                    clearCount, clearReturned == object,
+                    missingCount, missingValue
+                """.trimIndent(),
+                "debug-metatable-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("locked", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals(1L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals(1L, state.toInteger(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals(1L, state.toInteger(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals(1L, state.toInteger(12))
+        assertTrue(state.isNil(13))
+    }
+
+    @Test
     fun `debug uservalue functions validate arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
