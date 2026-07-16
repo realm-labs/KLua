@@ -18,6 +18,7 @@ class LuaRuntimeException(
     val luaFrames: List<LuaStackFrame> = emptyList(),
     val errorObject: Any? = null,
     val hasErrorObject: Boolean = false,
+    val errorObjectFinalized: Boolean = false,
 ) : LuaException(message, cause) {
     val traceback: String = formatLuaTraceback(message, luaFrames)
 }

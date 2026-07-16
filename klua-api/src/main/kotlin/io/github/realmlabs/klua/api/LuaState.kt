@@ -363,14 +363,17 @@ class LuaState private constructor(
         errorObject: Any? = message,
         hasErrorObject: Boolean = false,
     ): LuaStatus {
+        val finalErrorObject = if (hasErrorObject && errorObject == null) "<no error object>" else errorObject
+        val finalMessage = if (hasErrorObject && errorObject == null) "<no error object>" else message
         lastError = LuaRuntimeException(
-            message,
+            finalMessage,
             cause,
-            errorObject = if (hasErrorObject) errorObject else null,
+            errorObject = if (hasErrorObject) finalErrorObject else null,
             hasErrorObject = hasErrorObject,
+            errorObjectFinalized = true,
         )
         removeCallFrame(functionIndex)
-        stack += if (hasErrorObject) errorObject.toStackValue() else message.toStackValue()
+        stack += if (hasErrorObject) finalErrorObject.toStackValue() else finalMessage.toStackValue()
         return LuaStatus.RUNTIME_ERROR
     }
 
@@ -921,6 +924,7 @@ class LuaState private constructor(
     private fun callCoreFunctionValue(
         functionValue: KLuaCoreValue.FunctionValue,
         context: LuaCallContext,
+        errorHandler: KLuaCoreValue.FunctionValue? = null,
     ): LuaReturn {
         val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
         return when (
@@ -930,6 +934,7 @@ class LuaState private constructor(
                 coreGlobals,
                 context.isYieldable,
                 KLuaCoreExecutionLimits(config.instructionLimit),
+                errorHandler,
             )
         ) {
             is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
@@ -964,9 +969,14 @@ class LuaState private constructor(
     private fun coreRuntimeError(result: KLuaCoreCallResult.RuntimeError): LuaRuntimeException {
         val errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue()
         return if (result.errorObject == null) {
-            LuaRuntimeException(result.message)
+            LuaRuntimeException(result.message, errorObjectFinalized = result.errorObjectFinalized)
         } else {
-            LuaRuntimeException(result.message, errorObject = errorObject, hasErrorObject = true)
+            LuaRuntimeException(
+                result.message,
+                errorObject = errorObject,
+                hasErrorObject = true,
+                errorObjectFinalized = result.errorObjectFinalized,
+            )
         }
     }
 
@@ -1818,6 +1828,12 @@ class LuaState private constructor(
             return callStackValue(valueAt(index), arguments)
         }
 
+        override fun callWithErrorHandler(index: Int, arguments: List<Any?>, handlerIndex: Int): LuaReturn {
+            val handler = valueAt(handlerIndex) as? LuaStackValue.NativeFunctionValue
+                ?: return call(index, arguments)
+            return callStackValue(valueAt(index), arguments, errorHandler = handler)
+        }
+
         override fun call(function: Any?, arguments: List<Any?>): LuaReturn {
             return callStackValue(function.toStackValue(), arguments)
         }
@@ -1917,7 +1933,11 @@ class LuaState private constructor(
             return getDebugHookValue?.invoke() ?: LuaReturn.of(null)
         }
 
-        private fun callFunction(function: LuaStackValue.NativeFunctionValue, arguments: List<Any?>): LuaReturn {
+        private fun callFunction(
+            function: LuaStackValue.NativeFunctionValue,
+            arguments: List<Any?>,
+            errorHandler: LuaStackValue.NativeFunctionValue? = null,
+        ): LuaReturn {
             function.coreFunction?.let { coreFunction ->
                 return callCoreFunctionValue(
                     coreFunction,
@@ -1929,6 +1949,7 @@ class LuaState private constructor(
                         getDebugHookValue,
                         isYieldable,
                     ),
+                    errorHandler?.toCoreValue() as? KLuaCoreValue.FunctionValue,
                 )
             }
             return function.function.call(
@@ -1947,9 +1968,10 @@ class LuaState private constructor(
             value: LuaStackValue?,
             arguments: List<Any?>,
             depth: Int = 0,
+            errorHandler: LuaStackValue.NativeFunctionValue? = null,
         ): LuaReturn {
             if (value is LuaStackValue.NativeFunctionValue) {
-                return callFunction(value, arguments)
+                return callFunction(value, arguments, errorHandler)
             }
             val callTarget = callMetamethod(value)
             if (callTarget != null && depth < MAX_CALL_METAMETHOD_DEPTH) {
@@ -1957,6 +1979,7 @@ class LuaState private constructor(
                     callTarget,
                     listOf(value?.toPublicCallReturnValue()) + arguments,
                     depth + 1,
+                    errorHandler,
                 )
             }
             throw IllegalArgumentException(attemptToCallMessage(callTarget ?: value))

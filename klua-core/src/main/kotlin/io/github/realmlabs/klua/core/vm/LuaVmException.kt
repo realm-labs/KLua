@@ -8,6 +8,7 @@ internal class LuaVmException(
     val line: Int? = null,
     val luaFrames: List<LuaVmStackFrame> = emptyList(),
     val errorObject: LuaValue? = null,
+    val errorObjectFinalized: Boolean = false,
     cause: Throwable? = null,
 ) : RuntimeException(message, cause) {
     fun withFrame(frame: CallFrame, line: Int): LuaVmException {
@@ -32,7 +33,20 @@ internal class LuaVmException(
             this.line ?: line,
             luaFrames + stackFrame,
             errorObject,
+            errorObjectFinalized,
             this,
+        )
+    }
+
+    fun withFinalErrorObject(errorObject: LuaValue, message: String): LuaVmException {
+        return LuaVmException(
+            message,
+            sourceName,
+            line,
+            luaFrames,
+            errorObject,
+            errorObjectFinalized = true,
+            cause = this,
         )
     }
 }

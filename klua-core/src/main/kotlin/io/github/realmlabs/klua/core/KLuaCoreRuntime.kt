@@ -290,16 +290,26 @@ public object KLuaCoreRuntime {
         globals: KLuaCoreGlobals,
         isYieldable: Boolean = true,
         limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
+        errorHandler: KLuaCoreValue.FunctionValue? = null,
     ): KLuaCoreCallResult {
         val sourceFunction = function.sourceFunction
         if (sourceFunction != null) {
-            return callPublicLuaFunction(sourceFunction, arguments, function.sourceGlobals ?: globals, isYieldable, limits)
+            return callPublicLuaFunction(
+                sourceFunction,
+                arguments,
+                function.sourceGlobals ?: globals,
+                isYieldable,
+                limits,
+                errorHandler,
+            )
         }
         val contextFunction = function.contextFunction
-        if (contextFunction != null) {
-            return contextFunction.call(KLuaCoreCallContext(arguments, emptyList(), isYieldable = isYieldable))
+        val result = if (contextFunction != null) {
+            contextFunction.call(KLuaCoreCallContext(arguments, emptyList(), isYieldable = isYieldable))
+        } else {
+            function.function.call(arguments)
         }
-        return function.function.call(arguments)
+        return protectCoreCallResult(result, errorHandler, globals, limits)
     }
 
     public fun getFunctionDebugInfo(function: KLuaCoreValue.FunctionValue): KLuaCoreFunctionDebugInfo? {
@@ -739,6 +749,7 @@ public sealed interface KLuaCoreCallResult {
         public val cause: Throwable? = null,
         public val nativeFrames: List<String> = emptyList(),
         public val errorObject: KLuaCoreValue? = null,
+        public val errorObjectFinalized: Boolean = false,
     ) : KLuaCoreCallResult
 }
 
@@ -1663,6 +1674,7 @@ private fun callPublicLuaFunction(
     globals: KLuaCoreGlobals,
     isYieldable: Boolean = true,
     limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
+    errorHandler: KLuaCoreValue.FunctionValue? = null,
 ): KLuaCoreCallResult {
     val tableCache = if (arguments.any { value -> value is KLuaCoreValue.TableValue }) {
         IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>()
@@ -1673,12 +1685,19 @@ private fun callPublicLuaFunction(
         value.toLuaValueOrNull(globals, tableCache)
             ?: return KLuaCoreCallResult.RuntimeError("cannot pass ${value.publicTypeName()} as Lua argument")
     }
+    val luaErrorHandler = errorHandler?.toLuaValueOrNull(globals)
+        ?: if (errorHandler != null) {
+            return KLuaCoreCallResult.RuntimeError("error in error handling")
+        } else {
+            null
+        }
     return try {
         val vm = LuaVm(
             globals.table,
             globals.environment,
             metatables = globals.vmMetatableProvider,
             instructionLimit = limits.instructionLimit,
+            errorHandler = luaErrorHandler,
         )
         val result = vm.callWithYieldability(function, luaArguments, isYieldable).toCoreCallResult(vm, globals)
         syncLuaTablesToPublic(luaArguments, arguments, globals)
@@ -1689,6 +1708,7 @@ private fun callPublicLuaFunction(
             error.message ?: "runtime error",
             error.rootCause(),
             errorObject = error.errorObject?.let { toPublicValue(it, globals) },
+            errorObjectFinalized = error.errorObjectFinalized,
         )
     }
 }
@@ -1737,6 +1757,7 @@ private fun LuaExecutionResult.toCoreCallResult(
                         error.message ?: "runtime error",
                         error.rootCause(),
                         errorObject = error.errorObject?.let { toPublicValue(it, globals) },
+                        errorObjectFinalized = error.errorObjectFinalized,
                     )
                 }
             },
@@ -1745,4 +1766,68 @@ private fun LuaExecutionResult.toCoreCallResult(
             "debugger suspension requires a coroutine",
         )
     }
+}
+
+private fun protectCoreCallResult(
+    result: KLuaCoreCallResult,
+    errorHandler: KLuaCoreValue.FunctionValue?,
+    globals: KLuaCoreGlobals,
+    limits: KLuaCoreExecutionLimits,
+): KLuaCoreCallResult {
+    return when (result) {
+        is KLuaCoreCallResult.Success -> result
+        is KLuaCoreCallResult.Yielded -> KLuaCoreCallResult.Yielded(
+            result.values,
+            result.continuation?.let { continuation ->
+                KLuaCoreContinuation { arguments ->
+                    protectCoreCallResult(continuation.resume(arguments), errorHandler, globals, limits)
+                }
+            },
+        )
+        is KLuaCoreCallResult.RuntimeError -> finalizeCoreCallError(result, errorHandler, globals, limits)
+    }
+}
+
+private fun finalizeCoreCallError(
+    error: KLuaCoreCallResult.RuntimeError,
+    errorHandler: KLuaCoreValue.FunctionValue?,
+    globals: KLuaCoreGlobals,
+    limits: KLuaCoreExecutionLimits,
+): KLuaCoreCallResult.RuntimeError {
+    if (error.errorObjectFinalized) {
+        return error
+    }
+    val originalObject = error.errorObject ?: KLuaCoreValue.StringValue(error.message)
+    val handledObject = if (errorHandler == null) {
+        originalObject
+    } else {
+        when (
+            val handled = KLuaCoreRuntime.callFunction(
+                errorHandler,
+                listOf(originalObject),
+                globals,
+                isYieldable = false,
+                limits = limits,
+            )
+        ) {
+            is KLuaCoreCallResult.Success -> handled.values.firstOrNull() ?: KLuaCoreValue.Nil
+            is KLuaCoreCallResult.RuntimeError,
+            is KLuaCoreCallResult.Yielded,
+            -> return KLuaCoreCallResult.RuntimeError(
+                "error in error handling",
+                errorObject = KLuaCoreValue.StringValue("error in error handling"),
+                errorObjectFinalized = true,
+            )
+        }
+    }
+    val finalObject = if (handledObject == KLuaCoreValue.Nil) {
+        KLuaCoreValue.StringValue("<no error object>")
+    } else {
+        handledObject
+    }
+    return error.copy(
+        message = (finalObject as? KLuaCoreValue.StringValue)?.value ?: error.message,
+        errorObject = finalObject,
+        errorObjectFinalized = true,
+    )
 }

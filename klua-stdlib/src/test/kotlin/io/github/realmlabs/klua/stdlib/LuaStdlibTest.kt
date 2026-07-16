@@ -9329,7 +9329,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `assert preserves lua error objects`() {
+    fun `assert preserves non nil error objects and normalizes nil`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
@@ -9360,7 +9360,7 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(6))
         assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(7))
         assertFalse(state.toBoolean(8))
-        assertTrue(state.isNil(9))
+        assertEquals("<no error object>", state.toString(9))
     }
 
     @Test
@@ -9419,7 +9419,37 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `error preserves lua error objects`() {
+    fun `error level narrows through a C int`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function wrappedOne()
+                    error("one", 4294967297)
+                end
+                local okOne, messageOne = pcall(wrappedOne)
+                local function wrappedZero()
+                    error("zero", 4294967296)
+                end
+                local okZero, messageZero = pcall(wrappedZero)
+                return okOne, messageOne, okZero, messageZero
+                """.trimIndent(),
+                "error-int-level.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("[string \"error-int-level.lua\"]:2: one", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("zero", state.toString(4))
+    }
+
+    @Test
+    fun `error preserves non nil objects and normalizes nil`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
 
@@ -9449,9 +9479,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("marker", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertTrue(state.isNil(5))
+        assertEquals("<no error object>", state.toString(5))
         assertFalse(state.toBoolean(6))
-        assertTrue(state.isNil(7))
+        assertEquals("<no error object>", state.toString(7))
         assertFalse(state.toBoolean(8))
         assertTrue(state.toBoolean(9))
     }
@@ -9985,7 +10015,7 @@ class LuaStdlibTest {
         assertTrue(state.isNil(4))
         assertEquals(2L, state.toInteger(5))
         assertFalse(state.toBoolean(6))
-        assertTrue(state.isNil(7))
+        assertEquals("<no error object>", state.toString(7))
     }
 
     @Test
@@ -10062,7 +10092,47 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `xpcall error handler can yield and resume`() {
+    fun `xpcall handler sees nil before final error normalization`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local sawNil = false
+                local ok, err = xpcall(function()
+                    error(nil)
+                end, function(value)
+                    sawNil = value == nil
+                    return nil
+                end)
+                local closeSawNormalized = false
+                local closeOk, closeError = pcall(function()
+                    local value <close> = setmetatable({}, {
+                        __close = function(_, errorValue)
+                            closeSawNormalized = errorValue == "<no error object>"
+                        end,
+                    })
+                    error(nil)
+                end)
+                return ok, err, sawNil, closeOk, closeError, closeSawNormalized
+                """.trimIndent(),
+                "xpcall-nil-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("<no error object>", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("<no error object>", state.toString(5))
+        assertTrue(state.toBoolean(6))
+    }
+
+    @Test
+    fun `xpcall handles errors before close and rehandles close failures`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -10070,43 +10140,52 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                local co = coroutine.create(function()
-                    local ok, handled = xpcall(function()
-                        error("boom")
-                    end, function(message)
-                        local first = coroutine.yield("handling:" .. message)
-                        local second = coroutine.yield(first .. " again")
-                        return second
-                    end)
-                    return ok, handled
+                local original = {}
+                local handled = {}
+                local closeError = {}
+                local final = {}
+                local log = {}
+                local handlerCalls = 0
+                local ok, err = xpcall(function()
+                    local outer <close> = setmetatable({}, {
+                        __close = function(_, value)
+                            log[#log + 1] = value == final and "outer:final" or "outer:other"
+                        end,
+                    })
+                    local inner <close> = setmetatable({}, {
+                        __close = function(_, value)
+                            log[#log + 1] = value == handled and "inner:handled" or "inner:other"
+                            error(closeError)
+                        end,
+                    })
+                    error(original)
+                end, function(value)
+                    handlerCalls = handlerCalls + 1
+                    if value == original then
+                        log[#log + 1] = "handler:original"
+                        return handled
+                    end
+                    log[#log + 1] = value == closeError and "handler:close" or "handler:other"
+                    return final
                 end)
-                local firstOk, yielded = coroutine.resume(co)
-                local statusAfterYield = coroutine.status(co)
-                local secondOk, yieldedAgain = coroutine.resume(co, "middle")
-                local statusAfterSecondYield = coroutine.status(co)
-                local thirdOk, protectedOk, handled = coroutine.resume(co, "done")
-                return firstOk, yielded, statusAfterYield, secondOk, yieldedAgain, statusAfterSecondYield,
-                    thirdOk, protectedOk, handled, coroutine.status(co)
+                return ok, err == final, handlerCalls, table.concat(log, ",")
                 """.trimIndent(),
-                "xpcall-handler-yield.lua",
+                "xpcall-close-order.lua",
             ),
         )
-        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
-        assertEquals(true, state.toBoolean(1), "first resume failed: ${state.toString(2)}")
-        assertEquals("handling:[string \"xpcall-handler-yield.lua\"]:3: boom", state.toString(2))
-        assertEquals("suspended", state.toString(3))
-        assertTrue(state.toBoolean(4))
-        assertEquals("middle again", state.toString(5))
-        assertEquals("suspended", state.toString(6))
-        assertTrue(state.toBoolean(7))
-        assertFalse(state.toBoolean(8))
-        assertEquals("done", state.toString(9))
-        assertEquals("dead", state.toString(10))
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(
+            "handler:original,inner:handled,handler:close,outer:final",
+            state.toString(4),
+        )
     }
 
     @Test
-    fun `xpcall reports error handler failures after yield`() {
+    fun `xpcall error handler cannot yield`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -10117,14 +10196,45 @@ class LuaStdlibTest {
                 local co = coroutine.create(function()
                     return xpcall(function()
                         error("boom")
+                    end, function(message)
+                        return coroutine.yield("handling:" .. message)
+                    end)
+                end)
+                local resumeOk, protectedOk, message = coroutine.resume(co)
+                return resumeOk, protectedOk, message, coroutine.status(co)
+                """.trimIndent(),
+                "xpcall-handler-yield.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1))
+
+        assertTrue(state.toBoolean(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("error in error handling", state.toString(3))
+        assertEquals("dead", state.toString(4))
+    }
+
+    @Test
+    fun `xpcall rejects handler yield after protected target resumes`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    return xpcall(function()
+                        coroutine.yield("body")
+                        error("boom")
                     end, function()
                         coroutine.yield("handling")
-                        error("handler boom")
                     end)
                 end)
                 local firstOk, yielded = coroutine.resume(co)
+                local statusAfterYield = coroutine.status(co)
                 local secondOk, protectedOk, message = coroutine.resume(co)
-                return firstOk, yielded, secondOk, protectedOk, message, coroutine.status(co)
+                return firstOk, yielded, statusAfterYield, secondOk, protectedOk, message, coroutine.status(co)
                 """.trimIndent(),
                 "xpcall-handler-yield-error.lua",
             ),
@@ -10132,11 +10242,12 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1))
 
         assertTrue(state.toBoolean(1))
-        assertEquals("handling", state.toString(2))
-        assertTrue(state.toBoolean(3))
-        assertFalse(state.toBoolean(4))
-        assertEquals("error in error handling", state.toString(5))
-        assertEquals("dead", state.toString(6))
+        assertEquals("body", state.toString(2))
+        assertEquals("suspended", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertFalse(state.toBoolean(5))
+        assertEquals("error in error handling", state.toString(6))
+        assertEquals("dead", state.toString(7))
     }
 
     @Test
@@ -17698,9 +17809,9 @@ class LuaStdlibTest {
         assertEquals("marker", state.toString(11))
         assertTrue(state.toBoolean(12))
         assertFalse(state.toBoolean(13))
-        assertTrue(state.isNil(14))
+        assertEquals("<no error object>", state.toString(14))
         assertFalse(state.toBoolean(15))
-        assertTrue(state.isNil(16))
+        assertEquals("<no error object>", state.toString(16))
         assertTrue(state.toBoolean(17))
         assertFalse(state.toBoolean(18))
         assertFalse(state.toBoolean(19))
@@ -17827,7 +17938,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(14))
         assertEquals("marker", state.toString(15))
         assertFalse(state.toBoolean(16))
-        assertTrue(state.isNil(17))
+        assertEquals("[string \"coroutine-wrap.lua\"]:30: <no error object>", state.toString(17))
         assertFalse(state.toBoolean(18))
         assertFalse(state.toBoolean(19))
         assertFalse(state.toBoolean(20))
@@ -17909,9 +18020,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertTrue(state.isNil(2))
+        assertEquals("<no error object>", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertTrue(state.isNil(4))
+        assertEquals("<no error object>", state.toString(4))
     }
 
     @Test

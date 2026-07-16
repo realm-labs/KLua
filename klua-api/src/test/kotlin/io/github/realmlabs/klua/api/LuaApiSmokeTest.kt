@@ -374,7 +374,7 @@ class LuaApiSmokeTest {
     }
 
     @Test
-    fun `native pcall preserves explicit nil lua error objects`() {
+    fun `native pcall normalizes explicit nil lua error objects`() {
         val state = LuaState.create()
         state.pushFunction {
             throw LuaRuntimeException("nil", errorObject = null, hasErrorObject = true)
@@ -384,8 +384,8 @@ class LuaApiSmokeTest {
         val error = assertIs<LuaRuntimeException>(state.getLastError())
 
         assertTrue(error.hasErrorObject)
-        assertEquals(null, error.errorObject)
-        assertTrue(state.isNil(-1))
+        assertEquals("<no error object>", error.errorObject)
+        assertEquals("<no error object>", state.toString(-1))
     }
 
     @Test

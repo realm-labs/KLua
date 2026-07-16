@@ -48,6 +48,7 @@ internal class LuaVm(
     private val metatables: LuaVmMetatableProvider? = null,
     private val instructionLimit: Long = 0,
     private val retainFramesOnUnhandledError: Boolean = false,
+    private val errorHandler: LuaValue? = null,
 ) {
     private val thread = LuaThread()
     private val rootEnvironment = LuaUpvalue(environment)
@@ -55,6 +56,7 @@ internal class LuaVm(
     private var debugObserver: LuaVmDebugObserver? = null
     private var debugSuspended = false
     private var runningDebugHook = false
+    private var runningErrorHandler = false
     private var remainingInstructions = instructionLimit
 
     init {
@@ -137,15 +139,20 @@ internal class LuaVm(
         arguments: List<LuaValue>,
         isYieldable: Boolean,
     ): LuaExecutionResult {
-        if (isYieldable) {
-            return callYieldable(callee, arguments)
-        }
-        return thread.runNonYieldableCall {
-            when (val result = callYieldable(callee, arguments)) {
-                is LuaExecutionResult.Returned -> result
-                is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a C-call boundary")
-                LuaExecutionResult.DebugSuspended -> result
+        return try {
+            if (isYieldable) {
+                callYieldable(callee, arguments)
+            } else {
+                thread.runNonYieldableCall {
+                    when (val result = callYieldable(callee, arguments)) {
+                        is LuaExecutionResult.Returned -> result
+                        is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a C-call boundary")
+                        LuaExecutionResult.DebugSuspended -> result
+                    }
+                }
             }
+        } catch (error: LuaVmException) {
+            throw finalizeErrorObject(error)
         }
     }
 
@@ -173,10 +180,11 @@ internal class LuaVm(
             }
         } catch (error: LuaVmException) {
             debugSuspended = false
+            val finalizedError = finalizeErrorObject(error)
             if (retainFramesOnUnhandledError) {
-                throw error
+                throw finalizedError
             }
-            throw closeSuspendedFrames(error)
+            throw closeSuspendedFrames(finalizedError)
         }
     }
 
@@ -450,11 +458,12 @@ internal class LuaVm(
             if (suspended) {
                 throw error
             }
+            val finalizedError = if (runningErrorHandler) error else finalizeErrorObject(error)
             if (retainFramesOnUnhandledError) {
                 failed = true
-                throw error
+                throw finalizedError
             }
-            throw closeFrameOnError(frame, error)
+            throw closeFrameOnError(frame, finalizedError)
         } finally {
             if (!suspended && !failed) {
                 thread.popFrame(frame)
@@ -594,6 +603,55 @@ internal class LuaVm(
         return checkNotNull(closeFrame(frame, error)) { "error close completed without propagating its error" }
     }
 
+    private fun finalizeErrorObject(error: LuaVmException): LuaVmException {
+        if (error.errorObjectFinalized || runningErrorHandler) {
+            return error
+        }
+        val originalObject = error.errorObject ?: LuaString(error.message ?: "runtime error")
+        val handledObject = if (errorHandler == null) {
+            originalObject
+        } else {
+            runningErrorHandler = true
+            try {
+                val result = thread.runNonYieldableCall {
+                    callValue(errorHandler, listOf(originalObject))
+                }
+                when (result) {
+                    is LuaExecutionResult.Returned -> result.values.firstOrNull() ?: LuaNil
+                    is LuaExecutionResult.Yielded,
+                    LuaExecutionResult.DebugSuspended,
+                    -> return errorInErrorHandling(error)
+                }
+            } catch (_: LuaVmException) {
+                return errorInErrorHandling(error)
+            } finally {
+                runningErrorHandler = false
+            }
+        }
+        val finalObject = if (handledObject == LuaNil) LuaString("<no error object>") else handledObject
+        return error.withFinalErrorObject(finalObject, errorMessage(finalObject, error))
+    }
+
+    private fun errorInErrorHandling(error: LuaVmException): LuaVmException {
+        val message = "error in error handling"
+        return LuaVmException(
+            message,
+            sourceName = error.sourceName,
+            line = error.line,
+            luaFrames = error.luaFrames,
+            errorObject = LuaString(message),
+            errorObjectFinalized = true,
+            cause = error,
+        )
+    }
+
+    private fun errorMessage(errorObject: LuaValue, original: LuaVmException): String {
+        return when (errorObject) {
+            is LuaString -> errorObject.value
+            else -> original.message ?: "runtime error"
+        }
+    }
+
     private fun closeFrame(frame: CallFrame, error: LuaVmException?): LuaVmException? {
         frame.closeCapturesFrom(0)
         return try {
@@ -672,7 +730,7 @@ internal class LuaVm(
                         thread.runNonYieldableCall { callValue(close, arguments, CLOSE_CALL_SITE_INFO) }
                     }
                 } catch (closeError: LuaVmException) {
-                    activeError = closeError
+                    activeError = if (runningErrorHandler) closeError else finalizeErrorObject(closeError)
                     continue
                 }
                 when (result) {
