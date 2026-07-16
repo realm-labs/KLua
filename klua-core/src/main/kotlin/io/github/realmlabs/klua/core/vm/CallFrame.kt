@@ -67,6 +67,24 @@ internal class CallFrame(
             debugState().lastDebugHookLine = value
         }
 
+    var lastDebugHookPc: Int
+        get() = debugState?.lastDebugHookPc ?: -1
+        set(value) {
+            debugState().lastDebugHookPc = value
+        }
+
+    var completedLuaTailCall: Boolean
+        get() = debugState?.completedLuaTailCall ?: false
+        set(value) {
+            debugState().completedLuaTailCall = value
+        }
+
+    var callHookDispatched: Boolean
+        get() = debugState?.callHookDispatched ?: false
+        set(value) {
+            debugState().callHookDispatched = value
+        }
+
     var lastDebuggerPc: Int
         get() = debugState?.lastDebuggerPc ?: -1
         set(value) {
@@ -97,8 +115,13 @@ internal class CallFrame(
             debugState().hookTransferCount = value
         }
 
-    fun setPendingCall(resultBase: Int, expectedResults: Int, continuation: LuaYieldContinuation?) {
-        pendingCall = PendingCallState(resultBase, expectedResults, continuation)
+    fun setPendingCall(
+        resultBase: Int,
+        expectedResults: Int,
+        continuation: LuaYieldContinuation?,
+        completesLuaTailCall: Boolean = false,
+    ) {
+        pendingCall = PendingCallState(resultBase, expectedResults, continuation, completesLuaTailCall)
     }
 
     fun takePendingCall(): PendingCallState? {
@@ -132,10 +155,14 @@ internal data class PendingCallState(
     val resultBase: Int,
     val expectedResults: Int,
     val continuation: LuaYieldContinuation?,
+    val completesLuaTailCall: Boolean,
 )
 
 private class DebugFrameState(
     var lastDebugHookLine: Int = -1,
+    var lastDebugHookPc: Int = -1,
+    var completedLuaTailCall: Boolean = false,
+    var callHookDispatched: Boolean = false,
     var lastDebuggerPc: Int = -1,
     var resumePastDebuggerPc: Int = -1,
     var debuggerSuspendedPc: Int = -1,

@@ -512,7 +512,7 @@ internal object LuaDebugLibrary {
             target.setDebugHook(context, hookIndex, "", 0)
             return LuaReturn.of()
         }
-        val mask = requiredString(context, target.argumentOffset + 2, "sethook")
+        val mask = requiredString(context, target.argumentOffset + 2, "sethook").toLuaCString()
         requireFunction(context, hookIndex, "sethook")
         val count = optionalInteger(context, target.argumentOffset + 3, 0, "sethook").toInt()
         target.setDebugHook(context, hookIndex, mask, count)

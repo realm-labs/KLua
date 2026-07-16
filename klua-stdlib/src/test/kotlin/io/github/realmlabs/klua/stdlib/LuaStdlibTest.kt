@@ -7939,6 +7939,73 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug hook count events precede line events and observe replacement`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local events = {}
+                local function replacement(event)
+                    events[#events + 1] = "new:" .. event
+                    debug.sethook()
+                end
+                local function original(event)
+                    events[#events + 1] = "old:" .. event
+                    if event == "count" then
+                        debug.sethook(replacement, "l", 0)
+                    end
+                end
+
+                debug.sethook(original, "l", 1)
+                local value = 42
+                debug.sethook()
+                return events[1], events[2], #events, value
+                """.trimIndent(),
+                "debug-hook-count-line-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("old:count", state.toString(1))
+        assertEquals("new:line", state.toString(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals(42L, state.toInteger(4))
+    }
+
+    @Test
+    fun `debug line hook retriggers when a loop jumps backward on one line`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function run() local value = 0; while value < 3 do value = value + 1 end; return value end
+                local target = debug.getinfo(run, "S").linedefined
+                local hits = 0
+                debug.sethook(function(event, line)
+                    if event == "line" and line == target then
+                        hits = hits + 1
+                    end
+                end, "l", 0)
+                local value = run()
+                debug.sethook()
+                return value, hits
+                """.trimIndent(),
+                "debug-hook-backward-line.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(3L, state.toInteger(1))
+        assertTrue((state.toInteger(2) ?: 0L) >= 4L, "line hits: ${state.toInteger(2)}")
+    }
+
+    @Test
     fun `debug call and return hooks include native boundaries`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -8030,6 +8097,255 @@ class LuaStdlibTest {
         assertEquals("return", state.toString(6))
         assertEquals(1L, state.toInteger(7))
         assertEquals(2L, state.toInteger(8))
+    }
+
+    @Test
+    fun `debug hook exposes native function frames and transfer values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local function hook(event)
+                    local info = debug.getinfo(2, "fSr")
+                    if info.func == math.abs then
+                        local name, value = debug.getlocal(2, 1)
+                        records[#records + 1] = event
+                        records[#records + 1] = info.what
+                        records[#records + 1] = info.ftransfer
+                        records[#records + 1] = info.ntransfer
+                        records[#records + 1] = name
+                        records[#records + 1] = value
+                    end
+                end
+
+                debug.sethook(hook, "cr", 0)
+                local result = math.abs(-4)
+                debug.sethook()
+                return result,
+                    records[1], records[2], records[3], records[4], records[5], records[6],
+                    records[7], records[8], records[9], records[10], records[11], records[12]
+                """.trimIndent(),
+                "debug-hook-native-frame.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(4L, state.toInteger(1))
+        assertEquals("call", state.toString(2))
+        assertEquals("C", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(1L, state.toInteger(5))
+        assertEquals("(C temporary)", state.toString(6))
+        assertEquals(-4L, state.toInteger(7))
+        assertEquals("return", state.toString(8))
+        assertEquals("C", state.toString(9))
+        assertEquals(1L, state.toInteger(10))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals("(C temporary)", state.toString(12))
+        assertEquals(4L, state.toInteger(13))
+    }
+
+    @Test
+    fun `debug call hook reports Lua tail calls without a replaced caller return`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local leaf
+                local relay
+                local records = {}
+                leaf = function(left, right)
+                    return left + right, left - right
+                end
+                relay = function(...)
+                    return leaf(...)
+                end
+                local function hook(event, line)
+                    local info = debug.getinfo(2, "frt")
+                    if info.func == relay then
+                        records[#records + 1] = event .. ":relay:" .. info.ftransfer .. ":" .. info.ntransfer
+                    elseif info.func == leaf then
+                        records[#records + 1] = event .. ":leaf:" .. info.ftransfer .. ":" .. info.ntransfer
+                    end
+                end
+
+                debug.sethook(hook, "cr", 0)
+                local sum, difference = relay(7, 2)
+                debug.sethook()
+                return sum, difference, records[1], records[2], records[3], #records
+                """.trimIndent(),
+                "debug-hook-tail-call.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(9L, state.toInteger(1))
+        assertEquals(5L, state.toInteger(2))
+        assertEquals("call:relay:1:0", state.toString(3))
+        assertEquals("tail call:leaf:1:2", state.toString(4))
+        assertEquals("return:leaf:1:2", state.toString(5))
+        assertEquals(3L, state.toInteger(6))
+    }
+
+    @Test
+    fun `debug tail hook state survives a yielded target thread`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local leaf
+                local relay
+                local records = {}
+                leaf = function(value)
+                    coroutine.yield("pause")
+                    return value + 1
+                end
+                relay = function(value)
+                    return leaf(value)
+                end
+                local function hook(event)
+                    local info = debug.getinfo(2, "fr")
+                    if info.func == relay then
+                        records[#records + 1] = event .. ":relay"
+                    elseif info.func == leaf then
+                        records[#records + 1] = event .. ":leaf"
+                    end
+                end
+
+                local co = coroutine.create(relay)
+                debug.sethook(co, hook, "cr", 0)
+                local firstOk, paused = coroutine.resume(co, 8)
+                local suspendedHook, suspendedMask = debug.gethook(co)
+                local secondOk, result = coroutine.resume(co)
+                local deadHook, deadMask = debug.gethook(co)
+                debug.sethook(co)
+                return firstOk, paused, suspendedHook == hook, suspendedMask,
+                    secondOk, result, deadHook == hook, deadMask,
+                    records[1], records[2], records[3], #records
+                """.trimIndent(),
+                "debug-hook-yielded-tail-call.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("cr", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals(9L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("cr", state.toString(8))
+        assertEquals("call:relay", state.toString(9))
+        assertEquals("tail call:leaf", state.toString(10))
+        assertEquals("return:leaf", state.toString(11))
+        assertEquals(3L, state.toInteger(12))
+    }
+
+    @Test
+    fun `debug native return hook resumes at the yield boundary`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local function hook(event)
+                    local info = debug.getinfo(2, "fr")
+                    if info.func == coroutine.yield then
+                        local name, value = debug.getlocal(2, 1)
+                        records[#records + 1] = event
+                        records[#records + 1] = info.ftransfer
+                        records[#records + 1] = info.ntransfer
+                        records[#records + 1] = name
+                        records[#records + 1] = value
+                    end
+                end
+                local co = coroutine.create(function()
+                    return coroutine.yield("pause")
+                end)
+                debug.sethook(co, hook, "cr", 0)
+                local firstOk, paused = coroutine.resume(co)
+                local secondOk, resumed = coroutine.resume(co, "resume")
+                debug.sethook(co)
+                return firstOk, paused, secondOk, resumed,
+                    records[1], records[2], records[3], records[4], records[5],
+                    records[6], records[7], records[8], records[9], records[10]
+                """.trimIndent(),
+                "debug-hook-native-yield-return.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("resume", state.toString(4))
+        assertEquals("call", state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals("(C temporary)", state.toString(8))
+        assertEquals("pause", state.toString(9))
+        assertEquals("return", state.toString(10))
+        assertEquals(1L, state.toInteger(11))
+        assertEquals(1L, state.toInteger(12))
+        assertEquals("(C temporary)", state.toString(13))
+        assertEquals("resume", state.toString(14))
+    }
+
+    @Test
+    fun `debug tail hook follows a Lua call metamethod frame`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local metamethod = function(self, value)
+                    return value + 1
+                end
+                local callable = setmetatable({}, {__call = metamethod})
+                local relay = function(value)
+                    return callable(value)
+                end
+                local function hook(event)
+                    local info = debug.getinfo(2, "f")
+                    if info.func == relay then
+                        records[#records + 1] = event .. ":relay"
+                    elseif info.func == metamethod then
+                        records[#records + 1] = event .. ":metamethod"
+                    end
+                end
+
+                debug.sethook(hook, "cr", 0)
+                local result = relay(8)
+                debug.sethook()
+                return result, records[1], records[2], records[3], #records
+                """.trimIndent(),
+                "debug-hook-tail-call-metamethod.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(9L, state.toInteger(1))
+        assertEquals("call:relay", state.toString(2))
+        assertEquals("tail call:metamethod", state.toString(3))
+        assertEquals("return:metamethod", state.toString(4))
+        assertEquals(3L, state.toInteger(5))
     }
 
     @Test
@@ -8138,6 +8454,78 @@ class LuaStdlibTest {
         assertEquals("function", state.toString(8))
         assertEquals("crl", state.toString(9))
         assertEquals(0L, state.toInteger(10))
+    }
+
+    @Test
+    fun `debug hook registration uses C masks and C int counts with exact arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local hook = function() end
+                local setArity = select("#", debug.sethook(hook, "l\0cr", 4294967297, "ignored"))
+                local installed, mask, count = debug.gethook("ignored", "ignored")
+                local activeArity = select("#", debug.gethook())
+                debug.sethook(hook, "l", 4294967295)
+                local _, negativeMask, negativeCount = debug.gethook()
+                debug.sethook(nil, false, {}, "ignored")
+                local absentArity = select("#", debug.gethook("ignored"))
+                return setArity, installed == hook, mask, count, activeArity,
+                    negativeMask, negativeCount, absentArity
+                """.trimIndent(),
+                "debug-hook-registration-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("l", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(3L, state.toInteger(5))
+        assertEquals("l", state.toString(6))
+        assertEquals(-1L, state.toInteger(7))
+        assertEquals(1L, state.toInteger(8))
+    }
+
+    @Test
+    fun `debug hooks cannot yield and remain targetable on the failed thread`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local hook = function()
+                    coroutine.yield("not allowed")
+                end
+                local co = coroutine.create(function()
+                    debug.sethook(hook, "l", 0)
+                    local value = 1
+                    return value
+                end)
+                local ok, message = coroutine.resume(co)
+                local installed, mask, count = debug.gethook(co)
+                debug.sethook(co)
+                local clearedArity = select("#", debug.gethook(co))
+                return ok, message, coroutine.status(co), installed == hook, mask, count, clearedArity
+                """.trimIndent(),
+                "debug-hook-yield-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("attempt to yield across a C-call boundary", state.toString(2))
+        assertEquals("dead", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("l", state.toString(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
     }
 
     @Test
