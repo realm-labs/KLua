@@ -75,6 +75,57 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `openBase preserves every base function identity across reopen`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                baseNames = {
+                    "assert", "collectgarbage", "dofile", "error", "getmetatable", "ipairs",
+                    "loadfile", "load", "next", "pairs", "pcall", "print", "warn", "rawequal",
+                    "rawlen", "rawget", "rawset", "select", "setmetatable", "tonumber", "tostring",
+                    "type", "xpcall",
+                }
+                savedBaseFunctions = {}
+                for index = 1, #baseNames do
+                    local name = baseNames[index]
+                    savedBaseFunctions[name] = _G[name]
+                end
+                savedGlobalTable = _G
+                """.trimIndent(),
+                "base-identity-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        LuaStdlib.openBase(state)
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mismatch = ""
+                for index = 1, #baseNames do
+                    local name = baseNames[index]
+                    if savedBaseFunctions[name] ~= _G[name] then
+                        mismatch = mismatch .. name .. ","
+                    end
+                end
+                return mismatch, savedGlobalTable == _G, _VERSION
+                """.trimIndent(),
+                "base-identity-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("Lua 5.5", state.toString(3))
+    }
+
+    @Test
     fun `tostring uses table tostring metamethods`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

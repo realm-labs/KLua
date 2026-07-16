@@ -21,13 +21,32 @@ import java.nio.file.Path
 import java.util.Collections
 import java.util.WeakHashMap
 import java.util.function.Consumer
+import java.util.function.Supplier
 
 public object LuaStdlib {
+    private val assertFunction = LuaFunction { context -> assert(context) }
+    private val errorFunction = LuaFunction { context -> error(context) }
+    private val getmetatableFunction = LuaFunction { context -> getmetatable(context) }
+    private val ipairsFunction = LuaFunction { context -> ipairs(context) }
+    private val loadFunction = LuaFunction { context -> load(context) }
     private val nextFunction = LuaFunction { context -> next(context) }
+    private val pairsFunction = LuaYieldableFunction { context -> pairs(context) }
+    private val pcallFunction = LuaYieldableFunction { context -> pcall(context) }
+    private val rawequalFunction = LuaFunction { context -> rawequal(context) }
+    private val rawgetFunction = LuaFunction { context -> rawget(context) }
+    private val rawlenFunction = LuaFunction { context -> rawlen(context) }
+    private val rawsetFunction = LuaFunction { context -> rawset(context) }
+    private val selectFunction = LuaFunction { context -> select(context) }
+    private val setmetatableFunction = LuaFunction { context -> setmetatable(context) }
+    private val tonumberFunction = LuaFunction { context -> tonumber(context) }
+    private val tostringFunction = LuaFunction { context -> tostring(context) }
+    private val typeFunction = LuaFunction { context -> type(context) }
+    private val xpcallFunction = LuaYieldableFunction { context -> xpcall(context) }
     private val ipairsIteratorFunction = LuaFunction { context -> ipairsNext(context) }
     private val garbageCollectorStates = Collections.synchronizedMap(WeakHashMap<LuaState, GarbageCollectorState>())
     private val warningStates = Collections.synchronizedMap(WeakHashMap<LuaState, WarningState>())
     private val printStates = Collections.synchronizedMap(WeakHashMap<LuaState, PrintState>())
+    private val fileFunctionStates = Collections.synchronizedMap(WeakHashMap<LuaState, FileFunctionState>())
 
     @JvmStatic
     public fun openLibs(state: LuaState): LuaState {
@@ -80,51 +99,54 @@ public object LuaStdlib {
         state.installGlobalTable("_G")
         state.pushString("Lua 5.5")
         state.setGlobal("_VERSION")
-        state.register("assert", ::assert)
+        state.register("assert", assertFunction)
         val garbageCollectorState = synchronized(garbageCollectorStates) {
             garbageCollectorStates.getOrPut(state) { GarbageCollectorState() }
         }
         state.register("collectgarbage", garbageCollectorState.function)
-        if (state.config.unsafeStandardLibraryAccessEnabled) {
-            state.register("dofile", LuaYieldableFunction { context -> dofile(context, state) })
+        val fileFunctions = if (state.config.unsafeStandardLibraryAccessEnabled) {
+            synchronized(fileFunctionStates) {
+                fileFunctionStates.getOrPut(state) { FileFunctionState(state.config.standardInput) }
+            }
+        } else {
+            null
         }
-        state.register("error", ::error)
-        state.register("getmetatable", ::getmetatable)
-        state.register("ipairs", ::ipairs)
-        state.register("load", ::load)
-        if (state.config.unsafeStandardLibraryAccessEnabled) {
-            state.register("loadfile") { context -> loadfile(context, state) }
+        if (fileFunctions != null) {
+            state.register("dofile", fileFunctions.dofileFunction)
+        }
+        state.register("error", errorFunction)
+        state.register("getmetatable", getmetatableFunction)
+        state.register("ipairs", ipairsFunction)
+        state.register("load", loadFunction)
+        if (fileFunctions != null) {
+            state.register("loadfile", fileFunctions.loadfileFunction)
         }
         state.register("next", nextFunction)
-        registerYieldable(state, "pairs", ::pairs)
-        registerYieldable(state, "pcall", ::pcall)
+        state.register("pairs", pairsFunction)
+        state.register("pcall", pcallFunction)
         val printState = synchronized(printStates) {
             printStates.getOrPut(state) { PrintState(output) }.also { printState ->
                 printState.output = output
             }
         }
         state.register("print", printState.function)
-        state.register("rawequal", ::rawequal)
-        state.register("rawget", ::rawget)
-        state.register("rawlen", ::rawlen)
-        state.register("rawset", ::rawset)
-        state.register("select", ::select)
-        state.register("setmetatable", ::setmetatable)
-        state.register("tonumber", ::tonumber)
-        state.register("tostring", ::tostring)
-        state.register("type", ::type)
+        state.register("rawequal", rawequalFunction)
+        state.register("rawget", rawgetFunction)
+        state.register("rawlen", rawlenFunction)
+        state.register("rawset", rawsetFunction)
+        state.register("select", selectFunction)
+        state.register("setmetatable", setmetatableFunction)
+        state.register("tonumber", tonumberFunction)
+        state.register("tostring", tostringFunction)
+        state.register("type", typeFunction)
         val warningState = synchronized(warningStates) {
             warningStates.getOrPut(state) { WarningState(output) }.also { warningState ->
                 warningState.output = output
             }
         }
         state.register("warn", warningState.function)
-        registerYieldable(state, "xpcall", ::xpcall)
+        state.register("xpcall", xpcallFunction)
         return state
-    }
-
-    private fun registerYieldable(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
-        state.register(name, LuaYieldableFunction { context -> function(context) })
     }
 
     private class GarbageCollectorState {
@@ -146,6 +168,13 @@ public object LuaStdlib {
         var output: Consumer<String>,
     ) {
         val function = LuaFunction { context -> print(context, this) }
+    }
+
+    private class FileFunctionState(
+        standardInput: Supplier<String>,
+    ) {
+        val dofileFunction = LuaYieldableFunction { context -> dofile(context, standardInput) }
+        val loadfileFunction = LuaFunction { context -> loadfile(context, standardInput) }
     }
 
     private data class LoadFileSource(
@@ -388,24 +417,24 @@ public object LuaStdlib {
         }
     }
 
-    private fun loadfile(context: LuaCallContext, state: LuaState): LuaReturn {
+    private fun loadfile(context: LuaCallContext, standardInput: Supplier<String>): LuaReturn {
         val filename = if (context.isNone(1) || context.isNil(1)) {
             null
         } else {
             requiredString(context, 1, "loadfile").substringBefore('\u0000')
         }
         val mode = loadMode(context, 2, "loadfile")
-        return loadFile(context, state, filename, mode, environmentIndex = 3)
+        return loadFile(context, standardInput, filename, mode, environmentIndex = 3)
     }
 
     private fun loadFile(
         context: LuaCallContext,
-        state: LuaState,
+        standardInput: Supplier<String>,
         filename: String?,
         mode: String,
         environmentIndex: Int?,
     ): LuaReturn {
-        val read = readLoadFileSource(filename, state)
+        val read = readLoadFileSource(filename, standardInput)
         val source = read.source
             ?: return LuaReturn.of(null, read.error ?: "cannot read file '$filename'")
         val bytes = source.bytes ?: source.source.luaRawBytes()
@@ -430,13 +459,13 @@ public object LuaStdlib {
         return context.load(source.source, source.chunkName, environment.value, environment.provided)
     }
 
-    private fun dofile(context: LuaCallContext, state: LuaState): LuaReturn {
+    private fun dofile(context: LuaCallContext, standardInput: Supplier<String>): LuaReturn {
         val filename = if (context.isNone(1) || context.isNil(1)) {
             null
         } else {
             requiredString(context, 1, "dofile").substringBefore('\u0000')
         }
-        val read = readLoadFileSource(filename, state)
+        val read = readLoadFileSource(filename, standardInput)
         val source = read.source
             ?: throw LuaRuntimeException(read.error ?: "cannot read file '$filename'")
         val bytes = source.bytes ?: source.source.luaRawBytes()
@@ -450,10 +479,10 @@ public object LuaStdlib {
         return context.call(function, emptyList())
     }
 
-    private fun readLoadFileSource(filename: String?, state: LuaState): LoadFileRead {
+    private fun readLoadFileSource(filename: String?, standardInput: Supplier<String>): LoadFileRead {
         try {
             if (filename == null) {
-                val content = loadFileContent(state.config.standardInput.get())
+                val content = loadFileContent(standardInput.get())
                 return LoadFileRead(source = LoadFileSource(content.source, "=stdin", content.bytes))
             } else {
                 val bytes = Files.readAllBytes(Path.of(filename))
