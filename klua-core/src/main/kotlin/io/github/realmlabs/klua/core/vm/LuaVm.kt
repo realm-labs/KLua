@@ -850,12 +850,13 @@ internal class LuaVm(
     }
 
     private fun callNativeResult(function: LuaNativeFunction, arguments: List<LuaValue>): LuaExecutionResult {
+        dispatchDebugNativeCall(arguments.size)
         return try {
-            LuaExecutionResult.Returned(
-                thread.runNativeCall {
-                    function.call(nativeCallContext(function, arguments))
-                },
-            )
+            val values = thread.runNativeCall {
+                function.call(nativeCallContext(function, arguments))
+            }
+            dispatchDebugNativeReturn(values.size)
+            LuaExecutionResult.Returned(values)
         } catch (yield: LuaYieldSignal) {
             if (!function.yieldable) {
                 throw LuaVmException("attempt to yield across a C-call boundary")
@@ -999,6 +1000,24 @@ internal class LuaVm(
             return
         }
         callDebugHook(hook.function, "return", LuaNil, frame, transferStart, transferCount)
+    }
+
+    private fun dispatchDebugNativeCall(argumentCount: Int) {
+        val frame = thread.currentFrame ?: return
+        val hook = debugHook ?: return
+        if (!hook.hasCallHook || runningDebugHook) {
+            return
+        }
+        callDebugHook(hook.function, "call", LuaNil, frame, transferStart = 1, transferCount = argumentCount)
+    }
+
+    private fun dispatchDebugNativeReturn(resultCount: Int) {
+        val frame = thread.currentFrame ?: return
+        val hook = debugHook ?: return
+        if (!hook.hasReturnHook || runningDebugHook) {
+            return
+        }
+        callDebugHook(hook.function, "return", LuaNil, frame, transferStart = 1, transferCount = resultCount)
     }
 
     private fun dispatchDebugHooks(frame: CallFrame, pc: Int) {

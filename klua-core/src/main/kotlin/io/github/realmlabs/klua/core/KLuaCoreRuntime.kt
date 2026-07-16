@@ -86,6 +86,14 @@ public object KLuaCoreRuntime {
         arguments: List<KLuaCoreValue>,
         globals: KLuaCoreGlobals,
         limits: KLuaCoreExecutionLimits = KLuaCoreExecutionLimits(),
+    ): KLuaCoreExecution = execute(chunk, arguments, globals, limits, initialDebugHook = null)
+
+    public fun execute(
+        chunk: KLuaCoreChunk,
+        arguments: List<KLuaCoreValue>,
+        globals: KLuaCoreGlobals,
+        limits: KLuaCoreExecutionLimits,
+        initialDebugHook: KLuaCoreDebugHook?,
     ): KLuaCoreExecution {
         val vmArguments = arguments.map { value ->
             value.toLuaValueOrNull(globals)
@@ -94,13 +102,19 @@ public object KLuaCoreRuntime {
                 }
         }
         return try {
+            val vm = LuaVm(
+                globals.table,
+                globals.environment,
+                metatables = globals.vmMetatableProvider,
+                instructionLimit = limits.instructionLimit,
+            )
+            if (initialDebugHook != null) {
+                val hookFunction = initialDebugHook.function.toLuaValueOrNull(globals)
+                    ?: return KLuaCoreExecution.RuntimeError("cannot restore debug hook function")
+                vm.setDebugHook(hookFunction, initialDebugHook.mask, initialDebugHook.count)
+            }
             KLuaCoreExecution.Success(
-                LuaVm(
-                    globals.table,
-                    globals.environment,
-                    metatables = globals.vmMetatableProvider,
-                    instructionLimit = limits.instructionLimit,
-                ).execute(chunk.prototype, vmArguments).map { value ->
+                vm.execute(chunk.prototype, vmArguments).map { value ->
                     toPublicValue(value, globals)
                 },
             )

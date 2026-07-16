@@ -38,6 +38,7 @@ class LuaState private constructor(
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
+    private var mainDebugHook: KLuaCoreDebugHook? = null
     private val mainThread = LuaMainThread()
     private val registryCore = KLuaCoreRuntime.createTable(coreGlobals).also { registry ->
         registry.fields[KLuaCoreValue.IntegerValue(1)] = KLuaCoreValue.BooleanValue(false)
@@ -45,6 +46,19 @@ class LuaState private constructor(
         KLuaCoreRuntime.syncTable(registry, coreGlobals)
     }
     private val registry = LuaStackValue.TableValue(coreValue = registryCore)
+    private val registryGetterFunction = LuaFunction {
+        refreshRegistryCoreValue()
+        registryCore.fields[KLuaCoreValue.IntegerValue(2)] = KLuaCoreRuntime.getGlobalTable(coreGlobals)
+        refreshRegistryStackValue()
+        LuaReturn.of(registry)
+    }
+    private val registryGetterCoreFunction = KLuaCoreRuntime.createFunctionValue(
+        function = {
+            refreshRegistryCoreValue()
+            registryCore.fields[KLuaCoreValue.IntegerValue(2)] = KLuaCoreRuntime.getGlobalTable(coreGlobals)
+            KLuaCoreCallResult.Success(listOf(registryCore))
+        },
+    )
     private val userMetatables = IdentityHashMap<Any, LuaStackValue.TableValue>()
     private val nativeFunctionValues = IdentityHashMap<LuaFunction, KLuaCoreValue.FunctionValue>()
     private val coreBackedNativeGlobals = mutableSetOf<String>()
@@ -216,7 +230,15 @@ class LuaState private constructor(
         val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
         val arguments = stack.subList(functionIndex + 1, stack.size).map { it.toCoreValue(tableCache) }
         val limits = KLuaCoreExecutionLimits(instructionLimit = config.instructionLimit)
-        return when (val result = KLuaCoreRuntime.execute(chunk.chunk, arguments, coreGlobals, limits)) {
+        return when (
+            val result = KLuaCoreRuntime.execute(
+                chunk.chunk,
+                arguments,
+                coreGlobals,
+                limits,
+                initialDebugHook = mainDebugHook,
+            )
+        ) {
             is KLuaCoreExecution.Success -> {
                 lastError = null
                 removeCallFrame(functionIndex)
@@ -480,6 +502,10 @@ class LuaState private constructor(
         registryCore.fields[KLuaCoreValue.IntegerValue(2)] = KLuaCoreRuntime.getGlobalTable(coreGlobals)
         refreshRegistryStackValue()
         stack += registry
+    }
+
+    fun pushRegistryGetterFunction() {
+        stack += LuaStackValue.NativeFunctionValue(registryGetterFunction, registryGetterCoreFunction)
     }
 
     fun setRegistryInteger(index: Long) {
@@ -2398,7 +2424,11 @@ class LuaState private constructor(
         }
 
         override fun setDebugHook(index: Int, mask: String, count: Int): Boolean {
-            return coreContext.setDebugHook(index, mask, count)
+            val updated = coreContext.setDebugHook(index, mask, count)
+            if (updated && mainThread.isCurrentDebugThread) {
+                mainDebugHook = coreContext.getDebugHook()
+            }
+            return updated
         }
 
         override fun getDebugHook(): LuaReturn {

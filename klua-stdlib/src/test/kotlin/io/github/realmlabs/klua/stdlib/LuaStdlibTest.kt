@@ -7190,7 +7190,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `debug call and return hooks run for lua frames`() {
+    fun `debug call and return hooks include native boundaries`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
 
@@ -7231,8 +7231,8 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertEquals(42L, state.toInteger(1))
-        assertTrue((state.toInteger(2) ?: 0L) >= 2L)
-        assertTrue((state.toInteger(3) ?: 0L) >= 2L)
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(2L, state.toInteger(3))
     }
 
     @Test
@@ -15353,6 +15353,135 @@ class LuaStdlibTest {
 
         assertEquals("thread", state.toString(1))
         assertTrue(state.toUserData(2) === mainThread)
+    }
+
+    @Test
+    fun `debug reopen preserves function and state ownership`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                debugNames = {
+                    "debug", "getuservalue", "gethook", "getinfo", "getlocal", "getregistry",
+                    "getmetatable", "getupvalue", "upvaluejoin", "upvalueid", "setuservalue",
+                    "sethook", "setlocal", "setmetatable", "setupvalue", "traceback",
+                }
+                savedDebug = debug
+                savedDebugFunctions = {}
+                for index = 1, #debugNames do
+                    local name = debugNames[index]
+                    savedDebugFunctions[name] = debug[name]
+                end
+                savedRegistry = debug.getregistry()
+                savedRegistry.owner = "first"
+                savedHook = function() end
+                debug.sethook(savedHook, "l", 0)
+                """.trimIndent(),
+                "debug-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        val otherState = LuaState.create()
+        LuaStdlib.openBase(otherState)
+        LuaStdlib.openDebug(otherState)
+        assertEquals(
+            LuaStatus.OK,
+            otherState.load(
+                """
+                local hookCount, hook = select("#", debug.gethook()), debug.gethook()
+                local registry = debug.getregistry()
+                local previousOwner = registry.owner
+                registry.owner = "second"
+                return hookCount, hook, previousOwner, registry.owner
+                """.trimIndent(),
+                "debug-other-state.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, otherState.pcall(0, -1), otherState.toString(-1))
+        assertEquals(1L, otherState.toInteger(1))
+        assertTrue(otherState.isNil(2))
+        assertTrue(otherState.isNil(3))
+        assertEquals("second", otherState.toString(4))
+
+        LuaStdlib.openDebug(state)
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mismatch = ""
+                for index = 1, #debugNames do
+                    local name = debugNames[index]
+                    if savedDebugFunctions[name] ~= debug[name] then
+                        mismatch = mismatch .. name .. ","
+                    end
+                    if debug.getinfo(debug[name], "S").what ~= "C" then
+                        mismatch = mismatch .. name .. ":what,"
+                    end
+                    if select("#", debug.getupvalue(debug[name], 1)) ~= 0 then
+                        mismatch = mismatch .. name .. ":upvalue,"
+                    end
+                end
+
+                local newHook, newMask, newCount = debug.gethook()
+                local oldHook, oldMask, oldCount = savedDebug.gethook()
+                savedDebug.sethook(savedHook, "cr", 3)
+                local crossedHook, crossedMask, crossedCount = debug.gethook()
+                debug.sethook()
+                local clearedCount, clearedHook = select("#", savedDebug.gethook()), savedDebug.gethook()
+                local leakedHelpers = ""
+                local helperNames = {
+                    "klua_debug_traceback", "klua_debug_getinfo", "klua_debug_getlocal",
+                    "klua_debug_setlocal", "klua_debug_getupvalue", "klua_debug_setupvalue",
+                    "klua_debug_upvalueid", "klua_debug_upvaluejoin", "klua_debug_getuservalue",
+                    "klua_debug_setuservalue", "klua_debug_getmetatable", "klua_debug_setmetatable",
+                    "klua_debug_sethook", "klua_debug_gethook", "klua_debug_registry",
+                    "klua_debug_capture_registry",
+                }
+                for index = 1, #helperNames do
+                    local name = helperNames[index]
+                    if _G[name] ~= nil then leakedHelpers = leakedHelpers .. name .. "," end
+                end
+                local zeroInfo = debug.getinfo(0, "Sulf")
+                assert(zeroInfo.what == "C" and zeroInfo.source == "=[C]" and zeroInfo.short_src == "[C]" and
+                    zeroInfo.linedefined == -1 and zeroInfo.lastlinedefined == -1 and zeroInfo.currentline == -1 and
+                    zeroInfo.nups == 0 and zeroInfo.nparams == 0 and zeroInfo.isvararg and
+                    zeroInfo.func == debug.getinfo)
+                assert(debug.getregistry().owner == "first")
+
+                return savedDebug ~= debug, mismatch,
+                    savedRegistry == debug.getregistry(), savedRegistry == savedDebug.getregistry(),
+                    newHook == savedHook, newMask, newCount,
+                    oldHook == savedHook, oldMask, oldCount,
+                    crossedHook == savedHook, crossedMask, crossedCount,
+                    clearedCount, clearedHook,
+                    leakedHelpers
+                """.trimIndent(),
+                "debug-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("l", state.toString(6))
+        assertEquals(0L, state.toInteger(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("l", state.toString(9))
+        assertEquals(0L, state.toInteger(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals("cr", state.toString(12))
+        assertEquals(3L, state.toInteger(13))
+        assertEquals(1L, state.toInteger(14))
+        assertTrue(state.isNil(15))
+        assertEquals("", state.toString(16))
     }
 
     @Test

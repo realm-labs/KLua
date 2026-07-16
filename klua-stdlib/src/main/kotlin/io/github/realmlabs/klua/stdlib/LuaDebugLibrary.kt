@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaDebugThread
+import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaFunctionDebugInfo
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
@@ -9,29 +10,52 @@ import io.github.realmlabs.klua.api.LuaStackFrame
 import io.github.realmlabs.klua.api.LuaState
 
 internal object LuaDebugLibrary {
+    private val debugFunction = LuaFunction { LuaReturn.none() }
+    private val tracebackFunction = LuaFunction { context -> traceback(context) }
+    private val getInfoFunction = LuaFunction { context -> getInfo(context) }
+    private val getLocalFunction = LuaFunction { context -> getLocal(context) }
+    private val setLocalFunction = LuaFunction { context -> setLocal(context) }
+    private val getUpvalueFunction = LuaFunction { context -> getUpvalue(context) }
+    private val setupUpvalueFunction = LuaFunction { context -> setupUpvalue(context) }
+    private val upvalueIdFunction = LuaFunction { context -> upvalueId(context) }
+    private val upvalueJoinFunction = LuaFunction { context -> upvalueJoin(context) }
+    private val getUserValueFunction = LuaFunction { context -> getUserValue(context) }
+    private val setUserValueFunction = LuaFunction { context -> setUserValue(context) }
+    private val getMetatableFunction = LuaFunction { context -> getMetatable(context) }
+    private val setMetatableFunction = LuaFunction { context -> setMetatable(context) }
+    private val setHookFunction = LuaFunction { context -> setHook(context) }
+    private val getHookFunction = LuaFunction { context -> getHook(context) }
+
     fun open(state: LuaState): LuaState {
-        state.register("klua_debug_traceback") { context -> traceback(context) }
-        state.register("klua_debug_getinfo") { context -> getInfo(context) }
-        state.register("klua_debug_getlocal") { context -> getLocal(context) }
-        state.register("klua_debug_setlocal") { context -> setLocal(context) }
-        state.register("klua_debug_getupvalue") { context -> getUpvalue(context) }
-        state.register("klua_debug_setupvalue") { context -> setupUpvalue(context) }
-        state.register("klua_debug_upvalueid") { context -> upvalueId(context) }
-        state.register("klua_debug_upvaluejoin") { context -> upvalueJoin(context) }
-        state.register("klua_debug_getuservalue") { context -> getUserValue(context) }
-        state.register("klua_debug_setuservalue") { context -> setUserValue(context) }
-        state.register("klua_debug_getmetatable") { context -> getMetatable(context) }
-        state.register("klua_debug_setmetatable") { context -> setMetatable(context) }
-        state.register("klua_debug_sethook") { context -> setHook(context) }
-        state.register("klua_debug_gethook") { context -> getHook(context) }
-        state.pushRegistryTable()
-        state.setGlobal("klua_debug_registry")
-        installLuaSource(state, DEBUG_SOURCE, "stdlib-debug.lua")
+        state.newTable()
+        setFunctionField(state, "debug", debugFunction)
+        setFunctionField(state, "getuservalue", getUserValueFunction)
+        setFunctionField(state, "gethook", getHookFunction)
+        setFunctionField(state, "getinfo", getInfoFunction)
+        setFunctionField(state, "getlocal", getLocalFunction)
+        state.pushRegistryGetterFunction()
+        state.setField(-2, "getregistry")
+        setFunctionField(state, "getmetatable", getMetatableFunction)
+        setFunctionField(state, "getupvalue", getUpvalueFunction)
+        setFunctionField(state, "upvaluejoin", upvalueJoinFunction)
+        setFunctionField(state, "upvalueid", upvalueIdFunction)
+        setFunctionField(state, "setuservalue", setUserValueFunction)
+        setFunctionField(state, "sethook", setHookFunction)
+        setFunctionField(state, "setlocal", setLocalFunction)
+        setFunctionField(state, "setmetatable", setMetatableFunction)
+        setFunctionField(state, "setupvalue", setupUpvalueFunction)
+        setFunctionField(state, "traceback", tracebackFunction)
+        state.setGlobal("debug")
         return state
     }
 
+    private fun setFunctionField(state: LuaState, name: String, function: LuaFunction) {
+        state.pushFunction(function)
+        state.setField(-2, name)
+    }
+
     private fun traceback(context: LuaCallContext): LuaReturn {
-        val target = threadTarget(context)
+        val target = threadTarget(context, tracebackFunction)
         val message = when {
             context.isNil(target.argumentOffset + 1) || context.isNone(target.argumentOffset + 1) -> null
             else -> context.toString(target.argumentOffset + 1)
@@ -82,7 +106,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun getInfo(context: LuaCallContext): LuaReturn {
-        val target = threadTarget(context)
+        val target = threadTarget(context, getInfoFunction)
         val optionIndex = target.argumentOffset + 2
         val what = optionalString(context, optionIndex, DEFAULT_GETINFO_OPTIONS, "getinfo")
         rejectPrivateGetInfoOption(what, optionIndex)
@@ -218,10 +242,14 @@ internal object LuaDebugLibrary {
         table["extraargs"] = 0L
     }
 
-    private fun luaFunctionWhat(lineDefined: Int): String = if (lineDefined == 0) "main" else "Lua"
+    private fun luaFunctionWhat(lineDefined: Int): String = when {
+        lineDefined < 0 -> "C"
+        lineDefined == 0 -> "main"
+        else -> "Lua"
+    }
 
     private fun getLocal(context: LuaCallContext): LuaReturn {
-        val target = threadTarget(context)
+        val target = threadTarget(context, getLocalFunction)
         val index = requiredLocalIndex(context, target.argumentOffset + 2, "getlocal")
         val subjectIndex = target.argumentOffset + 1
         if (context.typeName(subjectIndex) == "function") {
@@ -253,7 +281,7 @@ internal object LuaDebugLibrary {
     }
 
     private fun setLocal(context: LuaCallContext): LuaReturn {
-        val target = threadTarget(context)
+        val target = threadTarget(context, setLocalFunction)
         val levelIndex = target.argumentOffset + 1
         val level = requiredStackLevel(context, levelIndex, "setlocal")
         val index = requiredLocalIndex(context, target.argumentOffset + 2, "setlocal")
@@ -368,11 +396,11 @@ internal object LuaDebugLibrary {
         return requiredNumberInteger(context, index, functionName).toInt()
     }
 
-    private fun threadTarget(context: LuaCallContext): DebugThreadTarget {
+    private fun threadTarget(context: LuaCallContext, currentFunction: LuaFunction? = null): DebugThreadTarget {
         val coroutine = context.toUserData(1, LuaDebugThread::class.java)
-            ?: return DebugThreadTarget.Current(context.luaFrames)
+            ?: return DebugThreadTarget.Current(context.luaFrames, currentFunction)
         if (coroutine.isCurrentDebugThread) {
-            return DebugThreadTarget.Current(context.luaFrames, argumentOffset = 1)
+            return DebugThreadTarget.Current(context.luaFrames, currentFunction, argumentOffset = 1)
         }
         return DebugThreadTarget.Coroutine(coroutine)
     }
@@ -485,95 +513,6 @@ internal object LuaDebugLibrary {
         }
     }
 
-    private const val DEBUG_SOURCE: String = """
-        debug = debug or {}
-        local klua_registry = klua_debug_registry
-        klua_debug_registry = nil
-
-        function debug.debug()
-        end
-
-        function debug.traceback(messageOrThread, messageOrLevel, level)
-            if type(messageOrThread) == "thread" then
-                return klua_debug_traceback(messageOrThread, messageOrLevel, level)
-            end
-            return klua_debug_traceback(messageOrThread, messageOrLevel)
-        end
-
-        function debug.getregistry()
-            return klua_registry
-        end
-
-        function debug.getinfo(threadOrLevel, levelOrWhat, what)
-            if type(threadOrLevel) == "thread" then
-                return klua_debug_getinfo(threadOrLevel, levelOrWhat, what)
-            end
-            return klua_debug_getinfo(threadOrLevel, levelOrWhat)
-        end
-
-        function debug.getlocal(threadOrLevel, levelOrIndex, index)
-            if type(threadOrLevel) == "thread" then
-                return klua_debug_getlocal(threadOrLevel, levelOrIndex, index)
-            end
-            return klua_debug_getlocal(threadOrLevel, levelOrIndex)
-        end
-
-        function debug.setlocal(threadOrLevel, levelOrIndex, ...)
-            if type(threadOrLevel) == "thread" then
-                return klua_debug_setlocal(threadOrLevel, levelOrIndex, ...)
-            end
-            return klua_debug_setlocal(threadOrLevel, levelOrIndex, ...)
-        end
-
-        function debug.getupvalue(func, index)
-            return klua_debug_getupvalue(func, index)
-        end
-
-        function debug.setupvalue(func, index, ...)
-            return klua_debug_setupvalue(func, index, ...)
-        end
-
-        function debug.upvalueid(func, index)
-            return klua_debug_upvalueid(func, index)
-        end
-
-        function debug.upvaluejoin(func1, index1, func2, index2)
-            return klua_debug_upvaluejoin(func1, index1, func2, index2)
-        end
-
-        function debug.getuservalue(userdata, index)
-            return klua_debug_getuservalue(userdata, index)
-        end
-
-        function debug.setuservalue(userdata, ...)
-            local count = select("#", ...)
-            if count == 0 then
-                return klua_debug_setuservalue(userdata)
-            end
-            local value, index = ...
-            return klua_debug_setuservalue(userdata, value, index)
-        end
-
-        function debug.getmetatable(...)
-            return klua_debug_getmetatable(...)
-        end
-
-        function debug.setmetatable(value, ...)
-            return klua_debug_setmetatable(value, ...)
-        end
-
-        function debug.sethook(threadOrHook, hookOrMask, maskOrCount, count)
-            if type(threadOrHook) == "thread" then
-                return klua_debug_sethook(threadOrHook, hookOrMask, maskOrCount, count)
-            end
-            return klua_debug_sethook(threadOrHook, hookOrMask, maskOrCount)
-        end
-
-        function debug.gethook(thread)
-            return klua_debug_gethook(thread)
-        end
-    """
-
     private const val GETINFO_OPTIONS = "flnSrtuL"
     private const val DEFAULT_GETINFO_OPTIONS = "flnSrtu"
     private const val VARARG_LOCAL_NAME = "(vararg)"
@@ -595,10 +534,17 @@ internal object LuaDebugLibrary {
 
         class Current(
             frames: List<LuaStackFrame>,
+            private val currentFunction: LuaFunction? = null,
             argumentOffset: Int = 0,
-        ) : DebugThreadTarget(argumentOffset, frames) {
+        ) : DebugThreadTarget(
+            argumentOffset,
+            if (currentFunction == null) frames else listOf(nativeDebugFrame(currentFunction)) + frames,
+        ) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
-                return context.setLocal(level, index, value)
+                if (currentFunction != null && level == 0) {
+                    return null
+                }
+                return context.setLocal(if (currentFunction == null) level else level - 1, index, value)
             }
 
             override fun setDebugHook(context: LuaCallContext, index: Int, mask: String, count: Int): Boolean {
@@ -623,5 +569,16 @@ internal object LuaDebugLibrary {
                 return coroutine.getDebugHook()
             }
         }
+    }
+
+    private fun nativeDebugFrame(function: LuaFunction): LuaStackFrame {
+        return LuaStackFrame(
+            sourceName = "=[C]",
+            line = -1,
+            lineDefined = -1,
+            lastLineDefined = -1,
+            isVararg = true,
+            function = function,
+        )
     }
 }
