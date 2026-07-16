@@ -18098,6 +18098,7 @@ class LuaStdlibTest {
                     first[1], first[2] == _G,
                     first[3] == mainThread, type(first[3]), isMain,
                     first._LOADED == package.loaded, first._PRELOAD == package.preload,
+                    type(first._CLIBS),
                     klua_debug_registry
                 """.trimIndent(),
                 "debug-registry.lua",
@@ -18116,7 +18117,8 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(9))
         assertTrue(state.toBoolean(10))
         assertTrue(state.toBoolean(11))
-        assertTrue(state.isNil(12))
+        assertEquals("table", state.toString(12))
+        assertTrue(state.isNil(13))
     }
 
     @Test
@@ -18181,6 +18183,208 @@ class LuaStdlibTest {
             ),
             state.toString(9),
         )
+    }
+
+    @Test
+    fun `package registry lookups honor index metamethod tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                registry = debug.getregistry()
+                providedLoaded = {}
+                providedPreload = {}
+                providedClibs = {}
+                registryAccesses = {}
+                rawset(registry, "_CLIBS", nil)
+                rawset(registry, "_LOADED", nil)
+                rawset(registry, "_PRELOAD", nil)
+                rawset(registry, "LUA_NOENV", nil)
+                debug.setmetatable(registry, {
+                    __index = function(_, key)
+                        registryAccesses[key] = (registryAccesses[key] or 0) + 1
+                        if key == "_CLIBS" then return providedClibs end
+                        if key == "_LOADED" then return providedLoaded end
+                        if key == "_PRELOAD" then return providedPreload end
+                        if key == "LUA_NOENV" then return true end
+                    end,
+                })
+                """.trimIndent(),
+                "registry-index-prepare.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        LuaPackageLibrary.open(
+            state,
+            environment = { name ->
+                when (name) {
+                    "LUA_PATH_5_5" -> "injected-lua-path"
+                    "LUA_CPATH_5_5" -> "injected-c-path"
+                    else -> null
+                }
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return package.loaded == providedLoaded,
+                    package.preload == providedPreload,
+                    registryAccesses._CLIBS > 0,
+                    registryAccesses._LOADED > 0,
+                    registryAccesses._PRELOAD > 0,
+                    registryAccesses.LUA_NOENV > 0,
+                    rawget(registry, "_CLIBS") == nil,
+                    rawget(registry, "_LOADED") == nil,
+                    rawget(registry, "_PRELOAD") == nil
+                """.trimIndent(),
+                "registry-index-observe.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for (index in 1..9) {
+            assertTrue(state.toBoolean(index))
+        }
+    }
+
+    @Test
+    fun `package consults registry noenv only for present path variables`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                noenvReads = 0
+                local registry = debug.getregistry()
+                rawset(registry, "LUA_NOENV", nil)
+                debug.setmetatable(registry, {
+                    __index = function(_, key)
+                        if key == "LUA_NOENV" then
+                            noenvReads = noenvReads + 1
+                            return false
+                        end
+                    end,
+                })
+                """.trimIndent(),
+                "registry-noenv-prepare.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        LuaPackageLibrary.open(state, environment = { null })
+        assertEquals(
+            LuaStatus.OK,
+            state.load("return noenvReads", "registry-noenv-absent.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+        assertEquals(0L, state.toInteger(-1))
+        state.setTop(0)
+
+        LuaPackageLibrary.open(
+            state,
+            environment = { name -> if (name == "LUA_PATH_5_5") "custom-lua-path" else null },
+        )
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                "return noenvReads, package.path, package.cpath",
+                "registry-noenv-one-path.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("custom-lua-path", state.toString(2))
+        assertEquals(
+            LuaPackageLibrary.resolvePackagePath(
+                "LUA_CPATH",
+                LuaPackageLibrary.defaultCPath,
+                environmentEnabled = false,
+            ),
+            state.toString(3),
+        )
+        state.setTop(0)
+
+        LuaPackageLibrary.open(
+            state,
+            environment = { name ->
+                when (name) {
+                    "LUA_PATH_5_5" -> "second-lua-path"
+                    "LUA_CPATH_5_5" -> "second-c-path"
+                    else -> null
+                }
+            },
+        )
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                "return noenvReads, package.path, package.cpath",
+                "registry-noenv-two-paths.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertEquals(3L, state.toInteger(1))
+        assertEquals("second-lua-path", state.toString(2))
+        assertEquals("second-c-path", state.toString(3))
+    }
+
+    @Test
+    fun `package registry subtable creation honors newindex metamethod`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                registry = debug.getregistry()
+                assignedRegistryFields = {}
+                rawset(registry, "_CLIBS", nil)
+                rawset(registry, "_LOADED", nil)
+                rawset(registry, "_PRELOAD", nil)
+                debug.setmetatable(registry, {
+                    __index = function(_, key)
+                        if key == "LUA_NOENV" then return true end
+                        return "not a table"
+                    end,
+                    __newindex = function(_, key, value)
+                        assignedRegistryFields[key] = value
+                    end,
+                })
+                """.trimIndent(),
+                "registry-newindex-prepare.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        LuaStdlib.openPackage(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return assignedRegistryFields._LOADED == package.loaded,
+                    assignedRegistryFields._PRELOAD == package.preload,
+                    type(assignedRegistryFields._CLIBS) == "table",
+                    rawget(registry, "_CLIBS") == nil,
+                    rawget(registry, "_LOADED") == nil,
+                    rawget(registry, "_PRELOAD") == nil
+                """.trimIndent(),
+                "registry-newindex-observe.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        for (index in 1..6) {
+            assertTrue(state.toBoolean(index))
+        }
     }
 
     @Test

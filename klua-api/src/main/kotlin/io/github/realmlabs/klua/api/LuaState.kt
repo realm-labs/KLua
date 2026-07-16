@@ -587,13 +587,17 @@ class LuaState private constructor(
 
     fun pushRegistrySubtable(name: String) {
         refreshRegistryCoreValue()
-        val key = KLuaCoreValue.StringValue(name)
-        val table = registryCore.fields[key] as? KLuaCoreValue.TableValue
-            ?: KLuaCoreRuntime.createTable(coreGlobals).also {
-                registryCore.fields[key] = it
-                KLuaCoreRuntime.syncTable(registryCore, coreGlobals)
-            }
-        stack += table.toStackValue()
+        refreshRegistryStackValue()
+        val context = DefaultLuaCallContext(emptyList())
+        val key = LuaStackValue.StringValue(name)
+        val existing = context.getStackValueField(registry, key)
+        if (existing is LuaStackValue.TableValue) {
+            stack += existing
+            return
+        }
+        val created = KLuaCoreRuntime.createTable(coreGlobals).toStackValue()
+        context.setStackValueField(registry, key, created)
+        stack += created
     }
 
     private fun refreshRegistryCoreValue() {
@@ -613,19 +617,22 @@ class LuaState private constructor(
     }
 
     fun getField(index: Int, key: String) {
-        val table = requireTable(index)
-        stack += table.fields[LuaStackValue.StringValue(key)] ?: LuaStackValue.Nil
+        val receiver = requireValue(index)
+        stack += DefaultLuaCallContext(emptyList()).getStackValueField(
+            receiver,
+            LuaStackValue.StringValue(key),
+        )
     }
 
     fun setField(index: Int, key: String) {
-        val table = requireTable(index)
+        val receiver = requireValue(index)
         val value = requireValue(-1)
         stack.removeAt(stack.lastIndex)
-        if (value == LuaStackValue.Nil) {
-            table.fields.remove(LuaStackValue.StringValue(key))
-        } else {
-            table.fields[LuaStackValue.StringValue(key)] = value
-        }
+        DefaultLuaCallContext(emptyList()).setStackValueField(
+            receiver,
+            LuaStackValue.StringValue(key),
+            value,
+        )
     }
 
     fun setMetatable(index: Int) {
@@ -2095,11 +2102,15 @@ class LuaState private constructor(
         }
 
         override fun getValueField(value: Any?, key: Any?): Any? {
+            return getStackValueField(value.toStackValue(), key.toStackValue()).toPublicCallReturnValue()
+        }
+
+        fun getStackValueField(receiver: LuaStackValue, key: LuaStackValue): LuaStackValue {
             return stackIndexValue(
-                value.toStackValue(),
-                key.toStackValue(),
+                receiver,
+                key,
                 java.util.Collections.newSetFromMap(IdentityHashMap()),
-            ).toPublicCallReturnValue()
+            )
         }
 
         private fun stackIndexValue(
@@ -2190,10 +2201,14 @@ class LuaState private constructor(
         }
 
         override fun setValueField(value: Any?, key: Any?, fieldValue: Any?) {
+            setStackValueField(value.toStackValue(), key.toStackValue(), fieldValue.toStackValue())
+        }
+
+        fun setStackValueField(receiver: LuaStackValue, key: LuaStackValue, value: LuaStackValue) {
             stackSetValue(
-                value.toStackValue(),
-                key.toStackValue(),
-                fieldValue.toStackValue(),
+                receiver,
+                key,
+                value,
                 java.util.Collections.newSetFromMap(IdentityHashMap()),
                 depth = 0,
             )

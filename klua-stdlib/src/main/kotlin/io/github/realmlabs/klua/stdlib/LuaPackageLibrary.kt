@@ -26,21 +26,25 @@ internal object LuaPackageLibrary {
         "/usr/local/lib/lua/5.5/?.so;/usr/local/lib/lua/5.5/loadall.so;./?.so"
     }
 
-    fun open(state: LuaState): LuaState {
+    fun open(
+        state: LuaState,
+        environment: (String) -> String? = ::readEnvironment,
+        executableDirectory: String? = currentExecutableDirectory(),
+    ): LuaState {
         val initialTop = state.getTop()
-        state.pushRegistryTable()
-        state.getField(-1, "LUA_NOENV")
-        val environmentEnabled = state.config.packagePathEnvironmentEnabled && !state.toBoolean(-1)
-        state.setTop(initialTop)
+        state.pushRegistrySubtable(C_LIBRARIES_TABLE)
+        state.pop()
+        val luaPath = resolvePackagePath(state, "LUA_PATH", defaultLuaPath, environment, executableDirectory)
+        val cPath = resolvePackagePath(state, "LUA_CPATH", defaultCPath, environment, executableDirectory)
 
         state.pushRegistrySubtable(LOADED_TABLE)
         val loadedIndex = state.getTop()
         state.pushRegistrySubtable(PRELOAD_TABLE)
         val preloadIndex = state.getTop()
         state.newTable()
-        state.pushString(resolvePackagePath("LUA_PATH", defaultLuaPath, environmentEnabled))
+        state.pushString(luaPath)
         state.setField(-2, "path")
-        state.pushString(resolvePackagePath("LUA_CPATH", defaultCPath, environmentEnabled))
+        state.pushString(cPath)
         state.setField(-2, "cpath")
         state.pushString("$directorySeparator\n;\n?\n!\n-\n")
         state.setField(-2, "config")
@@ -69,10 +73,48 @@ internal object LuaPackageLibrary {
         executableDirectory: String? = currentExecutableDirectory(),
     ): String {
         val configured = if (environmentEnabled) {
-            environment("${environmentName}_5_5") ?: environment(environmentName)
+            configuredPackagePath(environmentName, environment)
         } else {
             null
         }
+        return finishPackagePath(configured, defaultPath, executableDirectory)
+    }
+
+    private fun resolvePackagePath(
+        state: LuaState,
+        environmentName: String,
+        defaultPath: String,
+        environment: (String) -> String?,
+        executableDirectory: String?,
+    ): String {
+        val configured = if (state.config.packagePathEnvironmentEnabled) {
+            configuredPackagePath(environmentName, environment)
+        } else {
+            null
+        }
+        if (configured == null) {
+            return finishPackagePath(null, defaultPath, executableDirectory)
+        }
+        val initialTop = state.getTop()
+        state.pushRegistryTable()
+        state.getField(-1, "LUA_NOENV")
+        val noEnvironment = state.toBoolean(-1)
+        state.setTop(initialTop)
+        return finishPackagePath(if (noEnvironment) null else configured, defaultPath, executableDirectory)
+    }
+
+    private fun configuredPackagePath(
+        environmentName: String,
+        environment: (String) -> String?,
+    ): String? {
+        return environment("${environmentName}_5_5") ?: environment(environmentName)
+    }
+
+    private fun finishPackagePath(
+        configured: String?,
+        defaultPath: String,
+        executableDirectory: String?,
+    ): String {
         val selected = configured?.let { expandDefaultPath(it, defaultPath) } ?: defaultPath
         if (!isWindows || '!' !in selected) {
             return selected
@@ -245,6 +287,7 @@ internal object LuaPackageLibrary {
     }
 
     private const val DYNAMIC_LIBRARIES_DISABLED_MESSAGE = "dynamic libraries not enabled; check your Lua installation"
+    private const val C_LIBRARIES_TABLE = "_CLIBS"
     private const val LOADED_TABLE = "_LOADED"
     private const val PRELOAD_TABLE = "_PRELOAD"
 
