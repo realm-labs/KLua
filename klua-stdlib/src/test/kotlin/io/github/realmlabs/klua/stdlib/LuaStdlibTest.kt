@@ -10505,6 +10505,103 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `print preserves raw strings and writes a line with no arguments`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                print()
+                print("a\0b", "", 42)
+                """.trimIndent(),
+                "print-raw.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(listOf("", "a\u0000b\t\t42"), output)
+        assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `print preserves converted prefixes when a later conversion fails`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local bad = setmetatable({}, {
+                    __tostring = function()
+                        error("boom")
+                    end,
+                })
+                local touched = false
+                local later = setmetatable({}, {
+                    __tostring = function()
+                        touched = true
+                        return "later"
+                    end,
+                })
+                local ok, message = pcall(print, "first", "second", bad, later)
+                local emptyOk = pcall(print, "", bad)
+                return ok, message, touched, emptyOk
+                """.trimIndent(),
+                "print-partial-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toString(2)?.endsWith(": boom") == true, state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals(listOf("first\tsecond", ""), output)
+    }
+
+    @Test
+    fun `print identity survives reopen while output routing updates`() {
+        val state = LuaState.create()
+        val firstOutput = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> firstOutput += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                savedPrint = print
+                print("before")
+                """.trimIndent(),
+                "print-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        val secondOutput = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> secondOutput += line })
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                print("after")
+                return savedPrint == print
+                """.trimIndent(),
+                "print-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(listOf("before"), firstOutput)
+        assertEquals(listOf("after"), secondOutput)
+    }
+
+    @Test
     fun `print uses primitive tostring metamethods`() {
         val state = LuaState.create()
         val output = mutableListOf<String>()

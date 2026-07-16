@@ -27,6 +27,7 @@ public object LuaStdlib {
     private val ipairsIteratorFunction = LuaFunction { context -> ipairsNext(context) }
     private val garbageCollectorStates = Collections.synchronizedMap(WeakHashMap<LuaState, GarbageCollectorState>())
     private val warningStates = Collections.synchronizedMap(WeakHashMap<LuaState, WarningState>())
+    private val printStates = Collections.synchronizedMap(WeakHashMap<LuaState, PrintState>())
 
     @JvmStatic
     public fun openLibs(state: LuaState): LuaState {
@@ -97,7 +98,12 @@ public object LuaStdlib {
         state.register("next", nextFunction)
         registerYieldable(state, "pairs", ::pairs)
         registerYieldable(state, "pcall", ::pcall)
-        state.register("print") { context -> print(context, output) }
+        val printState = synchronized(printStates) {
+            printStates.getOrPut(state) { PrintState(output) }.also { printState ->
+                printState.output = output
+            }
+        }
+        state.register("print", printState.function)
         state.register("rawequal", ::rawequal)
         state.register("rawget", ::rawget)
         state.register("rawlen", ::rawlen)
@@ -134,6 +140,12 @@ public object LuaStdlib {
     ) {
         var enabled: Boolean = true
         val function = LuaFunction { context -> warn(context, this) }
+    }
+
+    private class PrintState(
+        var output: Consumer<String>,
+    ) {
+        val function = LuaFunction { context -> print(context, this) }
     }
 
     private data class LoadFileSource(
@@ -534,8 +546,29 @@ public object LuaStdlib {
         return protectedCall(context, functionIndex = 1, firstArgumentIndex = 2, handlerIndex = null)
     }
 
-    private fun print(context: LuaCallContext, output: Consumer<String>): LuaReturn {
-        output.accept((1..context.argumentCount).joinToString("\t") { index -> toLuaString(context, index) })
+    private fun print(context: LuaCallContext, state: PrintState): LuaReturn {
+        val line = StringBuilder()
+        var converted = 0
+        try {
+            for (index in 1..context.argumentCount) {
+                val value = toLuaString(context, index)
+                if (converted > 0) {
+                    line.append('\t')
+                }
+                line.append(value)
+                converted++
+            }
+        } catch (error: RuntimeException) {
+            if (converted > 0) {
+                try {
+                    state.output.accept(line.toString())
+                } catch (outputError: RuntimeException) {
+                    error.addSuppressed(outputError)
+                }
+            }
+            throw error
+        }
+        state.output.accept(line.toString())
         return LuaReturn.none()
     }
 
