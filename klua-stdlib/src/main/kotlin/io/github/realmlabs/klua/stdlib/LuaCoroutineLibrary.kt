@@ -18,23 +18,32 @@ import io.github.realmlabs.klua.api.LuaYieldException
 import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.continueWith
 import io.github.realmlabs.klua.api.withContinuation
+import java.lang.ref.WeakReference
+import java.util.Collections
+import java.util.WeakHashMap
 
 internal object LuaCoroutineLibrary {
+    private val libraryStates = Collections.synchronizedMap(WeakHashMap<LuaState, CoroutineLibraryState>())
+
     fun open(state: LuaState): LuaState {
         state.pushRegistryInteger(MAIN_THREAD_REGISTRY_INDEX)
         val main = state.toUserData(-1, LuaMainThread::class.java)
         state.pop()
         checkNotNull(main) { "LuaState registry main thread is unavailable" }
-        val runtime = CoroutineRuntime(main) { current -> state.setMainThreadCurrent(current) }
+        val libraryState = synchronized(libraryStates) {
+            libraryStates.getOrPut(state) {
+                CoroutineLibraryState(main, WeakReference(state))
+            }
+        }
         state.newTable()
-        setYieldableFunctionField(state, "close") { context -> coroutineClose(context, runtime) }
-        setFunctionField(state, "create") { context -> coroutineCreate(context, "create", runtime) }
-        setYieldableFunctionField(state, "isyieldable") { context -> coroutineIsYieldable(context, runtime) }
-        setFunctionField(state, "resume") { context -> coroutineResume(context, runtime) }
-        setFunctionField(state, "running") { coroutineRunning(runtime) }
-        setFunctionField(state, "status") { context -> coroutineStatus(context, runtime) }
-        setFunctionField(state, "wrap") { context -> coroutineWrap(context, runtime) }
-        setYieldableFunctionField(state, "yield") { context -> coroutineYield(context, runtime) }
+        setFunctionField(state, "close", libraryState.closeFunction)
+        setFunctionField(state, "create", libraryState.createFunction)
+        setFunctionField(state, "isyieldable", libraryState.isYieldableFunction)
+        setFunctionField(state, "resume", libraryState.resumeFunction)
+        setFunctionField(state, "running", libraryState.runningFunction)
+        setFunctionField(state, "status", libraryState.statusFunction)
+        setFunctionField(state, "wrap", libraryState.wrapFunction)
+        setFunctionField(state, "yield", libraryState.yieldFunction)
         state.setGlobal("coroutine")
         return state
     }
@@ -395,14 +404,27 @@ internal object LuaCoroutineLibrary {
         }
     }
 
-    private fun setFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
+    private fun setFunctionField(state: LuaState, name: String, function: LuaFunction) {
         state.pushFunction(function)
         state.setField(-2, name)
     }
 
-    private fun setYieldableFunctionField(state: LuaState, name: String, function: (LuaCallContext) -> LuaReturn) {
-        state.pushFunction(LuaYieldableFunction { context -> function(context) })
-        state.setField(-2, name)
+    private class CoroutineLibraryState(
+        main: LuaMainThread,
+        stateReference: WeakReference<LuaState>,
+    ) {
+        private val runtime = CoroutineRuntime(main) { current ->
+            stateReference.get()?.setMainThreadCurrent(current)
+        }
+
+        val closeFunction = LuaYieldableFunction { context -> coroutineClose(context, runtime) }
+        val createFunction = LuaFunction { context -> coroutineCreate(context, "create", runtime) }
+        val isYieldableFunction = LuaYieldableFunction { context -> coroutineIsYieldable(context, runtime) }
+        val resumeFunction = LuaFunction { context -> coroutineResume(context, runtime) }
+        val runningFunction = LuaFunction { coroutineRunning(runtime) }
+        val statusFunction = LuaFunction { context -> coroutineStatus(context, runtime) }
+        val wrapFunction = LuaFunction { context -> coroutineWrap(context, runtime) }
+        val yieldFunction = LuaYieldableFunction { context -> coroutineYield(context, runtime) }
     }
 
     private class CoroutineRuntime(

@@ -17954,6 +17954,120 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine reopen preserves function identity and runtime ownership`() {
+        val state = LuaState.create()
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                oldCoroutine = coroutine
+                oldMain, oldMainFlag = oldCoroutine.running()
+                """.trimIndent(),
+                "coroutine-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        LuaStdlib.openCoroutine(state)
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local names = {
+                    "create", "resume", "running", "status", "wrap", "yield", "isyieldable", "close",
+                }
+                local mismatch = ""
+                for index = 1, #names do
+                    local name = names[index]
+                    if oldCoroutine[name] ~= coroutine[name] then
+                        mismatch = mismatch .. name .. ","
+                    end
+                end
+
+                local createdByNew = coroutine.create(function()
+                    local resumed = coroutine.yield("new-yield")
+                    return "new-return", resumed
+                end)
+                local oldFirstOk, oldFirstValue = oldCoroutine.resume(createdByNew)
+                local newSecondOk, newSecondValue, newResumeValue = coroutine.resume(createdByNew, "new-resume")
+
+                local createdByOld = oldCoroutine.create(function()
+                    local resumed = oldCoroutine.yield("old-yield")
+                    return "old-return", resumed
+                end)
+                local newFirstOk, newFirstValue = coroutine.resume(createdByOld)
+                local oldSecondOk, oldSecondValue, oldResumeValue = oldCoroutine.resume(createdByOld, "old-resume")
+
+                local wrappedByOld = oldCoroutine.wrap(function()
+                    local resumed = coroutine.yield("wrapped-yield")
+                    return "wrapped-return", resumed
+                end)
+                local wrappedFirst = wrappedByOld()
+                local wrappedSecond, wrappedResumeValue = wrappedByOld("wrapped-resume")
+
+                local closedAcrossGenerations = oldCoroutine.create(function()
+                    coroutine.yield("close-pause")
+                end)
+                local closeResumeOk, closePause = coroutine.resume(closedAcrossGenerations)
+                local closeOk = coroutine.close(closedAcrossGenerations)
+
+                local closedByOld = coroutine.create(function()
+                    oldCoroutine.yield("old-close-pause")
+                end)
+                local oldCloseResumeOk, oldClosePause = oldCoroutine.resume(closedByOld)
+                local oldCloseOk = oldCoroutine.close(closedByOld)
+
+                local newMain, newMainFlag = coroutine.running()
+                return oldCoroutine ~= coroutine, mismatch,
+                    oldMain == newMain, oldMainFlag, newMainFlag,
+                    oldFirstOk, oldFirstValue, newSecondOk, newSecondValue, newResumeValue,
+                    newFirstOk, newFirstValue, oldSecondOk, oldSecondValue, oldResumeValue,
+                    oldCoroutine.status(createdByNew), coroutine.status(createdByOld),
+                    wrappedFirst, wrappedSecond, wrappedResumeValue,
+                    closeResumeOk, closePause, closeOk, oldCoroutine.status(closedAcrossGenerations),
+                    oldCloseResumeOk, oldClosePause, oldCloseOk, coroutine.status(closedByOld),
+                    oldCoroutine.isyieldable(createdByNew), coroutine.isyieldable(createdByOld)
+                """.trimIndent(),
+                "coroutine-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertTrue(state.toBoolean(6))
+        assertEquals("new-yield", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("new-return", state.toString(9))
+        assertEquals("new-resume", state.toString(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals("old-yield", state.toString(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("old-return", state.toString(14))
+        assertEquals("old-resume", state.toString(15))
+        assertEquals("dead", state.toString(16))
+        assertEquals("dead", state.toString(17))
+        assertEquals("wrapped-yield", state.toString(18))
+        assertEquals("wrapped-return", state.toString(19))
+        assertEquals("wrapped-resume", state.toString(20))
+        assertTrue(state.toBoolean(21))
+        assertEquals("close-pause", state.toString(22))
+        assertTrue(state.toBoolean(23))
+        assertEquals("dead", state.toString(24))
+        assertTrue(state.toBoolean(25))
+        assertEquals("old-close-pause", state.toString(26))
+        assertTrue(state.toBoolean(27))
+        assertEquals("dead", state.toString(28))
+        assertTrue(state.toBoolean(29))
+        assertTrue(state.toBoolean(30))
+    }
+
+    @Test
     fun `coroutine create resume and status support non yielding functions`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)
