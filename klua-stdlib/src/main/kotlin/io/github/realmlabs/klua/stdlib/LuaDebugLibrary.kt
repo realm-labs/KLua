@@ -575,24 +575,31 @@ internal object LuaDebugLibrary {
     private const val C_TEMPORARY_LOCAL_NAME = "(C temporary)"
     private const val TRACEBACK_HEAD_LEVELS = 10
     private const val TRACEBACK_TAIL_LEVELS = 11
+    private const val CURRENT_NATIVE_FRAME_LEVEL = -1
+    private const val NATIVE_HOOK_FRAME_LEVEL = -2
+    private const val CORE_NATIVE_HOOK_LEVEL = -1
 
     private fun String.toLuaCString(): String = substringBefore('\u0000')
 
     private fun selectDebugFrames(frames: List<LuaStackFrame>): DebugFrameSelection {
-        if (frames.none { frame -> frame.isTailCall }) {
-            return DebugFrameSelection(frames, frames.indices.toList())
-        }
         val visibleFrames = ArrayList<LuaStackFrame>(frames.size)
         val rawLevels = ArrayList<Int>(frames.size)
         var index = 0
+        var rawLevel = 0
         while (index < frames.size) {
             val frame = frames[index]
             visibleFrames += frame
-            rawLevels += index
+            rawLevels += if (frame.lineDefined < 0) NATIVE_HOOK_FRAME_LEVEL else rawLevel
+            if (frame.lineDefined >= 0) {
+                rawLevel += 1
+            }
             index += 1
             var replacedCaller = frame.isTailCall
             while (replacedCaller && index < frames.size) {
                 replacedCaller = frames[index].isTailCall
+                if (frames[index].lineDefined >= 0) {
+                    rawLevel += 1
+                }
                 index += 1
             }
         }
@@ -614,7 +621,7 @@ internal object LuaDebugLibrary {
             listOf(
                 nativeDebugFrame(currentFunction, callSiteName, callSiteNameWhat, nativeArguments),
             ) + selected.frames,
-            listOf(-1) + selected.rawLevels,
+            listOf(CURRENT_NATIVE_FRAME_LEVEL) + selected.rawLevels,
         )
     }
 
@@ -655,11 +662,14 @@ internal object LuaDebugLibrary {
             currentDebugFrames(frames, currentFunction, callSiteName, callSiteNameWhat, nativeArguments),
         ) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
-                if (selectedRawLevel(level) == -1) {
-                    return if (index > 0) frames[level].locals.getOrNull(index - 1)?.name else null
+                return when (val selectedLevel = selectedRawLevel(level)) {
+                    CURRENT_NATIVE_FRAME_LEVEL -> {
+                        if (index > 0) frames[level].locals.getOrNull(index - 1)?.name else null
+                    }
+                    NATIVE_HOOK_FRAME_LEVEL -> context.setLocal(CORE_NATIVE_HOOK_LEVEL, index, value)
+                    null -> null
+                    else -> context.setLocal(selectedLevel, index, value)
                 }
-                val rawLevel = rawLevel(level) ?: return null
-                return context.setLocal(rawLevel, index, value)
             }
 
             override fun setDebugHook(context: LuaCallContext, index: Int, mask: String, count: Int): Boolean {

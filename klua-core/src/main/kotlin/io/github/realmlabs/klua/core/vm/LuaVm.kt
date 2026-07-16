@@ -948,13 +948,12 @@ internal class LuaVm(
         arguments: List<LuaValue>,
         callSiteInfo: CallSiteInfo? = null,
     ): LuaExecutionResult {
-        dispatchDebugNativeCall(function, arguments, callSiteInfo)
+        val effectiveArguments = dispatchDebugNativeCall(function, arguments, callSiteInfo)
         return try {
             val values = thread.runNativeCall {
-                function.call(nativeCallContext(function, arguments, callSiteInfo))
+                function.call(nativeCallContext(function, effectiveArguments, callSiteInfo))
             }
-            dispatchDebugNativeReturn(function, values, callSiteInfo)
-            LuaExecutionResult.Returned(values)
+            LuaExecutionResult.Returned(dispatchDebugNativeReturn(function, values, callSiteInfo))
         } catch (yield: LuaYieldSignal) {
             if (!function.yieldable) {
                 throw LuaVmException("attempt to yield across a C-call boundary")
@@ -974,8 +973,7 @@ internal class LuaVm(
                 yield.continuation?.let { continuation ->
                     continueNativeYield(function, continuation, arguments, callSiteInfo)
                 } ?: run {
-                    dispatchDebugNativeReturn(function, arguments, callSiteInfo)
-                    LuaExecutionResult.Returned(arguments)
+                    LuaExecutionResult.Returned(dispatchDebugNativeReturn(function, arguments, callSiteInfo))
                 }
             },
         )
@@ -1028,7 +1026,7 @@ internal class LuaVm(
         val result = ArrayList<LuaNativeStackFrame>(frames.size + if (hookFrame == null) 0 else 1)
         frames.forEachIndexed { level, frame ->
             if (insertionIndex == level) {
-                result += checkNotNull(hookFrame).frame
+                result += checkNotNull(hookFrame).snapshot()
             }
             val pc = if (frame.debuggerSuspendedPc >= 0) {
                 frame.debuggerSuspendedPc
@@ -1062,7 +1060,7 @@ internal class LuaVm(
             }
         }
         if (insertionIndex == frames.size) {
-            result += checkNotNull(hookFrame).frame
+            result += checkNotNull(hookFrame).snapshot()
         }
         return result
     }
@@ -1102,6 +1100,9 @@ internal class LuaVm(
     }
 
     private fun setLocal(frames: List<CallFrame>, level: Int, index: Int, value: LuaValue): String? {
+        if (level == NATIVE_HOOK_LOCAL_LEVEL) {
+            return nativeDebugHookFrame?.setLocal(index, value)
+        }
         if (level < 0) {
             return null
         }
@@ -1203,46 +1204,50 @@ internal class LuaVm(
         function: LuaNativeFunction,
         arguments: List<LuaValue>,
         callSiteInfo: CallSiteInfo?,
-    ) {
-        val frame = thread.currentFrame ?: return
-        val hook = debugHook ?: return
+    ): List<LuaValue> {
+        val frame = thread.currentFrame ?: return arguments
+        val hook = debugHook ?: return arguments
         if (!hook.hasCallHook || runningDebugHook) {
-            return
+            return arguments
         }
+        val nativeFrame = nativeHookFrame(function, arguments, callSiteInfo)
         callDebugHook(
             hook.function,
             "call",
             LuaNil,
             frame,
-            nativeFrame = nativeHookFrame(function, arguments, callSiteInfo),
+            nativeFrame = nativeFrame,
         )
+        return nativeFrame.values
     }
 
     private fun dispatchDebugNativeReturn(
         function: LuaNativeFunction,
         results: List<LuaValue>,
         callSiteInfo: CallSiteInfo?,
-    ) {
-        val frame = thread.currentFrame ?: return
-        val hook = debugHook ?: return
+    ): List<LuaValue> {
+        val frame = thread.currentFrame ?: return results
+        val hook = debugHook ?: return results
         if (!hook.hasReturnHook || runningDebugHook) {
-            return
+            return results
         }
+        val nativeFrame = nativeHookFrame(function, results, callSiteInfo)
         callDebugHook(
             hook.function,
             "return",
             LuaNil,
             frame,
-            nativeFrame = nativeHookFrame(function, results, callSiteInfo),
+            nativeFrame = nativeFrame,
         )
+        return nativeFrame.values
     }
 
     private fun nativeHookFrame(
         function: LuaNativeFunction,
         values: List<LuaValue>,
         callSiteInfo: CallSiteInfo?,
-    ): LuaNativeStackFrame {
-        return LuaNativeStackFrame(
+    ): NativeDebugHookFrame {
+        val template = LuaNativeStackFrame(
             sourceName = "=[C]",
             line = -1,
             lineDefined = -1,
@@ -1252,12 +1257,12 @@ internal class LuaVm(
             isVararg = true,
             activeLines = emptyList(),
             function = function,
-            locals = values.map { value -> LuaNativeLocalVariable(C_TEMPORARY_LOCAL_NAME, value) },
             callSiteName = callSiteInfo?.name,
             callSiteNameWhat = callSiteInfo?.nameWhat ?: "",
             transferStart = 1,
             transferCount = values.size,
         )
+        return NativeDebugHookFrame(template, values.toMutableList())
     }
 
     private fun dispatchDebugHooks(frame: CallFrame, pc: Int) {
@@ -1293,7 +1298,7 @@ internal class LuaVm(
         frame: CallFrame,
         transferStart: Int = 0,
         transferCount: Int = 0,
-        nativeFrame: LuaNativeStackFrame? = null,
+        nativeFrame: NativeDebugHookFrame? = null,
     ) {
         runningDebugHook = true
         if (nativeFrame == null) {
@@ -1302,7 +1307,8 @@ internal class LuaVm(
         }
         val previousNativeFrame = nativeDebugHookFrame
         if (nativeFrame != null) {
-            nativeDebugHookFrame = NativeDebugHookFrame(thread.callDepth, nativeFrame)
+            nativeFrame.targetLuaDepth = thread.callDepth
+            nativeDebugHookFrame = nativeFrame
         }
         try {
             when (callValue(function, listOf(LuaString(event), line), CallSiteInfo(0, "?", "hook"))) {
@@ -1330,8 +1336,7 @@ internal class LuaVm(
             val values = thread.runNativeCall {
                 continuation.resume(arguments)
             }
-            dispatchDebugNativeReturn(function, values, callSiteInfo)
-            LuaExecutionResult.Returned(values)
+            LuaExecutionResult.Returned(dispatchDebugNativeReturn(function, values, callSiteInfo))
         } catch (yield: LuaYieldSignal) {
             if (!function.yieldable) {
                 throw LuaVmException("attempt to yield across a C-call boundary")
@@ -2905,6 +2910,7 @@ private const val TRUTHY_PENDING_RESULT_COUNT = -2
 private const val VARARG_LOCAL_NAME = "(vararg)"
 private const val TEMPORARY_LOCAL_NAME = "(temporary)"
 private const val C_TEMPORARY_LOCAL_NAME = "(C temporary)"
+private const val NATIVE_HOOK_LOCAL_LEVEL = -1
 private val LUA_DECIMAL_FLOAT_PATTERN =
     Regex("""[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?""")
 private val LUA_HEXADECIMAL_FLOAT_PATTERN =
@@ -2940,10 +2946,25 @@ private data class DebugHookState(
     fun toNativeHook(): LuaNativeDebugHook = LuaNativeDebugHook(function, mask, count)
 }
 
-private data class NativeDebugHookFrame(
-    val targetLuaDepth: Int,
-    val frame: LuaNativeStackFrame,
-)
+private class NativeDebugHookFrame(
+    private val template: LuaNativeStackFrame,
+    val values: MutableList<LuaValue>,
+    var targetLuaDepth: Int = 0,
+) {
+    fun snapshot(): LuaNativeStackFrame {
+        return template.copy(
+            locals = values.map { value -> LuaNativeLocalVariable(C_TEMPORARY_LOCAL_NAME, value) },
+        )
+    }
+
+    fun setLocal(index: Int, value: LuaValue): String? {
+        if (index !in 1..values.size) {
+            return null
+        }
+        values[index - 1] = value
+        return C_TEMPORARY_LOCAL_NAME
+    }
+}
 
 private class LuaMetamethodSuspension(
     val result: LuaExecutionResult,

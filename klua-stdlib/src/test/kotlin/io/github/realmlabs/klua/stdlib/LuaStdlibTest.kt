@@ -8150,6 +8150,97 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug setlocal mutates native hook arguments and results`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local function hook(event)
+                    local info = debug.getinfo(2, "f")
+                    if info.func == math.modf then
+                        records[#records + 1] = debug.setlocal(2, 1, event == "call" and 8.25 or 11)
+                        if event == "return" then
+                            records[#records + 1] = debug.setlocal(2, 2, 22)
+                            records[#records + 1] = debug.setlocal(2, 3, 33) or "nil"
+                        end
+                        local _, first = debug.getlocal(2, 1)
+                        local _, second = debug.getlocal(2, 2)
+                        records[#records + 1] = first
+                        records[#records + 1] = second == nil and "nil" or second
+                    end
+                end
+
+                debug.sethook(hook, "cr", 0)
+                local integer, fraction = math.modf(3.5)
+                debug.sethook()
+                return integer, fraction,
+                    records[1], records[2], records[3],
+                    records[4], records[5], records[6], records[7], records[8]
+                """.trimIndent(),
+                "debug-hook-native-setlocal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(11L, state.toInteger(1))
+        assertEquals(22L, state.toInteger(2))
+        assertEquals("(C temporary)", state.toString(3))
+        assertEquals(8.25, state.toNumber(4))
+        assertEquals("nil", state.toString(5))
+        assertEquals("(C temporary)", state.toString(6))
+        assertEquals("(C temporary)", state.toString(7))
+        assertEquals("nil", state.toString(8))
+        assertEquals(11L, state.toInteger(9))
+        assertEquals(22L, state.toInteger(10))
+    }
+
+    @Test
+    fun `debug native call mutation precedes a target failure without a return event`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        var observedArgument: Any? = null
+        state.register("failingNative") { context ->
+            observedArgument = context.get(1)
+            throw LuaRuntimeException("native failure")
+        }
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local events = {}
+                local function hook(event)
+                    local info = debug.getinfo(2, "n")
+                    if info.name == "failingNative" then
+                        events[#events + 1] = event
+                        debug.setlocal(2, 1, "mutated")
+                    end
+                end
+                local co = coroutine.create(function()
+                    return failingNative("original")
+                end)
+                debug.sethook(co, hook, "cr", 0)
+                local ok, message = coroutine.resume(co)
+                debug.sethook(co)
+                return ok, message, events[1], #events
+                """.trimIndent(),
+                "debug-hook-native-failure-setlocal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("native failure", state.toString(2))
+        assertEquals("call", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals("mutated", observedArgument)
+    }
+
+    @Test
     fun `debug call hook reports Lua tail calls without a replaced caller return`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -8266,11 +8357,17 @@ class LuaStdlibTest {
                     local info = debug.getinfo(2, "fr")
                     if info.func == coroutine.yield then
                         local name, value = debug.getlocal(2, 1)
+                        local setName = debug.setlocal(
+                            2,
+                            1,
+                            event == "call" and "changed pause" or "changed resume"
+                        )
                         records[#records + 1] = event
                         records[#records + 1] = info.ftransfer
                         records[#records + 1] = info.ntransfer
                         records[#records + 1] = name
                         records[#records + 1] = value
+                        records[#records + 1] = setName
                     end
                 end
                 local co = coroutine.create(function()
@@ -8282,7 +8379,8 @@ class LuaStdlibTest {
                 debug.sethook(co)
                 return firstOk, paused, secondOk, resumed,
                     records[1], records[2], records[3], records[4], records[5],
-                    records[6], records[7], records[8], records[9], records[10]
+                    records[6], records[7], records[8], records[9], records[10],
+                    records[11], records[12]
                 """.trimIndent(),
                 "debug-hook-native-yield-return.lua",
             ),
@@ -8290,19 +8388,87 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertTrue(state.toBoolean(1))
-        assertEquals("pause", state.toString(2))
+        assertEquals("changed pause", state.toString(2))
         assertTrue(state.toBoolean(3))
-        assertEquals("resume", state.toString(4))
+        assertEquals("changed resume", state.toString(4))
         assertEquals("call", state.toString(5))
         assertEquals(1L, state.toInteger(6))
         assertEquals(1L, state.toInteger(7))
         assertEquals("(C temporary)", state.toString(8))
         assertEquals("pause", state.toString(9))
-        assertEquals("return", state.toString(10))
-        assertEquals(1L, state.toInteger(11))
+        assertEquals("(C temporary)", state.toString(10))
+        assertEquals("return", state.toString(11))
         assertEquals(1L, state.toInteger(12))
-        assertEquals("(C temporary)", state.toString(13))
-        assertEquals("resume", state.toString(14))
+        assertEquals(1L, state.toInteger(13))
+        assertEquals("(C temporary)", state.toString(14))
+        assertEquals("resume", state.toString(15))
+        assertEquals("(C temporary)", state.toString(16))
+    }
+
+    @Test
+    fun `debug setlocal mutates host continuation call and return values`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.register(
+            "hostYieldOnce",
+            LuaYieldableFunction { context ->
+                try {
+                    context.yield(listOf("first", context.get(1)))
+                } catch (yield: LuaYieldException) {
+                    throw yield.withContinuation { resumed ->
+                        LuaReturn.of("done", resumed.firstOrNull())
+                    }
+                }
+            },
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local co
+                local function hook(event)
+                    local info = debug.getinfo(2, "f")
+                    if info.func == hostYieldOnce then
+                        records[#records + 1] = event
+                        records[#records + 1] = debug.setlocal(
+                            co,
+                            2,
+                            1,
+                            event == "call" and "changed start" or "changed done"
+                        )
+                        if event == "return" then
+                            records[#records + 1] = debug.setlocal(co, 2, 2, "changed finish")
+                        end
+                    end
+                end
+                co = coroutine.create(function(value)
+                    return hostYieldOnce(value)
+                end)
+                debug.sethook(co, hook, "cr", 0)
+                local firstOk, marker, firstValue = coroutine.resume(co, "start")
+                local secondOk, done, finalValue = coroutine.resume(co, "finish")
+                debug.sethook(co)
+                return firstOk, marker, firstValue, secondOk, done, finalValue,
+                    records[1], records[2], records[3], records[4], records[5]
+                """.trimIndent(),
+                "debug-hook-host-continuation-setlocal.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("first", state.toString(2))
+        assertEquals("changed start", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("changed done", state.toString(5))
+        assertEquals("changed finish", state.toString(6))
+        assertEquals("call", state.toString(7))
+        assertEquals("(C temporary)", state.toString(8))
+        assertEquals("return", state.toString(9))
+        assertEquals("(C temporary)", state.toString(10))
+        assertEquals("(C temporary)", state.toString(11))
     }
 
     @Test
