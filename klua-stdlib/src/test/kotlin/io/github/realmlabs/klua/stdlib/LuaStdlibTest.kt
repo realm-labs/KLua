@@ -3608,6 +3608,225 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug upvalue helpers narrow indices and preserve open and closed sharing`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function makeClosed(value)
+                    return function()
+                        return value
+                    end
+                end
+
+                local source = makeClosed("closed")
+                local co = coroutine.create(function()
+                    local value = "open"
+                    local function left()
+                        return value
+                    end
+                    local function sibling()
+                        return value
+                    end
+                    coroutine.yield(left, sibling)
+                    return value
+                end)
+
+                local firstOk, left, sibling = coroutine.resume(co)
+                local wrappedName, wrappedValue = debug.getupvalue(left, 4294967297)
+                local wrappedIdSame = debug.upvalueid(left, 4294967297) == debug.upvalueid(left, 1)
+                local changedName = debug.setupvalue(left, 4294967297, "mutated")
+                local beforeJoinLeft, beforeJoinSibling = left(), sibling()
+                local targetIdBeforeJoin = debug.upvalueid(left, 1)
+                local joinOk, joinMessage = pcall(
+                    debug.upvaluejoin, left, 4294967297, source, 4294967297
+                )
+                local joinedIdSame = debug.upvalueid(left, 1) == debug.upvalueid(source, 1)
+                local joinedLeft, originalSibling = left(), sibling()
+                debug.setupvalue(source, 1, "joined")
+                local secondOk, parentValue = coroutine.resume(co)
+
+                return firstOk, wrappedName, wrappedValue, wrappedIdSame, changedName,
+                    beforeJoinLeft, beforeJoinSibling, type(targetIdBeforeJoin), joinOk, joinMessage,
+                    joinedIdSame, joinedLeft, originalSibling,
+                    left(), source(), sibling(), secondOk, parentValue
+                """.trimIndent(),
+                "debug-upvalue-open-closed.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("value", state.toString(2))
+        assertEquals("open", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("value", state.toString(5))
+        assertEquals("mutated", state.toString(6))
+        assertEquals("mutated", state.toString(7))
+        assertEquals("userdata", state.toString(8))
+        assertTrue(state.toBoolean(9), state.toString(10))
+        assertTrue(state.isNil(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals("closed", state.toString(12))
+        assertEquals("mutated", state.toString(13))
+        assertEquals("joined", state.toString(14))
+        assertEquals("joined", state.toString(15))
+        assertEquals("mutated", state.toString(16))
+        assertTrue(state.toBoolean(17))
+        assertEquals("mutated", state.toString(18))
+    }
+
+    @Test
+    fun `coroutine transfers preserve lua closure upvalue identity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function make(value)
+                    return function()
+                        return value
+                    end
+                end
+
+                local source = make("captured")
+                local co = coroutine.create(function(received)
+                    local name, value = debug.getupvalue(received, 1)
+                    coroutine.yield(name, value, received)
+                end)
+
+                local ok, name, value, returned = coroutine.resume(co, source)
+                return ok, name, value,
+                    debug.upvalueid(returned, 1) == debug.upvalueid(source, 1), returned()
+                """.trimIndent(),
+                "coroutine-function-upvalue-transfer.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("value", state.toString(2))
+        assertEquals("captured", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("captured", state.toString(5))
+    }
+
+    @Test
+    fun `debug upvalue helpers expose stripped loaded closure cells`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = "discarded-first"
+                local second = "discarded-second"
+                local function captured()
+                    return first, second
+                end
+
+                local environment = {marker = "environment"}
+                local loaded = assert(load(string.dump(captured, true), "stripped-upvalues", "b", environment))
+                local firstName, firstValue = debug.getupvalue(loaded, 1)
+                local secondName, secondValue = debug.getupvalue(loaded, 2)
+                local firstId = debug.upvalueid(loaded, 1)
+                local secondId = debug.upvalueid(loaded, 2)
+                local changedName = debug.setupvalue(loaded, 2, "replacement-second")
+                local loadedFirst, loadedSecond = loaded()
+
+                return firstName, firstValue == environment,
+                    secondName, secondValue, type(firstId), type(secondId), firstId ~= secondId,
+                    changedName, loadedFirst == environment, loadedSecond
+                """.trimIndent(),
+                "debug-upvalue-stripped.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("(no name)", state.toString(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("(no name)", state.toString(3))
+        assertTrue(state.isNil(4))
+        assertEquals("userdata", state.toString(5))
+        assertEquals("userdata", state.toString(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals("(no name)", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("replacement-second", state.toString(10))
+    }
+
+    @Test
+    fun `debug upvalue helpers preserve source ordering extras and result arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+                local function make(value)
+                    return function()
+                        return value
+                    end
+                end
+
+                local left = make("left")
+                local right = make("right")
+                local targetOk, targetMessage = pcall(
+                    debug.upvaluejoin, left, 99, "not-function", "not-index"
+                )
+                local getCount, getName, getValue = pack(debug.getupvalue(left, 1, "ignored"))
+                local setupCount, setupName = pack(debug.setupvalue(left, 1, nil, "ignored"))
+                local nilVisible = left() == nil
+                local idCount, id = pack(debug.upvalueid(left, 1, "ignored"))
+                local joinCount = pack(debug.upvaluejoin(left, 1, right, 1, "ignored"))
+                local nativeGetCount = pack(debug.getupvalue(print, 1, "ignored"))
+                local nativeSetupCount = pack(debug.setupvalue(print, 1, nil, "ignored"))
+                local nativeIdCount, nativeId = pack(debug.upvalueid(print, 1, "ignored"))
+                local nativeJoinOk, nativeJoinMessage = pcall(debug.upvaluejoin, print, 1, right, 1)
+
+                return targetOk, targetMessage,
+                    getCount, getName, getValue,
+                    setupCount, setupName, nilVisible,
+                    idCount, type(id), joinCount, left(),
+                    nativeGetCount, nativeSetupCount, nativeIdCount, nativeId,
+                    nativeJoinOk, nativeJoinMessage
+                """.trimIndent(),
+                "debug-upvalue-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #2 to 'upvaluejoin' (invalid upvalue index)", state.toString(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals("value", state.toString(4))
+        assertEquals("left", state.toString(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals("value", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals("userdata", state.toString(10))
+        assertEquals(0L, state.toInteger(11))
+        assertEquals("right", state.toString(12))
+        assertEquals(0L, state.toInteger(13))
+        assertEquals(0L, state.toInteger(14))
+        assertEquals(1L, state.toInteger(15))
+        assertTrue(state.isNil(16))
+        assertFalse(state.toBoolean(17))
+        assertEquals("bad argument #2 to 'upvaluejoin' (invalid upvalue index)", state.toString(18))
+    }
+
+    @Test
     fun `debug upvalue identity functions report argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -12256,8 +12475,8 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(7))
         assertTrue(state.isNil(8))
         assertEquals(1L, state.toInteger(9))
-        assertTrue(state.isNil(10))
-        assertTrue(state.isNil(11))
+        assertEquals("(no name)", state.toString(10))
+        assertEquals("table", state.typeName(11))
     }
 
     @Test

@@ -17,6 +17,7 @@ import io.github.realmlabs.klua.core.value.LuaNativeFunction
 import io.github.realmlabs.klua.core.value.LuaNativeStackFrame
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUserDataProperty
 import io.github.realmlabs.klua.core.value.LuaUserDataType
@@ -245,7 +246,9 @@ public object KLuaCoreRuntime {
         globals: KLuaCoreGlobals,
         environmentValue: LuaValue,
     ): KLuaCoreValue.FunctionValue {
-        val closure = LuaClosure(chunk.prototype, globals = environmentValue)
+        val upvalues = MutableList(chunk.prototype.upvalues.size) { LuaUpvalue(LuaNil) }
+        upvalues.firstOrNull()?.value = environmentValue
+        val closure = LuaClosure(chunk.prototype, upvalues, globals = environmentValue)
         return KLuaCoreValue.FunctionValue { arguments ->
             callPublicLuaFunction(closure, arguments, globals)
         }.also { functionValue ->
@@ -411,8 +414,10 @@ public object KLuaCoreRuntime {
         }
         val closure = function.sourceFunction as? LuaClosure ?: return null
         val zeroIndex = index - 1
-        val name = closure.prototype.upvalueNames.getOrNull(zeroIndex) ?: return null
         val upvalue = closure.upvalues.getOrNull(zeroIndex) ?: return null
+        val name = closure.prototype.upvalueNames.getOrNull(zeroIndex)
+            ?.takeIf { candidate -> candidate.isNotEmpty() }
+            ?: NO_UPVALUE_NAME
         return KLuaCoreUpvalue(name, toPublicValue(upvalue.value, globals))
     }
 
@@ -461,8 +466,10 @@ public object KLuaCoreRuntime {
         }
         val closure = function.sourceFunction as? LuaClosure ?: return null
         val zeroIndex = index - 1
-        val name = closure.prototype.upvalueNames.getOrNull(zeroIndex) ?: return null
         val upvalue = closure.upvalues.getOrNull(zeroIndex) ?: return null
+        val name = closure.prototype.upvalueNames.getOrNull(zeroIndex)
+            ?.takeIf { candidate -> candidate.isNotEmpty() }
+            ?: NO_UPVALUE_NAME
         upvalue.value = value.toLuaValueOrNull(globals) ?: return null
         return name
     }
@@ -772,6 +779,8 @@ public sealed interface KLuaCoreCallResult {
         public val errorObjectFinalized: Boolean = false,
     ) : KLuaCoreCallResult
 }
+
+private const val NO_UPVALUE_NAME = "(no name)"
 
 public sealed interface KLuaCoreLoad {
     public data class Success(

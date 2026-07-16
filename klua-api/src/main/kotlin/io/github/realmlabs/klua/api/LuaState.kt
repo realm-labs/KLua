@@ -1062,6 +1062,7 @@ class LuaState private constructor(
     private fun LuaCallContext.argumentToCoreValue(index: Int): KLuaCoreValue {
         return when (typeName(index)) {
             "table" -> getTable(index).toCoreReturnValue()
+            "function" -> getLuaValue(index).toCoreReturnValue()
             else -> get(index).toCoreReturnValue()
         }
     }

@@ -360,11 +360,11 @@ internal object LuaDebugLibrary {
     private fun upvalueJoin(context: LuaCallContext): LuaReturn {
         val targetIndex = requiredPositiveUpvalueIndex(context, 2, "upvaluejoin")
         requireFunction(context, 1, "upvaluejoin")
-        val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "upvaluejoin")
-        requireFunction(context, 3, "upvaluejoin")
         if (context.getUpvalueId(1, targetIndex) == null) {
             throw LuaRuntimeException("bad argument #2 to 'upvaluejoin' (invalid upvalue index)")
         }
+        val sourceIndex = requiredPositiveUpvalueIndex(context, 4, "upvaluejoin")
+        requireFunction(context, 3, "upvaluejoin")
         if (context.getUpvalueId(3, sourceIndex) == null) {
             throw LuaRuntimeException("bad argument #4 to 'upvaluejoin' (invalid upvalue index)")
         }

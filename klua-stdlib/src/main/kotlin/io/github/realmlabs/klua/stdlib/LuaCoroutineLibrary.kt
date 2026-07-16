@@ -412,10 +412,10 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun argumentValue(context: LuaCallContext, index: Int): Any? {
-        return if (context.typeName(index) == "table") {
-            context.getTable(index)
-        } else {
-            context.get(index)
+        return when (context.typeName(index)) {
+            "table" -> context.getTable(index)
+            "function" -> context.getLuaValue(index)
+            else -> context.get(index)
         }
     }
 
