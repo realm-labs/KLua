@@ -217,6 +217,16 @@ internal class LuaThread {
         return frames.asReversed().toList()
     }
 
+    fun lifecycleRoots(): List<LuaValue> = buildList {
+        for (frame in frames) {
+            add(frame.function)
+            add(frame.environment.value)
+            addAll(frame.snapshotValues())
+            addAll(frame.varargs)
+            frame.protectedErrorHandler?.let(::add)
+        }
+    }
+
     fun clearFrames() {
         frames.clear()
     }

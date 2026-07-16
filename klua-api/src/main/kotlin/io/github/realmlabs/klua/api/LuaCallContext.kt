@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.api
 
+import java.util.function.Consumer
+
 interface LuaCallContext {
     val argumentCount: Int
 
@@ -68,6 +70,16 @@ interface LuaCallContext {
 
     fun protectedCall(function: Any?, arguments: List<Any?>): LuaReturn {
         return call(function, arguments)
+    }
+
+    /** Runs one complete KLua collection cycle and returns finalizer warnings. */
+    fun collectGarbage(): List<String> {
+        System.gc()
+        return emptyList()
+    }
+
+    fun collectGarbage(warningOutput: Consumer<String>) {
+        collectGarbage().forEach(warningOutput::accept)
     }
 
     fun callWithErrorHandler(index: Int, arguments: List<Any?>, handlerIndex: Int): LuaReturn {

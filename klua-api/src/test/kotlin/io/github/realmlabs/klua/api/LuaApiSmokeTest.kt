@@ -633,6 +633,27 @@ class LuaApiSmokeTest {
         val name: String,
     )
 
+    @Test
+    fun `state close finalizes API stack tables and is idempotent`() {
+        val state = LuaState.create()
+        val finalizedTypes = mutableListOf<String>()
+        state.newTable()
+        state.newTable()
+        state.pushFunction { context ->
+            finalizedTypes += context.typeName(1)
+            LuaReturn.none()
+        }
+        state.setField(2, "__gc")
+        state.setMetatable(1)
+
+        state.close()
+        state.close()
+
+        assertEquals(listOf("table"), finalizedTypes)
+        assertEquals(0, state.getTop())
+        assertFailsWith<IllegalStateException> { state.load("return 1") }
+    }
+
     private object EmptyLuaCallContext : LuaCallContext {
         override val argumentCount: Int = 0
 

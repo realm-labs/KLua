@@ -103,8 +103,16 @@ public object LuaStdlib {
         state.pushString("Lua 5.5")
         state.setGlobal("_VERSION")
         state.register("assert", assertFunction)
+        val warningState = synchronized(warningStates) {
+            warningStates.getOrPut(state) { WarningState(output) }.also { warningState ->
+                warningState.output = output
+            }
+        }
+        state.setFinalizerWarningOutput(warningState::emitLifecycleWarning)
         val garbageCollectorState = synchronized(garbageCollectorStates) {
-            garbageCollectorStates.getOrPut(state) { GarbageCollectorState() }
+            garbageCollectorStates.getOrPut(state) { GarbageCollectorState(warningState) }.also { collector ->
+                collector.warningState = warningState
+            }
         }
         state.register("collectgarbage", garbageCollectorState.function)
         val fileFunctions = if (state.config.unsafeStandardLibraryAccessEnabled) {
@@ -142,17 +150,14 @@ public object LuaStdlib {
         state.register("tonumber", tonumberFunction)
         state.register("tostring", tostringFunction)
         state.register("type", typeFunction)
-        val warningState = synchronized(warningStates) {
-            warningStates.getOrPut(state) { WarningState(output) }.also { warningState ->
-                warningState.output = output
-            }
-        }
         state.register("warn", warningState.function)
         state.register("xpcall", xpcallFunction)
         return state
     }
 
-    private class GarbageCollectorState {
+    private class GarbageCollectorState(
+        var warningState: WarningState,
+    ) {
         var running: Boolean = true
         var mode: String = "incremental"
         val params: MutableMap<String, Int> = DEFAULT_GARBAGE_COLLECTOR_PARAMS
@@ -165,6 +170,12 @@ public object LuaStdlib {
     ) {
         var enabled: Boolean = true
         val function = LuaFunction { context -> warn(context, this) }
+
+        fun emitLifecycleWarning(message: String) {
+            if (enabled) {
+                output.accept("Lua warning: $message")
+            }
+        }
     }
 
     private class PrintState(
@@ -270,6 +281,7 @@ public object LuaStdlib {
     ): LuaReturn {
         return when (val option = optionalString(context, 1, "collect", "collectgarbage").substringBefore('\u0000')) {
             "collect" -> {
+                context.collectGarbage(Consumer(state.warningState::emitLifecycleWarning))
                 System.gc()
                 LuaReturn.of(0L)
             }

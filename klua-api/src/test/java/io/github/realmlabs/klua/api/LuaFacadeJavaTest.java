@@ -71,6 +71,15 @@ class LuaFacadeJavaTest {
     }
 
     @Test
+    void stateSupportsTryWithResources() {
+        try (LuaState state = LuaState.create()) {
+            assertEquals(LuaStatus.OK, state.load("return 42"));
+            assertEquals(LuaStatus.OK, state.pcall(0, 1));
+            assertEquals(42L, state.toInteger(-1));
+        }
+    }
+
+    @Test
     void productionConfigIsJavaFriendlyAndPreservesExplicitHostFunctions() {
         LuaConfig config = LuaConfig.production(50_000);
         Lua lua = Lua.create(config);

@@ -37,6 +37,8 @@ internal open class LuaStack(size: Int) {
         }
     }
 
+    fun snapshotValues(): List<LuaValue> = values.toList()
+
     fun capture(index: Int): LuaUpvalue {
         checkIndex(index)
         val openCaptures = captures ?: mutableMapOf<Int, LuaUpvalue>().also { created -> captures = created }

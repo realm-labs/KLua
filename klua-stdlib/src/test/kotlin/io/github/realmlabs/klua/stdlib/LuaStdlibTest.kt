@@ -12686,6 +12686,333 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage finalizes unreachable tables newest first and supports resurrection`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                events = {}
+                local mt = {
+                    __gc = function(value)
+                        events[#events + 1] = value.name
+                        if value.name == "new" then resurrected = value end
+                    end,
+                }
+                local old = setmetatable({name = "old"}, mt)
+                local new = setmetatable({name = "new"}, mt)
+                live = setmetatable({name = "live"}, mt)
+                old, new = nil, nil
+                collectgarbage()
+                local first, second = events[1], events[2]
+                collectgarbage()
+                local afterResurrection = #events
+                live = nil
+                collectgarbage()
+                return first, second, afterResurrection, events[3], resurrected.name, #events
+                """.trimIndent(),
+                "table-finalizers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("new", state.toString(1))
+        assertEquals("old", state.toString(2))
+        assertEquals(2L, state.toInteger(3))
+        assertEquals("live", state.toString(4))
+        assertEquals("new", state.toString(5))
+        assertEquals(3L, state.toInteger(6))
+    }
+
+    @Test
+    fun `collectgarbage only enrolls objects when gc exists at metatable assignment`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                count = 0
+                local mt = {}
+                local skipped = setmetatable({}, mt)
+                mt.__gc = function() count = count + 1 end
+                skipped = nil
+                collectgarbage()
+                local before = count
+
+                local enrolled = setmetatable({}, mt)
+                enrolled = nil
+                collectgarbage()
+                return before, count
+                """.trimIndent(),
+                "table-finalizer-enrollment.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(1L, state.toInteger(2))
+    }
+
+    @Test
+    fun `collectgarbage protects finalizer failures and continues`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer(output::add))
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                events = {}
+                local failed = setmetatable({}, {
+                    __gc = function() error("finalizer failed", 0) end,
+                })
+                local completed = setmetatable({}, {
+                    __gc = function() events[#events + 1] = "completed" end,
+                })
+                failed, completed = nil, nil
+                local result = collectgarbage()
+                return result, events[1]
+                """.trimIndent(),
+                "table-finalizer-errors.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals("completed", state.toString(2))
+        assertEquals(listOf("Lua warning: error in __gc (finalizer failed)"), output)
+    }
+
+    @Test
+    fun `collectgarbage reports a finalizer failure before running the next finalizer`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer(output::add))
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local completed = setmetatable({}, {
+                    __gc = function() warn("completed") end,
+                })
+                local failed = setmetatable({}, {
+                    __gc = function() error("failed first", 0) end,
+                })
+                completed, failed = nil, nil
+                collectgarbage()
+                """.trimIndent(),
+                "table-finalizer-warning-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        assertEquals(
+            listOf("Lua warning: error in __gc (failed first)", "Lua warning: completed"),
+            output,
+        )
+    }
+
+    @Test
+    fun `collectgarbage finalizes host userdata and passes a userdata target`() {
+        val state = LuaState.create()
+        val host = DebugHostObject("finalized")
+        LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state, LuaDebugInput { null }, Consumer { })
+        state.pushUserData(host)
+        state.setGlobal("host")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                count = 0
+                local value = debug.setmetatable(host, {
+                    __gc = function(value)
+                        count = count + 1
+                        finalizedType = type(value)
+                    end,
+                })
+                host = nil
+                value = nil
+                collectgarbage()
+                return count, finalizedType
+                """.trimIndent(),
+                "userdata-finalizer.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertEquals("userdata", state.toString(2))
+    }
+
+    @Test
+    fun `finalizer can explicitly rearm its table for a later collection`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                count = 0
+                local mt
+                mt = {
+                    __gc = function(value)
+                        count = count + 1
+                        if count == 1 then setmetatable(value, mt) end
+                    end,
+                }
+                local value = setmetatable({}, mt)
+                value = nil
+                collectgarbage()
+                collectgarbage()
+                collectgarbage()
+                return count
+                """.trimIndent(),
+                "table-finalizer-rearm.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+    }
+
+    @Test
+    fun `collectgarbage suppresses debug hooks while running finalizers`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state, LuaDebugInput { null }, Consumer { })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local insideFinalizer = false
+                local hookRanInside = false
+                debug.sethook(function()
+                    if insideFinalizer then hookRanInside = true end
+                end, "crl")
+                local value = setmetatable({}, {
+                    __gc = function()
+                        insideFinalizer = true
+                        local work = 1 + 2
+                        insideFinalizer = false
+                    end,
+                })
+                value = nil
+                collectgarbage()
+                debug.sethook()
+                return hookRanInside
+                """.trimIndent(),
+                "finalizer-hook-suppression.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+    }
+
+    @Test
+    fun `collectgarbage treats values retained on the host API stack as roots`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                finalized = false
+                return setmetatable({}, {__gc = function() finalized = true end})
+                """.trimIndent(),
+                "api-stack-finalizer-value.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("collectgarbage(); return finalized", "api-stack-finalizer-rooted.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+        assertFalse(state.toBoolean(-1))
+        state.pop(2)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load("collectgarbage(); return finalized", "api-stack-finalizer-released.lua"),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+        assertTrue(state.toBoolean(-1))
+    }
+
+    @Test
+    fun `collectgarbage traces values retained by suspended coroutine stacks`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                finalized = false
+                local co = coroutine.create(function()
+                    local value = setmetatable({}, {__gc = function() finalized = true end})
+                    coroutine.yield()
+                    value = nil
+                end)
+                assert(coroutine.resume(co))
+                collectgarbage()
+                local whileSuspended = finalized
+                assert(coroutine.resume(co))
+                co = nil
+                collectgarbage()
+                return whileSuspended, finalized
+                """.trimIndent(),
+                "coroutine-stack-finalizer-roots.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+    }
+
+    @Test
+    fun `state close finalizes reachable tables once in reverse enrollment order`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer(output::add))
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mt = {__gc = function(value) warn(value.name) end}
+                first = setmetatable({name = "first"}, mt)
+                second = setmetatable({name = "second"}, mt)
+                """.trimIndent(),
+                "state-close-finalizers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        state.close()
+        state.close()
+
+        assertEquals(listOf("Lua warning: second", "Lua warning: first"), output)
+        assertEquals(0, state.getTop())
+        assertFailsWith<IllegalStateException> { state.load("return 1", "closed-state.lua") }
+    }
+
+    @Test
     fun `collectgarbage controls and reports collector state`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)

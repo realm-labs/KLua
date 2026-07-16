@@ -35,7 +35,7 @@ private val LUA_HEXADECIMAL_FLOAT_PATTERN =
 
 class LuaState private constructor(
     val config: LuaConfig,
-) {
+) : AutoCloseable {
     private val stack = mutableListOf<LuaStackValue>()
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
@@ -46,7 +46,7 @@ class LuaState private constructor(
         registry.fields[KLuaCoreValue.IntegerValue(3)] = KLuaCoreValue.UserDataValue(mainThread)
         KLuaCoreRuntime.syncTable(registry, coreGlobals)
     }
-    private val registry = LuaStackValue.TableValue(coreValue = registryCore)
+    private val registry = LuaStackValue.TableValue(initialCoreValue = registryCore)
     private val registryGetterFunction = LuaFunction {
         refreshRegistryCoreValue()
         registryCore.fields[KLuaCoreValue.IntegerValue(2)] = KLuaCoreRuntime.getGlobalTable(coreGlobals)
@@ -68,6 +68,18 @@ class LuaState private constructor(
     private val indexMetamethodKey = LuaStackValue.StringValue("__index")
     private val newIndexMetamethodKey = LuaStackValue.StringValue("__newindex")
     private var lastError: LuaException? = null
+    private var closed = false
+    private var finalizerWarningOutput = Consumer<String> { warning ->
+        System.err.println("Lua warning: $warning")
+    }
+
+    init {
+        KLuaCoreRuntime.addLifecycleRoot(coreGlobals, registryCore)
+        KLuaCoreRuntime.addLifecycleRootProvider(coreGlobals) {
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            stack.map { value -> value.toCoreValue(tableCache) }
+        }
+    }
 
     companion object {
         @JvmStatic
@@ -79,8 +91,36 @@ class LuaState private constructor(
 
     fun getLastError(): LuaException? = lastError
 
+    /** Configures where protected `__gc` failures are reported. */
+    fun setFinalizerWarningOutput(output: Consumer<String>) {
+        finalizerWarningOutput = output
+    }
+
+    override fun close() {
+        if (closed) {
+            return
+        }
+        try {
+            KLuaCoreRuntime.close(coreGlobals, finalizerWarningOutput::accept)
+        } finally {
+            stack.clear()
+            globals.fields.clear()
+            registry.fields.clear()
+            userMetatables.clear()
+            nativeFunctionValues.clear()
+            coreBackedNativeGlobals.clear()
+            userValues.clear()
+            closed = true
+        }
+    }
+
+    private fun checkOpen() {
+        check(!closed) { "LuaState is closed" }
+    }
+
     @JvmOverloads
     fun load(source: String, chunkName: String = "chunk"): LuaStatus {
+        checkOpen()
         return when (val result = KLuaCoreRuntime.compile(source, chunkName)) {
             is KLuaCoreLoad.Success -> {
                 lastError = null
@@ -96,6 +136,7 @@ class LuaState private constructor(
     }
 
     fun loadBytecode(bytes: ByteArray): LuaStatus {
+        checkOpen()
         return when (val result = KLuaCoreRuntime.loadBytecode(bytes)) {
             is KLuaCoreLoad.Success -> {
                 lastError = null
@@ -135,6 +176,7 @@ class LuaState private constructor(
 
     @JvmOverloads
     fun pcall(argumentCount: Int, resultCount: Int = -1): LuaStatus {
+        checkOpen()
         require(argumentCount >= 0) { "argumentCount must be non-negative" }
         require(resultCount >= -1) { "resultCount must be -1 or non-negative" }
         val functionIndex = stack.size - argumentCount - 1
@@ -913,7 +955,7 @@ class LuaState private constructor(
                 if (cached != null) {
                     return cached
                 }
-                val tableValue = LuaStackValue.TableValue(coreValue = this)
+                val tableValue = LuaStackValue.TableValue(initialCoreValue = this)
                 resolvedTableCache[this] = tableValue
                 tableValue.fields.putAll(
                     fields.map { (fieldKey, fieldValue) ->
@@ -1211,11 +1253,12 @@ class LuaState private constructor(
         if (cached != null) {
             return cached
         }
-        if (coreValue != null) {
-            syncStackTableToCore(this, coreValue, tableCache)
-            return coreValue
+        coreValue?.let { existing ->
+            syncStackTableToCore(this, existing, tableCache)
+            return existing
         }
         val tableValue = KLuaCoreValue.TableValue(mutableMapOf())
+        coreValue = tableValue
         tableCache[this] = tableValue
         tableValue.fields.putAll(
             fields.map { (fieldKey, fieldValue) ->
@@ -1487,7 +1530,16 @@ class LuaState private constructor(
             throw IllegalArgumentException("argument $originalIndex is none")
         }
         when (value) {
-            is LuaStackValue.TableValue -> value.metatable = newMetatable
+            is LuaStackValue.TableValue -> {
+                value.metatable = newMetatable
+                val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+                val coreTable = value.toCoreTableValue(tableCache)
+                KLuaCoreRuntime.setTableMetatable(
+                    coreGlobals,
+                    coreTable,
+                    newMetatable?.toCoreTableValue(tableCache),
+                )
+            }
             is LuaStackValue.UserDataValue -> {
                 if (newMetatable == null) {
                     userMetatables.remove(value.value)
@@ -2465,6 +2517,16 @@ class LuaState private constructor(
             return coreCallResult(result)
         }
 
+        override fun collectGarbage(): List<String> {
+            val warnings = mutableListOf<String>()
+            coreContext.collectGarbage(warnings::add)
+            return warnings
+        }
+
+        override fun collectGarbage(warningOutput: Consumer<String>) {
+            coreContext.collectGarbage(warningOutput::accept)
+        }
+
         override fun callWithErrorHandler(
             index: Int,
             arguments: List<Any?>,
@@ -2509,8 +2571,9 @@ class LuaState private constructor(
 
         data class TableValue(
             val fields: MutableMap<LuaStackValue, LuaStackValue> = linkedMapOf(),
-            val coreValue: KLuaCoreValue.TableValue? = null,
+            private val initialCoreValue: KLuaCoreValue.TableValue? = null,
         ) : LuaStackValue {
+            var coreValue: KLuaCoreValue.TableValue? = initialCoreValue
             var metatable: TableValue? = null
         }
 

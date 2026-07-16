@@ -24,6 +24,7 @@ import io.github.realmlabs.klua.core.value.LuaUserDataType
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.vm.LuaExecutionResult
+import io.github.realmlabs.klua.core.vm.LuaLifecycle
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmDebugObserver
 import io.github.realmlabs.klua.core.vm.LuaVmException
@@ -108,6 +109,7 @@ public object KLuaCoreRuntime {
                 globals.environment,
                 metatables = globals.vmMetatableProvider,
                 instructionLimit = limits.instructionLimit,
+                lifecycle = globals.lifecycle,
             )
             if (initialDebugHook != null) {
                 val hookFunction = initialDebugHook.function.toLuaValueOrNull(globals)
@@ -167,6 +169,7 @@ public object KLuaCoreRuntime {
                 globals.table,
                 globals.environment,
                 metatables = globals.vmMetatableProvider,
+                lifecycle = globals.lifecycle,
             )
             KLuaCoreComparison.Success(compare(vm, luaLeft, luaRight))
         } catch (error: LuaVmException) {
@@ -360,6 +363,58 @@ public object KLuaCoreRuntime {
         return toPublicValue(LuaTable(), globals) as KLuaCoreValue.TableValue
     }
 
+    public fun setTableMetatable(
+        globals: KLuaCoreGlobals,
+        table: KLuaCoreValue.TableValue,
+        metatable: KLuaCoreValue.TableValue?,
+    ) {
+        val luaTable = table.toLuaValueOrNull(globals) as LuaTable
+        val luaMetatable = metatable?.toLuaValueOrNull(globals) as? LuaTable
+        luaTable.metatable = luaMetatable
+        table.metatable = metatable
+        globals.lifecycle.markTable(luaTable, luaMetatable)
+    }
+
+    public fun addLifecycleRoot(globals: KLuaCoreGlobals, root: KLuaCoreValue) {
+        globals.lifecycleRootProviders += { listOfNotNull(root.toLuaValueOrNull(globals)) }
+    }
+
+    public fun addLifecycleRootProvider(
+        globals: KLuaCoreGlobals,
+        provider: () -> List<KLuaCoreValue>,
+    ) {
+        globals.lifecycleRootProviders += {
+            provider().mapNotNull { value -> value.toLuaValueOrNull(globals) }
+        }
+    }
+
+    public fun close(globals: KLuaCoreGlobals): List<String> {
+        val warnings = mutableListOf<String>()
+        close(globals, warnings::add)
+        return warnings
+    }
+
+    public fun close(globals: KLuaCoreGlobals, reportWarning: (String) -> Unit) {
+        val vm = LuaVm(
+            globals.table,
+            globals.environment,
+            metatables = globals.vmMetatableProvider,
+            lifecycle = globals.lifecycle,
+        )
+        globals.lifecycle.close(
+            callFinalizer = { function, target ->
+                try {
+                    vm.callWithYieldability(function, listOf(target), isYieldable = false)
+                    null
+                } catch (error: LuaVmException) {
+                    error.message ?: "runtime error"
+                }
+            },
+            reportWarning = reportWarning,
+        )
+        globals.dispose()
+    }
+
     public fun refreshTable(table: KLuaCoreValue.TableValue, globals: KLuaCoreGlobals): KLuaCoreValue.TableValue {
         val source = table.sourceTable ?: return table
         return toPublicValue(source, globals) as KLuaCoreValue.TableValue
@@ -401,6 +456,10 @@ public object KLuaCoreRuntime {
             globals.userDataMetatables.remove(value)
         } else {
             globals.userDataMetatables[value] = luaMetatable
+            globals.lifecycle.markUserData(
+                LuaUserData(value) { hostValue -> globals.userDataType(hostValue) },
+                luaMetatable,
+            )
         }
     }
 
@@ -500,6 +559,11 @@ public class KLuaCoreGlobals internal constructor(
     internal var stringMetatableConfigured: Boolean = false
     internal val rawTypeMetatables: MutableMap<String, LuaTable> = linkedMapOf()
     internal val userDataMetatables: MutableMap<Any, LuaTable> = IdentityHashMap()
+    internal val lifecycle: LuaLifecycle = LuaLifecycle(
+        userDataMetatable = { value -> userDataMetatable(value) },
+        globalRoots = { lifecycleRoots() },
+    )
+    internal val lifecycleRootProviders = mutableListOf<() -> List<LuaValue>>()
     internal val vmMetatableProvider: LuaVmMetatableProvider = object : LuaVmMetatableProvider {
         override fun stringMetatable(): LuaTable? = this@KLuaCoreGlobals.stringMetatable
 
@@ -518,6 +582,27 @@ public class KLuaCoreGlobals internal constructor(
     }
 
     internal fun userDataMetatable(value: Any): LuaTable? = userDataMetatables[value]
+
+    internal fun lifecycleRoots(): List<LuaValue> = buildList {
+        add(table)
+        add(environment)
+        stringLibrary?.let(::add)
+        stringMetatable?.let(::add)
+        addAll(rawTypeMetatables.values)
+        lifecycleRootProviders.forEach { provider -> addAll(provider()) }
+    }
+
+    internal fun dispose() {
+        table.rawReplace(emptyList())
+        nativeFunctionValues.clear()
+        userDataTypes.clear()
+        userDataProperties.clear()
+        stringLibrary = null
+        stringMetatable = null
+        rawTypeMetatables.clear()
+        userDataMetatables.clear()
+        lifecycleRootProviders.clear()
+    }
 
     internal fun nativeFunctionValue(value: KLuaCoreValue.FunctionValue): LuaNativeFunction {
         nativeFunctionValues[value]?.let { return it }
@@ -579,6 +664,10 @@ public class KLuaCoreGlobals internal constructor(
         val luaMetatable = metatable.toLuaValueOrNull(this) as? LuaTable
             ?: throw LuaVmException("metatable must be a table")
         userDataMetatables[value] = luaMetatable
+        lifecycle.markUserData(
+            LuaUserData(value) { hostValue -> userDataType(hostValue) },
+            luaMetatable,
+        )
     }
 
     public fun setFunction(name: String, function: KLuaCoreFunction) {
@@ -719,6 +808,7 @@ public class KLuaCoreCallContext internal constructor(
         function: KLuaCoreValue,
         arguments: List<KLuaCoreValue>,
     ) -> KLuaCoreCallResult?,
+    private val collectGarbageValue: (reportWarning: (String) -> Unit) -> Unit,
 ) {
     private var cachedLuaFrames: List<KLuaCoreStackFrame>? = null
 
@@ -740,6 +830,7 @@ public class KLuaCoreCallContext internal constructor(
             function: KLuaCoreValue,
             arguments: List<KLuaCoreValue>,
         ) -> KLuaCoreCallResult? = { _, _ -> null },
+        collectGarbageValue: (reportWarning: (String) -> Unit) -> Unit = {},
     ) : this(
         arguments,
         luaFramesProvider = { luaFrames },
@@ -751,6 +842,7 @@ public class KLuaCoreCallContext internal constructor(
         getDebugHookValue,
         callValue,
         callFunctionValue,
+        collectGarbageValue,
     )
 
     public val luaFrames: List<KLuaCoreStackFrame>
@@ -781,6 +873,10 @@ public class KLuaCoreCallContext internal constructor(
         arguments: List<KLuaCoreValue>,
     ): KLuaCoreCallResult? {
         return callFunctionValue(function, arguments)
+    }
+
+    public fun collectGarbage(reportWarning: (String) -> Unit) {
+        collectGarbageValue(reportWarning)
     }
 }
 
@@ -957,6 +1053,7 @@ public class KLuaCoreCoroutine internal constructor(
         metatables = globals.vmMetatableProvider,
         instructionLimit = limits.instructionLimit,
         retainFramesOnUnhandledError = true,
+        lifecycle = globals.lifecycle,
     )
     private var started = false
     private var dead = false
@@ -1233,12 +1330,14 @@ private fun KLuaCoreValue.toLuaValueOrNull(
             }
             val table = LuaTable()
             resolvedTableCache[this] = table
+            sourceTable = table
             for ((fieldKey, fieldValue) in fields) {
                 val luaKey = fieldKey.toLuaValueOrNull(globals, resolvedTableCache) ?: return null
                 val luaValue = fieldValue.toLuaValueOrNull(globals, resolvedTableCache) ?: return null
                 table.rawSet(luaKey, luaValue)
             }
             table.metatable = metatable?.toLuaValueOrNull(globals, resolvedTableCache) as? LuaTable
+            globals.lifecycle.markTable(table, table.metatable, explicit = false)
             table
         }
         is KLuaCoreValue.UserDataValue -> LuaUserData(value) { hostValue -> globals.userDataType(hostValue) }
@@ -1485,6 +1584,7 @@ private fun callCoreContextFunction(
                         }
                     }
                 },
+                collectGarbageValue = { reportWarning -> context.collectGarbage(reportWarning) },
             ),
         )
     }
@@ -1788,6 +1888,7 @@ private fun callPublicLuaFunction(
             metatables = globals.vmMetatableProvider,
             instructionLimit = limits.instructionLimit,
             errorHandler = luaErrorHandler,
+            lifecycle = globals.lifecycle,
         )
         val result = vm.callWithYieldability(function, luaArguments, isYieldable).toCoreCallResult(vm, globals)
         syncLuaTablesToPublic(luaArguments, arguments, globals)

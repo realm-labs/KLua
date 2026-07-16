@@ -120,6 +120,12 @@ internal open class LuaNativeCallContext(
         function: LuaValue,
         arguments: List<LuaValue>,
     ): LuaExecutionResult? = null
+
+    open fun collectGarbage(): List<String> = emptyList()
+
+    open fun collectGarbage(reportWarning: (String) -> Unit) {
+        collectGarbage().forEach(reportWarning)
+    }
 }
 
 internal data class LuaNativeStackFrame(

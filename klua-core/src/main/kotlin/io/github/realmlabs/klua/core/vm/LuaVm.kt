@@ -50,6 +50,7 @@ internal class LuaVm(
     private val instructionLimit: Long = 0,
     private val retainFramesOnUnhandledError: Boolean = false,
     private val errorHandler: LuaValue? = null,
+    private val lifecycle: LuaLifecycle? = null,
 ) {
     private val thread = LuaThread()
     private val rootEnvironment = LuaUpvalue(environment)
@@ -65,6 +66,16 @@ internal class LuaVm(
 
     init {
         require(instructionLimit >= 0) { "instructionLimit must be non-negative" }
+        lifecycle?.register(this)
+    }
+
+    internal fun lifecycleRoots(): List<LuaValue> = buildList {
+        add(globals)
+        add(rootEnvironment.value)
+        addAll(thread.lifecycleRoots())
+        debugHook?.function?.let(::add)
+        errorHandler?.let(::add)
+        activeProtectedErrorHandler?.let(::add)
     }
 
     fun execute(prototype: Prototype): List<LuaValue> {
@@ -1177,6 +1188,38 @@ internal class LuaVm(
             arguments: List<LuaValue>,
         ): LuaExecutionResult {
             return callProtectedContextValue(function, arguments, selectedErrorHandler = null, isYieldable)
+        }
+
+        override fun collectGarbage(): List<String> {
+            val warnings = mutableListOf<String>()
+            collectGarbage(warnings::add)
+            return warnings
+        }
+
+        override fun collectGarbage(reportWarning: (String) -> Unit) {
+            val managedLifecycle = lifecycle ?: return
+            val roots = lifecycleRoots() + arguments
+            managedLifecycle.collect(
+                roots,
+                callFinalizer = { finalizer, target ->
+                    val wasRunningDebugHook = runningDebugHook
+                    runningDebugHook = true
+                    try {
+                        callProtectedContextValue(
+                            finalizer,
+                            listOf(target),
+                            selectedErrorHandler = null,
+                            isYieldable = false,
+                        )
+                        null
+                    } catch (error: LuaVmException) {
+                        error.message ?: "runtime error"
+                    } finally {
+                        runningDebugHook = wasRunningDebugHook
+                    }
+                },
+                reportWarning = reportWarning,
+            )
         }
     }
 
