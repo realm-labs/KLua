@@ -415,14 +415,7 @@ public object KLuaCoreRuntime {
             lifecycle = globals.lifecycle,
         )
         globals.lifecycle.close(
-            callFinalizer = { function, target ->
-                try {
-                    vm.callWithYieldability(function, listOf(target), isYieldable = false)
-                    null
-                } catch (error: LuaVmException) {
-                    error.message ?: "runtime error"
-                }
-            },
+            callFinalizer = vm::callLifecycleFinalizer,
             reportWarning = reportWarning,
         )
         globals.dispose()

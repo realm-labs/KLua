@@ -153,13 +153,14 @@ internal class LuaVm(
         callee: LuaValue,
         arguments: List<LuaValue>,
         isYieldable: Boolean,
+        callSiteInfo: CallSiteInfo? = null,
     ): LuaExecutionResult {
         return try {
             if (isYieldable) {
-                callYieldable(callee, arguments)
+                callValue(callee, arguments, callSiteInfo)
             } else {
                 thread.runNonYieldableCall {
-                    when (val result = callYieldable(callee, arguments)) {
+                    when (val result = callValue(callee, arguments, callSiteInfo)) {
                         is LuaExecutionResult.Returned -> result
                         is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a C-call boundary")
                         LuaExecutionResult.DebugSuspended -> result
@@ -227,12 +228,13 @@ internal class LuaVm(
         arguments: List<LuaValue>,
         selectedErrorHandler: LuaValue?,
         isYieldable: Boolean,
+        callSiteInfo: CallSiteInfo? = null,
     ): LuaExecutionResult {
         val completion = LuaProtectedCallCompletion()
         return withProtectedCallState(selectedErrorHandler, completion) {
             val initialDepth = thread.callDepth
             try {
-                val result = callWithYieldability(callee, arguments, isYieldable)
+                val result = callWithYieldability(callee, arguments, isYieldable, callSiteInfo)
                 protectContextCallResult(result, initialDepth, selectedErrorHandler, completion)
             } catch (error: LuaVmException) {
                 completion.error = error
@@ -1085,7 +1087,14 @@ internal class LuaVm(
                 callMetamethodDepth + 1,
             )
             is LuaNativeFunction -> callNativeResult(call, metamethodArguments, callSiteInfo)
-            LuaNil -> throw LuaVmException("attempt to call $callErrorTypeName")
+            LuaNil -> {
+                val finalizerDescription = if (callSiteInfo === GC_CALL_SITE_INFO) {
+                    " (metamethod '__gc')"
+                } else {
+                    ""
+                }
+                throw LuaVmException("attempt to call $callErrorTypeName$finalizerDescription")
+            }
             else -> callValue(call, metamethodArguments, callSiteInfo, callMetamethodDepth + 1, isTailCall)
         }
     }
@@ -1239,7 +1248,7 @@ internal class LuaVm(
         )
     }
 
-    private fun callLifecycleFinalizer(finalizer: LuaValue, target: LuaValue): String? {
+    internal fun callLifecycleFinalizer(finalizer: LuaValue, target: LuaValue): String? {
         val wasRunningDebugHook = runningDebugHook
         runningDebugHook = true
         return try {
@@ -1248,6 +1257,7 @@ internal class LuaVm(
                 listOf(target),
                 selectedErrorHandler = null,
                 isYieldable = false,
+                callSiteInfo = GC_CALL_SITE_INFO,
             )
             null
         } catch (error: LuaVmException) {
@@ -3145,6 +3155,7 @@ private val IDIV_CALL_SITE_INFO = metamethodCallSiteInfo("idiv")
 private val MOD_CALL_SITE_INFO = metamethodCallSiteInfo("mod")
 private val POW_CALL_SITE_INFO = metamethodCallSiteInfo("pow")
 private val CLOSE_CALL_SITE_INFO = metamethodCallSiteInfo("close")
+private val GC_CALL_SITE_INFO = CallSiteInfo(0, "__gc", "metamethod")
 private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 15
 private const val TRUTHY_PENDING_RESULT_COUNT = -2

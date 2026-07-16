@@ -12920,6 +12920,65 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage reports finalizer debug names and tracebacks`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state, LuaDebugInput { null }, Consumer { })
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = setmetatable({}, {
+                    __gc = function()
+                        local info = debug.getinfo(1, "n")
+                        finalizerName = info.name
+                        finalizerNameWhat = info.namewhat
+                        finalizerTrace = debug.traceback("finalizing", 1)
+                    end,
+                })
+                value = nil
+                collectgarbage()
+                return finalizerName, finalizerNameWhat,
+                    string.find(finalizerTrace, "in metamethod '__gc'", 1, true) ~= nil
+                """.trimIndent(),
+                "finalizer-debug-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("__gc", state.toString(1))
+        assertEquals("metamethod", state.toString(2))
+        assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `collectgarbage names non callable finalizer failures`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer(output::add))
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local value = setmetatable({}, {__gc = {}})
+                value = nil
+                collectgarbage()
+                """.trimIndent(),
+                "finalizer-call-error-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        assertEquals(
+            listOf("Lua warning: error in __gc (attempt to call a table value (metamethod '__gc'))"),
+            output,
+        )
+    }
+
+    @Test
     fun `collectgarbage treats values retained on the host API stack as roots`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -13217,6 +13276,45 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `state close preserves finalizer debug names and suppresses hooks`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer(output::add))
+        LuaStdlib.openDebug(state, LuaDebugInput { null }, Consumer { })
+        LuaStdlib.openString(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local insideFinalizer = false
+                local hookRanInside = false
+                debug.sethook(function()
+                    if insideFinalizer then hookRanInside = true end
+                end, "crl")
+                reachable = setmetatable({}, {
+                    __gc = function()
+                        insideFinalizer = true
+                        local info = debug.getinfo(1, "n")
+                        local trace = debug.traceback("closing", 1)
+                        warn(info.name, "|", info.namewhat, "|",
+                            tostring(string.find(trace, "in metamethod '__gc'", 1, true) ~= nil), "|",
+                            tostring(hookRanInside))
+                        insideFinalizer = false
+                    end,
+                })
+                """.trimIndent(),
+                "state-close-finalizer-debug-name.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        state.close()
+
+        assertEquals(listOf("Lua warning: __gc|metamethod|true|false"), output)
+    }
+
+    @Test
     fun `collectgarbage controls and reports collector state`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -13348,13 +13446,19 @@ class LuaStdlibTest {
     fun `collector automatically advances logical slices from Lua allocations`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state, LuaDebugInput { null }, Consumer { })
 
         assertEquals(
             LuaStatus.OK,
             state.load(
                 """
                 events = {}
-                local mt = {__gc = function() events[#events + 1] = "finalized" end}
+                local mt = {__gc = function()
+                    local info = debug.getinfo(1, "n")
+                    finalizerName = info.name
+                    finalizerNameWhat = info.namewhat
+                    events[#events + 1] = "finalized"
+                end}
                 collectgarbage("param", "stepsize", 128)
                 local target = setmetatable({}, mt)
                 target = nil
@@ -13362,7 +13466,7 @@ class LuaStdlibTest {
                 local second = {}
                 local afterAtomicSlice = #events
                 local third = {}
-                return afterAtomicSlice, #events, events[1]
+                return afterAtomicSlice, #events, events[1], finalizerName, finalizerNameWhat
                 """.trimIndent(),
                 "collectgarbage-automatic-slices.lua",
             ),
@@ -13372,6 +13476,8 @@ class LuaStdlibTest {
         assertEquals(0L, state.toInteger(1))
         assertEquals(1L, state.toInteger(2))
         assertEquals("finalized", state.toString(3))
+        assertEquals("__gc", state.toString(4))
+        assertEquals("metamethod", state.toString(5))
     }
 
     @Test
