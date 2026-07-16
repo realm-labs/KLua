@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.bytecode.CallSiteInfo
 import io.github.realmlabs.klua.core.bytecode.Instruction
+import io.github.realmlabs.klua.core.bytecode.LocalVarInfo
 import io.github.realmlabs.klua.core.bytecode.OPEN_RESULT_COUNT
 import io.github.realmlabs.klua.core.bytecode.Opcode
 import io.github.realmlabs.klua.core.bytecode.Prototype
@@ -965,7 +966,7 @@ internal class LuaVm(
     }
 
     private fun luaStackFrames(frames: List<CallFrame>): List<LuaNativeStackFrame> {
-        return frames.mapNotNull { frame ->
+        return frames.mapIndexedNotNull { level, frame ->
             val pc = if (frame.debuggerSuspendedPc >= 0) {
                 frame.debuggerSuspendedPc
             } else {
@@ -986,7 +987,7 @@ internal class LuaVm(
                     activeLines = frame.prototype.validBreakpointLines.toList(),
                     function = frame.function,
                     varargs = frame.varargs.toList(),
-                    locals = activeLocals(frame, pc),
+                    locals = activeLocals(frame, pc, hasYoungerFrame = level > 0 || thread.inNativeCall),
                     upvalues = activeUpvalues(frame),
                     globals = activeGlobals(frame),
                     callSiteName = frame.callSiteName,
@@ -1051,23 +1052,54 @@ internal class LuaVm(
             return null
         }
         val pc = (frame.pc - 1).coerceAtLeast(0)
-        val local = frame.prototype.localVars
-            .filter { info -> info.startPc <= pc && pc < info.endPc }
-            .getOrNull(index - 1)
-            ?: return null
-        frame.stack.set(register(frame, local.slot), value)
-        return local.name
+        val localSlot = index - 1
+        val activeLocals = activeLocalInfoBySlot(frame, pc)
+        val registerLimit = activeRegisterLimit(
+            frame,
+            activeLocals,
+            hasYoungerFrame = level > 0 || thread.inNativeCall,
+        )
+        if (localSlot !in 0 until registerLimit) {
+            return null
+        }
+        frame.stack.set(register(frame, localSlot), value)
+        return activeLocals[localSlot]?.name ?: TEMPORARY_LOCAL_NAME
     }
 
-    private fun activeLocals(frame: CallFrame, pc: Int): List<LuaNativeLocalVariable> {
-        return frame.prototype.localVars
-            .filter { local -> local.startPc <= pc && pc < local.endPc }
-            .map { local ->
-                LuaNativeLocalVariable(
-                    local.name,
-                    frame.stack.get(register(frame, local.slot)),
-                )
+    private fun activeLocals(
+        frame: CallFrame,
+        pc: Int,
+        hasYoungerFrame: Boolean,
+    ): List<LuaNativeLocalVariable> {
+        val activeLocals = activeLocalInfoBySlot(frame, pc)
+        return List(activeRegisterLimit(frame, activeLocals, hasYoungerFrame)) { slot ->
+            LuaNativeLocalVariable(
+                activeLocals[slot]?.name ?: TEMPORARY_LOCAL_NAME,
+                frame.stack.get(register(frame, slot)),
+            )
+        }
+    }
+
+    private fun activeLocalInfoBySlot(frame: CallFrame, pc: Int) = frame.prototype.localVars
+        .asSequence()
+        .filter { local -> local.startPc <= pc && pc < local.endPc }
+        .associateBy { local -> local.slot }
+
+    private fun activeRegisterLimit(
+        frame: CallFrame,
+        activeLocals: Map<Int, LocalVarInfo>,
+        hasYoungerFrame: Boolean,
+    ): Int {
+        if (frame.pendingCallResultBase >= 0) {
+            return frame.pendingCallResultBase
+        }
+        if (hasYoungerFrame) {
+            val callInstruction = frame.prototype.code.getOrNull(frame.pc - 1)
+            if (callInstruction != null && Instruction.opcode(callInstruction) == Opcode.CALL) {
+                return Instruction.a(callInstruction)
             }
+        }
+        return activeLocals.keys.maxOrNull()?.plus(1) ?: 0
     }
 
     private fun setDebugHook(arguments: List<LuaValue>, index: Int, mask: String, count: Int): Boolean {
@@ -2741,6 +2773,7 @@ private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
 private const val MAX_CALL_METAMETHOD_DEPTH = 15
 private const val TRUTHY_PENDING_RESULT_COUNT = -2
 private const val VARARG_LOCAL_NAME = "(vararg)"
+private const val TEMPORARY_LOCAL_NAME = "(temporary)"
 private val LUA_DECIMAL_FLOAT_PATTERN =
     Regex("""[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?""")
 private val LUA_HEXADECIMAL_FLOAT_PATTERN =

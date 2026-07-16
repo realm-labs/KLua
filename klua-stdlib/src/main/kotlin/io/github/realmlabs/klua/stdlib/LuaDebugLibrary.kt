@@ -4,6 +4,7 @@ import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaDebugThread
 import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaFunctionDebugInfo
+import io.github.realmlabs.klua.api.LuaLocalVariable
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaStackFrame
@@ -431,6 +432,7 @@ internal object LuaDebugLibrary {
                 currentFunction,
                 context.callSiteName,
                 context.callSiteNameWhat,
+                nativeArguments(context, currentFunction, 0),
             )
         if (coroutine.isCurrentDebugThread) {
             return DebugThreadTarget.Current(
@@ -438,10 +440,24 @@ internal object LuaDebugLibrary {
                 currentFunction,
                 context.callSiteName,
                 context.callSiteNameWhat,
+                nativeArguments(context, currentFunction, 1),
                 argumentOffset = 1,
             )
         }
         return DebugThreadTarget.Coroutine(coroutine)
+    }
+
+    private fun nativeArguments(
+        context: LuaCallContext,
+        currentFunction: LuaFunction?,
+        argumentOffset: Int,
+    ): List<Any?> {
+        val count = if (currentFunction === setLocalFunction) {
+            minOf(context.argumentCount, argumentOffset + 3)
+        } else {
+            context.argumentCount
+        }
+        return (1..count).map { index -> context.getLuaValue(index) }
     }
 
     private fun levelOutOfRange(index: Int, functionName: String): LuaRuntimeException {
@@ -556,6 +572,7 @@ internal object LuaDebugLibrary {
     private const val GETINFO_OPTIONS = "flnSrtuL"
     private const val DEFAULT_GETINFO_OPTIONS = "flnSrtu"
     private const val VARARG_LOCAL_NAME = "(vararg)"
+    private const val C_TEMPORARY_LOCAL_NAME = "(C temporary)"
     private const val TRACEBACK_HEAD_LEVELS = 10
     private const val TRACEBACK_TAIL_LEVELS = 11
 
@@ -587,13 +604,16 @@ internal object LuaDebugLibrary {
         currentFunction: LuaFunction?,
         callSiteName: String?,
         callSiteNameWhat: String,
+        nativeArguments: List<Any?>,
     ): DebugFrameSelection {
         val selected = selectDebugFrames(frames)
         if (currentFunction == null) {
             return selected
         }
         return DebugFrameSelection(
-            listOf(nativeDebugFrame(currentFunction, callSiteName, callSiteNameWhat)) + selected.frames,
+            listOf(
+                nativeDebugFrame(currentFunction, callSiteName, callSiteNameWhat, nativeArguments),
+            ) + selected.frames,
             listOf(-1) + selected.rawLevels,
         )
     }
@@ -613,6 +633,8 @@ internal object LuaDebugLibrary {
         val isCurrentThread: Boolean
             get() = this is Current
 
+        protected fun selectedRawLevel(level: Int): Int? = rawLevels.getOrNull(level)
+
         protected fun rawLevel(level: Int): Int? = rawLevels.getOrNull(level)?.takeIf { it >= 0 }
 
         abstract fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String?
@@ -626,12 +648,16 @@ internal object LuaDebugLibrary {
             private val currentFunction: LuaFunction? = null,
             callSiteName: String? = null,
             callSiteNameWhat: String = "",
+            nativeArguments: List<Any?> = emptyList(),
             argumentOffset: Int = 0,
         ) : DebugThreadTarget(
             argumentOffset,
-            currentDebugFrames(frames, currentFunction, callSiteName, callSiteNameWhat),
+            currentDebugFrames(frames, currentFunction, callSiteName, callSiteNameWhat, nativeArguments),
         ) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
+                if (selectedRawLevel(level) == -1) {
+                    return if (index > 0) frames[level].locals.getOrNull(index - 1)?.name else null
+                }
                 val rawLevel = rawLevel(level) ?: return null
                 return context.setLocal(rawLevel, index, value)
             }
@@ -668,6 +694,7 @@ internal object LuaDebugLibrary {
         function: LuaFunction,
         callSiteName: String?,
         callSiteNameWhat: String,
+        arguments: List<Any?>,
     ): LuaStackFrame {
         return LuaStackFrame(
             sourceName = "=[C]",
@@ -676,6 +703,7 @@ internal object LuaDebugLibrary {
             lastLineDefined = -1,
             isVararg = true,
             function = function,
+            locals = arguments.map { value -> LuaLocalVariable(C_TEMPORARY_LOCAL_NAME, value) },
             callSiteName = callSiteName,
             callSiteNameWhat = callSiteNameWhat,
         )

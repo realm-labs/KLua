@@ -2561,6 +2561,193 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `debug getlocal and setlocal expose lua and c temporary slots`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local function readLuaTemporary()
+                    local named = "named"
+                    local prefix, temporaryName, temporaryValue = "prefix", debug.getlocal(1, 2)
+                    return named, prefix, temporaryName, temporaryValue
+                end
+
+                local function writeLuaTemporary()
+                    local named = "named"
+                    local temporary, changedName = "old", debug.setlocal(1, 2, "new")
+                    return named, temporary, changedName
+                end
+
+                local luaNamed, luaTemporary, luaName, luaValue = readLuaTemporary()
+                local writeNamed, changedTemporary, changedName = writeLuaTemporary()
+                local cCount, cName, cValue = pack(debug.getlocal(0, 1))
+                local cExtraCount, cExtraName, cExtraValue = pack(debug.getlocal(0, 4, "extra-a", "extra-b"))
+                local cMissingCount, cMissing = pack(debug.getlocal(0, 5, "extra-a", "extra-b"))
+                local cSetCount, cSetName = pack(debug.setlocal(0, 1, "replacement", "ignored"))
+                local running = coroutine.running()
+                local threadName, threadValue = debug.getlocal(running, 0, 1)
+                local threadSetName = debug.setlocal(running, 0, 1, "replacement", "ignored")
+
+                return luaNamed, luaTemporary, luaName, luaValue,
+                    writeNamed, changedTemporary, changedName,
+                    cCount, cName, cValue,
+                    cExtraCount, cExtraName, cExtraValue,
+                    cMissingCount, cMissing,
+                    cSetCount, cSetName,
+                    threadName, threadValue == running, type(threadValue), threadSetName
+                """.trimIndent(),
+                "debug-local-temporaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("named", state.toString(1))
+        assertEquals("prefix", state.toString(2))
+        assertEquals("(temporary)", state.toString(3))
+        assertEquals("prefix", state.toString(4))
+        assertEquals("named", state.toString(5))
+        assertEquals("new", state.toString(6))
+        assertEquals("(temporary)", state.toString(7))
+        assertEquals(2L, state.toInteger(8))
+        assertEquals("(C temporary)", state.toString(9))
+        assertEquals(0L, state.toInteger(10))
+        assertEquals(2L, state.toInteger(11))
+        assertEquals("(C temporary)", state.toString(12))
+        assertEquals("extra-b", state.toString(13))
+        assertEquals(1L, state.toInteger(14))
+        assertTrue(state.isNil(15))
+        assertEquals(1L, state.toInteger(16))
+        assertEquals("(C temporary)", state.toString(17))
+        assertEquals("(C temporary)", state.toString(18))
+        assertTrue(state.toBoolean(19))
+        assertEquals("thread", state.toString(20))
+        assertEquals("(C temporary)", state.toString(21))
+    }
+
+    @Test
+    fun `debug getlocal and setlocal expose suspended lua temporary slots`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    local named = "named"
+                    local temporary, resumed = "old", coroutine.yield("pause")
+                    return named, temporary, resumed
+                end)
+
+                local firstOk, pause = coroutine.resume(co)
+                local name, value = debug.getlocal(co, 0, 2)
+                local changedName = debug.setlocal(co, 0, 2, "new")
+                local readName, changedValue = debug.getlocal(co, 0, 2)
+                local secondOk, named, temporary, resumed = coroutine.resume(co, "resume-value")
+                return firstOk, pause, name, value, changedName, readName, changedValue,
+                    secondOk, named, temporary, resumed
+                """.trimIndent(),
+                "debug-suspended-local-temporary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertEquals("(temporary)", state.toString(3))
+        assertEquals("old", state.toString(4))
+        assertEquals("(temporary)", state.toString(5))
+        assertEquals("(temporary)", state.toString(6))
+        assertEquals("new", state.toString(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("named", state.toString(9))
+        assertEquals("new", state.toString(10))
+        assertEquals("resume-value", state.toString(11))
+    }
+
+    @Test
+    fun `debug local levels and indices narrow to c int`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function probe(...)
+                    local named = "old"
+                    local wrappedName, wrappedValue = debug.getlocal(4294967297, 4294967297)
+                    local varargName, varargValue = debug.getlocal(4294967297, 4294967295)
+                    local changedName = debug.setlocal(4294967297, 4294967297, "new")
+                    return wrappedName, wrappedValue, varargName, varargValue, changedName, named
+                end
+
+                return probe("extra")
+                """.trimIndent(),
+                "debug-local-int-narrowing.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("named", state.toString(1))
+        assertEquals("old", state.toString(2))
+        assertEquals("(vararg)", state.toString(3))
+        assertEquals("extra", state.toString(4))
+        assertEquals("named", state.toString(5))
+        assertEquals("new", state.toString(6))
+    }
+
+    @Test
+    fun `debug local access projects tail replaced callers`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function leaf()
+                    local own = "leaf"
+                    local name, value = debug.getlocal(2, 1)
+                    local changedName = debug.setlocal(2, 1, "new")
+                    local readName, changedValue = debug.getlocal(2, 1)
+                    return own, name, value, changedName, readName, changedValue
+                end
+
+                local function replaced()
+                    return leaf()
+                end
+
+                local function outer()
+                    local marker = "old"
+                    local own, name, value, changedName, readName, changedValue = replaced()
+                    return own, name, value, changedName, readName, changedValue, marker
+                end
+
+                return outer()
+                """.trimIndent(),
+                "debug-local-tail-projection.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("leaf", state.toString(1))
+        assertEquals("marker", state.toString(2))
+        assertEquals("old", state.toString(3))
+        assertEquals("marker", state.toString(4))
+        assertEquals("marker", state.toString(5))
+        assertEquals("new", state.toString(6))
+        assertEquals("new", state.toString(7))
+    }
+
+    @Test
     fun `debug getlocal and setlocal accept explicit current thread arguments`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
