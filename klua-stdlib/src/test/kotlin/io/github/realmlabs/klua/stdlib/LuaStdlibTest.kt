@@ -10564,7 +10564,7 @@ class LuaStdlibTest {
     }
 
     @Test
-    fun `warn writes configured output when enabled`() {
+    fun `warn starts enabled and follows configured controls`() {
         val state = LuaState.create()
         val output = mutableListOf<String>()
         LuaStdlib.openBase(state, Consumer { line -> output += line })
@@ -10573,7 +10573,7 @@ class LuaStdlibTest {
             LuaStatus.OK,
             state.load(
                 """
-                warn("ignored")
+                warn("initial")
                 warn("@on")
                 warn("count ", 42)
                 warn("@unknown")
@@ -10587,8 +10587,96 @@ class LuaStdlibTest {
         val status = state.pcall(0, -1)
         assertEquals(LuaStatus.OK, status, state.toString(-1))
 
-        assertEquals(listOf("Lua warning: count 42", "Lua warning: still on"), output)
+        assertEquals(
+            listOf("Lua warning: initial", "Lua warning: count 42", "Lua warning: still on"),
+            output,
+        )
         assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `warn uses C string boundaries for every message part`() {
+        val state = LuaState.create()
+        val output = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> output += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                warn("visible\0hidden")
+                warn("left\0hidden", "right\0hidden")
+                warn("@off\0ignored")
+                warn("silent")
+                warn("@on\0ignored")
+                warn("after\0hidden")
+                warn("@unknown\0ignored")
+                warn("\0hidden")
+                warn(42)
+                """.trimIndent(),
+                "warn-c-strings.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            listOf(
+                "Lua warning: visible",
+                "Lua warning: leftright",
+                "Lua warning: after",
+                "Lua warning: ",
+                "Lua warning: 42",
+            ),
+            output,
+        )
+        assertEquals(0, state.getTop())
+    }
+
+    @Test
+    fun `warn state and identity survive reopen while output routing updates`() {
+        val state = LuaState.create()
+        val firstOutput = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> firstOutput += line })
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                savedWarn = warn
+                warn("before")
+                warn("@off")
+                """.trimIndent(),
+                "warn-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        val secondOutput = mutableListOf<String>()
+        LuaStdlib.openBase(state, Consumer { line -> secondOutput += line })
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local same = savedWarn == warn
+                warn("silent")
+                warn("@on")
+                warn("after")
+                return same
+                """.trimIndent(),
+                "warn-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertTrue(state.toBoolean(1))
+        assertEquals(listOf("Lua warning: before"), firstOutput)
+        assertEquals(listOf("Lua warning: after"), secondOutput)
+
+        val otherState = LuaState.create()
+        val otherOutput = mutableListOf<String>()
+        LuaStdlib.openBase(otherState, Consumer { line -> otherOutput += line })
+        assertEquals(LuaStatus.OK, otherState.load("warn('other')", "warn-other-state.lua"))
+        assertEquals(LuaStatus.OK, otherState.pcall(0, 0), otherState.toString(-1))
+        assertEquals(listOf("Lua warning: other"), otherOutput)
     }
 
     @Test

@@ -26,6 +26,7 @@ public object LuaStdlib {
     private val nextFunction = LuaFunction { context -> next(context) }
     private val ipairsIteratorFunction = LuaFunction { context -> ipairsNext(context) }
     private val garbageCollectorStates = Collections.synchronizedMap(WeakHashMap<LuaState, GarbageCollectorState>())
+    private val warningStates = Collections.synchronizedMap(WeakHashMap<LuaState, WarningState>())
 
     @JvmStatic
     public fun openLibs(state: LuaState): LuaState {
@@ -106,11 +107,12 @@ public object LuaStdlib {
         state.register("tonumber", ::tonumber)
         state.register("tostring", ::tostring)
         state.register("type", ::type)
-        var warningsEnabled = false
-        state.register("warn") { context ->
-            warningsEnabled = warn(context, output, warningsEnabled)
-            LuaReturn.none()
+        val warningState = synchronized(warningStates) {
+            warningStates.getOrPut(state) { WarningState(output) }.also { warningState ->
+                warningState.output = output
+            }
         }
+        state.register("warn", warningState.function)
         registerYieldable(state, "xpcall", ::xpcall)
         return state
     }
@@ -125,6 +127,13 @@ public object LuaStdlib {
         val params: MutableMap<String, Int> = DEFAULT_GARBAGE_COLLECTOR_PARAMS
             .mapValuesTo(mutableMapOf()) { (_, value) -> encodeGarbageCollectorParam(value) }
         val function = LuaFunction { context -> collectgarbage(context, this) }
+    }
+
+    private class WarningState(
+        var output: Consumer<String>,
+    ) {
+        var enabled: Boolean = true
+        val function = LuaFunction { context -> warn(context, this) }
     }
 
     private data class LoadFileSource(
@@ -530,20 +539,22 @@ public object LuaStdlib {
         return LuaReturn.none()
     }
 
-    private fun warn(context: LuaCallContext, output: Consumer<String>, warningsEnabled: Boolean): Boolean {
-        val parts = mutableListOf(requiredString(context, 1, "warn"))
+    private fun warn(context: LuaCallContext, state: WarningState): LuaReturn {
+        val parts = mutableListOf(requiredString(context, 1, "warn").substringBefore('\u0000'))
         for (index in 2..context.argumentCount) {
-            parts += requiredString(context, index, "warn")
+            parts += requiredString(context, index, "warn").substringBefore('\u0000')
         }
         if (parts.size == 1 && parts.single().startsWith("@")) {
-            return warningControlState(parts.single(), warningsEnabled)
+            state.enabled = warningControlState(parts.single(), state.enabled)
+            return LuaReturn.none()
         }
 
-        if (warningsEnabled) {
-            output.accept("Lua warning: ${parts.joinToString("")}")
-            return true
+        if (state.enabled) {
+            state.output.accept("Lua warning: ${parts.joinToString("")}")
+        } else {
+            state.enabled = warningControlState(parts.last(), false)
         }
-        return warningControlState(parts.last(), false)
+        return LuaReturn.none()
     }
 
     private fun warningControlState(message: String, warningsEnabled: Boolean): Boolean {
