@@ -19,6 +19,10 @@ internal fun interface LuaYieldContinuation {
     fun resume(arguments: List<LuaValue>): LuaExecutionResult
 }
 
+internal class LuaProtectedCallCompletion {
+    var error: LuaVmException? = null
+}
+
 internal fun interface LuaVmDebugObserver {
     fun shouldSuspend(sourceId: String, line: Int, callDepth: Int): Boolean
 }

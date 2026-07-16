@@ -956,16 +956,20 @@ class LuaState private constructor(
         errorHandler: KLuaCoreValue.FunctionValue? = null,
     ): LuaReturn {
         val arguments = (1..context.argumentCount).map { index -> context.argumentToCoreValue(index) }
-        return when (
-            val result = KLuaCoreRuntime.callFunction(
+        return coreCallResult(
+            KLuaCoreRuntime.callFunction(
                 functionValue,
                 arguments,
                 coreGlobals,
                 context.isYieldable,
                 KLuaCoreExecutionLimits(config.instructionLimit),
                 errorHandler,
-            )
-        ) {
+            ),
+        )
+    }
+
+    private fun coreCallResult(result: KLuaCoreCallResult): LuaReturn {
+        return when (result) {
             is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
                 result.values.map { it.toStackValue().toPublicCallReturnValue() },
             )
@@ -986,13 +990,7 @@ class LuaState private constructor(
     private fun continueCoreYield(continuation: KLuaCoreContinuation, arguments: List<Any?>): LuaReturn {
         val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
         val coreArguments = arguments.map { argument -> argument.toStackValue().toCoreValue(tableCache) }
-        return when (val result = continuation.resume(coreArguments)) {
-            is KLuaCoreCallResult.Success -> LuaReturn.ofValues(
-                result.values.map { it.toStackValue().toPublicCallReturnValue() },
-            )
-            is KLuaCoreCallResult.Yielded -> throw result.toLuaYieldException()
-            is KLuaCoreCallResult.RuntimeError -> throw coreRuntimeError(result)
-        }
+        return coreCallResult(continuation.resume(coreArguments))
     }
 
     private fun coreRuntimeError(result: KLuaCoreCallResult.RuntimeError): LuaRuntimeException {
@@ -2449,6 +2447,33 @@ class LuaState private constructor(
 
         override fun getDebugHook(): LuaReturn {
             return coreContext.getDebugHook()?.toLuaReturn() ?: LuaReturn.of(null)
+        }
+
+        override fun protectedCall(index: Int, arguments: List<Any?>): LuaReturn {
+            return callCoreContext(index, arguments, errorHandlerIndex = null)
+                ?: super.protectedCall(index, arguments)
+        }
+
+        override fun callWithErrorHandler(
+            index: Int,
+            arguments: List<Any?>,
+            handlerIndex: Int,
+        ): LuaReturn {
+            return callCoreContext(index, arguments, handlerIndex)
+                ?: super.callWithErrorHandler(index, arguments, handlerIndex)
+        }
+
+        private fun callCoreContext(
+            index: Int,
+            arguments: List<Any?>,
+            errorHandlerIndex: Int?,
+        ): LuaReturn? {
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            val coreArguments = arguments.map { argument ->
+                argument.toStackValue().toCoreValue(tableCache)
+            }
+            val result = coreContext.call(index, coreArguments, errorHandlerIndex) ?: return null
+            return coreCallResult(result)
         }
     }
 

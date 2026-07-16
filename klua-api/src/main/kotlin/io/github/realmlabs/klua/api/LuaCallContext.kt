@@ -62,6 +62,10 @@ interface LuaCallContext {
 
     fun call(index: Int, arguments: List<Any?>): LuaReturn
 
+    fun protectedCall(index: Int, arguments: List<Any?>): LuaReturn {
+        return call(index, arguments)
+    }
+
     fun callWithErrorHandler(index: Int, arguments: List<Any?>, handlerIndex: Int): LuaReturn {
         return call(index, arguments)
     }

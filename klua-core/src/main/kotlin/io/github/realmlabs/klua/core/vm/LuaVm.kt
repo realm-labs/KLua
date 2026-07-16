@@ -59,6 +59,8 @@ internal class LuaVm(
     private var runningDebugHook = false
     private var nativeDebugHookFrame: NativeDebugHookFrame? = null
     private var runningErrorHandler = false
+    private var activeProtectedErrorHandler: LuaValue? = null
+    private var activeProtectedCompletion: LuaProtectedCallCompletion? = null
     private var remainingInstructions = instructionLimit
 
     init {
@@ -154,7 +156,14 @@ internal class LuaVm(
                 }
             }
         } catch (error: LuaVmException) {
-            throw finalizeErrorObject(error)
+            throw finalizeErrorObject(
+                error,
+                if (activeProtectedCompletion != null) {
+                    activeProtectedErrorHandler
+                } else {
+                    thread.currentFrame?.protectedErrorHandler ?: errorHandler
+                },
+            )
         }
     }
 
@@ -165,19 +174,31 @@ internal class LuaVm(
     internal fun resumeYieldable(arguments: List<LuaValue> = emptyList()): LuaExecutionResult {
         try {
             var frame = thread.currentFrame ?: throw LuaVmException("cannot resume a coroutine that is not suspended")
-            if (debugSuspended) {
-                debugSuspended = false
-            } else {
-                applyPendingCallResults(frame, arguments)?.let { return it }
-            }
+            var pendingArguments: List<LuaValue>? = if (debugSuspended) null else arguments
+            debugSuspended = false
             while (true) {
-                when (val result = runFrameAndPopOnCompletion(frame)) {
-                    is LuaExecutionResult.Yielded -> return result
-                    LuaExecutionResult.DebugSuspended -> return result
-                    is LuaExecutionResult.Returned -> {
-                        frame = thread.currentFrame ?: return result
-                        applyPendingCallResults(frame, result.values)?.let { return it }
+                try {
+                    pendingArguments?.let { values ->
+                        pendingArguments = null
+                        applyPendingCallResults(frame, values)?.let { return it }
                     }
+                    when (val result = runFrameAndPopOnCompletion(frame)) {
+                        is LuaExecutionResult.Yielded -> return result
+                        LuaExecutionResult.DebugSuspended -> return result
+                        is LuaExecutionResult.Returned -> {
+                            frame = thread.currentFrame ?: return result
+                            pendingArguments = result.values
+                        }
+                    }
+                } catch (error: LuaVmException) {
+                    val completion = frame.protectedCallCompletion ?: throw error
+                    completion.error = finalizeErrorObject(
+                        error,
+                        if (frame.protectedCallCompletion != null) frame.protectedErrorHandler else errorHandler,
+                    )
+                    discardProtectedFrames(completion)
+                    frame = thread.currentFrame ?: throw completion.error!!
+                    pendingArguments = emptyList()
                 }
             }
         } catch (error: LuaVmException) {
@@ -187,6 +208,71 @@ internal class LuaVm(
                 throw finalizedError
             }
             throw closeSuspendedFrames(finalizedError)
+        }
+    }
+
+    private fun callProtectedContextValue(
+        callee: LuaValue,
+        arguments: List<LuaValue>,
+        selectedErrorHandler: LuaValue?,
+        isYieldable: Boolean,
+    ): LuaExecutionResult {
+        val completion = LuaProtectedCallCompletion()
+        return withProtectedCallState(selectedErrorHandler, completion) {
+            val initialDepth = thread.callDepth
+            val result = callWithYieldability(callee, arguments, isYieldable)
+            protectContextCallResult(result, initialDepth, selectedErrorHandler, completion)
+        }
+    }
+
+    private fun protectContextCallResult(
+        result: LuaExecutionResult,
+        initialDepth: Int,
+        selectedErrorHandler: LuaValue?,
+        completion: LuaProtectedCallCompletion,
+    ): LuaExecutionResult {
+        if (result !is LuaExecutionResult.Yielded) {
+            return result
+        }
+        if (thread.callDepth > initialDepth) {
+            return LuaExecutionResult.Yielded(
+                result.values,
+                LuaYieldContinuation { values ->
+                    completion.error?.let { error -> throw error }
+                    LuaExecutionResult.Returned(values)
+                },
+            )
+        }
+        return LuaExecutionResult.Yielded(
+            result.values,
+            LuaYieldContinuation { values ->
+                withProtectedCallState(selectedErrorHandler, completion) {
+                    val resumedDepth = thread.callDepth
+                    val resumed = try {
+                        result.continuation?.resume(values) ?: LuaExecutionResult.Returned(values)
+                    } catch (error: LuaVmException) {
+                        throw finalizeErrorObject(error, selectedErrorHandler)
+                    }
+                    protectContextCallResult(resumed, resumedDepth, selectedErrorHandler, completion)
+                }
+            },
+        )
+    }
+
+    private inline fun <T> withProtectedCallState(
+        selectedErrorHandler: LuaValue?,
+        completion: LuaProtectedCallCompletion,
+        action: () -> T,
+    ): T {
+        val previousErrorHandler = activeProtectedErrorHandler
+        val previousCompletion = activeProtectedCompletion
+        activeProtectedErrorHandler = selectedErrorHandler
+        activeProtectedCompletion = completion
+        return try {
+            action()
+        } finally {
+            activeProtectedErrorHandler = previousErrorHandler
+            activeProtectedCompletion = previousCompletion
         }
     }
 
@@ -239,6 +325,12 @@ internal class LuaVm(
         isTailCall: Boolean = false,
         extraArgumentCount: Int = 0,
     ): LuaExecutionResult {
+        val inheritedErrorHandler = if (activeProtectedCompletion != null) {
+            activeProtectedErrorHandler
+        } else {
+            thread.currentFrame?.protectedErrorHandler
+        }
+        val inheritedCompletion = activeProtectedCompletion ?: thread.currentFrame?.protectedCallCompletion
         val frame = thread.pushCall(
             function.prototype,
             arguments,
@@ -249,6 +341,8 @@ internal class LuaVm(
             isTailCall = isTailCall,
             extraArgumentCount = extraArgumentCount,
         )
+        frame.protectedErrorHandler = inheritedErrorHandler
+        frame.protectedCallCompletion = inheritedCompletion
         return runFrameAndPopOnCompletion(frame)
     }
 
@@ -274,6 +368,12 @@ internal class LuaVm(
             isTailCall = isTailCall,
             extraArgumentCount = extraArgumentCount,
         )
+        frame.protectedErrorHandler = if (activeProtectedCompletion != null) {
+            activeProtectedErrorHandler
+        } else {
+            callerFrame.protectedErrorHandler
+        }
+        frame.protectedCallCompletion = activeProtectedCompletion ?: callerFrame.protectedCallCompletion
         return runFrameAndPopOnCompletion(frame, callerFrame, resultBase, expectedResults)
     }
 
@@ -470,8 +570,15 @@ internal class LuaVm(
             if (suspended) {
                 throw error
             }
-            val finalizedError = if (runningErrorHandler) error else finalizeErrorObject(error)
-            if (retainFramesOnUnhandledError) {
+            val finalizedError = if (runningErrorHandler) {
+                error
+            } else {
+                finalizeErrorObject(
+                    error,
+                    if (frame.protectedCallCompletion != null) frame.protectedErrorHandler else errorHandler,
+                )
+            }
+            if (retainFramesOnUnhandledError && frame.protectedCallCompletion == null) {
                 failed = true
                 throw finalizedError
             }
@@ -680,33 +787,61 @@ internal class LuaVm(
         return checkNotNull(closeFrame(frame, error)) { "error close completed without propagating its error" }
     }
 
-    private fun finalizeErrorObject(error: LuaVmException): LuaVmException {
+    private fun finalizeErrorObject(
+        error: LuaVmException,
+        selectedErrorHandler: LuaValue? = errorHandler,
+    ): LuaVmException {
         if (error.errorObjectFinalized || runningErrorHandler) {
             return error
         }
         val originalObject = error.errorObject ?: LuaString(error.message ?: "runtime error")
-        val handledObject = if (errorHandler == null) {
+        val handledObject = if (selectedErrorHandler == null) {
             originalObject
         } else {
+            val errorHandlerCaller = thread.currentFrame
             runningErrorHandler = true
             try {
                 val result = thread.runNonYieldableCall {
-                    callValue(errorHandler, listOf(originalObject))
+                    callValue(selectedErrorHandler, listOf(originalObject))
                 }
                 when (result) {
                     is LuaExecutionResult.Returned -> result.values.firstOrNull() ?: LuaNil
                     is LuaExecutionResult.Yielded,
                     LuaExecutionResult.DebugSuspended,
-                    -> return errorInErrorHandling(error)
+                    -> return unwindErrorHandlerFrames(error, errorHandlerCaller)
                 }
             } catch (_: LuaVmException) {
-                return errorInErrorHandling(error)
+                return unwindErrorHandlerFrames(error, errorHandlerCaller)
             } finally {
                 runningErrorHandler = false
             }
         }
         val finalObject = if (handledObject == LuaNil) LuaString("<no error object>") else handledObject
         return error.withFinalErrorObject(finalObject, errorMessage(finalObject, error))
+    }
+
+    private fun unwindErrorHandlerFrames(
+        originalError: LuaVmException,
+        errorHandlerCaller: CallFrame?,
+    ): LuaVmException {
+        var activeError = errorInErrorHandling(originalError)
+        while (thread.currentFrame !== errorHandlerCaller) {
+            val frame = thread.currentFrame ?: break
+            activeError = closeFrame(frame, activeError) ?: activeError
+            thread.popFrame(frame)
+        }
+        return activeError
+    }
+
+    private fun discardProtectedFrames(completion: LuaProtectedCallCompletion) {
+        var activeError = completion.error
+        while (thread.currentFrame?.protectedCallCompletion === completion) {
+            val frame = checkNotNull(thread.currentFrame)
+            activeError = closeFrame(frame, activeError)
+            thread.discardFramesAbove(frame)
+            thread.popFrame(frame)
+        }
+        completion.error = activeError
     }
 
     private fun errorInErrorHandling(error: LuaVmException): LuaVmException {
@@ -915,7 +1050,7 @@ internal class LuaVm(
         callSiteInfo: CallSiteInfo?,
         callMetamethodDepth: Int,
         isTailCall: Boolean,
-        callErrorTypeName: String = typeName(callee),
+        callErrorTypeName: String = "a ${typeName(callee)} value",
     ): LuaExecutionResult {
         if (callMetamethodDepth >= MAX_CALL_METAMETHOD_DEPTH) {
             throw LuaVmException("'__call' chain too long")
@@ -1017,6 +1152,18 @@ internal class LuaVm(
 
         override fun getDebugHook(): LuaNativeDebugHook? {
             return debugHook?.toNativeHook()
+        }
+
+        override fun call(
+            index: Int,
+            arguments: List<LuaValue>,
+            errorHandlerIndex: Int?,
+        ): LuaExecutionResult? {
+            val callee = this.arguments.getOrNull(index - 1) ?: return null
+            val selectedErrorHandler = errorHandlerIndex?.let { handlerIndex ->
+                this.arguments.getOrNull(handlerIndex - 1)
+            }
+            return callProtectedContextValue(callee, arguments, selectedErrorHandler, isYieldable)
         }
     }
 

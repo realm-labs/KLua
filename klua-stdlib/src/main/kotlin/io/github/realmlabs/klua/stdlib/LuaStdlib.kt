@@ -801,7 +801,7 @@ public object LuaStdlib {
         return try {
             val arguments = (firstArgumentIndex..context.argumentCount).map { index -> argumentValue(context, index) }
             val result = if (handlerIndex == null) {
-                context.call(functionIndex, arguments)
+                context.protectedCall(functionIndex, arguments)
             } else {
                 context.callWithErrorHandler(functionIndex, arguments, handlerIndex)
             }

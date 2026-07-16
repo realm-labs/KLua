@@ -42,7 +42,7 @@ class LuaVmMetatableTest {
             LuaVm().execute(tableLengthPrototype(table))
         }
 
-        assertEquals("attempt to call number", error.message)
+        assertEquals("attempt to call a number value", error.message)
     }
 
     @Test
@@ -156,7 +156,7 @@ class LuaVmMetatableTest {
             LuaVm().execute(tableCallPrototype(LuaTable(), LuaString("answer"), 1))
         }
 
-        assertEquals("attempt to call table", error.message)
+        assertEquals("attempt to call a table value", error.message)
     }
 
     private fun returnSecondArgumentPrototype(): Prototype {

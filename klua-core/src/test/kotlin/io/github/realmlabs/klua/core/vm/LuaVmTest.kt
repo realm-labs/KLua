@@ -456,7 +456,7 @@ class LuaVmTest {
                 Compiler.compile("local value <close> = resource\nremoveClose()"),
             )
         }
-        assertEquals("attempt to call nil", error.message)
+        assertEquals("attempt to call a nil value", error.message)
     }
 
     @Test

@@ -767,6 +767,6 @@ class LuaVmFunctionTest {
             LuaVm().execute(Compiler.compile("local value = 1 return value()"))
         }
 
-        assertEquals("attempt to call number", error.message)
+        assertEquals("attempt to call a number value", error.message)
     }
 }

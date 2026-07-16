@@ -20,6 +20,7 @@ internal class CallFrame(
 ) : LuaStack(stackSize) {
     private var pendingCall: PendingCallState? = null
     private var debugState: DebugFrameState? = null
+    private var protectedState: ProtectedFrameState? = null
     private var toBeClosedSlots: MutableList<Int>? = null
 
     val globals: LuaValue
@@ -83,6 +84,22 @@ internal class CallFrame(
         get() = debugState?.callHookDispatched ?: false
         set(value) {
             debugState().callHookDispatched = value
+        }
+
+    var protectedErrorHandler: LuaValue?
+        get() = protectedState?.errorHandler
+        set(value) {
+            if (value != null || protectedState != null) {
+                protectedState().errorHandler = value
+            }
+        }
+
+    var protectedCallCompletion: LuaProtectedCallCompletion?
+        get() = protectedState?.completion
+        set(value) {
+            if (value != null || protectedState != null) {
+                protectedState().completion = value
+            }
         }
 
     var lastDebuggerPc: Int
@@ -149,6 +166,10 @@ internal class CallFrame(
     private fun debugState(): DebugFrameState {
         return debugState ?: DebugFrameState().also { created -> debugState = created }
     }
+
+    private fun protectedState(): ProtectedFrameState {
+        return protectedState ?: ProtectedFrameState().also { created -> protectedState = created }
+    }
 }
 
 internal data class PendingCallState(
@@ -168,4 +189,9 @@ private class DebugFrameState(
     var debuggerSuspendedPc: Int = -1,
     var hookTransferStart: Int = 0,
     var hookTransferCount: Int = 0,
+)
+
+private class ProtectedFrameState(
+    var errorHandler: LuaValue? = null,
+    var completion: LuaProtectedCallCompletion? = null,
 )

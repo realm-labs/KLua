@@ -1,5 +1,7 @@
 package io.github.realmlabs.klua.core.value
 
+import io.github.realmlabs.klua.core.vm.LuaExecutionResult
+
 import io.github.realmlabs.klua.core.bytecode.Prototype
 
 internal sealed interface LuaValue
@@ -107,6 +109,12 @@ internal open class LuaNativeCallContext(
     open fun setDebugHook(index: Int, mask: String, count: Int): Boolean = false
 
     open fun getDebugHook(): LuaNativeDebugHook? = null
+
+    open fun call(
+        index: Int,
+        arguments: List<LuaValue>,
+        errorHandlerIndex: Int? = null,
+    ): LuaExecutionResult? = null
 }
 
 internal data class LuaNativeStackFrame(

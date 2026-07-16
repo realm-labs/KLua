@@ -8199,6 +8199,271 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `pcall target stays on the active hook stack and exposes native transfers`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local target
+                local function hook(event)
+                    local info = debug.getinfo(2, "f")
+                    if info.func == target then
+                        records[#records + 1] = event .. ":target"
+                    elseif info.func == math.modf then
+                        records[#records + 1] = event .. ":modf"
+                        if event == "call" then
+                            debug.setlocal(2, 1, 8.25)
+                        else
+                            debug.setlocal(2, 1, 11)
+                            debug.setlocal(2, 2, 22)
+                        end
+                    end
+                end
+                target = function()
+                    return math.modf(3.5)
+                end
+
+                debug.sethook(hook, "cr", 0)
+                local ok, integer, fraction = pcall(target)
+                debug.sethook()
+                return ok, integer, fraction, table.concat(records, ",")
+                """.trimIndent(),
+                "debug-hook-pcall-native-transfer.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(11L, state.toInteger(2))
+        assertEquals(22L, state.toInteger(3))
+        assertEquals(
+            "call:target,call:modf,return:modf,return:target",
+            state.toString(4),
+        )
+    }
+
+    @Test
+    fun `pcall target observes hook replacement and removal across line and count events`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = 0
+                local second = 0
+                local target
+                local function replacement(event)
+                    if debug.getinfo(2, "f").func == target then
+                        second = second + 1
+                        if second == 2 then
+                            debug.sethook()
+                        end
+                    end
+                end
+                local function initial(event)
+                    if debug.getinfo(2, "f").func == target then
+                        first = first + 1
+                        debug.sethook(replacement, "", 1)
+                    end
+                end
+                target = function()
+                    local value = 1
+                    value = value + 1
+                    value = value + 1
+                    return value
+                end
+
+                debug.sethook(initial, "l", 0)
+                local ok, value = pcall(target)
+                local hook = debug.gethook()
+                return ok, value, first, second, hook == nil
+                """.trimIndent(),
+                "debug-hook-pcall-replacement.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(3L, state.toInteger(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals(2L, state.toInteger(4))
+        assertTrue(state.toBoolean(5))
+    }
+
+    @Test
+    fun `pcall preserves exact results and native transfers across a target yield`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local target
+                local function hook(event)
+                    local info = debug.getinfo(2, "f")
+                    if info.func == target then
+                        records[#records + 1] = event .. ":target"
+                    elseif info.func == coroutine.yield then
+                        records[#records + 1] = event .. ":yield"
+                        debug.setlocal(
+                            2,
+                            1,
+                            event == "call" and "changed pause" or "changed resume"
+                        )
+                    end
+                end
+                target = function()
+                    local resumed = coroutine.yield("pause")
+                    return "done", resumed
+                end
+                local co = coroutine.create(function()
+                    return pcall(target)
+                end)
+                debug.sethook(co, hook, "cr", 0)
+
+                local firstOk, paused = coroutine.resume(co)
+                local secondOk, protectedOk, marker, resumed = coroutine.resume(co, "resume")
+                debug.sethook(co)
+                return firstOk, paused, secondOk, protectedOk, marker, resumed,
+                    table.concat(records, ","), coroutine.status(co)
+                """.trimIndent(),
+                "debug-hook-pcall-yield.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("changed pause", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("done", state.toString(5))
+        assertEquals("changed resume", state.toString(6))
+        assertEquals(
+            "call:target,call:yield,return:yield,return:target",
+            state.toString(7),
+        )
+        assertEquals("dead", state.toString(8))
+    }
+
+    @Test
+    fun `xpcall recovers a resumed target on its coroutine hook state`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local records = {}
+                local target
+                local handler
+                local function hook(event)
+                    local info = debug.getinfo(2, "f")
+                    if info.func == target then
+                        records[#records + 1] = event .. ":target"
+                    elseif info.func == handler then
+                        records[#records + 1] = event .. ":handler"
+                    elseif info.func == math.abs then
+                        records[#records + 1] = event .. ":abs"
+                        if event == "call" then
+                            debug.setlocal(2, 1, -42)
+                        end
+                    end
+                end
+                target = function()
+                    coroutine.yield("pause")
+                    error("boom", 0)
+                end
+                handler = function(message)
+                    return message .. ":" .. math.abs(-1)
+                end
+                local co = coroutine.create(function()
+                    return xpcall(target, handler)
+                end)
+                debug.sethook(co, hook, "cr", 0)
+
+                local firstOk, paused = coroutine.resume(co)
+                local installed, mask, count = debug.gethook(co)
+                local secondOk, protectedOk, message = coroutine.resume(co)
+                local retained, retainedMask, retainedCount = debug.gethook(co)
+                debug.sethook(co)
+                return firstOk, paused, installed == hook, mask, count,
+                    secondOk, protectedOk, message,
+                    retained == hook, retainedMask, retainedCount,
+                    table.concat(records, ","), coroutine.status(co)
+                """.trimIndent(),
+                "debug-hook-xpcall-resume-error.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("pause", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("cr", state.toString(4))
+        assertEquals(0L, state.toInteger(5))
+        assertTrue(state.toBoolean(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("boom:42", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("cr", state.toString(10))
+        assertEquals(0L, state.toInteger(11))
+        assertEquals(
+            "call:target,call:handler,call:abs,return:abs,return:handler",
+            state.toString(12),
+        )
+        assertEquals("dead", state.toString(13))
+    }
+
+    @Test
+    fun `nested protected calls shadow outer error handlers`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local outerCalls = 0
+                local innerCalls = 0
+                local outerOk, innerOk, innerMessage = xpcall(function()
+                    local plainOk, plainMessage = pcall(function()
+                        error("plain", 0)
+                    end)
+                    local nestedOk, nestedMessage = xpcall(function()
+                        error("nested", 0)
+                    end, function(message)
+                        innerCalls = innerCalls + 1
+                        return "inner:" .. message
+                    end)
+                    return plainOk, plainMessage, nestedOk, nestedMessage
+                end, function(message)
+                    outerCalls = outerCalls + 1
+                    return "outer:" .. message
+                end)
+                return outerOk, innerOk, innerMessage, innerCalls, outerCalls
+                """.trimIndent(),
+                "nested-protected-error-handlers.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("plain", state.toString(3))
+        assertEquals(1L, state.toInteger(4))
+        assertEquals(0L, state.toInteger(5))
+    }
+
+    @Test
     fun `debug native call mutation precedes a target failure without a return event`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
@@ -9505,11 +9770,20 @@ class LuaStdlibTest {
         assertEquals("loaded:1", state.toString(1))
         assertEquals("loaded:1", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(4))
+        assertEquals(
+            "[string \"require-name-types.lua\"]:5: bad argument #1 to 'require' (string expected)",
+            state.toString(4),
+        )
         assertFalse(state.toBoolean(5))
-        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(6))
+        assertEquals(
+            "[string \"require-name-types.lua\"]:6: bad argument #1 to 'require' (string expected)",
+            state.toString(6),
+        )
         assertFalse(state.toBoolean(7))
-        assertEquals("bad argument #1 to 'require' (string expected)", state.toString(8))
+        assertEquals(
+            "[string \"require-name-types.lua\"]:7: bad argument #1 to 'require' (string expected)",
+            state.toString(8),
+        )
     }
 
     @Test
@@ -9702,7 +9976,10 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(1))
         assertEquals("'package.path' must be a string", state.toString(2))
         assertFalse(state.toBoolean(3))
-        assertEquals("'package.searchers' must be a table", state.toString(4))
+        assertEquals(
+            "[string \"package-loader-field-type-errors.lua\"]:6: 'package.searchers' must be a table",
+            state.toString(4),
+        )
     }
 
     @Test
@@ -9870,7 +10147,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("module 'custom' not found:\n\tcustom miss", state.toString(2))
+        assertEquals(
+            "[string \"require-searcher-protocol.lua\"]:12: module 'custom' not found:\n\tcustom miss",
+            state.toString(2),
+        )
         assertTrue(state.isNil(3))
     }
 
@@ -9903,7 +10183,8 @@ class LuaStdlibTest {
 
         assertFalse(state.toBoolean(1))
         assertEquals(
-            "module 'numeric' not found:\n\t9223372036854775807\n\t1.5\n\ttail",
+            "[string \"require-numeric-searcher-diagnostics.lua\"]:12: " +
+                "module 'numeric' not found:\n\t9223372036854775807\n\t1.5\n\ttail",
             state.toString(2),
         )
     }
@@ -9996,7 +10277,10 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertEquals("'package.searchers' must be a table", state.toString(2))
+        assertEquals(
+            "[string \"require-searchers-type.lua\"]:2: 'package.searchers' must be a table",
+            state.toString(2),
+        )
     }
 
     @Test
@@ -10710,7 +10994,7 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("marker", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("assertion failed!", state.toString(5))
+        assertEquals("[string \"assert-error-object.lua\"]:3: assertion failed!", state.toString(5))
         assertFalse(state.toBoolean(6))
         assertEquals("bad argument #1 to 'assert' (value expected)", state.toString(7))
         assertFalse(state.toBoolean(8))
@@ -17483,9 +17767,9 @@ class LuaStdlibTest {
         assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
 
         assertFalse(state.toBoolean(1))
-        assertTrue(state.toString(2)?.contains("attempt to call nil") == true)
+        assertTrue(state.toString(2)?.contains("attempt to call a nil value") == true)
         assertFalse(state.toBoolean(3))
-        assertTrue(state.toString(4)?.contains("attempt to call table") == true)
+        assertTrue(state.toString(4)?.contains("attempt to call a table value") == true)
     }
 
     @Test
@@ -19845,14 +20129,14 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(7))
         assertEquals("[string \"coroutine-wrap.lua\"]:10: cannot resume dead coroutine", state.toString(8))
         assertFalse(state.toBoolean(9))
-        assertEquals("[string \"coroutine-wrap.lua\"]:14: [string \"coroutine-wrap.lua\"]:15: boom", state.toString(10))
+        assertEquals("[string \"coroutine-wrap.lua\"]:17: [string \"coroutine-wrap.lua\"]:15: boom", state.toString(10))
         assertFalse(state.toBoolean(11))
         assertEquals("[string \"coroutine-wrap.lua\"]:22: [string \"coroutine-wrap.lua\"]:19: boom", state.toString(12))
         assertFalse(state.toBoolean(13))
         assertTrue(state.toBoolean(14))
         assertEquals("marker", state.toString(15))
         assertFalse(state.toBoolean(16))
-        assertEquals("[string \"coroutine-wrap.lua\"]:30: <no error object>", state.toString(17))
+        assertEquals("[string \"coroutine-wrap.lua\"]:33: <no error object>", state.toString(17))
         assertFalse(state.toBoolean(18))
         assertFalse(state.toBoolean(19))
         assertFalse(state.toBoolean(20))
