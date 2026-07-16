@@ -642,6 +642,8 @@ class LuaStdlibTest {
     fun `openLibs installs minimal debug library`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)
+        val debugOutput = mutableListOf<String>()
+        LuaStdlib.openDebug(state, LuaDebugInput { null }, Consumer(debugOutput::add))
 
         assertEquals(
             LuaStatus.OK,
@@ -684,6 +686,171 @@ class LuaStdlibTest {
         assertEquals(1L, state.toInteger(21))
         assertEquals("function", state.toString(22))
         assertTrue(state.toBoolean(23))
+        assertEquals(listOf("lua_debug> "), debugOutput)
+    }
+
+    @Test
+    fun `debug debug runs protected command lines until cont`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state, Consumer { })
+        val commands = ArrayDeque(
+            listOf(
+                "debugCounter = (debugCounter or 0) + 1",
+                "debugCallerSource = debug.getinfo(2, \"S\").source",
+                "return 1, 2, 3",
+                "error(\"runtime boom\", 0)",
+                "local =",
+                "debugCounter = debugCounter + 1",
+                "cont",
+            ),
+        )
+        val output = mutableListOf<String>()
+        LuaStdlib.openDebug(
+            state,
+            LuaDebugInput { commands.removeFirstOrNull() },
+            Consumer(output::add),
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local results = table.pack(debug.debug("ignored", {}, 3))
+                return debugCounter, results.n, debugCallerSource
+                """.trimIndent(),
+                "debug-command-loop.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals("debug-command-loop.lua", state.toString(3))
+        assertEquals(7, output.count { fragment -> fragment == "lua_debug> " })
+        assertEquals(1, output.count { fragment -> "runtime boom" in fragment })
+        assertEquals(1, output.count { fragment -> "debug command" in fragment })
+        assertTrue(output.filterNot { fragment -> fragment == "lua_debug> " }.all { fragment -> fragment.endsWith('\n') })
+    }
+
+    @Test
+    fun `debug debug stops at eof and reopened functions use updated adapters`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state, Consumer { })
+        val firstCommands = ArrayDeque(listOf("debugReopen = 1"))
+        val firstOutput = mutableListOf<String>()
+        LuaStdlib.openDebug(
+            state,
+            LuaDebugInput { firstCommands.removeFirstOrNull() },
+            Consumer(firstOutput::add),
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                savedDebug = debug.debug
+                local results = table.pack(savedDebug())
+                return debugReopen, results.n
+                """.trimIndent(),
+                "debug-command-eof.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertEquals(1L, state.toInteger(1))
+        assertEquals(0L, state.toInteger(2))
+        assertEquals(listOf("lua_debug> ", "lua_debug> "), firstOutput)
+
+        state.setTop(0)
+        val secondCommands = ArrayDeque(listOf("debugReopen = debugReopen + 1", "cont"))
+        val secondOutput = mutableListOf<String>()
+        LuaStdlib.openDebug(
+            state,
+            LuaDebugInput { secondCommands.removeFirstOrNull() },
+            Consumer(secondOutput::add),
+        )
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local same = savedDebug == debug.debug
+                local results = table.pack(savedDebug("ignored"))
+                return same, debugReopen, results.n
+                """.trimIndent(),
+                "debug-command-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertTrue(state.toBoolean(1))
+        assertEquals(2L, state.toInteger(2))
+        assertEquals(0L, state.toInteger(3))
+        assertEquals(listOf("lua_debug> ", "lua_debug> "), secondOutput)
+    }
+
+    @Test
+    fun `debug debug rejects yielded commands and continues with a clean stack`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state, Consumer { })
+        val commands = ArrayDeque(
+            listOf(
+                "coroutine.yield(\"forbidden\")",
+                "debugAfterYield = true",
+                "cont",
+            ),
+        )
+        val output = mutableListOf<String>()
+        LuaStdlib.openDebug(
+            state,
+            LuaDebugInput { commands.removeFirstOrNull() },
+            Consumer(output::add),
+        )
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local co = coroutine.create(function()
+                    debug.debug()
+                    return "done"
+                end)
+                local ok, result = coroutine.resume(co)
+                return ok, result, debugAfterYield, coroutine.status(co)
+                """.trimIndent(),
+                "debug-command-yield.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("done", state.toString(2))
+        assertTrue(state.toBoolean(3))
+        assertEquals("dead", state.toString(4))
+        assertEquals(3, output.count { fragment -> fragment == "lua_debug> " })
+        assertEquals(1, output.count { fragment -> "attempt to yield across a C-call boundary" in fragment })
+    }
+
+    @Test
+    fun `default debug command adapters use stdin and stderr`() {
+        val previousInput = System.`in`
+        val previousError = System.err
+        val errorBytes = ByteArrayOutputStream()
+        try {
+            System.setIn(ByteArrayInputStream("defaultDebugValue = 9\ncont\n".toByteArray(StandardCharsets.UTF_8)))
+            System.setErr(PrintStream(errorBytes, true, StandardCharsets.UTF_8))
+            val state = LuaState.create()
+            LuaStdlib.openBase(state, Consumer { })
+            LuaStdlib.openDebug(state)
+
+            assertEquals(
+                LuaStatus.OK,
+                state.load("debug.debug(); return defaultDebugValue", "debug-default-adapters.lua"),
+            )
+            assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+            assertEquals(9L, state.toInteger(1))
+            assertEquals("lua_debug> lua_debug> ", errorBytes.toString(StandardCharsets.UTF_8))
+        } finally {
+            System.setIn(previousInput)
+            System.setErr(previousError)
+        }
     }
 
     @Test
@@ -704,6 +871,16 @@ class LuaStdlibTest {
         assertEquals("table", state.toString(2))
         assertEquals("table", state.toString(3))
         assertEquals("table", state.toString(4))
+    }
+
+    @Test
+    fun `production config omits interactive debug entry points`() {
+        val state = LuaState.create(LuaConfig.production())
+        LuaStdlib.openLibs(state, Consumer { })
+
+        assertEquals(LuaStatus.OK, state.load("return type(debug)", "debug-production.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertEquals("nil", state.toString(1))
     }
 
     @Test

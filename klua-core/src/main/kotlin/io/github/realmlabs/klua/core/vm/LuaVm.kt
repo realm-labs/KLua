@@ -220,8 +220,14 @@ internal class LuaVm(
         val completion = LuaProtectedCallCompletion()
         return withProtectedCallState(selectedErrorHandler, completion) {
             val initialDepth = thread.callDepth
-            val result = callWithYieldability(callee, arguments, isYieldable)
-            protectContextCallResult(result, initialDepth, selectedErrorHandler, completion)
+            try {
+                val result = callWithYieldability(callee, arguments, isYieldable)
+                protectContextCallResult(result, initialDepth, selectedErrorHandler, completion)
+            } catch (error: LuaVmException) {
+                completion.error = error
+                discardProtectedFrames(completion)
+                throw completion.error ?: error
+            }
         }
     }
 
@@ -1164,6 +1170,13 @@ internal class LuaVm(
                 this.arguments.getOrNull(handlerIndex - 1)
             }
             return callProtectedContextValue(callee, arguments, selectedErrorHandler, isYieldable)
+        }
+
+        override fun call(
+            function: LuaValue,
+            arguments: List<LuaValue>,
+        ): LuaExecutionResult {
+            return callProtectedContextValue(function, arguments, selectedErrorHandler = null, isYieldable)
         }
     }
 

@@ -715,6 +715,10 @@ public class KLuaCoreCallContext internal constructor(
         arguments: List<KLuaCoreValue>,
         errorHandlerIndex: Int?,
     ) -> KLuaCoreCallResult?,
+    private val callFunctionValue: (
+        function: KLuaCoreValue,
+        arguments: List<KLuaCoreValue>,
+    ) -> KLuaCoreCallResult?,
 ) {
     private var cachedLuaFrames: List<KLuaCoreStackFrame>? = null
 
@@ -732,6 +736,10 @@ public class KLuaCoreCallContext internal constructor(
             arguments: List<KLuaCoreValue>,
             errorHandlerIndex: Int?,
         ) -> KLuaCoreCallResult? = { _, _, _ -> null },
+        callFunctionValue: (
+            function: KLuaCoreValue,
+            arguments: List<KLuaCoreValue>,
+        ) -> KLuaCoreCallResult? = { _, _ -> null },
     ) : this(
         arguments,
         luaFramesProvider = { luaFrames },
@@ -742,6 +750,7 @@ public class KLuaCoreCallContext internal constructor(
         setDebugHookValue,
         getDebugHookValue,
         callValue,
+        callFunctionValue,
     )
 
     public val luaFrames: List<KLuaCoreStackFrame>
@@ -765,6 +774,13 @@ public class KLuaCoreCallContext internal constructor(
         errorHandlerIndex: Int? = null,
     ): KLuaCoreCallResult? {
         return callValue(index, arguments, errorHandlerIndex)
+    }
+
+    public fun call(
+        function: KLuaCoreValue,
+        arguments: List<KLuaCoreValue>,
+    ): KLuaCoreCallResult? {
+        return callFunctionValue(function, arguments)
     }
 }
 
@@ -1453,33 +1469,19 @@ private fun callCoreContextFunction(
                     }
                 },
                 callValue = { index, arguments, errorHandlerIndex ->
-                    val luaArguments = ArrayList<LuaValue>(arguments.size)
-                    var unsupportedArgument: KLuaCoreValue? = null
-                    for (value in arguments) {
-                        val luaValue = value.toLuaValueOrNull(globals)
-                        if (luaValue == null) {
-                            unsupportedArgument = value
-                            break
-                        }
-                        luaArguments += luaValue
+                    callCoreContextValue(arguments, globals) { luaArguments ->
+                        context.call(index, luaArguments, errorHandlerIndex)
                     }
-                    if (unsupportedArgument != null) {
+                },
+                callFunctionValue = { functionValue, arguments ->
+                    val luaFunction = functionValue.toLuaValueOrNull(globals)
+                    if (luaFunction == null) {
                         KLuaCoreCallResult.RuntimeError(
-                            "cannot pass ${unsupportedArgument.publicTypeName()} as Lua argument",
+                            "cannot call ${functionValue.publicTypeName()} as Lua function",
                         )
                     } else {
-                        try {
-                            val result = context.call(index, luaArguments, errorHandlerIndex)
-                            syncLuaTablesToPublic(luaArguments, arguments, globals)
-                            result?.toContextCoreCallResult(globals, luaArguments, arguments)
-                        } catch (error: LuaVmException) {
-                            syncLuaTablesToPublic(luaArguments, arguments, globals)
-                            KLuaCoreCallResult.RuntimeError(
-                                error.message ?: "runtime error",
-                                error.rootCause(),
-                                errorObject = error.errorObject?.let { value -> toPublicValue(value, globals) },
-                                errorObjectFinalized = error.errorObjectFinalized,
-                            )
+                        callCoreContextValue(arguments, globals) { luaArguments ->
+                            context.call(luaFunction, luaArguments)
                         }
                     }
                 },
@@ -1796,6 +1798,34 @@ private fun callPublicLuaFunction(
             error.message ?: "runtime error",
             error.rootCause(),
             errorObject = error.errorObject?.let { toPublicValue(it, globals) },
+            errorObjectFinalized = error.errorObjectFinalized,
+        )
+    }
+}
+
+private inline fun callCoreContextValue(
+    arguments: List<KLuaCoreValue>,
+    globals: KLuaCoreGlobals,
+    call: (List<LuaValue>) -> LuaExecutionResult?,
+): KLuaCoreCallResult? {
+    val luaArguments = ArrayList<LuaValue>(arguments.size)
+    for (value in arguments) {
+        val luaValue = value.toLuaValueOrNull(globals)
+            ?: return KLuaCoreCallResult.RuntimeError(
+                "cannot pass ${value.publicTypeName()} as Lua argument",
+            )
+        luaArguments += luaValue
+    }
+    return try {
+        val result = call(luaArguments)
+        syncLuaTablesToPublic(luaArguments, arguments, globals)
+        result?.toContextCoreCallResult(globals, luaArguments, arguments)
+    } catch (error: LuaVmException) {
+        syncLuaTablesToPublic(luaArguments, arguments, globals)
+        KLuaCoreCallResult.RuntimeError(
+            error.message ?: "runtime error",
+            error.rootCause(),
+            errorObject = error.errorObject?.let { value -> toPublicValue(value, globals) },
             errorObjectFinalized = error.errorObjectFinalized,
         )
     }

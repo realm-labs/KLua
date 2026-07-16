@@ -7,10 +7,27 @@ import io.github.realmlabs.klua.api.LuaStatus;
 import org.junit.jupiter.api.Test;
 
 import java.util.EnumSet;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class LuaStdlibJavaTest {
+    @Test
+    void configuresDebugCommandInputFromJava() {
+        LuaState state = LuaState.create();
+        LuaStdlib.openLibs(state, ignored -> {});
+        ArrayDeque<String> commands = new ArrayDeque<>(List.of("javaDebugValue = 7", "cont"));
+        List<String> output = new ArrayList<>();
+        LuaStdlib.openDebug(state, commands::pollFirst, output::add);
+
+        assertEquals(LuaStatus.OK, state.load("debug.debug(); return javaDebugValue", "java-debug-command.lua"));
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1));
+        assertEquals(7L, state.toInteger(1));
+        assertEquals(List.of("lua_debug> ", "lua_debug> "), output);
+    }
+
     @Test
     void opensWhitelistedLibrariesFromJavaConfig() {
         EnumSet<LuaStandardLibrary> libraries = EnumSet.of(LuaStandardLibrary.BASE, LuaStandardLibrary.MATH);

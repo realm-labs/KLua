@@ -2454,6 +2454,17 @@ class LuaState private constructor(
                 ?: super.protectedCall(index, arguments)
         }
 
+        override fun protectedCall(function: Any?, arguments: List<Any?>): LuaReturn {
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            val coreFunction = function.toStackValue().toCoreValue(tableCache)
+            val coreArguments = arguments.map { argument ->
+                argument.toStackValue().toCoreValue(tableCache)
+            }
+            val result = coreContext.call(coreFunction, coreArguments)
+                ?: return super.protectedCall(function, arguments)
+            return coreCallResult(result)
+        }
+
         override fun callWithErrorHandler(
             index: Int,
             arguments: List<Any?>,

@@ -2,6 +2,8 @@ package io.github.realmlabs.klua.stdlib
 
 import io.github.realmlabs.klua.api.LuaCallContext
 import io.github.realmlabs.klua.api.LuaDebugThread
+import io.github.realmlabs.klua.api.LuaException
+import io.github.realmlabs.klua.api.LuaExitException
 import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaFunctionDebugInfo
 import io.github.realmlabs.klua.api.LuaLocalVariable
@@ -9,9 +11,15 @@ import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaStackFrame
 import io.github.realmlabs.klua.api.LuaState
+import java.util.Collections
+import java.util.WeakHashMap
+import java.util.function.Consumer
 
 internal object LuaDebugLibrary {
-    private val debugFunction = LuaFunction { LuaReturn.none() }
+    private const val DEBUG_PROMPT = "lua_debug> "
+    private const val DEBUG_CONTINUE_COMMAND = "cont"
+    private const val DEBUG_COMMAND_SOURCE = "=(debug command)"
+    private val interactionStates = Collections.synchronizedMap(WeakHashMap<LuaState, DebugInteractionState>())
     private val tracebackFunction = LuaFunction { context -> traceback(context) }
     private val getInfoFunction = LuaFunction { context -> getInfo(context) }
     private val getLocalFunction = LuaFunction { context -> getLocal(context) }
@@ -27,9 +35,19 @@ internal object LuaDebugLibrary {
     private val setHookFunction = LuaFunction { context -> setHook(context) }
     private val getHookFunction = LuaFunction { context -> getHook(context) }
 
-    fun open(state: LuaState): LuaState {
+    fun open(
+        state: LuaState,
+        input: LuaDebugInput,
+        output: Consumer<String>,
+    ): LuaState {
+        val interaction = synchronized(interactionStates) {
+            interactionStates.getOrPut(state) { DebugInteractionState(input, output) }.also { existing ->
+                existing.input = input
+                existing.output = output
+            }
+        }
         state.newTable()
-        setFunctionField(state, "debug", debugFunction)
+        setFunctionField(state, "debug", interaction.function)
         setFunctionField(state, "getuservalue", getUserValueFunction)
         setFunctionField(state, "gethook", getHookFunction)
         setFunctionField(state, "getinfo", getInfoFunction)
@@ -48,6 +66,49 @@ internal object LuaDebugLibrary {
         setFunctionField(state, "traceback", tracebackFunction)
         state.setGlobal("debug")
         return state
+    }
+
+    private class DebugInteractionState(
+        var input: LuaDebugInput,
+        var output: Consumer<String>,
+    ) {
+        val function: LuaFunction = LuaFunction { context -> debug(context, this) }
+    }
+
+    private fun debug(context: LuaCallContext, interaction: DebugInteractionState): LuaReturn {
+        while (true) {
+            interaction.output.accept(DEBUG_PROMPT)
+            val command = interaction.input.readLine() ?: return LuaReturn.none()
+            if (command == DEBUG_CONTINUE_COMMAND) {
+                return LuaReturn.none()
+            }
+            try {
+                val loaded = context.load(command, DEBUG_COMMAND_SOURCE)
+                val function = loaded.get(1)
+                if (function == null) {
+                    interaction.output.accept((loaded.get(2)?.toString() ?: "syntax error") + "\n")
+                } else {
+                    context.protectedCall(function, emptyList())
+                }
+            } catch (exit: LuaExitException) {
+                throw exit
+            } catch (error: LuaException) {
+                interaction.output.accept(debugErrorMessage(error) + "\n")
+            }
+        }
+    }
+
+    private fun debugErrorMessage(error: LuaException): String {
+        val runtime = error as? LuaRuntimeException
+        val errorObject = runtime?.takeIf { it.hasErrorObject }?.errorObject
+        return when (errorObject) {
+            null -> error.message ?: error::class.java.simpleName
+            is CharSequence,
+            is Number,
+            is Boolean,
+            -> errorObject.toString()
+            else -> error.message ?: errorObject.toString()
+        }
     }
 
     private fun setFunctionField(state: LuaState, name: String, function: LuaFunction) {

@@ -13,8 +13,11 @@ import io.github.realmlabs.klua.api.LuaYieldableFunction
 import io.github.realmlabs.klua.api.continueWith
 import io.github.realmlabs.klua.api.withContinuation
 import io.github.realmlabs.klua.core.value.luaRawBytes
+import java.io.ByteArrayOutputStream
 import java.io.IOException
+import java.io.InputStream
 import java.math.BigInteger
+import java.nio.charset.StandardCharsets
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
@@ -230,7 +233,16 @@ public object LuaStdlib {
 
     @JvmStatic
     public fun openDebug(state: LuaState): LuaState {
-        return LuaDebugLibrary.open(state)
+        return openDebug(state, standardDebugInput(), standardDebugOutput())
+    }
+
+    @JvmStatic
+    public fun openDebug(
+        state: LuaState,
+        input: LuaDebugInput,
+        output: Consumer<String>,
+    ): LuaState {
+        return LuaDebugLibrary.open(state, input, output)
     }
 
     private fun assert(context: LuaCallContext): LuaReturn {
@@ -1229,6 +1241,30 @@ public object LuaStdlib {
 
     private fun standardOutput(): Consumer<String> {
         return Consumer { line -> println(line) }
+    }
+
+    private fun standardDebugInput(): LuaDebugInput {
+        val input = System.`in`
+        return LuaDebugInput { readDebugLine(input) }
+    }
+
+    private fun readDebugLine(input: InputStream): String? {
+        val bytes = ByteArrayOutputStream()
+        while (true) {
+            when (val next = input.read()) {
+                -1 -> return if (bytes.size() == 0) null else bytes.toString(StandardCharsets.UTF_8)
+                '\n'.code -> {
+                    val line = bytes.toByteArray()
+                    val length = if (line.lastOrNull() == '\r'.code.toByte()) line.size - 1 else line.size
+                    return String(line, 0, length, StandardCharsets.UTF_8)
+                }
+                else -> bytes.write(next)
+            }
+        }
+    }
+
+    private fun standardDebugOutput(): Consumer<String> {
+        return Consumer { fragment -> System.err.print(fragment) }
     }
 
     private fun String.luaByteLength(): Long {

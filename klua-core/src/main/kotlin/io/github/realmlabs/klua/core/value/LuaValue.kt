@@ -115,6 +115,11 @@ internal open class LuaNativeCallContext(
         arguments: List<LuaValue>,
         errorHandlerIndex: Int? = null,
     ): LuaExecutionResult? = null
+
+    open fun call(
+        function: LuaValue,
+        arguments: List<LuaValue>,
+    ): LuaExecutionResult? = null
 }
 
 internal data class LuaNativeStackFrame(
