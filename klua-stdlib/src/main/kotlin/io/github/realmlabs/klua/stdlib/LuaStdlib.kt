@@ -18,11 +18,14 @@ import java.math.BigInteger
 import java.nio.file.Files
 import java.nio.file.InvalidPathException
 import java.nio.file.Path
+import java.util.Collections
+import java.util.WeakHashMap
 import java.util.function.Consumer
 
 public object LuaStdlib {
     private val nextFunction = LuaFunction { context -> next(context) }
     private val ipairsIteratorFunction = LuaFunction { context -> ipairsNext(context) }
+    private val garbageCollectorStates = Collections.synchronizedMap(WeakHashMap<LuaState, GarbageCollectorState>())
 
     @JvmStatic
     public fun openLibs(state: LuaState): LuaState {
@@ -76,15 +79,10 @@ public object LuaStdlib {
         state.pushString("Lua 5.5")
         state.setGlobal("_VERSION")
         state.register("assert", ::assert)
-        var garbageCollectorRunning = true
-        var garbageCollectorMode = "incremental"
-        val garbageCollectorParams = DEFAULT_GARBAGE_COLLECTOR_PARAMS.toMutableMap()
-        state.register("collectgarbage") { context ->
-            val result = collectgarbage(context, garbageCollectorRunning, garbageCollectorMode, garbageCollectorParams)
-            garbageCollectorRunning = result.running
-            garbageCollectorMode = result.mode
-            result.returnValue
+        val garbageCollectorState = synchronized(garbageCollectorStates) {
+            garbageCollectorStates.getOrPut(state) { GarbageCollectorState() }
         }
+        state.register("collectgarbage", garbageCollectorState.function)
         if (state.config.unsafeStandardLibraryAccessEnabled) {
             state.register("dofile", LuaYieldableFunction { context -> dofile(context, state) })
         }
@@ -121,11 +119,13 @@ public object LuaStdlib {
         state.register(name, LuaYieldableFunction { context -> function(context) })
     }
 
-    private data class GarbageCollectorResult(
-        val running: Boolean,
-        val mode: String,
-        val returnValue: LuaReturn,
-    )
+    private class GarbageCollectorState {
+        var running: Boolean = true
+        var mode: String = "incremental"
+        val params: MutableMap<String, Int> = DEFAULT_GARBAGE_COLLECTOR_PARAMS
+            .mapValuesTo(mutableMapOf()) { (_, value) -> encodeGarbageCollectorParam(value) }
+        val function = LuaFunction { context -> collectgarbage(context, this) }
+    }
 
     private data class LoadFileSource(
         val source: String,
@@ -204,42 +204,83 @@ public object LuaStdlib {
 
     private fun collectgarbage(
         context: LuaCallContext,
-        running: Boolean,
-        mode: String,
-        params: MutableMap<String, Long>,
-    ): GarbageCollectorResult {
-        return when (val option = optionalString(context, 1, "collect", "collectgarbage")) {
+        state: GarbageCollectorState,
+    ): LuaReturn {
+        return when (val option = optionalString(context, 1, "collect", "collectgarbage").substringBefore('\u0000')) {
             "collect" -> {
                 System.gc()
-                GarbageCollectorResult(running, mode, LuaReturn.of(0L))
+                LuaReturn.of(0L)
             }
-            "stop" -> GarbageCollectorResult(false, mode, LuaReturn.of(0L))
-            "restart" -> GarbageCollectorResult(true, mode, LuaReturn.of(0L))
-            "count" -> GarbageCollectorResult(running, mode, LuaReturn.of(usedMemoryKilobytes()))
+            "stop" -> {
+                state.running = false
+                LuaReturn.of(0L)
+            }
+            "restart" -> {
+                state.running = true
+                LuaReturn.of(0L)
+            }
+            "count" -> LuaReturn.of(usedMemoryKilobytes())
             "step" -> {
                 if (!context.isNone(2) && !context.isNil(2)) {
                     requiredIntegerLikeLuaL(context, 2, "collectgarbage")
                 }
                 System.gc()
-                GarbageCollectorResult(running, mode, LuaReturn.of(false))
+                LuaReturn.of(false)
             }
-            "isrunning" -> GarbageCollectorResult(running, mode, LuaReturn.of(running))
-            "incremental" -> GarbageCollectorResult(running, "incremental", LuaReturn.of(mode))
-            "generational" -> GarbageCollectorResult(running, "generational", LuaReturn.of(mode))
+            "isrunning" -> LuaReturn.of(state.running)
+            "incremental" -> {
+                val previous = state.mode
+                state.mode = "incremental"
+                LuaReturn.of(previous)
+            }
+            "generational" -> {
+                val previous = state.mode
+                state.mode = "generational"
+                LuaReturn.of(previous)
+            }
             "param" -> {
-                val parameter = requiredString(context, 2, "collectgarbage")
-                val previous = params[parameter]
+                val parameter = requiredString(context, 2, "collectgarbage").substringBefore('\u0000')
+                val encodedPrevious = state.params[parameter]
                     ?: throw LuaRuntimeException("bad argument #2 to 'collectgarbage' (invalid option '$parameter')")
+                val previous = decodeGarbageCollectorParam(encodedPrevious)
                 if (!context.isNone(3) && !context.isNil(3)) {
-                    val value = requiredIntegerLikeLuaL(context, 3, "collectgarbage")
-                    if (value >= 0L) {
-                        params[parameter] = value
+                    val value = requiredIntegerLikeLuaL(context, 3, "collectgarbage").toInt()
+                    if (value >= 0) {
+                        state.params[parameter] = encodeGarbageCollectorParam(value.toLong())
                     }
                 }
-                GarbageCollectorResult(running, mode, LuaReturn.of(previous))
+                LuaReturn.of(previous)
             }
             else -> throw LuaRuntimeException("bad argument #1 to 'collectgarbage' (invalid option '$option')")
         }
+    }
+
+    private fun encodeGarbageCollectorParam(value: Long): Int {
+        if (value >= MAX_GARBAGE_COLLECTOR_PARAM) {
+            return 0xFF
+        }
+        val scaled = (value * 128L + 99L) / 100L
+        if (scaled < 0x10L) {
+            return scaled.toInt()
+        }
+        val log = ceilLog2(scaled + 1L) - 5
+        return (((scaled shr log) - 0x10L) or ((log + 1L) shl 4)).toInt()
+    }
+
+    private fun decodeGarbageCollectorParam(encoded: Int): Long {
+        var mantissa = encoded and 0xF
+        var exponent = encoded ushr 4
+        if (exponent > 0) {
+            exponent--
+            mantissa += 0x10
+        }
+        exponent -= 7
+        val scaled = 100L * mantissa
+        return if (exponent >= 0) scaled shl exponent else scaled shr -exponent
+    }
+
+    private fun ceilLog2(value: Long): Int {
+        return Long.SIZE_BITS - java.lang.Long.numberOfLeadingZeros(value - 1L)
     }
 
     private fun usedMemoryKilobytes(): Double {
@@ -1111,6 +1152,7 @@ public object LuaStdlib {
         "stepmul" to 200L,
         "stepsize" to 9600L,
     )
+    private const val MAX_GARBAGE_COLLECTOR_PARAM = 396_800L
 
     private fun standardOutput(): Consumer<String> {
         return Consumer { line -> println(line) }

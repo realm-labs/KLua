@@ -10749,6 +10749,40 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage uses C string option and parameter names`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local collectResult = collectgarbage("collect\0ignored")
+                local previous = collectgarbage("param\0ignored", "pause\0ignored", 201)
+                local rounded = collectgarbage("param", "pause")
+                local optionOk, optionMessage = pcall(collectgarbage, "bad\0ignored")
+                local parameterOk, parameterMessage = pcall(collectgarbage, "param", "bad\0ignored")
+                local numericOk, numericMessage = pcall(collectgarbage, 1)
+                return collectResult, previous, rounded,
+                    optionOk, optionMessage, parameterOk, parameterMessage, numericOk, numericMessage
+                """.trimIndent(),
+                "collectgarbage-c-strings.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(0L, state.toInteger(1))
+        assertEquals(250L, state.toInteger(2))
+        assertEquals(200L, state.toInteger(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("bad argument #1 to 'collectgarbage' (invalid option 'bad')", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals("bad argument #2 to 'collectgarbage' (invalid option 'bad')", state.toString(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals("bad argument #1 to 'collectgarbage' (invalid option '1')", state.toString(9))
+    }
+
+    @Test
     fun `collectgarbage reports non string option errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -10837,7 +10871,105 @@ class LuaStdlibTest {
         assertEquals(200L, state.toInteger(11))
         assertEquals(9600L, state.toInteger(12))
         assertEquals(9600L, state.toInteger(13))
-        assertEquals(8192L, state.toInteger(14))
+        assertEquals(8000L, state.toInteger(14))
+    }
+
+    @Test
+    fun `collectgarbage param narrows encodes and saturates values`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local initial = collectgarbage("param", "pause", 201)
+                local rounded = collectgarbage("param", "pause")
+                local beforeSaturation = collectgarbage("param", "pause", 400000)
+                local saturated = collectgarbage("param", "pause")
+                local beforeWrappedOne = collectgarbage("param", "pause", 4294967297)
+                local wrappedOne = collectgarbage("param", "pause")
+                local beforeIgnored = collectgarbage("param", "pause", 4294967295)
+                local ignored = collectgarbage("param", "pause")
+                local beforeWrappedZero = collectgarbage("param", "pause", 4294967296)
+                local wrappedZero = collectgarbage("param", "pause")
+                local beforeNegativeWrap = collectgarbage("param", "pause", -4294967295)
+                local negativeWrap = collectgarbage("param", "pause")
+                return initial, rounded, beforeSaturation, saturated,
+                    beforeWrappedOne, wrappedOne, beforeIgnored, ignored,
+                    beforeWrappedZero, wrappedZero, beforeNegativeWrap, negativeWrap
+                """.trimIndent(),
+                "collectgarbage-param-encoding.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(250L, state.toInteger(1))
+        assertEquals(200L, state.toInteger(2))
+        assertEquals(200L, state.toInteger(3))
+        assertEquals(396800L, state.toInteger(4))
+        assertEquals(396800L, state.toInteger(5))
+        assertEquals(1L, state.toInteger(6))
+        assertEquals(1L, state.toInteger(7))
+        assertEquals(1L, state.toInteger(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals(0L, state.toInteger(10))
+        assertEquals(0L, state.toInteger(11))
+        assertEquals(1L, state.toInteger(12))
+    }
+
+    @Test
+    fun `collectgarbage state survives base reopen and remains state local`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                collectgarbage("stop")
+                collectgarbage("generational")
+                collectgarbage("param", "pause", 201)
+                savedCollectgarbage = collectgarbage
+                """.trimIndent(),
+                "collectgarbage-before-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, 0), state.toString(-1))
+
+        LuaStdlib.openBase(state)
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                return savedCollectgarbage == collectgarbage,
+                    collectgarbage("isrunning"),
+                    collectgarbage("incremental"),
+                    collectgarbage("param", "pause")
+                """.trimIndent(),
+                "collectgarbage-after-reopen.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+        assertTrue(state.toBoolean(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("generational", state.toString(3))
+        assertEquals(200L, state.toInteger(4))
+
+        val otherState = LuaState.create()
+        LuaStdlib.openBase(otherState)
+        assertEquals(
+            LuaStatus.OK,
+            otherState.load(
+                "return collectgarbage('isrunning'), collectgarbage('incremental'), " +
+                    "collectgarbage('param', 'pause')",
+                "collectgarbage-other-state.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, otherState.pcall(0, -1), otherState.toString(-1))
+        assertTrue(otherState.toBoolean(1))
+        assertEquals("incremental", otherState.toString(2))
+        assertEquals(250L, otherState.toInteger(3))
     }
 
     @Test
