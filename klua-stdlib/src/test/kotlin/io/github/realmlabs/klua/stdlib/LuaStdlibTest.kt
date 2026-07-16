@@ -824,9 +824,8 @@ class LuaStdlibTest {
         assertEquals(
             "boom\n" +
                 "stack traceback:\n" +
-                "\t[string \"debug-traceback.lua\"]:2\n" +
-                "\t[string \"debug-traceback.lua\"]:6\n" +
-                "\t[string \"debug-traceback.lua\"]:9",
+                "\t[string \"debug-traceback.lua\"]:2: in function <[string \"debug-traceback.lua\"]:1>\n" +
+                "\t(...tail calls...)",
             state.toString(1),
         )
     }
@@ -854,8 +853,8 @@ class LuaStdlibTest {
         assertEquals(
             "boom\n" +
                 "stack traceback:\n" +
-                "\t/tmp/debug-traceback-file.lua:2\n" +
-                "\t/tmp/debug-traceback-file.lua:5",
+                "\t/tmp/debug-traceback-file.lua:2: in function </tmp/debug-traceback-file.lua:1>\n" +
+                "\t(...tail calls...)",
             state.toString(1),
         )
     }
@@ -887,12 +886,13 @@ class LuaStdlibTest {
         val lines = state.toString(1)!!.lines()
         assertEquals("boom", lines[0])
         assertEquals("stack traceback:", lines[1])
-        assertEquals(24, lines.size)
+        assertEquals(25, lines.size)
         val skipped = lines.single { it.contains("skipping") }
         assertTrue(skipped.startsWith("\t...\t(skipping "))
         assertTrue(skipped.endsWith(" levels)"))
         assertEquals(10, lines.indexOf(skipped) - 2)
-        assertEquals(11, lines.size - lines.indexOf(skipped) - 1)
+        assertEquals(11, lines.drop(lines.indexOf(skipped) + 1).count { line -> "tail calls" !in line })
+        assertEquals("\t(...tail calls...)", lines.last())
     }
 
     @Test
@@ -1079,7 +1079,8 @@ class LuaStdlibTest {
                 end
 
                 local function branch()
-                    return leaf()
+                    local a, b, c, d, e, f, g, h = leaf()
+                    return a, b, c, d, e, f, g, h
                 end
 
                 return branch()
@@ -1495,25 +1496,25 @@ class LuaStdlibTest {
                     return result
                 end
                 local mt = {
-                    __add = function() return capture({}) end,
-                    __sub = function() return capture({}) end,
-                    __mul = function() return capture({}) end,
-                    __mod = function() return capture({}) end,
-                    __pow = function() return capture({}) end,
-                    __div = function() return capture({}) end,
-                    __idiv = function() return capture({}) end,
-                    __unm = function() return capture({}) end,
-                    __len = function() return capture(0) end,
-                    __concat = function() return capture("") end,
-                    __eq = function() return capture(true) end,
-                    __lt = function() return capture(true) end,
-                    __le = function() return capture(true) end,
-                    __band = function() return capture(0) end,
-                    __bor = function() return capture(0) end,
-                    __bxor = function() return capture(0) end,
-                    __shl = function() return capture(0) end,
-                    __shr = function() return capture(0) end,
-                    __bnot = function() return capture(0) end,
+                    __add = function() local r = capture({}); return r end,
+                    __sub = function() local r = capture({}); return r end,
+                    __mul = function() local r = capture({}); return r end,
+                    __mod = function() local r = capture({}); return r end,
+                    __pow = function() local r = capture({}); return r end,
+                    __div = function() local r = capture({}); return r end,
+                    __idiv = function() local r = capture({}); return r end,
+                    __unm = function() local r = capture({}); return r end,
+                    __len = function() local r = capture(0); return r end,
+                    __concat = function() local r = capture(""); return r end,
+                    __eq = function() local r = capture(true); return r end,
+                    __lt = function() local r = capture(true); return r end,
+                    __le = function() local r = capture(true); return r end,
+                    __band = function() local r = capture(0); return r end,
+                    __bor = function() local r = capture(0); return r end,
+                    __bxor = function() local r = capture(0); return r end,
+                    __shl = function() local r = capture(0); return r end,
+                    __shr = function() local r = capture(0); return r end,
+                    __bnot = function() local r = capture(0); return r end,
                 }
                 local left = setmetatable({}, mt)
                 local right = setmetatable({}, mt)
@@ -1933,6 +1934,232 @@ class LuaStdlibTest {
         assertFalse(state.toBoolean(11))
         assertEquals(0L, state.toInteger(12))
         assertTrue(state.isNil(13))
+    }
+
+    @Test
+    fun `debug getinfo and traceback honor C string boundaries native metadata and exact arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local infoAlias = debug.getinfo
+                local native = infoAlias(0, "Slnurtf\0ignored", "extra")
+                local stack = debug.getinfo(1, "S\0invalid", "extra")
+                local empty = debug.getinfo(function() end, "\0invalid", "extra")
+                local privateOk, privateMessage = pcall(debug.getinfo, 1, ">\0S")
+                local trace = debug.traceback("head\0tail", -1, "extra")
+                return native.what, native.source, native.currentline,
+                    native.name, native.namewhat, native.nups, native.nparams,
+                    native.isvararg, native.ftransfer, native.ntransfer,
+                    native.istailcall, native.extraargs, native.func == infoAlias,
+                    stack.source, next(empty), privateOk, privateMessage,
+                    trace, select("#", debug.traceback(nil, -1, "extra")),
+                    select("#", debug.getinfo(1, "S", "extra"))
+                """.trimIndent(),
+                "debug-introspection-c-boundaries.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("C", state.toString(1))
+        assertEquals("=[C]", state.toString(2))
+        assertEquals(-1L, state.toInteger(3))
+        assertEquals("infoAlias", state.toString(4))
+        assertEquals("local", state.toString(5))
+        assertEquals(0L, state.toInteger(6))
+        assertEquals(0L, state.toInteger(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals(0L, state.toInteger(9))
+        assertEquals(0L, state.toInteger(10))
+        assertFalse(state.toBoolean(11))
+        assertEquals(0L, state.toInteger(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("debug-introspection-c-boundaries.lua", state.toString(14))
+        assertTrue(state.isNil(15))
+        assertFalse(state.toBoolean(16))
+        assertEquals("bad argument #2 to 'getinfo' (invalid option '>')", state.toString(17))
+        assertEquals("head\nstack traceback:", state.toString(18))
+        assertEquals(1L, state.toInteger(19))
+        assertEquals(1L, state.toInteger(20))
+    }
+
+    @Test
+    fun `debug traceback formats native named and tail called frames`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local tracebackAlias = debug.traceback
+                local nativeTrace = tracebackAlias("native", 0)
+
+                local function inspectTail()
+                    local info = debug.getinfo(1, "nt")
+                    return info.name, info.namewhat, info.istailcall, info.extraargs,
+                        debug.traceback("tail")
+                end
+                local function middle()
+                    return inspectTail()
+                end
+                local name, namewhat, isTail, extraargs, tailTrace = middle()
+                return nativeTrace, name, namewhat, isTail, extraargs, tailTrace
+                """.trimIndent(),
+                "debug-traceback-frame-names.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            "native\n" +
+                "stack traceback:\n" +
+                "\t[C]: in local 'tracebackAlias'\n" +
+                "\t[string \"debug-traceback-frame-names.lua\"]:2: in main chunk",
+            state.toString(1),
+        )
+        assertTrue(state.isNil(2))
+        assertEquals("", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(
+            "tail\n" +
+                "stack traceback:\n" +
+                "\t[string \"debug-traceback-frame-names.lua\"]:7: in function <[string \"debug-traceback-frame-names.lua\"]:4>\n" +
+                "\t(...tail calls...)\n" +
+                "\t[string \"debug-traceback-frame-names.lua\"]:12: in main chunk",
+            state.toString(6),
+        )
+    }
+
+    @Test
+    fun `debug traceback resolves contextual and global function names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function namedLeaf()
+                    return debug.traceback("local")
+                end
+
+                local function namedBranch()
+                    local trace = namedLeaf()
+                    return trace
+                end
+                local localTrace = namedBranch()
+
+                function globalTail()
+                    return debug.traceback("global")
+                end
+                local function callGlobal()
+                    return globalTail()
+                end
+                local globalTrace = callGlobal()
+                return localTrace, globalTrace
+                """.trimIndent(),
+                "debug-traceback-function-names.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(
+            "local\n" +
+                "stack traceback:\n" +
+                "\t[string \"debug-traceback-function-names.lua\"]:2: in upvalue 'namedLeaf'\n" +
+                "\t[string \"debug-traceback-function-names.lua\"]:6: in local 'namedBranch'\n" +
+                "\t[string \"debug-traceback-function-names.lua\"]:9: in main chunk",
+            state.toString(1),
+        )
+        assertEquals(
+            "global\n" +
+                "stack traceback:\n" +
+                "\t[string \"debug-traceback-function-names.lua\"]:12: in function 'globalTail'\n" +
+                "\t(...tail calls...)\n" +
+                "\t[string \"debug-traceback-function-names.lua\"]:17: in main chunk",
+            state.toString(2),
+        )
+    }
+
+    @Test
+    fun `debug getinfo reports tail call extra arguments and close boundaries`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local terminal = setmetatable({}, {
+                    __call = function(...)
+                        local info = debug.getinfo(1, "t")
+                        return info.istailcall, info.extraargs
+                    end
+                })
+                local middle = setmetatable({}, {__call = terminal})
+                local first = setmetatable({}, {__call = middle})
+
+                local function closeBoundary()
+                    local closer <close> = setmetatable({}, {__close = function() end})
+                    return terminal()
+                end
+
+                local function tailChain()
+                    return first()
+                end
+
+                local chainedTail, chainedExtra = tailChain()
+                local closedTail, closedExtra = closeBoundary()
+                return chainedTail, chainedExtra, closedTail, closedExtra
+                """.trimIndent(),
+                "debug-getinfo-tail-extraargs.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals(3L, state.toInteger(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals(1L, state.toInteger(4))
+    }
+
+    @Test
+    fun `call metamethod depth matches debug extra argument capacity`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function callableChain(depth)
+                    local target = function()
+                        return debug.getinfo(1, "t").extraargs
+                    end
+                    for _ = 1, depth do
+                        target = setmetatable({}, {__call = target})
+                    end
+                    return target
+                end
+
+                local extraargs = callableChain(15)()
+                local tooDeep = callableChain(16)
+                local ok, message = pcall(tooDeep)
+                return extraargs, ok, message
+                """.trimIndent(),
+                "debug-getinfo-call-chain-limit.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(15L, state.toInteger(1))
+        assertFalse(state.toBoolean(2))
+        assertEquals("'__call' chain too long", state.toString(3))
     }
 
     @Test

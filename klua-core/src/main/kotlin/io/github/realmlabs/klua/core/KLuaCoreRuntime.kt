@@ -698,6 +698,8 @@ public class KLuaCoreCallContext internal constructor(
     public val arguments: List<KLuaCoreValue>,
     private val luaFramesProvider: () -> List<KLuaCoreStackFrame>,
     public val isYieldable: Boolean,
+    public val callSiteName: String?,
+    public val callSiteNameWhat: String,
     private val setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String?,
     private val setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean,
     private val getDebugHookValue: () -> KLuaCoreDebugHook?,
@@ -708,6 +710,8 @@ public class KLuaCoreCallContext internal constructor(
         arguments: List<KLuaCoreValue>,
         luaFrames: List<KLuaCoreStackFrame>,
         isYieldable: Boolean = false,
+        callSiteName: String? = null,
+        callSiteNameWhat: String = "",
         setLocalValue: (level: Int, index: Int, value: KLuaCoreValue) -> String? = { _, _, _ -> null },
         setDebugHookValue: (index: Int, mask: String, count: Int) -> Boolean = { _, _, _ -> false },
         getDebugHookValue: () -> KLuaCoreDebugHook? = { null },
@@ -715,6 +719,8 @@ public class KLuaCoreCallContext internal constructor(
         arguments,
         luaFramesProvider = { luaFrames },
         isYieldable,
+        callSiteName,
+        callSiteNameWhat,
         setLocalValue,
         setDebugHookValue,
         getDebugHookValue,
@@ -851,6 +857,9 @@ public data class KLuaCoreStackFrame(
     public val callSiteNameWhat: String = "",
     public val transferStart: Int = 0,
     public val transferCount: Int = 0,
+    public val isTailCall: Boolean = false,
+    public val extraArgumentCount: Int = 0,
+    public val globalFunctionName: String? = null,
 )
 
 public data class KLuaCoreLocalVariable(
@@ -1321,6 +1330,9 @@ private fun List<LuaNativeStackFrame>.toCoreStackFramesFromNative(globals: KLuaC
             callSiteNameWhat = frame.callSiteNameWhat,
             transferStart = frame.transferStart,
             transferCount = frame.transferCount,
+            isTailCall = frame.isTailCall,
+            extraArgumentCount = frame.extraArgumentCount,
+            globalFunctionName = frame.globalFunctionName,
         )
     }
 }
@@ -1393,6 +1405,8 @@ private fun callCoreContextFunction(
                 publicArguments,
                 luaFramesProvider = { context.luaFrames.toCoreStackFramesFromNative(globals) },
                 isYieldable = context.isYieldable,
+                callSiteName = context.callSiteName,
+                callSiteNameWhat = context.callSiteNameWhat,
                 setLocalValue = { level, index, value ->
                     value.toLuaValueOrNull(globals)?.let { luaValue ->
                         context.setLocal(level, index, luaValue)

@@ -26,7 +26,8 @@ import java.util.IdentityHashMap
 import java.util.Locale
 import java.util.function.Consumer
 
-private const val MAX_CALL_METAMETHOD_DEPTH = 16
+private const val MAX_CALL_METAMETHOD_DEPTH = 15
+private const val MAX_METAMETHOD_DEPTH = 16
 private val LUA_DECIMAL_FLOAT_PATTERN =
     Regex("""[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?""")
 private val LUA_HEXADECIMAL_FLOAT_PATTERN =
@@ -153,12 +154,14 @@ class LuaState private constructor(
             is LuaStackValue.NativeFunctionValue -> pcallNativeFunction(functionIndex, callable, resultCount)
             else -> {
                 val callTarget = callMetamethod(callable)
-                if (callTarget != null && depth < MAX_CALL_METAMETHOD_DEPTH) {
+                if (callTarget == null) {
+                    runtimeCallError(functionIndex, attemptToCallMessage(callable))
+                } else if (depth < MAX_CALL_METAMETHOD_DEPTH) {
                     stack[functionIndex] = callTarget
                     stack.add(functionIndex + 1, callable)
                     pcallStackValue(functionIndex, callTarget, resultCount, depth + 1)
                 } else {
-                    runtimeCallError(functionIndex, attemptToCallMessage(callTarget ?: callable))
+                    runtimeCallError(functionIndex, "'__call' chain too long")
                 }
             }
         }
@@ -1608,6 +1611,9 @@ class LuaState private constructor(
                 callSiteNameWhat = frame.callSiteNameWhat,
                 transferStart = frame.transferStart,
                 transferCount = frame.transferCount,
+                isTailCall = frame.isTailCall,
+                extraArgumentCount = frame.extraArgumentCount,
+                globalFunctionName = frame.globalFunctionName,
             )
         }
     }
@@ -2000,7 +2006,10 @@ class LuaState private constructor(
                 return callFunction(value, arguments, errorHandler)
             }
             val callTarget = callMetamethod(value)
-            if (callTarget != null && depth < MAX_CALL_METAMETHOD_DEPTH) {
+            if (callTarget == null) {
+                throw IllegalArgumentException(attemptToCallMessage(value))
+            }
+            if (depth < MAX_CALL_METAMETHOD_DEPTH) {
                 return callStackValue(
                     callTarget,
                     listOf(value?.toPublicCallReturnValue()) + arguments,
@@ -2008,7 +2017,7 @@ class LuaState private constructor(
                     errorHandler,
                 )
             }
-            throw IllegalArgumentException(attemptToCallMessage(callTarget ?: value))
+            throw IllegalArgumentException("'__call' chain too long")
         }
 
         override fun getTable(index: Int): Any? {
@@ -2137,7 +2146,7 @@ class LuaState private constructor(
             visited: MutableSet<LuaStackValue.TableValue>,
             depth: Int,
         ) {
-            if (depth >= MAX_CALL_METAMETHOD_DEPTH) {
+            if (depth >= MAX_METAMETHOD_DEPTH) {
                 throw IllegalArgumentException("'__newindex' chain too long; possible loop")
             }
             when (receiver) {
@@ -2414,6 +2423,12 @@ class LuaState private constructor(
         private val coreContext: KLuaCoreCallContext,
     ) : DefaultLuaCallContext(arguments, isYieldable = coreContext.isYieldable) {
         private var cachedCoreFrames: List<LuaStackFrame>? = null
+
+        override val callSiteName: String?
+            get() = coreContext.callSiteName
+
+        override val callSiteNameWhat: String
+            get() = coreContext.callSiteNameWhat
 
         override val luaFrames: List<LuaStackFrame>
             get() = cachedCoreFrames

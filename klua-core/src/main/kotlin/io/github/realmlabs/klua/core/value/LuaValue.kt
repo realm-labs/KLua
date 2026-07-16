@@ -92,6 +92,8 @@ internal class LuaNativeFunction(
 internal open class LuaNativeCallContext(
     val arguments: List<LuaValue>,
     val isYieldable: Boolean = false,
+    val callSiteName: String? = null,
+    val callSiteNameWhat: String = "",
 ) {
     private var cachedLuaFrames: List<LuaNativeStackFrame>? = null
 
@@ -125,6 +127,9 @@ internal data class LuaNativeStackFrame(
     val callSiteNameWhat: String = "",
     val transferStart: Int = 0,
     val transferCount: Int = 0,
+    val isTailCall: Boolean = false,
+    val extraArgumentCount: Int = 0,
+    val globalFunctionName: String? = null,
 )
 
 internal data class LuaNativeLocalVariable(

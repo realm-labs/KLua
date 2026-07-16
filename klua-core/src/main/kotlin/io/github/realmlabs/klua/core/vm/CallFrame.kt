@@ -12,6 +12,8 @@ internal class CallFrame(
     private val varargValues: MutableList<LuaValue>? = null,
     val environment: LuaUpvalue,
     val callSiteInfo: CallSiteInfo? = null,
+    val isTailCall: Boolean = false,
+    val extraArgumentCount: Int = 0,
     var pc: Int = 0,
     var openResultBase: Int = 0,
     var openResultCount: Int = 0,
@@ -55,6 +57,9 @@ internal class CallFrame(
 
     val pendingCallExpectedResults: Int
         get() = pendingCall?.expectedResults ?: -1
+
+    val hasToBeClosedValues: Boolean
+        get() = !toBeClosedSlots.isNullOrEmpty()
 
     var lastDebugHookLine: Int
         get() = debugState?.lastDebugHookLine ?: -1

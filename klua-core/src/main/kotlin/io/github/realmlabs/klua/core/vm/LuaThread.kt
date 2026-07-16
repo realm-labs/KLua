@@ -32,6 +32,8 @@ internal class LuaThread {
         environment: LuaUpvalue = LuaUpvalue(LuaTable()),
         function: LuaClosure = LuaClosure(prototype, upvalues.toMutableList(), environment = environment),
         callSiteInfo: CallSiteInfo? = null,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
     ): CallFrame {
         val framePrototype = function.prototype
         val varargs: MutableList<LuaValue>? = if (framePrototype.isVararg) {
@@ -45,6 +47,8 @@ internal class LuaThread {
             varargs,
             environment,
             callSiteInfo,
+            isTailCall,
+            extraArgumentCount,
         )
         for (index in 0 until framePrototype.numParams) {
             frame.set(index, arguments.getOrElse(index) { LuaNil })
@@ -59,6 +63,8 @@ internal class LuaThread {
         environment: LuaUpvalue,
         function: LuaClosure,
         callSiteInfo: CallSiteInfo? = null,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
     ): CallFrame {
         require(argumentCount >= 0) { "argument count must be non-negative" }
         val prototype = function.prototype
@@ -73,6 +79,8 @@ internal class LuaThread {
             varargs,
             environment,
             callSiteInfo,
+            isTailCall,
+            extraArgumentCount,
         )
         for (index in 0 until prototype.numParams) {
             val value = if (index < argumentCount) sourceStack.get(argumentStart + index) else LuaNil
@@ -89,6 +97,8 @@ internal class LuaThread {
         environment: LuaUpvalue,
         thirdArgument: LuaValue = LuaNil,
         callSiteInfo: CallSiteInfo? = null,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
     ): CallFrame {
         require(argumentCount in 2..3) { "fixed call argument count must be two or three" }
         val prototype = function.prototype
@@ -109,6 +119,8 @@ internal class LuaThread {
             varargs,
             environment,
             callSiteInfo,
+            isTailCall,
+            extraArgumentCount,
         )
         for (index in 0 until prototype.numParams) {
             val value = if (index < argumentCount) {
@@ -127,6 +139,8 @@ internal class LuaThread {
         varargs: MutableList<LuaValue>?,
         environment: LuaUpvalue,
         callSiteInfo: CallSiteInfo?,
+        isTailCall: Boolean,
+        extraArgumentCount: Int,
     ): CallFrame {
         val frame = CallFrame(
             function,
@@ -134,6 +148,8 @@ internal class LuaThread {
             varargs,
             environment,
             callSiteInfo,
+            isTailCall,
+            extraArgumentCount,
         )
         pushFrame(frame)
         return frame

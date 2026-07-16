@@ -58,7 +58,7 @@ internal object LuaDebugLibrary {
         val target = threadTarget(context, tracebackFunction)
         val message = when {
             context.isNil(target.argumentOffset + 1) || context.isNone(target.argumentOffset + 1) -> null
-            else -> context.toString(target.argumentOffset + 1)
+            else -> context.toString(target.argumentOffset + 1)?.toLuaCString()
                 ?: return LuaReturn.of(context.getLuaValue(target.argumentOffset + 1))
         }
         val defaultLevel = if (target.isCurrentThread) 1 else 0
@@ -98,10 +98,34 @@ internal object LuaDebugLibrary {
 
     private fun StringBuilder.appendTracebackFrame(frame: LuaStackFrame) {
         append("\n\t")
-        append(luaShortSourceName(frame.sourceName))
+        val shortSource = luaShortSourceName(frame.sourceName)
+        append(shortSource)
         if (frame.line > 0) {
             append(':')
             append(frame.line)
+        }
+        append(": in ")
+        append(tracebackFunctionName(frame, shortSource))
+        if (frame.isTailCall) {
+            append("\n\t(...tail calls...)")
+        }
+    }
+
+    private fun tracebackFunctionName(frame: LuaStackFrame, shortSource: String): String {
+        if (!frame.isTailCall && frame.callSiteName != null && frame.callSiteNameWhat.isNotEmpty()) {
+            return "${frame.callSiteNameWhat} '${frame.callSiteName}'"
+        }
+        if (frame.lineDefined == 0) {
+            return "main chunk"
+        }
+        val globalName = frame.globalFunctionName
+        if (globalName != null) {
+            return "function '$globalName'"
+        }
+        return if (frame.lineDefined > 0) {
+            "function <$shortSource:${frame.lineDefined}>"
+        } else {
+            "?"
         }
     }
 
@@ -135,10 +159,10 @@ internal object LuaDebugLibrary {
                 }
                 'l' -> table["currentline"] = frame.line.toLong()
                 'n' -> {
-                    if (frame.callSiteName != null) {
+                    if (!frame.isTailCall && frame.callSiteName != null) {
                         table["name"] = frame.callSiteName
                     }
-                    table["namewhat"] = frame.callSiteNameWhat
+                    table["namewhat"] = if (frame.isTailCall) "" else frame.callSiteNameWhat
                 }
                 'u' -> {
                     table["nups"] = frame.upvalueCount.toLong()
@@ -147,7 +171,7 @@ internal object LuaDebugLibrary {
                 }
                 'f' -> table["func"] = frame.function
                 'r' -> addTransferInfo(table, frame.transferStart, frame.transferCount)
-                't' -> addTailCallInfo(table)
+                't' -> addTailCallInfo(table, frame.isTailCall, frame.extraArgumentCount)
                 'L' -> table["activelines"] = activeLinesTable(frame.activeLines)
             }
         }
@@ -237,9 +261,13 @@ internal object LuaDebugLibrary {
         table["ntransfer"] = transferCount.toLong()
     }
 
-    private fun addTailCallInfo(table: MutableMap<String, Any?>) {
-        table["istailcall"] = false
-        table["extraargs"] = 0L
+    private fun addTailCallInfo(
+        table: MutableMap<String, Any?>,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
+    ) {
+        table["istailcall"] = isTailCall
+        table["extraargs"] = extraArgumentCount.toLong()
     }
 
     private fun luaFunctionWhat(lineDefined: Int): String = when {
@@ -398,9 +426,20 @@ internal object LuaDebugLibrary {
 
     private fun threadTarget(context: LuaCallContext, currentFunction: LuaFunction? = null): DebugThreadTarget {
         val coroutine = context.toUserData(1, LuaDebugThread::class.java)
-            ?: return DebugThreadTarget.Current(context.luaFrames, currentFunction)
+            ?: return DebugThreadTarget.Current(
+                context.luaFrames,
+                currentFunction,
+                context.callSiteName,
+                context.callSiteNameWhat,
+            )
         if (coroutine.isCurrentDebugThread) {
-            return DebugThreadTarget.Current(context.luaFrames, currentFunction, argumentOffset = 1)
+            return DebugThreadTarget.Current(
+                context.luaFrames,
+                currentFunction,
+                context.callSiteName,
+                context.callSiteNameWhat,
+                argumentOffset = 1,
+            )
         }
         return DebugThreadTarget.Coroutine(coroutine)
     }
@@ -500,6 +539,7 @@ internal object LuaDebugLibrary {
             default
         } else {
             context.toString(index)
+                ?.toLuaCString()
                 ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
         }
     }
@@ -519,12 +559,61 @@ internal object LuaDebugLibrary {
     private const val TRACEBACK_HEAD_LEVELS = 10
     private const val TRACEBACK_TAIL_LEVELS = 11
 
+    private fun String.toLuaCString(): String = substringBefore('\u0000')
+
+    private fun selectDebugFrames(frames: List<LuaStackFrame>): DebugFrameSelection {
+        if (frames.none { frame -> frame.isTailCall }) {
+            return DebugFrameSelection(frames, frames.indices.toList())
+        }
+        val visibleFrames = ArrayList<LuaStackFrame>(frames.size)
+        val rawLevels = ArrayList<Int>(frames.size)
+        var index = 0
+        while (index < frames.size) {
+            val frame = frames[index]
+            visibleFrames += frame
+            rawLevels += index
+            index += 1
+            var replacedCaller = frame.isTailCall
+            while (replacedCaller && index < frames.size) {
+                replacedCaller = frames[index].isTailCall
+                index += 1
+            }
+        }
+        return DebugFrameSelection(visibleFrames, rawLevels)
+    }
+
+    private fun currentDebugFrames(
+        frames: List<LuaStackFrame>,
+        currentFunction: LuaFunction?,
+        callSiteName: String?,
+        callSiteNameWhat: String,
+    ): DebugFrameSelection {
+        val selected = selectDebugFrames(frames)
+        if (currentFunction == null) {
+            return selected
+        }
+        return DebugFrameSelection(
+            listOf(nativeDebugFrame(currentFunction, callSiteName, callSiteNameWhat)) + selected.frames,
+            listOf(-1) + selected.rawLevels,
+        )
+    }
+
+    private data class DebugFrameSelection(
+        val frames: List<LuaStackFrame>,
+        val rawLevels: List<Int>,
+    )
+
     private sealed class DebugThreadTarget(
         val argumentOffset: Int,
-        val frames: List<LuaStackFrame>,
+        selection: DebugFrameSelection,
     ) {
+        val frames: List<LuaStackFrame> = selection.frames
+        private val rawLevels: List<Int> = selection.rawLevels
+
         val isCurrentThread: Boolean
             get() = this is Current
+
+        protected fun rawLevel(level: Int): Int? = rawLevels.getOrNull(level)?.takeIf { it >= 0 }
 
         abstract fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String?
 
@@ -535,16 +624,16 @@ internal object LuaDebugLibrary {
         class Current(
             frames: List<LuaStackFrame>,
             private val currentFunction: LuaFunction? = null,
+            callSiteName: String? = null,
+            callSiteNameWhat: String = "",
             argumentOffset: Int = 0,
         ) : DebugThreadTarget(
             argumentOffset,
-            if (currentFunction == null) frames else listOf(nativeDebugFrame(currentFunction)) + frames,
+            currentDebugFrames(frames, currentFunction, callSiteName, callSiteNameWhat),
         ) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
-                if (currentFunction != null && level == 0) {
-                    return null
-                }
-                return context.setLocal(if (currentFunction == null) level else level - 1, index, value)
+                val rawLevel = rawLevel(level) ?: return null
+                return context.setLocal(rawLevel, index, value)
             }
 
             override fun setDebugHook(context: LuaCallContext, index: Int, mask: String, count: Int): Boolean {
@@ -556,9 +645,13 @@ internal object LuaDebugLibrary {
             }
         }
 
-        class Coroutine(private val coroutine: LuaDebugThread) : DebugThreadTarget(1, coroutine.luaFrames) {
+        class Coroutine(private val coroutine: LuaDebugThread) : DebugThreadTarget(
+            1,
+            selectDebugFrames(coroutine.luaFrames),
+        ) {
             override fun setLocal(context: LuaCallContext, level: Int, index: Int, value: Any?): String? {
-                return coroutine.setLocal(level, index, value)
+                val rawLevel = rawLevel(level) ?: return null
+                return coroutine.setLocal(rawLevel, index, value)
             }
 
             override fun setDebugHook(context: LuaCallContext, index: Int, mask: String, count: Int): Boolean {
@@ -571,7 +664,11 @@ internal object LuaDebugLibrary {
         }
     }
 
-    private fun nativeDebugFrame(function: LuaFunction): LuaStackFrame {
+    private fun nativeDebugFrame(
+        function: LuaFunction,
+        callSiteName: String?,
+        callSiteNameWhat: String,
+    ): LuaStackFrame {
         return LuaStackFrame(
             sourceName = "=[C]",
             line = -1,
@@ -579,6 +676,8 @@ internal object LuaDebugLibrary {
             lastLineDefined = -1,
             isVararg = true,
             function = function,
+            callSiteName = callSiteName,
+            callSiteNameWhat = callSiteNameWhat,
         )
     }
 }

@@ -234,6 +234,8 @@ internal class LuaVm(
         function: LuaClosure,
         arguments: List<LuaValue>,
         callSiteInfo: CallSiteInfo? = null,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
     ): LuaExecutionResult {
         val frame = thread.pushCall(
             function.prototype,
@@ -242,6 +244,8 @@ internal class LuaVm(
             environment = function.environment ?: function.globals?.let(::LuaUpvalue) ?: rootEnvironment,
             function = function,
             callSiteInfo = callSiteInfo,
+            isTailCall = isTailCall,
+            extraArgumentCount = extraArgumentCount,
         )
         return runFrameAndPopOnCompletion(frame)
     }
@@ -255,6 +259,8 @@ internal class LuaVm(
         callerFrame: CallFrame,
         resultBase: Int,
         expectedResults: Int,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
     ): LuaExecutionResult? {
         val frame = thread.pushCallFromStack(
             sourceStack,
@@ -263,6 +269,8 @@ internal class LuaVm(
             environment = function.environment ?: function.globals?.let(::LuaUpvalue) ?: rootEnvironment,
             function = function,
             callSiteInfo = callSiteInfo,
+            isTailCall = isTailCall,
+            extraArgumentCount = extraArgumentCount,
         )
         return runFrameAndPopOnCompletion(frame, callerFrame, resultBase, expectedResults)
     }
@@ -505,6 +513,7 @@ internal class LuaVm(
         val argumentCount = argumentCount(frame, base, Instruction.b(instruction))
         val expectedResults = Instruction.c(instruction)
         val callSiteInfo = callSiteInfo(frame, frame.pc - 1)
+        val isTailCall = isTailCall(frame, base, expectedResults)
         val results = if (callee is LuaClosure) {
             executeFrameInto(
                 callee,
@@ -515,9 +524,10 @@ internal class LuaVm(
                 frame,
                 base,
                 expectedResults,
+                isTailCall,
             )
         } else {
-            callValue(callee, stack.slice(base + 1, argumentCount), callSiteInfo)
+            callValue(callee, stack.slice(base + 1, argumentCount), callSiteInfo, isTailCall = isTailCall)
         }
         if (results == null) {
             return null
@@ -533,6 +543,24 @@ internal class LuaVm(
         val returnedValues = (results as LuaExecutionResult.Returned).values
         applyCallResults(stack, frame, base, expectedResults, returnedValues)
         return null
+    }
+
+    private fun isTailCall(frame: CallFrame, resultBase: Int, expectedResults: Int): Boolean {
+        if (expectedResults != OPEN_RESULT_COUNT) {
+            return false
+        }
+        var returnPc = frame.pc
+        val next = frame.prototype.code.getOrNull(returnPc) ?: return false
+        if (Instruction.opcode(next) == Opcode.CLOSE) {
+            if (frame.hasToBeClosedValues) {
+                return false
+            }
+            returnPc += 1
+        }
+        val returnInstruction = frame.prototype.code.getOrNull(returnPc) ?: return false
+        return Instruction.opcode(returnInstruction) == Opcode.RETURN &&
+            Instruction.a(returnInstruction) == resultBase &&
+            Instruction.b(returnInstruction) == OPEN_RESULT_COUNT
     }
 
     private fun applyPendingCallResults(frame: CallFrame, results: List<LuaValue>): LuaExecutionResult? {
@@ -786,12 +814,20 @@ internal class LuaVm(
         arguments: List<LuaValue>,
         callSiteInfo: CallSiteInfo? = null,
         callMetamethodDepth: Int = 0,
+        isTailCall: Boolean = false,
     ): LuaExecutionResult {
         return when (callee) {
-            is LuaClosure -> executeFrame(callee, arguments, callSiteInfo)
-            is LuaNativeFunction -> callNativeResult(callee, arguments)
+            is LuaClosure -> executeFrame(callee, arguments, callSiteInfo, isTailCall)
+            is LuaNativeFunction -> callNativeResult(callee, arguments, callSiteInfo)
             is LuaTable -> {
-                callMetamethod(callee, arguments, callee.metatableRawGet(CALL_KEY), callSiteInfo, callMetamethodDepth)
+                callMetamethod(
+                    callee,
+                    arguments,
+                    callee.metatableRawGet(CALL_KEY),
+                    callSiteInfo,
+                    callMetamethodDepth,
+                    isTailCall,
+                )
             }
             is LuaUserData -> {
                 val metatable = metatables?.userDataMetatable(callee.value)
@@ -802,10 +838,11 @@ internal class LuaVm(
                         metatable.rawGet(CALL_KEY),
                         callSiteInfo,
                         callMetamethodDepth,
+                        isTailCall,
                         "a ${userDataObjectTypeName(metatable)} value",
                     )
                 } else {
-                    callMetamethod(callee, arguments, LuaNil, callSiteInfo, callMetamethodDepth)
+                    callMetamethod(callee, arguments, LuaNil, callSiteInfo, callMetamethodDepth, isTailCall)
                 }
             }
             else -> {
@@ -816,6 +853,7 @@ internal class LuaVm(
                     metatable?.rawGet(CALL_KEY) ?: LuaNil,
                     callSiteInfo,
                     callMetamethodDepth,
+                    isTailCall,
                 )
             }
         }
@@ -827,6 +865,7 @@ internal class LuaVm(
         call: LuaValue,
         callSiteInfo: CallSiteInfo?,
         callMetamethodDepth: Int,
+        isTailCall: Boolean,
         callErrorTypeName: String = typeName(callee),
     ): LuaExecutionResult {
         if (callMetamethodDepth >= MAX_CALL_METAMETHOD_DEPTH) {
@@ -834,10 +873,16 @@ internal class LuaVm(
         }
         val metamethodArguments = listOf(callee) + arguments
         return when (call) {
-            is LuaClosure -> executeFrame(call, metamethodArguments, callSiteInfo)
-            is LuaNativeFunction -> callNativeResult(call, metamethodArguments)
+            is LuaClosure -> executeFrame(
+                call,
+                metamethodArguments,
+                callSiteInfo,
+                isTailCall,
+                callMetamethodDepth + 1,
+            )
+            is LuaNativeFunction -> callNativeResult(call, metamethodArguments, callSiteInfo)
             LuaNil -> throw LuaVmException("attempt to call $callErrorTypeName")
-            else -> callValue(call, metamethodArguments, callSiteInfo, callMetamethodDepth + 1)
+            else -> callValue(call, metamethodArguments, callSiteInfo, callMetamethodDepth + 1, isTailCall)
         }
     }
 
@@ -849,11 +894,15 @@ internal class LuaVm(
         return returnedValues(callNativeResult(function, arguments))
     }
 
-    private fun callNativeResult(function: LuaNativeFunction, arguments: List<LuaValue>): LuaExecutionResult {
+    private fun callNativeResult(
+        function: LuaNativeFunction,
+        arguments: List<LuaValue>,
+        callSiteInfo: CallSiteInfo? = null,
+    ): LuaExecutionResult {
         dispatchDebugNativeCall(arguments.size)
         return try {
             val values = thread.runNativeCall {
-                function.call(nativeCallContext(function, arguments))
+                function.call(nativeCallContext(function, arguments, callSiteInfo))
             }
             dispatchDebugNativeReturn(values.size)
             LuaExecutionResult.Returned(values)
@@ -874,14 +923,24 @@ internal class LuaVm(
         )
     }
 
-    private fun nativeCallContext(function: LuaNativeFunction, arguments: List<LuaValue>): LuaNativeCallContext {
-        return VmNativeCallContext(function, arguments)
+    private fun nativeCallContext(
+        function: LuaNativeFunction,
+        arguments: List<LuaValue>,
+        callSiteInfo: CallSiteInfo?,
+    ): LuaNativeCallContext {
+        return VmNativeCallContext(function, arguments, callSiteInfo)
     }
 
     private inner class VmNativeCallContext(
         function: LuaNativeFunction,
         arguments: List<LuaValue>,
-    ) : LuaNativeCallContext(arguments, thread.isYieldable && function.yieldable) {
+        callSiteInfo: CallSiteInfo?,
+    ) : LuaNativeCallContext(
+        arguments,
+        thread.isYieldable && function.yieldable,
+        callSiteInfo?.name,
+        callSiteInfo?.nameWhat ?: "",
+    ) {
         private var cachedFrames: List<CallFrame>? = null
 
         private fun frames(): List<CallFrame> {
@@ -934,9 +993,46 @@ internal class LuaVm(
                     callSiteNameWhat = frame.callSiteNameWhat,
                     transferStart = frame.hookTransferStart,
                     transferCount = frame.hookTransferCount,
+                    isTailCall = frame.isTailCall,
+                    extraArgumentCount = frame.extraArgumentCount,
+                    globalFunctionName = globalFunctionName(frame),
                 )
             }
         }
+    }
+
+    private fun globalFunctionName(frame: CallFrame): String? {
+        val table = frame.globals as? LuaTable ?: return null
+        return findFunctionName(table, frame.function, 2, mutableSetOf())
+    }
+
+    private fun findFunctionName(
+        table: LuaTable,
+        function: LuaValue,
+        remainingDepth: Int,
+        visited: MutableSet<LuaTable>,
+    ): String? {
+        if (!visited.add(table)) {
+            return null
+        }
+        val entries = table.rawEntries()
+        for ((key, value) in entries) {
+            if (key is LuaString && value === function) {
+                return key.value
+            }
+        }
+        if (remainingDepth <= 0) {
+            return null
+        }
+        for ((key, value) in entries) {
+            if (key is LuaString && value is LuaTable) {
+                val nested = findFunctionName(value, function, remainingDepth - 1, visited)
+                if (nested != null) {
+                    return "${key.value}.$nested"
+                }
+            }
+        }
+        return null
     }
 
     private fun setLocal(frames: List<CallFrame>, level: Int, index: Int, value: LuaValue): String? {
@@ -2642,7 +2738,7 @@ private val MOD_CALL_SITE_INFO = metamethodCallSiteInfo("mod")
 private val POW_CALL_SITE_INFO = metamethodCallSiteInfo("pow")
 private val CLOSE_CALL_SITE_INFO = metamethodCallSiteInfo("close")
 private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
-private const val MAX_CALL_METAMETHOD_DEPTH = 200
+private const val MAX_CALL_METAMETHOD_DEPTH = 15
 private const val TRUTHY_PENDING_RESULT_COUNT = -2
 private const val VARARG_LOCAL_NAME = "(vararg)"
 private val LUA_DECIMAL_FLOAT_PATTERN =

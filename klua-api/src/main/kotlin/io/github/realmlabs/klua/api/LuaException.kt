@@ -41,6 +41,9 @@ data class LuaStackFrame(
     val callSiteNameWhat: String = "",
     val transferStart: Int = 0,
     val transferCount: Int = 0,
+    val isTailCall: Boolean = false,
+    val extraArgumentCount: Int = 0,
+    val globalFunctionName: String? = null,
 )
 
 data class LuaLocalVariable(

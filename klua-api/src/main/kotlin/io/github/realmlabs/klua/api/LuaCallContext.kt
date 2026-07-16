@@ -9,6 +9,12 @@ interface LuaCallContext {
     val luaFrames: List<LuaStackFrame>
         get() = emptyList()
 
+    val callSiteName: String?
+        get() = null
+
+    val callSiteNameWhat: String
+        get() = ""
+
     fun isNil(index: Int): Boolean
 
     fun isNone(index: Int): Boolean
