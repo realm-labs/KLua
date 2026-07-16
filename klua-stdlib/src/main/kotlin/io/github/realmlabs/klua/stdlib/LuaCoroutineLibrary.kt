@@ -99,8 +99,13 @@ internal object LuaCoroutineLibrary {
                     }
                     is LuaCoroutineResult.Yielded -> {
                         if (result.values.singleOrNull() === SelfCloseSignal) {
-                            coroutine.status = CoroutineStatus.DEAD
-                            return LuaReturn.of(true)
+                            val closeResult = closeCoroutineHandle(coroutine, handle)
+                            if (closeResult.get(1) == false) {
+                                val errorObject = closeResult.get(2)
+                                coroutine.terminalError = CoroutineTerminalError(errorObject)
+                                coroutine.needsErrorClose = true
+                            }
+                            return closeResult
                         }
                         coroutine.status = CoroutineStatus.SUSPENDED
                         LuaReturn.ofValues(true, result.values)
@@ -235,14 +240,24 @@ internal object LuaCoroutineLibrary {
     }
 
     private fun closeCoroutineHandle(coroutine: LuaCoroutine, handle: LuaCoroutineHandle): LuaReturn {
-        coroutine.status = CoroutineStatus.DEAD
-        return when (val result = handle.close()) {
-            is LuaCoroutineResult.Returned -> LuaReturn.of(true)
-            is LuaCoroutineResult.Yielded -> LuaReturn.of(false, "attempt to yield while closing coroutine")
-            LuaCoroutineResult.DebugSuspended -> LuaReturn.of(false, "attempt to suspend while closing coroutine")
-            is LuaCoroutineResult.RuntimeError -> {
-                LuaReturn.of(false, if (result.hasErrorObject) result.errorObject else result.message)
+        val runtime = coroutine.runtime
+        val previousRunning = runtime.running
+        coroutine.status = CoroutineStatus.RUNNING
+        runtime.running = coroutine
+        runtime.updateMainCurrent(false)
+        return try {
+            when (val result = handle.close()) {
+                is LuaCoroutineResult.Returned -> LuaReturn.of(true)
+                is LuaCoroutineResult.Yielded -> LuaReturn.of(false, "attempt to yield while closing coroutine")
+                LuaCoroutineResult.DebugSuspended -> LuaReturn.of(false, "attempt to suspend while closing coroutine")
+                is LuaCoroutineResult.RuntimeError -> {
+                    LuaReturn.of(false, if (result.hasErrorObject) result.errorObject else result.message)
+                }
             }
+        } finally {
+            coroutine.status = CoroutineStatus.DEAD
+            runtime.running = previousRunning
+            runtime.updateMainCurrent(previousRunning == null)
         }
     }
 

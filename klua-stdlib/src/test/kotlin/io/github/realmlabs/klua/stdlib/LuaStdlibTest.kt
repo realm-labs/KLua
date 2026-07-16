@@ -20282,6 +20282,347 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine self close unwinds active close variables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local successfulEvents = {}
+                local successful
+                successful = coroutine.create(function()
+                    local first <close> = setmetatable({}, {
+                        __close = function(_, err)
+                            successfulEvents[#successfulEvents + 1] = "first:" .. tostring(err)
+                        end,
+                    })
+                    local second <close> = setmetatable({}, {
+                        __close = function(_, err)
+                            successfulEvents[#successfulEvents + 1] = "second:" .. tostring(err)
+                        end,
+                    })
+                    return "unreachable", coroutine.close(successful)
+                end)
+                local successfulCount, successfulOk, successfulExtra =
+                    pack(coroutine.resume(successful))
+
+                local original = {name = "original"}
+                local replacement = {name = "replacement"}
+                local outerSawReplacement = false
+                local failing = coroutine.create(function()
+                    local outer <close> = setmetatable({}, {
+                        __close = function(_, err)
+                            outerSawReplacement = err == replacement
+                        end,
+                    })
+                    local inner <close> = setmetatable({}, {
+                        __close = function(_, err)
+                            if err ~= nil then original = err end
+                            error(replacement)
+                        end,
+                    })
+                    coroutine.close()
+                end)
+                local failingCount, failingOk, failingError = pack(coroutine.resume(failing))
+                local failedCloseOk, failedCloseError = coroutine.close(failing)
+                local failedCloseAgainOk = coroutine.close(failing)
+
+                return successfulCount, successfulOk, successfulExtra,
+                    successfulEvents[1], successfulEvents[2], coroutine.status(successful),
+                    failingCount, failingOk, failingError == replacement,
+                    original.name, outerSawReplacement, failedCloseOk,
+                    failedCloseError == replacement, failedCloseAgainOk,
+                    coroutine.status(failing)
+                """.trimIndent(),
+                "coroutine-self-close-unwind.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(1L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.isNil(3))
+        assertEquals("second:nil", state.toString(4))
+        assertEquals("first:nil", state.toString(5))
+        assertEquals("dead", state.toString(6))
+        assertEquals(2L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("original", state.toString(10))
+        assertTrue(state.toBoolean(11))
+        assertFalse(state.toBoolean(12))
+        assertTrue(state.toBoolean(13))
+        assertTrue(state.toBoolean(14))
+        assertEquals("dead", state.toString(15))
+    }
+
+    @Test
+    fun `coroutine self close propagates yielding and wrapped close failures`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local boundaryError = "attempt to yield across a C-call boundary"
+                local outerError
+                local yielding = coroutine.create(function()
+                    local outer <close> = setmetatable({}, {
+                        __close = function(_, err)
+                            outerError = err
+                        end,
+                    })
+                    local inner <close> = setmetatable({}, {
+                        __close = function()
+                            coroutine.yield("forbidden")
+                        end,
+                    })
+                    coroutine.close()
+                end)
+                local resumeCount, resumeOk, resumeError = pack(coroutine.resume(yielding))
+                local closeCount, closeOk, closeError = pack(coroutine.close(yielding))
+                local closeAgainCount, closeAgainOk = pack(coroutine.close(yielding))
+
+                local replacement = {name = "wrapped replacement"}
+                local wrapped = coroutine.wrap(function()
+                    local value <close> = setmetatable({}, {
+                        __close = function()
+                            error(replacement)
+                        end,
+                    })
+                    coroutine.close()
+                end)
+                local wrappedOk, wrappedError = pcall(wrapped)
+
+                return resumeCount, resumeOk, resumeError == boundaryError,
+                    outerError == boundaryError, coroutine.status(yielding),
+                    closeCount, closeOk, closeError == boundaryError,
+                    closeAgainCount, closeAgainOk,
+                    wrappedOk, wrappedError == replacement
+                """.trimIndent(),
+                "coroutine-self-close-failures.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertFalse(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+        assertTrue(state.toBoolean(4))
+        assertEquals("dead", state.toString(5))
+        assertEquals(2L, state.toInteger(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals(1L, state.toInteger(9))
+        assertTrue(state.toBoolean(10))
+        assertFalse(state.toBoolean(11))
+        assertTrue(state.toBoolean(12))
+    }
+
+    @Test
+    fun `coroutine lifecycle queries ignore extras and preserve exact arity`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local runningCount, main, isMain = pack(coroutine.running("ignored", nil))
+                local mainStatusCount, mainStatus = pack(coroutine.status(main, "ignored"))
+                local mainYieldableCount, mainYieldable = pack(coroutine.isyieldable(main, "ignored"))
+                local defaultYieldableCount, defaultYieldable = pack(coroutine.isyieldable())
+
+                local fresh = coroutine.create(function()
+                    coroutine.yield("pause")
+                end)
+                local freshStatusCount, freshStatus = pack(coroutine.status(fresh, "ignored"))
+                local freshYieldableCount, freshYieldable = pack(coroutine.isyieldable(fresh, "ignored"))
+                local resumeOk, pause = coroutine.resume(fresh)
+                local yieldedStatusCount, yieldedStatus = pack(coroutine.status(fresh, "ignored"))
+                local closeCount, closeOk = pack(coroutine.close(fresh, "ignored"))
+                local deadStatusCount, deadStatus = pack(coroutine.status(fresh, "ignored"))
+                local deadYieldableCount, deadYieldable = pack(coroutine.isyieldable(fresh, "ignored"))
+                local closeAgainCount, closeAgainOk = pack(coroutine.close(fresh, "ignored"))
+                local mainCloseOk, mainCloseMessage = pcall(coroutine.close, main, "ignored")
+
+                local marker = {name = "failed"}
+                local failed = coroutine.create(function()
+                    error(marker)
+                end)
+                local failedResumeOk, failedResumeError = coroutine.resume(failed)
+                local failedStatusCount, failedStatus = pack(coroutine.status(failed, "ignored"))
+                local failedYieldableCount, failedYieldable = pack(coroutine.isyieldable(failed, "ignored"))
+                local failedCloseCount, failedCloseOk, failedCloseError = pack(coroutine.close(failed, "ignored"))
+                local failedCloseAgainCount, failedCloseAgainOk = pack(coroutine.close(failed, "ignored"))
+
+                return runningCount, isMain,
+                    mainStatusCount, mainStatus, mainYieldableCount, mainYieldable,
+                    defaultYieldableCount, defaultYieldable,
+                    freshStatusCount, freshStatus, freshYieldableCount, freshYieldable,
+                    resumeOk, pause, yieldedStatusCount, yieldedStatus,
+                    closeCount, closeOk, deadStatusCount, deadStatus,
+                    deadYieldableCount, deadYieldable, closeAgainCount, closeAgainOk,
+                    mainCloseOk, mainCloseMessage,
+                    failedResumeOk, failedResumeError == marker,
+                    failedStatusCount, failedStatus,
+                    failedYieldableCount, failedYieldable,
+                    failedCloseCount, failedCloseOk, failedCloseError == marker,
+                    failedCloseAgainCount, failedCloseAgainOk
+                """.trimIndent(),
+                "coroutine-lifecycle-arity.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals(2L, state.toInteger(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals(1L, state.toInteger(3))
+        assertEquals("running", state.toString(4))
+        assertEquals(1L, state.toInteger(5))
+        assertFalse(state.toBoolean(6))
+        assertEquals(1L, state.toInteger(7))
+        assertFalse(state.toBoolean(8))
+        assertEquals(1L, state.toInteger(9))
+        assertEquals("suspended", state.toString(10))
+        assertEquals(1L, state.toInteger(11))
+        assertTrue(state.toBoolean(12))
+        assertTrue(state.toBoolean(13))
+        assertEquals("pause", state.toString(14))
+        assertEquals(1L, state.toInteger(15))
+        assertEquals("suspended", state.toString(16))
+        assertEquals(1L, state.toInteger(17))
+        assertTrue(state.toBoolean(18))
+        assertEquals(1L, state.toInteger(19))
+        assertEquals("dead", state.toString(20))
+        assertEquals(1L, state.toInteger(21))
+        assertTrue(state.toBoolean(22))
+        assertEquals(1L, state.toInteger(23))
+        assertTrue(state.toBoolean(24))
+        assertFalse(state.toBoolean(25))
+        assertEquals("cannot close main thread", state.toString(26))
+        assertFalse(state.toBoolean(27))
+        assertTrue(state.toBoolean(28))
+        assertEquals(1L, state.toInteger(29))
+        assertEquals("dead", state.toString(30))
+        assertEquals(1L, state.toInteger(31))
+        assertTrue(state.toBoolean(32))
+        assertEquals(2L, state.toInteger(33))
+        assertFalse(state.toBoolean(34))
+        assertTrue(state.toBoolean(35))
+        assertEquals(1L, state.toInteger(36))
+        assertTrue(state.toBoolean(37))
+    }
+
+    @Test
+    fun `coroutine close handlers run in the target thread context`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local mainObserved = {}
+                local mainTarget
+                mainTarget = coroutine.create(function()
+                    local value <close> = setmetatable({}, {
+                        __close = function()
+                            local running, isMain = coroutine.running()
+                            mainObserved[1] = running == mainTarget
+                            mainObserved[2] = isMain
+                            mainObserved[3] = coroutine.status(mainTarget)
+                            mainObserved[4] = coroutine.isyieldable()
+                            mainObserved[5] = coroutine.isyieldable(mainTarget)
+                        end,
+                    })
+                    coroutine.yield("main pause")
+                end)
+                local mainResumeOk = coroutine.resume(mainTarget)
+                local mainCloseOk, mainCloseError = coroutine.close(mainTarget)
+                local mainAfter, mainAfterIsMain = coroutine.running()
+
+                local nestedObserved = {}
+                local outer
+                outer = coroutine.create(function()
+                    local target
+                    target = coroutine.create(function()
+                        local value <close> = setmetatable({}, {
+                            __close = function()
+                                local running, isMain = coroutine.running()
+                                nestedObserved[1] = running == target
+                                nestedObserved[2] = isMain
+                                nestedObserved[3] = coroutine.status(target)
+                                nestedObserved[4] = coroutine.isyieldable()
+                                nestedObserved[5] = coroutine.isyieldable(target)
+                            end,
+                        })
+                        coroutine.yield("nested pause")
+                    end)
+                    local targetResumeOk = coroutine.resume(target)
+                    local targetCloseOk, targetCloseError = coroutine.close(target)
+                    local restored = coroutine.running()
+                    return targetResumeOk, targetCloseOk, restored == outer, targetCloseError
+                end)
+                local outerOk, targetResumeOk, targetCloseOk, restored, targetCloseError = coroutine.resume(outer)
+
+                return mainResumeOk, mainCloseOk,
+                    mainObserved[1], mainObserved[2], mainObserved[3],
+                    mainObserved[4], mainObserved[5],
+                    mainAfterIsMain, coroutine.status(mainTarget),
+                    outerOk, targetResumeOk, targetCloseOk, restored,
+                    nestedObserved[1], nestedObserved[2], nestedObserved[3],
+                    nestedObserved[4], nestedObserved[5], coroutine.status(outer),
+                    mainCloseError, targetCloseError
+                """.trimIndent(),
+                "coroutine-close-target-context.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2), state.toString(20))
+        assertTrue(state.toBoolean(3))
+        assertFalse(state.toBoolean(4))
+        assertEquals("running", state.toString(5))
+        assertFalse(state.toBoolean(6))
+        assertFalse(state.toBoolean(7))
+        assertTrue(state.toBoolean(8))
+        assertEquals("dead", state.toString(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.toBoolean(11))
+        assertTrue(state.toBoolean(12), state.toString(21))
+        assertTrue(state.toBoolean(13))
+        assertTrue(state.toBoolean(14))
+        assertFalse(state.toBoolean(15))
+        assertEquals("running", state.toString(16))
+        assertFalse(state.toBoolean(17))
+        assertFalse(state.toBoolean(18))
+        assertEquals("dead", state.toString(19))
+        assertTrue(state.isNil(20))
+        assertTrue(state.isNil(21))
+    }
+
+    @Test
     fun `coroutine close reports normal coroutine`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
