@@ -42,7 +42,7 @@ class LuaVmMetatableTest {
             LuaVm().execute(tableLengthPrototype(table))
         }
 
-        assertEquals("attempt to call a number value", error.message)
+        assertEquals("attempt to call a number value (metamethod 'len')", error.message)
     }
 
     @Test

@@ -1064,6 +1064,12 @@ Lua 5.5's `lgc.c:GCTM` disables hooks, marks the caller `CallInfo` with `CIST_FI
 
 KLua now carries one immutable finalizer call-site record through its protected-call boundary. Explicit collection, logical automatic slices, and whole-state close all use the same non-yieldable, hook-suppressed helper, so `debug.getinfo` and `debug.traceback` observe the source-compatible finalizer identity without exposing call/return/line/count hook events. Non-callable finalizers retain that identity in the protected warning diagnostic. Focused coverage proves direct and automatic `debug.getinfo`, explicit and close-time traceback formatting, close-time hook suppression, and the exact non-callable warning shape; the finalizer-focused and complete repository suites pass.
 
+### M20 Named Call-Error Campaign
+
+Lua 5.5's `ldebug.c:luaG_callerror` first asks `funcnamefromcall` how the failing value was invoked and formats `(<kind> '<name>')` when the active Lua opcode or call state supplies one. `OP_CALL`/`OP_TAILCALL` reuse `getobjname` for local, upvalue, global, field, method, and string-constant origins; `OP_TFORCALL` reports `for iterator`; metamethod-capable opcodes report the interned name without its `__` prefix; and `CIST_FIN` retains the literal `__gc`. When neither the call site nor `varinfo` can name the value, the diagnostic has no suffix. Names pass through C `%s` formatting, so embedded NUL terminates a constant or field name in the error text.
+
+KLua now projects its existing `CallSiteInfo` through the failing `__call` resolution path instead of using that metadata only for debug inspection. The same helper covers ordinary tables, primitives, named host userdata, callable chains, fixed VM metamethod calls, close calls, finalizers, and tail-call sites, while native/API calls without Lua call-site metadata retain the plain diagnostic. Focused coverage proves local/upvalue/global/field/method/constant/iterator/metamethod names, NUL truncation, the unnamed computed-result fallback, host-userdata type names, `__close`, and `__gc`; the complete repository suite passes.
+
 Use this work-package order:
 
 | Order | Work package | Outcome and exit criteria | Expected commit shape |
@@ -1071,6 +1077,7 @@ Use this work-package order:
 | 1 | M20 `__gc` weak-edge and scheduling continuation | Closed: weak/ephemeron/uservalue tracing, logical full/step/automatic scheduling, nested-finalizer results, close ordering, residual isolation, and full verification are recorded above. | `e4e4077c` and `6bb176a6`. |
 | 2 | M20 registry field-access completion | Closed after the shared-registry re-audit: ordinary field API semantics, `luaL_getsubtable` metamethod behavior, `_CLIBS`, conditional per-path `LUA_NOENV`, Java/Lua coverage, and full verification are recorded above. | One coherent API/package/test/documentation commit. |
 | 3 | M20 `__gc` debug-name completion | Closed: `CIST_FIN`-equivalent metadata reaches explicit, automatic, and close finalizers; traceback, hook suppression, non-callable failure shape, focused coverage, and full verification are recorded above. | One coherent VM/test/documentation commit. |
+| 4 | M20 named call-error completion | Closed: Lua call-site metadata now reaches non-callable diagnostics across ordinary, iterator, metamethod, close, finalizer, host-userdata, C-string, and unnamed fallback cases with full verification. | One coherent VM/test/documentation commit. |
 
 M20 conformance remains important throughout development, but broad hardening should run as an explicitly selected campaign rather than an open-ended stream of unrelated probes. A campaign should name one subsystem or semantic invariant, list the affected entry points and reference-source functions, define its case matrix, and finish by updating the gap snapshot. Regression, data-integrity, security, or active-milestone blocking fixes may interrupt the order above; incidental edge cases should be queued for the next campaign.
 

@@ -1087,16 +1087,16 @@ internal class LuaVm(
                 callMetamethodDepth + 1,
             )
             is LuaNativeFunction -> callNativeResult(call, metamethodArguments, callSiteInfo)
-            LuaNil -> {
-                val finalizerDescription = if (callSiteInfo === GC_CALL_SITE_INFO) {
-                    " (metamethod '__gc')"
-                } else {
-                    ""
-                }
-                throw LuaVmException("attempt to call $callErrorTypeName$finalizerDescription")
-            }
+            LuaNil -> throw LuaVmException("attempt to call $callErrorTypeName${callErrorDescription(callSiteInfo)}")
             else -> callValue(call, metamethodArguments, callSiteInfo, callMetamethodDepth + 1, isTailCall)
         }
+    }
+
+    private fun callErrorDescription(callSiteInfo: CallSiteInfo?): String {
+        if (callSiteInfo == null || callSiteInfo.nameWhat.isEmpty()) {
+            return ""
+        }
+        return " (${callSiteInfo.nameWhat} '${callSiteInfo.name.substringBefore('\u0000')}')"
     }
 
     private fun callSiteInfo(frame: CallFrame, pc: Int): CallSiteInfo? {

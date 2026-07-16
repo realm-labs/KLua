@@ -11632,6 +11632,59 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `lua call errors report source backed callee names`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                globalValue = 1
+                local capturedValue = 3
+                local holder = {
+                    field = 4,
+                    method = 5,
+                    ["nul\0tail"] = 6,
+                }
+                local operand = setmetatable({}, {__add = {}})
+
+                local function message(probe)
+                    local ok, result = pcall(probe)
+                    return string.match(result, "attempt to call.*")
+                end
+                local function upvalueProbe() return capturedValue() end
+
+                return
+                    message(function() return globalValue() end),
+                    message(function() local value = 2; return value() end),
+                    message(upvalueProbe),
+                    message(function() return holder.field() end),
+                    message(function() return holder:method() end),
+                    message(function() return holder["nul\0tail"]() end),
+                    message(function() return ("constant\0tail")() end),
+                    message(function() for _ in 7 do end end),
+                    message(function() return operand + operand end),
+                    message(function() return (function() return 8 end)()() end)
+                """.trimIndent(),
+                "call-error-names.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertEquals("attempt to call a number value (global 'globalValue')", state.toString(1))
+        assertEquals("attempt to call a number value (local 'value')", state.toString(2))
+        assertEquals("attempt to call a number value (upvalue 'capturedValue')", state.toString(3))
+        assertEquals("attempt to call a number value (field 'field')", state.toString(4))
+        assertEquals("attempt to call a number value (method 'method')", state.toString(5))
+        assertEquals("attempt to call a number value (field 'nul')", state.toString(6))
+        assertEquals("attempt to call a string value (constant 'constant')", state.toString(7))
+        assertEquals("attempt to call a number value (for iterator 'for iterator')", state.toString(8))
+        assertEquals("attempt to call a table value (metamethod 'add')", state.toString(9))
+        assertEquals("attempt to call a number value", state.toString(10))
+    }
+
+    @Test
     fun `pcall reports missing function argument errors`() {
         val state = LuaState.create()
         LuaStdlib.openBase(state)
@@ -17729,9 +17782,9 @@ class LuaStdlibTest {
         assertTrue(state.toBoolean(2))
         assertEquals("value", state.toString(3))
         assertFalse(state.toBoolean(4))
-        assertEquals("attempt to call a CallableHost value", state.toString(5))
+        assertEquals("attempt to call a CallableHost value (global 'named')", state.toString(5))
         assertFalse(state.toBoolean(6))
-        assertEquals("attempt to call a userdata value", state.toString(7))
+        assertEquals("attempt to call a userdata value (global 'numeric')", state.toString(7))
     }
 
     @Test
