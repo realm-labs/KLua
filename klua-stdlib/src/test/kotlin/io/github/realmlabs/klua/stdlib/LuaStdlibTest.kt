@@ -12986,6 +12986,210 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `collectgarbage applies weak value key and all-weak table modes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local liveValue = {}
+                local deadValue = {}
+                local weakValues = setmetatable({
+                    live = liveValue,
+                    dead = deadValue,
+                    text = "retained string",
+                }, {__mode = "v"})
+                deadValue = nil
+
+                local liveKey = {}
+                local deadKey = {}
+                local liveKeyValue = {}
+                local weakKeys = setmetatable({}, {__mode = "k"})
+                weakKeys[liveKey] = liveKeyValue
+                weakKeys[deadKey] = {}
+                deadKey = nil
+
+                local allWeak = setmetatable({}, {__mode = "kv"})
+                local function addAllWeakEntry()
+                    local allKey = {}
+                    allWeak[allKey] = {}
+                end
+                addAllWeakEntry()
+                addAllWeakEntry = nil
+
+                collectgarbage()
+                local onlyKey, onlyValue = next(weakKeys)
+                return weakValues.live == liveValue,
+                    weakValues.dead == nil,
+                    weakValues.text,
+                    onlyKey == liveKey and onlyValue == liveKeyValue and next(weakKeys, onlyKey) == nil,
+                    next(allWeak) == nil
+                """.trimIndent(),
+                "weak-table-modes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("retained string", state.toString(3))
+        assertTrue(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+    }
+
+    @Test
+    fun `collectgarbage converges chained ephemeron tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local first = setmetatable({}, {__mode = "k"})
+                local second = setmetatable({}, {__mode = "k"})
+                local rootKey = {}
+                local middleKey = {}
+                local leaf = {}
+                first[rootKey] = middleKey
+                second[middleKey] = leaf
+                middleKey, leaf = nil, nil
+
+                collectgarbage()
+                local propagatedKey = first[rootKey]
+                local converged = propagatedKey ~= nil and second[propagatedKey] ~= nil
+
+                rootKey, propagatedKey = nil, nil
+                collectgarbage()
+                return converged, next(first) == nil, next(second) == nil
+                """.trimIndent(),
+                "ephemeron-convergence.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `weak table mode uses its Lua C string and ignores non string modes`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local nulMode = setmetatable({}, {__mode = "v\0k"})
+                local function addCollectableKey()
+                    nulMode[{}] = "primitive value"
+                end
+                addCollectableKey()
+                addCollectableKey = nil
+
+                local strongValue = {}
+                local nonStringMode = setmetatable({value = strongValue}, {__mode = 42})
+                strongValue = nil
+                local unknownValue = {}
+                local unknownMode = setmetatable({value = unknownValue}, {__mode = "unknown"})
+                unknownValue = nil
+
+                collectgarbage()
+                return next(nulMode) ~= nil,
+                    nonStringMode.value ~= nil,
+                    unknownMode.value ~= nil
+                """.trimIndent(),
+                "weak-mode-c-string.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `finalizers observe Lua atomic weak value and weak key clearing order`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local weakValues = setmetatable({}, {__mode = "v"})
+                local value = setmetatable({}, {
+                    __gc = function(self)
+                        weakValueWasCleared = weakValues.slot == nil
+                    end,
+                })
+                weakValues.slot = value
+                value = nil
+
+                local weakKeys = setmetatable({}, {__mode = "k"})
+                local function installWeakKey()
+                    local key = setmetatable({}, {
+                        __gc = function(self)
+                            weakKeyValue = weakKeys[self]
+                        end,
+                    })
+                    weakKeys[key] = "retained through finalization"
+                end
+                installWeakKey()
+                installWeakKey = nil
+
+                collectgarbage()
+                local keyPresentDuringFinalizer = weakKeyValue
+                collectgarbage()
+                return weakValueWasCleared, keyPresentDuringFinalizer, next(weakKeys) == nil
+                """.trimIndent(),
+                "finalizer-weak-clearing-order.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("retained through finalization", state.toString(2))
+        assertTrue(state.toBoolean(3))
+    }
+
+    @Test
+    fun `reachable userdata uservalues retain finalizable tables`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openDebug(state, LuaDebugInput { null }, Consumer { })
+        state.pushUserData(DebugHostObject("uservalue-owner"))
+        state.setGlobal("host")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                finalized = false
+                local child = setmetatable({}, {__gc = function() finalized = true end})
+                debug.setuservalue(host, child)
+                child = nil
+                collectgarbage()
+                local whileHeld = finalized
+                debug.setuservalue(host, nil)
+                collectgarbage()
+                return whileHeld, finalized
+                """.trimIndent(),
+                "userdata-uservalue-finalizer-root.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+    }
+
+    @Test
     fun `state close finalizes reachable tables once in reverse enrollment order`() {
         val state = LuaState.create()
         val output = mutableListOf<String>()

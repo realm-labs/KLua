@@ -79,6 +79,13 @@ class LuaState private constructor(
             val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
             stack.map { value -> value.toCoreValue(tableCache) }
         }
+        KLuaCoreRuntime.setUserDataValuesProvider(coreGlobals) { value ->
+            val tableCache = IdentityHashMap<LuaStackValue.TableValue, KLuaCoreValue.TableValue>()
+            userValues[value]
+                ?.values
+                ?.map { userValue -> userValue.toCoreValue(tableCache) }
+                ?: emptyList()
+        }
     }
 
     companion object {

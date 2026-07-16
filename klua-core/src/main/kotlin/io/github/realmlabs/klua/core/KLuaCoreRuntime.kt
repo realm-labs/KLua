@@ -388,6 +388,15 @@ public object KLuaCoreRuntime {
         }
     }
 
+    public fun setUserDataValuesProvider(
+        globals: KLuaCoreGlobals,
+        provider: (Any) -> List<KLuaCoreValue>,
+    ) {
+        globals.userDataValuesProvider = { value ->
+            provider(value).mapNotNull { userValue -> userValue.toLuaValueOrNull(globals) }
+        }
+    }
+
     public fun close(globals: KLuaCoreGlobals): List<String> {
         val warnings = mutableListOf<String>()
         close(globals, warnings::add)
@@ -559,8 +568,10 @@ public class KLuaCoreGlobals internal constructor(
     internal var stringMetatableConfigured: Boolean = false
     internal val rawTypeMetatables: MutableMap<String, LuaTable> = linkedMapOf()
     internal val userDataMetatables: MutableMap<Any, LuaTable> = IdentityHashMap()
+    internal var userDataValuesProvider: (Any) -> List<LuaValue> = { emptyList() }
     internal val lifecycle: LuaLifecycle = LuaLifecycle(
         userDataMetatable = { value -> userDataMetatable(value) },
+        userDataValues = { value -> userDataValuesProvider(value) },
         globalRoots = { lifecycleRoots() },
     )
     internal val lifecycleRootProviders = mutableListOf<() -> List<LuaValue>>()
@@ -601,6 +612,7 @@ public class KLuaCoreGlobals internal constructor(
         stringMetatable = null
         rawTypeMetatables.clear()
         userDataMetatables.clear()
+        userDataValuesProvider = { emptyList() }
         lifecycleRootProviders.clear()
     }
 
