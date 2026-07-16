@@ -18547,6 +18547,165 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `coroutine resume and wrap preserve exact transfer shapes and validation`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function pack(...)
+                    return select("#", ...), ...
+                end
+
+                local callableCalls = 0
+                local callable = setmetatable({}, {
+                    __call = function()
+                        callableCalls = callableCalls + 1
+                    end,
+                })
+                local createOk, createMessage = pcall(coroutine.create, callable, "ignored")
+                local wrapOk, wrapMessage = pcall(coroutine.wrap, callable, "ignored")
+
+                local created = coroutine.create(function(...)
+                    return select("#", ...), ...
+                end, "ignored", nil)
+                local resumeCount, resumeOk, argumentCount, first, second, third =
+                    pack(coroutine.resume(created, nil, "middle", nil))
+
+                local wrapped = coroutine.wrap(function(...)
+                    return select("#", ...), ...
+                end, "ignored", nil)
+                local wrapCount, wrappedArgumentCount, wrappedFirst, wrappedSecond, wrappedThird =
+                    pack(wrapped(nil, "wrapped", nil))
+
+                local empty = coroutine.create(function()
+                    coroutine.yield()
+                end)
+                local yieldCount, yieldOk = pack(coroutine.resume(empty))
+                local returnCount, returnOk = pack(coroutine.resume(empty, "ignored"))
+
+                return createOk, createMessage, wrapOk, wrapMessage, callableCalls,
+                    resumeCount, resumeOk, argumentCount, first == nil, second, third == nil,
+                    wrapCount, wrappedArgumentCount, wrappedFirst == nil, wrappedSecond,
+                    wrappedThird == nil, yieldCount, yieldOk, returnCount, returnOk
+                """.trimIndent(),
+                "coroutine-transfer-shapes.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertEquals("bad argument #1 to 'create' (function expected)", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("bad argument #1 to 'wrap' (function expected)", state.toString(4))
+        assertEquals(0L, state.toInteger(5))
+        assertEquals(5L, state.toInteger(6))
+        assertTrue(state.toBoolean(7))
+        assertEquals(3L, state.toInteger(8))
+        assertTrue(state.toBoolean(9))
+        assertEquals("middle", state.toString(10))
+        assertTrue(state.toBoolean(11))
+        assertEquals(4L, state.toInteger(12))
+        assertEquals(3L, state.toInteger(13))
+        assertTrue(state.toBoolean(14))
+        assertEquals("wrapped", state.toString(15))
+        assertTrue(state.toBoolean(16))
+        assertEquals(1L, state.toInteger(17))
+        assertTrue(state.toBoolean(18))
+        assertEquals(1L, state.toInteger(19))
+        assertTrue(state.toBoolean(20))
+    }
+
+    @Test
+    fun `coroutine wrap prefixes only final string error objects`() {
+        val state = LuaState.create()
+        LuaStdlib.openBase(state)
+        LuaStdlib.openString(state)
+        LuaStdlib.openCoroutine(state)
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local zero = string.char(0)
+                local rawMessage = "left" .. zero .. "right"
+
+                local numeric = coroutine.wrap(function()
+                    error(42, 0)
+                end)
+                local numericOk, numericError = pcall(numeric)
+
+                local marker = {name = "marker"}
+                local object = coroutine.wrap(function()
+                    error(marker)
+                end)
+                local objectOk, objectError = pcall(object)
+
+                local rawString = coroutine.wrap(function()
+                    error(rawMessage, 0)
+                end)
+                local rawOk, rawError = pcall(rawString)
+
+                local closeMessage = "close" .. zero .. "replacement"
+                local closeString = coroutine.wrap(function()
+                    local value <close> = setmetatable({}, {
+                        __close = function()
+                            error(closeMessage, 0)
+                        end,
+                    })
+                    error(marker)
+                end)
+                local closeStringOk, closeStringError = pcall(closeString)
+
+                local closeNumber = coroutine.wrap(function()
+                    local value <close> = setmetatable({}, {
+                        __close = function()
+                            error(99, 0)
+                        end,
+                    })
+                    error(marker)
+                end)
+                local closeNumberOk, closeNumberError = pcall(closeNumber)
+
+                return numericOk, numericError == 42, type(numericError),
+                    objectOk, objectError == marker, type(objectError),
+                    rawOk, type(rawError), rawError ~= rawMessage,
+                    string.sub(rawError, -#rawMessage) == rawMessage,
+                    string.find(rawError, zero, 1, true) ~= nil,
+                    closeStringOk, type(closeStringError),
+                    string.sub(closeStringError, -#closeMessage) == closeMessage,
+                    string.find(closeStringError, zero, 1, true) ~= nil,
+                    closeNumberOk, closeNumberError == 99, type(closeNumberError)
+                """.trimIndent(),
+                "coroutine-wrap-error-projection.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertFalse(state.toBoolean(1))
+        assertTrue(state.toBoolean(2))
+        assertEquals("number", state.toString(3))
+        assertFalse(state.toBoolean(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("table", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("string", state.toString(8))
+        assertTrue(state.toBoolean(9))
+        assertTrue(state.toBoolean(10))
+        assertTrue(state.toBoolean(11))
+        assertFalse(state.toBoolean(12))
+        assertEquals("string", state.toString(13))
+        assertTrue(state.toBoolean(14))
+        assertTrue(state.toBoolean(15))
+        assertFalse(state.toBoolean(16))
+        assertTrue(state.toBoolean(17))
+        assertEquals("number", state.toString(18))
+    }
+
+    @Test
     fun `coroutine running reports main and active coroutine contexts`() {
         val state = LuaState.create()
         LuaStdlib.openCoroutine(state)

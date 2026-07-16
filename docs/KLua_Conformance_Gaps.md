@@ -16,6 +16,7 @@ This list is evidence and scope tracking, not a FIFO task queue or a commit map.
 ## Coroutine Library
 
 - `luaopen_coroutine` is source-backed across fresh module-table identity, stable identity for all eight zero-upvalue registered functions, stable registry main-thread identity, and one shared per-state runtime across reopen. Saved and reopened `create`, `resume`, `yield`, `wrap`, `status`, and `close` paths interoperate in either direction. The weakly state-associated holder retains only a weak reference for main-thread state updates and does not retain its `LuaState` key; existing lifecycle coverage retains independent-state behavior.
+- `coroutine.create`, `resume`, `wrap`, and `yield` are source-backed across actual-function validation, ignored constructor extras, complete argument movement, zero/multiple yielded and returned values, nil holes, repeated Lua and host-continuation yields, cyclic table identity, target errors, close-before-wrap propagation, string-only caller-location prefixes including embedded NULs, non-string error identity/type, close replacement errors, and exact ordinary arity. KLua's JVM lists and heap have no queryable equivalent to Lua's C-stack capacity, so extreme transfers remain bounded by JVM indexed collections and memory rather than deterministic `lua_checkstack` failures with the source's two capacity diagnostics.
 
 ## Package Library
 
