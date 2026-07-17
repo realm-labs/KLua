@@ -103,6 +103,25 @@ The complete 22-workload timing screen found no supported unrelated regression u
 
 No interning cache was added. The profile attributes the win to direct byte storage/concatenation, while the key-heavy control is allocation-neutral; there is no measured benefit that would justify interning policy, retention, and identity risks.
 
+## 2026-07-17 Tagged VM Slot Checkpoint
+
+The second representation package replaces boxed primitive stack entries with internal byte tags, `Long` payloads, and lazily allocated heap-reference arrays. Stack copies, open Lua-call results, upvalues, and frame-owned varargs transfer tag and payload data without materializing `LuaValue` wrappers. Varargs share their frame's backing storage and relocate as an isolated tail segment when an open result grows the register range. Debug and public snapshots still materialize ordinary values, while lifecycle tracing visits only heap references held by stack, vararg, and upvalue slots.
+
+The representation follows Lua 5.5's `TValue`/`StackValue` model in `lobject.h`, open-upvalue ownership and closing in `lfunc.c`, tagged VM copies and numeric operations in `lvm.c`, and stack growth in `ldo.c`. Focused tests cover tag/payload copies, raw float bits, open-upvalue mutation and closing, stale-reference removal, stack growth across the vararg tail, exact open-call forwarding, and heap-root visitation.
+
+Matched JDK 17 measurements against the accepted pre-refactor checkpoint are:
+
+| Benchmark | Metric | Canonical baseline | Tagged slots | Delta |
+| --- | --- | ---: | ---: | ---: |
+| VM numeric loop | Average time | 865.837 µs/op | 749.342 µs/op | -13.5% |
+| VM numeric loop | Allocation | 961,189.502 B/op | 1,229.636 B/op | -99.87% |
+| Debug-disabled control | Allocation | 481,256.628 B/op | 1,168.588 B/op | -99.76% |
+| Closure counter | Allocation | 1,683,652.298 B/op | 1,363,728.099 B/op | -19.0% |
+| Vararg/multiple return | Allocation | 1,922,692.493 B/op | 2,002,568.490 B/op | +4.2% |
+| Table read/write control | Allocation | 1,253,580.710 B/op | 1,253,408.427 B/op | effectively unchanged |
+
+The vararg allocation increase remains below the 5% gate and retains tagged storage rather than falling back to boxed lists. The full 22-workload timing screen found no regression supported by two matched runs under the combined-uncertainty rule. A focused table rerun measured 2,925.485 ±1,302.353 µs/op, consistent with the canonical 3,020.783 ±1,816.435 µs/op point, with allocation unchanged. The complete Gradle suite and JMH build pass.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:

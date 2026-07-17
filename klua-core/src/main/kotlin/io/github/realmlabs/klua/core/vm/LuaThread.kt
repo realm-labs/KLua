@@ -36,15 +36,15 @@ internal class LuaThread {
         extraArgumentCount: Int = 0,
     ): CallFrame {
         val framePrototype = function.prototype
-        val varargs: MutableList<LuaValue>? = if (framePrototype.isVararg) {
-            copyVarargs(arguments, framePrototype.numParams)
+        val varargCount = if (framePrototype.isVararg) {
+            (arguments.size - framePrototype.numParams).coerceAtLeast(0)
         } else {
-            null
+            0
         }
         val frame = createAndPushFrame(
             function,
             framePrototype.maxStackSize.coerceAtLeast(arguments.size),
-            varargs,
+            varargCount,
             environment,
             callSiteInfo,
             isTailCall,
@@ -52,6 +52,9 @@ internal class LuaThread {
         )
         for (index in 0 until framePrototype.numParams) {
             frame.set(index, arguments.getOrElse(index) { LuaNil })
+        }
+        for (index in 0 until varargCount) {
+            check(frame.setVararg(index, arguments[framePrototype.numParams + index]))
         }
         return frame
     }
@@ -68,23 +71,29 @@ internal class LuaThread {
     ): CallFrame {
         require(argumentCount >= 0) { "argument count must be non-negative" }
         val prototype = function.prototype
-        val varargs: MutableList<LuaValue>? = if (prototype.isVararg) {
-            copyVarargs(sourceStack, argumentStart, argumentCount, prototype.numParams)
+        val varargCount = if (prototype.isVararg) {
+            (argumentCount - prototype.numParams).coerceAtLeast(0)
         } else {
-            null
+            0
         }
         val frame = createAndPushFrame(
             function,
             prototype.maxStackSize.coerceAtLeast(argumentCount),
-            varargs,
+            varargCount,
             environment,
             callSiteInfo,
             isTailCall,
             extraArgumentCount,
         )
         for (index in 0 until prototype.numParams) {
-            val value = if (index < argumentCount) sourceStack.get(argumentStart + index) else LuaNil
-            frame.set(index, value)
+            if (index < argumentCount) {
+                frame.copyFrom(sourceStack, argumentStart + index, index)
+            } else {
+                frame.setNil(index)
+            }
+        }
+        for (index in 0 until varargCount) {
+            check(frame.copyVarargFrom(index, sourceStack, argumentStart + prototype.numParams + index))
         }
         return frame
     }
@@ -102,21 +111,15 @@ internal class LuaThread {
     ): CallFrame {
         require(argumentCount in 2..3) { "fixed call argument count must be two or three" }
         val prototype = function.prototype
-        val varargs: MutableList<LuaValue>? = if (prototype.isVararg) {
-            copyFixedVarargs(
-                prototype.numParams,
-                argumentCount,
-                firstArgument,
-                secondArgument,
-                thirdArgument,
-            )
+        val varargCount = if (prototype.isVararg) {
+            (argumentCount - prototype.numParams).coerceAtLeast(0)
         } else {
-            null
+            0
         }
         val frame = createAndPushFrame(
             function,
             prototype.maxStackSize.coerceAtLeast(argumentCount),
-            varargs,
+            varargCount,
             environment,
             callSiteInfo,
             isTailCall,
@@ -130,13 +133,21 @@ internal class LuaThread {
             }
             frame.set(index, value)
         }
+        for (index in 0 until varargCount) {
+            check(
+                frame.setVararg(
+                    index,
+                    fixedArgument(prototype.numParams + index, firstArgument, secondArgument, thirdArgument),
+                ),
+            )
+        }
         return frame
     }
 
     private fun createAndPushFrame(
         function: LuaClosure,
         stackSize: Int,
-        varargs: MutableList<LuaValue>?,
+        varargCount: Int,
         environment: LuaUpvalue,
         callSiteInfo: CallSiteInfo?,
         isTailCall: Boolean,
@@ -145,7 +156,7 @@ internal class LuaThread {
         val frame = CallFrame(
             function,
             stackSize,
-            varargs,
+            varargCount,
             environment,
             callSiteInfo,
             isTailCall,
@@ -153,41 +164,6 @@ internal class LuaThread {
         )
         pushFrame(frame)
         return frame
-    }
-
-    private fun copyVarargs(arguments: List<LuaValue>, firstVararg: Int): MutableList<LuaValue> {
-        val varargs = ArrayList<LuaValue>((arguments.size - firstVararg).coerceAtLeast(0))
-        for (index in firstVararg until arguments.size) {
-            varargs += arguments[index]
-        }
-        return varargs
-    }
-
-    private fun copyVarargs(
-        sourceStack: LuaStack,
-        argumentStart: Int,
-        argumentCount: Int,
-        firstVararg: Int,
-    ): MutableList<LuaValue> {
-        val varargs = ArrayList<LuaValue>((argumentCount - firstVararg).coerceAtLeast(0))
-        for (index in firstVararg until argumentCount) {
-            varargs += sourceStack.get(argumentStart + index)
-        }
-        return varargs
-    }
-
-    private fun copyFixedVarargs(
-        firstVararg: Int,
-        argumentCount: Int,
-        firstArgument: LuaValue,
-        secondArgument: LuaValue,
-        thirdArgument: LuaValue,
-    ): MutableList<LuaValue> {
-        val varargs = ArrayList<LuaValue>((argumentCount - firstVararg).coerceAtLeast(0))
-        for (index in firstVararg until argumentCount) {
-            varargs += fixedArgument(index, firstArgument, secondArgument, thirdArgument)
-        }
-        return varargs
     }
 
     private fun fixedArgument(
@@ -220,9 +196,9 @@ internal class LuaThread {
     fun lifecycleRoots(): List<LuaValue> = buildList {
         for (frame in frames) {
             add(frame.function)
-            add(frame.environment.value)
-            addAll(frame.snapshotValues())
-            addAll(frame.varargs)
+            frame.environment.forEachHeapValue(::add)
+            frame.forEachHeapValue(::add)
+            frame.forEachVarargHeapValue(::add)
             frame.protectedErrorHandler?.let(::add)
         }
     }

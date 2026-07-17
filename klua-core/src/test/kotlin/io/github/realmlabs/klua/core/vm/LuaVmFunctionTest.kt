@@ -502,6 +502,25 @@ class LuaVmFunctionTest {
     }
 
     @Test
+    fun `forwards exact tagged vararg payloads through an open call`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local function values(a, b, c)
+                    return a, b, c
+                end
+                local function forward(fn, ...)
+                    return fn(...)
+                end
+                return forward(values, 10, 20, 12)
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(listOf(LuaInteger(10), LuaInteger(20), LuaInteger(12)), result)
+    }
+
+    @Test
     fun `executes captured parent local reads`() {
         val result = LuaVm().execute(
             Compiler.compile(

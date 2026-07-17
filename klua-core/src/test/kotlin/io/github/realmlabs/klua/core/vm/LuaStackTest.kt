@@ -2,10 +2,16 @@ package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaTable
+import io.github.realmlabs.klua.core.value.LuaUpvalue
+import io.github.realmlabs.klua.core.value.LuaValue
+import io.github.realmlabs.klua.core.value.LuaValueTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertNotSame
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class LuaStackTest {
     @Test
@@ -71,5 +77,55 @@ class LuaStackTest {
         assertEquals(LuaInteger(20), captured.value)
         assertEquals(LuaInteger(20), stack.get(0))
         assertEquals(LuaInteger(50), stack.get(4))
+    }
+
+    @Test
+    fun `stores primitive tags and payloads through copies and captures`() {
+        val source = LuaStack(2)
+        val target = LuaStack(1)
+        source.setInteger(0, Long.MIN_VALUE)
+        source.setFloat(1, -0.0)
+
+        target.copyFrom(source, 0, 0)
+        target.copyFrom(source, 1, 1)
+
+        assertEquals(LuaValueTag.INTEGER, target.tagAt(0))
+        assertEquals(Long.MIN_VALUE, target.integerValue(0))
+        assertEquals(LuaValueTag.FLOAT, target.tagAt(1))
+        assertEquals((-0.0).toRawBits(), target.floatValue(1).toRawBits())
+
+        val captured = target.capture(0)
+        target.setFloat(0, Double.fromBits(0x7ff8000000000001L))
+        assertEquals(LuaValueTag.FLOAT, captured.tag)
+        assertEquals(0x7ff8000000000001L, captured.floatValue().toRawBits())
+
+        captured.setBoolean(false)
+        assertEquals(LuaValueTag.FALSE, target.tagAt(0))
+        assertFalse(target.isTruthy(0))
+
+        val closed = LuaUpvalue(LuaNil)
+        target.copyTo(0, closed)
+        assertEquals(LuaValueTag.FALSE, closed.tag)
+        target.closeCapturesFrom(0)
+        assertEquals(LuaValueTag.FALSE, target.tagAt(0))
+        target.setInteger(0, 42)
+        assertEquals(LuaValueTag.FALSE, captured.tag)
+        assertEquals(LuaValueTag.INTEGER, target.tagAt(0))
+    }
+
+    @Test
+    fun `primitive overwrite removes stale heap roots`() {
+        val stack = LuaStack(1)
+        val table = LuaTable()
+        stack.set(0, table)
+
+        val before = mutableListOf<LuaValue>()
+        stack.forEachHeapValue(before::add)
+        assertEquals(listOf<LuaValue>(table), before)
+
+        stack.setInteger(0, 10)
+        val after = mutableListOf<LuaValue>()
+        stack.forEachHeapValue(after::add)
+        assertTrue(after.isEmpty())
     }
 }

@@ -7,6 +7,7 @@ import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
+import io.github.realmlabs.klua.core.value.LuaValueTag
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -105,6 +106,73 @@ class LuaThreadTest {
         assertEquals(LuaInteger(10), frame.stack.get(0))
         assertEquals(LuaInteger(20), frame.stack.get(1))
         assertEquals(listOf<LuaValue>(LuaNil, LuaInteger(40)), frame.varargs)
+    }
+
+    @Test
+    fun `stack range calls preserve tagged parameter and vararg payloads`() {
+        val thread = LuaThread()
+        val sourceStack = LuaStack(3)
+        sourceStack.setInteger(0, Long.MAX_VALUE)
+        sourceStack.setFloat(1, -0.0)
+        sourceStack.setBoolean(2, false)
+
+        val frame = thread.pushCallFromStack(
+            sourceStack,
+            argumentStart = 0,
+            argumentCount = 3,
+            environment = LuaUpvalue(LuaTable()),
+            function = LuaClosure(prototype("chunk", numParams = 1, isVararg = true)),
+        )
+        val loadedVarargs = LuaStack(2)
+        assertTrue(frame.copyVarargTo(0, loadedVarargs, 0))
+        assertTrue(frame.copyVarargTo(1, loadedVarargs, 1))
+
+        assertEquals(LuaValueTag.INTEGER, frame.tagAt(0))
+        assertEquals(Long.MAX_VALUE, frame.integerValue(0))
+        assertEquals(LuaValueTag.FLOAT, loadedVarargs.tagAt(0))
+        assertEquals((-0.0).toRawBits(), loadedVarargs.floatValue(0).toRawBits())
+        assertEquals(LuaValueTag.FALSE, loadedVarargs.tagAt(1))
+        assertFalse(loadedVarargs.isTruthy(1))
+    }
+
+    @Test
+    fun `stack range call snapshots every trailing tagged argument after source growth`() {
+        val source = LuaStack(1)
+        val callee = LuaClosure(prototype("callee", maxStackSize = 3, numParams = 1, isVararg = true))
+        source.set(1, callee)
+        source.setInteger(2, 10)
+        source.setInteger(3, 20)
+        source.setInteger(4, 12)
+
+        val frame = LuaThread().pushCallFromStack(
+            source,
+            argumentStart = 1,
+            argumentCount = 4,
+            environment = LuaUpvalue(LuaTable()),
+            function = callee,
+        )
+
+        assertEquals(listOf<LuaValue>(LuaInteger(10), LuaInteger(20), LuaInteger(12)), frame.varargs)
+        for (index in 0 until frame.varargCount) {
+            assertTrue(frame.copyVarargTo(index, frame, index + 1))
+        }
+        assertEquals(listOf(LuaInteger(10), LuaInteger(20), LuaInteger(12)), frame.slice(1, 3))
+    }
+
+    @Test
+    fun `lifecycle roots visit vararg references without boxing primitives`() {
+        val thread = LuaThread()
+        val table = LuaTable()
+        val frame = thread.pushCall(
+            prototype("roots", isVararg = true),
+            listOf(LuaInteger(10), table),
+        )
+
+        assertTrue(table in thread.lifecycleRoots())
+        assertFalse(LuaInteger(10) in thread.lifecycleRoots())
+
+        assertTrue(frame.setVararg(1, LuaInteger(20)))
+        assertFalse(table in thread.lifecycleRoots())
     }
 
     @Test

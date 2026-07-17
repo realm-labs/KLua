@@ -9,7 +9,7 @@ import io.github.realmlabs.klua.core.value.LuaValue
 internal class CallFrame(
     val function: LuaClosure,
     stackSize: Int,
-    private val varargValues: MutableList<LuaValue>? = null,
+    val varargCount: Int = 0,
     val environment: LuaUpvalue,
     val callSiteInfo: CallSiteInfo? = null,
     val isTailCall: Boolean = false,
@@ -17,7 +17,10 @@ internal class CallFrame(
     var pc: Int = 0,
     var openResultBase: Int = 0,
     var openResultCount: Int = 0,
-) : LuaStack(stackSize) {
+) : LuaStack(stackSize, varargCount) {
+    override val logicalCapacity: Int
+        get() = slotCapacity - varargCount
+
     private var pendingCall: PendingCallState? = null
     private var debugState: DebugFrameState? = null
     private var protectedState: ProtectedFrameState? = null
@@ -36,14 +39,36 @@ internal class CallFrame(
         get() = this
 
     val varargs: List<LuaValue>
-        get() = varargValues ?: emptyList()
+        get() = if (varargCount == 0) emptyList() else List(varargCount) { index -> rawValue(capacity + index) }
 
-    fun setVararg(index: Int, value: LuaValue): Boolean {
-        val values = varargValues ?: return false
-        if (index !in values.indices) {
+    fun copyVarargTo(index: Int, stack: LuaStack, destination: Int): Boolean {
+        if (index !in 0 until varargCount) {
             return false
         }
-        values[index] = value
+        stack.ensureStackIndex(destination)
+        stack.copyFromSlots(this, capacity + index, destination)
+        return true
+    }
+
+    fun copyVarargFrom(index: Int, stack: LuaStack, source: Int): Boolean {
+        if (index !in 0 until varargCount) {
+            return false
+        }
+        stack.copyToSlots(source, this, capacity + index)
+        return true
+    }
+
+    fun forEachVarargHeapValue(action: (LuaValue) -> Unit) {
+        for (index in 0 until varargCount) {
+            heapValueOrNull(capacity + index)?.let(action)
+        }
+    }
+
+    fun setVararg(index: Int, value: LuaValue): Boolean {
+        if (index !in 0 until varargCount) {
+            return false
+        }
+        rawSet(capacity + index, value)
         return true
     }
 
@@ -169,6 +194,18 @@ internal class CallFrame(
 
     private fun protectedState(): ProtectedFrameState {
         return protectedState ?: ProtectedFrameState().also { created -> protectedState = created }
+    }
+
+    override fun growStack(index: Int) {
+        val oldStackCapacity = capacity
+        val grownSize = grownStackCapacity(index)
+        ensureSlotCapacity(grownSize + varargCount)
+        for (varargIndex in varargCount - 1 downTo 0) {
+            rawCopy(oldStackCapacity + varargIndex, grownSize + varargIndex)
+        }
+        for (abandonedIndex in oldStackCapacity until minOf(grownSize, oldStackCapacity + varargCount)) {
+            rawSetNil(abandonedIndex)
+        }
     }
 }
 

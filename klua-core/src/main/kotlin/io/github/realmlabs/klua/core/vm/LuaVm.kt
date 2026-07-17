@@ -25,6 +25,7 @@ import io.github.realmlabs.klua.core.value.LuaNativeUpvalue
 import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
+import io.github.realmlabs.klua.core.value.LuaValueTag
 import java.math.BigInteger
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -423,14 +424,17 @@ internal class LuaVm(
                     consumeInstructionBudget()
                     dispatchDebugHooks(frame, pc)
                     when (Instruction.opcode(instruction)) {
-                        Opcode.LOAD_NIL -> stack.set(register(frame, Instruction.a(instruction)), LuaNil)
+                        Opcode.LOAD_NIL -> stack.setNil(register(frame, Instruction.a(instruction)))
                         Opcode.LOAD_BOOL -> {
-                            stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(Instruction.b(instruction) != 0))
+                            stack.setBoolean(
+                                register(frame, Instruction.a(instruction)),
+                                Instruction.b(instruction) != 0,
+                            )
                         }
                         Opcode.LOAD_INT -> {
-                            stack.set(
+                            stack.setInteger(
                                 register(frame, Instruction.a(instruction)),
-                                LuaInteger(signedByte(Instruction.b(instruction)).toLong()),
+                                signedByte(Instruction.b(instruction)).toLong(),
                             )
                         }
                         Opcode.LOAD_FLOAT -> {
@@ -438,7 +442,7 @@ internal class LuaVm(
                             if (constant !is LuaFloat) {
                                 throw LuaVmException("LOAD_FLOAT expected float constant at K${Instruction.b(instruction)}")
                             }
-                            stack.set(register(frame, Instruction.a(instruction)), constant)
+                            stack.setFloat(register(frame, Instruction.a(instruction)), constant.value)
                         }
                         Opcode.LOAD_K -> stack.set(
                             register(frame, Instruction.a(instruction)),
@@ -498,7 +502,7 @@ internal class LuaVm(
                         Opcode.LT -> compare(stack, frame, instruction, Comparison.LT)
                         Opcode.LE -> compare(stack, frame, instruction, Comparison.LE)
                         Opcode.TEST -> {
-                            if (isTruthy(stack.get(register(frame, Instruction.a(instruction))))) {
+                            if (stack.isTruthy(register(frame, Instruction.a(instruction)))) {
                                 frame.pc++
                             }
                         }
@@ -763,7 +767,7 @@ internal class LuaVm(
             frame.completedLuaTailCall = true
         }
         if (expectedResults == TRUTHY_PENDING_RESULT_COUNT) {
-            frame.stack.set(base, LuaBoolean(isTruthy(returnedValues.firstOrNull() ?: LuaNil)))
+            frame.stack.setBoolean(base, isTruthy(returnedValues.firstOrNull() ?: LuaNil))
             return null
         }
         applyCallResults(frame.stack, frame, base, expectedResults, returnedValues)
@@ -1000,7 +1004,7 @@ internal class LuaVm(
     ) {
         if (expectedResults == OPEN_RESULT_COUNT) {
             for (index in 0 until sourceCount) {
-                frame.set(base + index, sourceStack.get(sourceBase + index))
+                frame.copyFrom(sourceStack, sourceBase + index, base + index)
             }
             frame.openResultBase = base
             frame.openResultCount = sourceCount
@@ -1008,8 +1012,11 @@ internal class LuaVm(
         }
 
         for (index in 0 until expectedResults) {
-            val value = if (index < sourceCount) sourceStack.get(sourceBase + index) else LuaNil
-            frame.set(base + index, value)
+            if (index < sourceCount) {
+                frame.copyFrom(sourceStack, sourceBase + index, base + index)
+            } else {
+                frame.setNil(base + index)
+            }
         }
     }
 
@@ -1594,12 +1601,18 @@ internal class LuaVm(
         val base = register(frame, Instruction.a(instruction))
         val expectedResults = Instruction.b(instruction)
         if (expectedResults == OPEN_RESULT_COUNT) {
-            setOpenResults(stack, frame, base, frame.varargs)
+            for (index in 0 until frame.varargCount) {
+                check(frame.copyVarargTo(index, stack, base + index))
+            }
+            frame.openResultBase = base
+            frame.openResultCount = frame.varargCount
             return
         }
 
         for (index in 0 until expectedResults) {
-            stack.set(base + index, frame.varargs.getOrElse(index) { LuaNil })
+            if (!frame.copyVarargTo(index, stack, base + index)) {
+                stack.setNil(base + index)
+            }
         }
     }
 
@@ -1626,7 +1639,7 @@ internal class LuaVm(
         if (index !in frame.upvalues.indices) {
             throw LuaVmException("upvalue index out of range: U$index")
         }
-        stack.set(register(frame, Instruction.a(instruction)), frame.upvalues[index].value)
+        stack.copyFrom(frame.upvalues[index], register(frame, Instruction.a(instruction)))
     }
 
     private fun setUpvalue(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -1634,7 +1647,7 @@ internal class LuaVm(
         if (index !in frame.upvalues.indices) {
             throw LuaVmException("upvalue index out of range: U$index")
         }
-        frame.upvalues[index].value = stack.get(register(frame, Instruction.b(instruction)))
+        stack.copyTo(register(frame, Instruction.b(instruction)), frame.upvalues[index])
     }
 
     private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -2154,9 +2167,44 @@ internal class LuaVm(
     private fun signedByte(value: Int): Int = if (value >= 128) value - 256 else value
 
     private fun arithmetic(stack: LuaStack, frame: CallFrame, instruction: Int, operation: Arithmetic) {
-        val left = stack.get(register(frame, Instruction.b(instruction)))
-        val right = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), arithmetic(left, right, operation))
+        val destination = register(frame, Instruction.a(instruction))
+        val leftIndex = register(frame, Instruction.b(instruction))
+        val rightIndex = register(frame, Instruction.c(instruction))
+        val leftTag = stack.tagCode(leftIndex)
+        val rightTag = stack.tagCode(rightIndex)
+        if (leftTag == LuaValueTag.INTEGER.ordinal && rightTag == LuaValueTag.INTEGER.ordinal) {
+            val left = stack.integerValue(leftIndex)
+            val right = stack.integerValue(rightIndex)
+            when (operation) {
+                Arithmetic.ADD -> stack.setInteger(destination, left + right)
+                Arithmetic.SUB -> stack.setInteger(destination, left - right)
+                Arithmetic.MUL -> stack.setInteger(destination, left * right)
+                Arithmetic.DIV -> stack.setFloat(destination, left.toDouble() / right.toDouble())
+                Arithmetic.IDIV -> {
+                    if (right == 0L) {
+                        throw LuaVmException("attempt to divide by zero")
+                    }
+                    stack.setInteger(destination, Math.floorDiv(left, right))
+                }
+                Arithmetic.MOD -> {
+                    if (right == 0L) {
+                        throw LuaVmException("attempt to perform 'n%0'")
+                    }
+                    stack.setInteger(destination, Math.floorMod(left, right))
+                }
+                Arithmetic.POW -> stack.setFloat(destination, Math.pow(left.toDouble(), right.toDouble()))
+            }
+            return
+        }
+        if (leftTag.isNumberTag() && rightTag.isNumberTag()) {
+            val left = stack.numberValue(leftIndex)
+            val right = stack.numberValue(rightIndex)
+            stack.setFloat(destination, operation.floatArithmetic(left, right))
+            return
+        }
+        val left = stack.get(leftIndex)
+        val right = stack.get(rightIndex)
+        stack.set(destination, arithmetic(left, right, operation))
     }
 
     private fun arithmetic(left: LuaValue, right: LuaValue, operation: Arithmetic): LuaValue {
@@ -2229,7 +2277,20 @@ internal class LuaVm(
     }
 
     private fun unaryMinus(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        val value = stack.get(register(frame, Instruction.b(instruction)))
+        val destination = register(frame, Instruction.a(instruction))
+        val source = register(frame, Instruction.b(instruction))
+        when (stack.tagCode(source)) {
+            LuaValueTag.INTEGER.ordinal -> {
+                stack.setInteger(destination, -stack.integerValue(source))
+                return
+            }
+            LuaValueTag.FLOAT.ordinal -> {
+                stack.setFloat(destination, -stack.floatValue(source))
+                return
+            }
+            else -> Unit
+        }
+        val value = stack.get(source)
         val result = when (value) {
             is LuaInteger -> LuaInteger(-value.value)
             is LuaFloat -> LuaFloat(-value.value)
@@ -2242,12 +2303,12 @@ internal class LuaVm(
                 }
             }
         }
-        stack.set(register(frame, Instruction.a(instruction)), result)
+        stack.set(destination, result)
     }
 
     private fun logicalNot(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        val value = stack.get(register(frame, Instruction.b(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), LuaBoolean(!isTruthy(value)))
+        val source = register(frame, Instruction.b(instruction))
+        stack.setBoolean(register(frame, Instruction.a(instruction)), !stack.isTruthy(source))
     }
 
     private fun length(stack: LuaStack, frame: CallFrame, instruction: Int) {
@@ -2299,9 +2360,9 @@ internal class LuaVm(
     private fun compare(stack: LuaStack, frame: CallFrame, instruction: Int, comparison: Comparison) {
         val left = stack.get(register(frame, Instruction.b(instruction)))
         val right = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(
+        stack.setBoolean(
             register(frame, Instruction.a(instruction)),
-            LuaBoolean(compare(left, right, comparison, allowSuspension = true)),
+            compare(left, right, comparison, allowSuspension = true),
         )
     }
 
@@ -2412,15 +2473,28 @@ internal class LuaVm(
     }
 
     private fun bitwise(stack: LuaStack, frame: CallFrame, instruction: Int, operation: Bitwise) {
-        val leftValue = stack.get(register(frame, Instruction.b(instruction)))
-        val rightValue = stack.get(register(frame, Instruction.c(instruction)))
+        val destination = register(frame, Instruction.a(instruction))
+        val leftIndex = register(frame, Instruction.b(instruction))
+        val rightIndex = register(frame, Instruction.c(instruction))
+        if (
+            stack.tagCode(leftIndex) == LuaValueTag.INTEGER.ordinal &&
+            stack.tagCode(rightIndex) == LuaValueTag.INTEGER.ordinal
+        ) {
+            stack.setInteger(
+                destination,
+                operation.apply(stack.integerValue(leftIndex), stack.integerValue(rightIndex)),
+            )
+            return
+        }
+        val leftValue = stack.get(leftIndex)
+        val rightValue = stack.get(rightIndex)
         val left = integerValue(leftValue)
         val right = integerValue(rightValue)
         if (left == null || right == null) {
             val metamethod = binaryMetamethod(leftValue, rightValue, operation.metamethodKey)
             if (metamethod != null) {
                 stack.set(
-                    register(frame, Instruction.a(instruction)),
+                    destination,
                     callOperatorMetamethod(
                         metamethod,
                         leftValue,
@@ -2434,28 +2508,47 @@ internal class LuaVm(
             val failedValue = if (left == null) leftValue else rightValue
             throw LuaVmException("attempt to perform bitwise operation on ${operationTypeName(failedValue)}")
         }
-        stack.set(register(frame, Instruction.a(instruction)), LuaInteger(operation.apply(left, right)))
+        stack.setInteger(destination, operation.apply(left, right))
     }
 
     private fun bitwiseNot(stack: LuaStack, frame: CallFrame, instruction: Int) {
-        val value = stack.get(register(frame, Instruction.b(instruction)))
+        val destination = register(frame, Instruction.a(instruction))
+        val source = register(frame, Instruction.b(instruction))
+        if (stack.tagCode(source) == LuaValueTag.INTEGER.ordinal) {
+            stack.setInteger(destination, stack.integerValue(source).inv())
+            return
+        }
+        val value = stack.get(source)
         val integer = integerValue(value)
         if (integer == null) {
             val metamethod = rawMetamethod(value, BNOT_KEY)
             if (metamethod != LuaNil) {
                 stack.set(
-                    register(frame, Instruction.a(instruction)),
+                    destination,
                     callOperatorMetamethod(metamethod, value, value, BNOT_KEY, allowSuspension = true),
                 )
                 return
             }
             throw LuaVmException("attempt to perform bitwise operation on ${operationTypeName(value)}")
         }
-        stack.set(register(frame, Instruction.a(instruction)), LuaInteger(integer.inv()))
+        stack.setInteger(destination, integer.inv())
     }
 
     private fun forLoopContinues(stack: LuaStack, frame: CallFrame, instruction: Int): Boolean {
         val base = register(frame, Instruction.a(instruction))
+        if (
+            stack.tagCode(base) == LuaValueTag.INTEGER.ordinal &&
+            stack.tagCode(base + 1) == LuaValueTag.INTEGER.ordinal &&
+            stack.tagCode(base + 2) == LuaValueTag.INTEGER.ordinal
+        ) {
+            val index = stack.integerValue(base)
+            val limit = stack.integerValue(base + 1)
+            val step = stack.integerValue(base + 2)
+            if (step == 0L) {
+                throw LuaVmException("'for' step is zero")
+            }
+            return if (step > 0L) index <= limit else index >= limit
+        }
         val indexValue = stack.get(base)
         val limitValue = stack.get(base + 1)
         val stepValue = stack.get(base + 2)
@@ -2494,6 +2587,20 @@ internal class LuaVm(
 
     private fun advanceForLoop(stack: LuaStack, frame: CallFrame, instruction: Int): Boolean {
         val base = register(frame, Instruction.a(instruction))
+        if (
+            stack.tagCode(base) == LuaValueTag.INTEGER.ordinal &&
+            stack.tagCode(base + 1) == LuaValueTag.INTEGER.ordinal &&
+            stack.tagCode(base + 2) == LuaValueTag.INTEGER.ordinal
+        ) {
+            val index = stack.integerValue(base)
+            val limit = stack.integerValue(base + 1)
+            val step = stack.integerValue(base + 2)
+            if (integerForHasNext(index, limit, step)) {
+                stack.setInteger(base, index + step)
+                return true
+            }
+            return false
+        }
         val index = stack.get(base)
         val limit = stack.get(base + 1)
         val step = stack.get(base + 2)
@@ -2593,6 +2700,18 @@ internal class LuaVm(
                     LuaInteger(Math.floorMod(left, right))
                 }
                 POW -> LuaFloat(Math.pow(left.toDouble(), right.toDouble()))
+            }
+        }
+
+        fun floatArithmetic(left: Double, right: Double): Double {
+            return when (this) {
+                ADD -> left + right
+                SUB -> left - right
+                MUL -> left * right
+                DIV -> left / right
+                IDIV -> kotlin.math.floor(left / right)
+                MOD -> floatModulo(left, right)
+                POW -> Math.pow(left, right)
             }
         }
 
@@ -2791,6 +2910,8 @@ internal class LuaVm(
 private fun isTruthy(value: LuaValue): Boolean {
     return value != LuaNil && value != LuaBoolean(false)
 }
+
+private fun Int.isNumberTag(): Boolean = this == LuaValueTag.INTEGER.ordinal || this == LuaValueTag.FLOAT.ordinal
 
 private fun numberValue(value: LuaValue): Double? {
     return when (value) {

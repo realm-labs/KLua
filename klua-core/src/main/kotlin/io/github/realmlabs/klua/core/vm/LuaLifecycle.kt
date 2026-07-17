@@ -292,9 +292,9 @@ private class ReachabilityTrace(
                     userDataValues(current.value).forEach(pending::addLast)
                 }
                 is LuaClosure -> {
-                    current.upvalues.forEach { upvalue -> pending.addLast(upvalue.value) }
+                    current.upvalues.forEach { upvalue -> upvalue.forEachHeapValue(pending::addLast) }
                     current.globals?.let(pending::addLast)
-                    current.environment?.value?.let(pending::addLast)
+                    current.environment?.forEachHeapValue(pending::addLast)
                 }
                 else -> Unit
             }

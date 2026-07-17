@@ -198,5 +198,40 @@ internal data class LuaNativeDebugHook(
 )
 
 internal class LuaUpvalue(
-    var value: LuaValue,
-)
+    value: LuaValue,
+) : LuaValueSlots(1) {
+    init {
+        rawSet(0, value)
+    }
+
+    var value: LuaValue
+        get() = rawValue(0)
+        set(value) {
+            rawSet(0, value)
+        }
+
+    val tag: LuaValueTag
+        get() = rawTag(0)
+
+    fun integerValue(): Long = integerAt(0)
+
+    fun floatValue(): Double = floatAt(0)
+
+    fun isTruthy(): Boolean = rawTruthy(0)
+
+    fun setNil() = rawSetNil(0)
+
+    fun setBoolean(value: Boolean) = rawSetBoolean(0, value)
+
+    fun setInteger(value: Long) = rawSetInteger(0, value)
+
+    fun setFloat(value: Double) = rawSetFloat(0, value)
+
+    fun copyFrom(source: LuaValueSlots, index: Int) = source.rawCopyTo(index, this)
+
+    fun copyTo(target: LuaValueSlots, index: Int) = rawCopyTo(0, target, index)
+
+    fun copyTo(target: LuaUpvalue) = rawCopyTo(0, target)
+
+    fun forEachHeapValue(action: (LuaValue) -> Unit) = forEachReference(action)
+}
