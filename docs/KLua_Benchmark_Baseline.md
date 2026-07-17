@@ -142,6 +142,30 @@ Matched JDK 17 measurements against the accepted pre-refactor checkpoint are:
 
 Slash-separated values are two independent matched runs. Table and entity allocation improvements reproduce tightly. Table timing moved to opposite sides of the canonical point, while both intervals overlap it, so the two-run and combined-uncertainty policy does not support a regression. The debug-control allocation change remains below the 5% gate. One broad timing screen was rejected because every control, including table-independent numeric execution, shifted uniformly to roughly twice its adjacent matched value. The immediate focused rerun restored the numeric control to 709.783 ±53.304 µs/op and measured the table control at 2,929.878 ±1,426.921 µs/op. No unrelated regression is supported. The complete Gradle suite and JMH build pass.
 
+## 2026-07-17 Guarded Inline Cache Checkpoint
+
+The fourth interpreter package adds VM-local, instruction-indexed caches for fixed string fields, globals, metamethod fallbacks, callable-table targets, and call-site metadata. Fixed-field hits transfer tagged values through a validated hash slot; the slot guard can be reused across tables only when the expected key occupies that slot. Metamethod guards retain weak receiver, metatable, and target references and validate receiver shape plus metatable content version. The prototype cache index and every Lua-value guard are weak, so acceleration metadata does not become a lifecycle root.
+
+Table mutations clear table-owned metamethod lookups immediately. Key insertion/removal and metatable replacement invalidate receiver-shape guards, while same-key value replacement remains visible through the retained slot. Cache misses re-enter the existing semantic paths, including non-function `__index`, `__newindex`, and `__call` chains. Cached table-valued fallbacks debit the already-consumed tag-loop step so Lua's exact 2,000-step boundary is unchanged. The implementation follows the fast access and fallback split in `lvm.h`/`lvm.c`, metamethod presence and invalidation rules in `ltm.h`/`ltm.c`, and callable fallback in `ldo.c`.
+
+Focused tests repeatedly execute the same instruction while replacing values, deleting and reinserting keys, replacing metamethod fields without a shape change, swapping metatables, chaining through table-valued targets, and changing callable-table targets. The existing standard-library boundary matrix retains the exact `__index`/`__newindex` loop limit.
+
+Matched JDK 17 GC-profiler measurements against `5400eeaa` are:
+
+| Benchmark | Metric | Before caches | Guarded caches | Delta |
+| --- | --- | ---: | ---: | ---: |
+| `__index` calls, 10,000 | Average time | 3,303.731 µs/op | 2,486.477 µs/op | -24.7% |
+| `__index` calls, 10,000 | Allocation | 2,652,404.726 B/op | 2,652,836.253 B/op | +0.02% |
+| Entity-update kernel | Average time | 5,767.348 µs/op | 5,552.353 µs/op | -3.7% |
+| Entity-update kernel | Allocation | 2,207,280.577 B/op | 2,195,895.162 B/op | -0.5% |
+| Lua calls, 10,000 | Average time | 2,406.618 µs/op | 2,373.157 µs/op | -1.4% |
+| Lua calls, 10,000 | Allocation | 1,442,041.173 B/op | 1,442,293.514 B/op | +0.02% |
+| Method calls, 10,000 | Average time | 4,845.728 µs/op | 5,214.603 µs/op | +7.6% |
+| Method calls, 10,000 | Allocation | 2,003,171.719 B/op | 2,004,170.301 B/op | +0.05% |
+| Debug-disabled control | Allocation | 1,205.064 B/op after hybrid tables | 1,208.600 B/op | +0.3% |
+
+The method timing intervals overlap widely and the change remains below the 10% timing gate. Table allocation remains at the hybrid checkpoint's roughly 298 kB/op, and a matched timing screen covering entity, metamethod, Lua-call, method-call, table, and numeric controls found no supported regression. The complete Gradle suite and JMH build pass.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:

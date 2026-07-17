@@ -19,6 +19,12 @@ internal class LuaTableHashPart private constructor(
 
     fun contains(key: LuaValue): Boolean = findExisting(key) >= 0
 
+    fun slot(key: LuaValue): Int = findExisting(key)
+
+    fun slotMatches(slot: Int, key: LuaValue): Boolean {
+        return slot in states.indices && states[slot] == OCCUPIED && keys[slot] == key
+    }
+
     fun copyValueTo(key: LuaValue, target: LuaValueSlots, targetIndex: Int): Boolean {
         val index = findExisting(key)
         if (index < 0) {
@@ -26,6 +32,23 @@ internal class LuaTableHashPart private constructor(
         }
         rawCopyTo(index, target, targetIndex)
         return true
+    }
+
+    fun copySlotTo(slot: Int, target: LuaValueSlots, targetIndex: Int) {
+        requireOccupied(slot)
+        rawCopyTo(slot, target, targetIndex)
+    }
+
+    fun setSlotFrom(slot: Int, source: LuaValueSlots, sourceIndex: Int) {
+        requireOccupied(slot)
+        source.rawCopyTo(sourceIndex, this, slot)
+    }
+
+    fun removeSlot(slot: Int) {
+        requireOccupied(slot)
+        states[slot] = DELETED
+        rawSetNil(slot)
+        size--
     }
 
     fun put(key: LuaValue, value: LuaValue): Boolean {
@@ -113,6 +136,10 @@ internal class LuaTableHashPart private constructor(
             index = (index + 1) and (capacity - 1)
         }
         return if (firstDeleted >= 0) firstDeleted else index
+    }
+
+    private fun requireOccupied(slot: Int) {
+        require(slot in states.indices && states[slot] == OCCUPIED) { "invalid table hash slot: $slot" }
     }
 
     companion object {

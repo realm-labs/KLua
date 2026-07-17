@@ -18,6 +18,8 @@ internal class LuaTable(expectedSize: Int = 0) : LuaValue {
     private var arraySize = 0
     private var hashValues: LuaTableHashPart? = null
     private var lengthHint = 0L
+    private var metamethodCacheVersion = -1L
+    private var metamethodCache: MutableMap<LuaString, LuaValue>? = null
 
     var version: Long = 0L
         private set
@@ -97,7 +99,44 @@ internal class LuaTable(expectedSize: Int = 0) : LuaValue {
         return hashValues?.copyValueTo(key, target, targetIndex) == true
     }
 
-    fun metatableRawGet(key: LuaString): LuaValue = metatable?.rawGet(key) ?: LuaNil
+    fun metatableRawGet(key: LuaString): LuaValue = metatable?.cachedRawGet(key) ?: LuaNil
+
+    fun cachedRawGet(key: LuaString): LuaValue {
+        if (metamethodCacheVersion != version) {
+            metamethodCache = null
+            metamethodCacheVersion = version
+        }
+        val cached = metamethodCache?.get(key)
+        if (cached != null) {
+            return cached
+        }
+        val value = rawGetCanonical(key)
+        val cache = metamethodCache ?: HashMap<LuaString, LuaValue>().also { created -> metamethodCache = created }
+        cache[key] = value
+        return value
+    }
+
+    fun rawStringSlot(key: LuaString): Int = hashValues?.slot(key) ?: -1
+
+    fun rawStringSlotMatches(slot: Int, key: LuaString): Boolean = hashValues?.slotMatches(slot, key) == true
+
+    fun rawCopyHashSlotTo(slot: Int, target: LuaValueSlots, targetIndex: Int) {
+        checkNotNull(hashValues).copySlotTo(slot, target, targetIndex)
+    }
+
+    fun rawSetHashSlotFrom(slot: Int, source: LuaValueSlots, sourceIndex: Int) {
+        val hash = checkNotNull(hashValues)
+        if (source.rawTagCode(sourceIndex) == LuaValueTag.NIL.ordinal) {
+            hash.removeSlot(slot)
+            markValueMutation(structural = true)
+            if (hash.shouldCompact()) {
+                rehashHash(hash.capacity)
+            }
+        } else {
+            hash.setSlotFrom(slot, source, sourceIndex)
+            markValueMutation(structural = false)
+        }
+    }
 
     fun rawSet(key: LuaValue, value: LuaValue) {
         rawSetCanonical(canonicalKey(key), value)
@@ -403,6 +442,8 @@ internal class LuaTable(expectedSize: Int = 0) : LuaValue {
 
     private fun markValueMutation(structural: Boolean) {
         version++
+        metamethodCache = null
+        metamethodCacheVersion = version
         if (structural) {
             shapeVersion++
         }

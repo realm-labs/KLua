@@ -167,6 +167,17 @@ internal open class LuaStack(size: Int, reservedSlots: Int = 0) :
         }
     }
 
+    internal fun copyFromTableHashSlot(table: LuaTable, slot: Int, to: Int) {
+        ensureIndex(to)
+        val capture = captures?.get(to)
+        if (capture == null) {
+            table.rawCopyHashSlotTo(slot, this, to)
+        } else {
+            table.rawCopyHashSlotTo(slot, capture, 0)
+            capture.copyTo(this, to)
+        }
+    }
+
     internal fun copyToTable(from: Int, table: LuaTable, key: LuaValue) {
         checkIndex(from)
         val capture = captures?.get(from)
@@ -183,6 +194,12 @@ internal open class LuaStack(size: Int, reservedSlots: Int = 0) :
         checkIndex(from)
         val capture = captures?.get(from)
         if (capture == null) table.rawSetStringFrom(key, this, from) else table.rawSetStringFrom(key, capture, 0)
+    }
+
+    internal fun copyToTableHashSlot(from: Int, table: LuaTable, slot: Int) {
+        checkIndex(from)
+        val capture = captures?.get(from)
+        if (capture == null) table.rawSetHashSlotFrom(slot, this, from) else table.rawSetHashSlotFrom(slot, capture, 0)
     }
 
     internal fun ensureStackIndex(index: Int) {

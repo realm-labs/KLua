@@ -53,6 +53,7 @@ internal class LuaVm(
 ) {
     private val thread = LuaThread()
     private val rootEnvironment = LuaUpvalue(environment)
+    private val inlineCaches = LuaInlineCacheStore()
     private var debugHook: DebugHookState? = null
     private var debugObserver: LuaVmDebugObserver? = null
     private var debugSuspended = false
@@ -456,12 +457,12 @@ internal class LuaVm(
                             )
                             recordLifecycleAllocation(TABLE_ALLOCATION_ESTIMATE)
                         }
-                        Opcode.GET_TABLE -> getTable(stack, frame, instruction)
-                        Opcode.SET_TABLE -> setTable(stack, frame, instruction)
-                        Opcode.GET_FIELD -> getField(stack, frame, instruction)
-                        Opcode.SET_FIELD -> setField(stack, frame, instruction)
-                        Opcode.GET_GLOBAL -> getGlobal(stack, frame, instruction)
-                        Opcode.SET_GLOBAL -> setGlobal(stack, frame, instruction)
+                        Opcode.GET_TABLE -> getTable(stack, frame, pc, instruction)
+                        Opcode.SET_TABLE -> setTable(stack, frame, pc, instruction)
+                        Opcode.GET_FIELD -> getField(stack, frame, pc, instruction)
+                        Opcode.SET_FIELD -> setField(stack, frame, pc, instruction)
+                        Opcode.GET_GLOBAL -> getGlobal(stack, frame, pc, instruction)
+                        Opcode.SET_GLOBAL -> setGlobal(stack, frame, pc, instruction)
                         Opcode.CHECK_GLOBAL_NIL -> checkGlobalNil(frame, instruction)
                         Opcode.GET_ENV -> getEnvironment(stack, frame, instruction)
                         Opcode.SET_ENV -> setEnvironment(stack, frame, instruction)
@@ -518,7 +519,7 @@ internal class LuaVm(
                             }
                         }
                         Opcode.CALL -> {
-                            val result = call(stack, frame, instruction)
+                            val result = call(stack, frame, pc, instruction)
                             if (result != null) {
                                 suspended = true
                                 return result
@@ -642,16 +643,32 @@ internal class LuaVm(
         return prototype.nested[index]
     }
 
-    private fun call(stack: LuaStack, frame: CallFrame, instruction: Int): LuaExecutionResult? {
+    private fun call(stack: LuaStack, frame: CallFrame, pc: Int, instruction: Int): LuaExecutionResult? {
         val base = register(frame, Instruction.a(instruction))
         val callee = stack.get(base)
         val argumentCount = argumentCount(frame, base, Instruction.b(instruction))
         val expectedResults = Instruction.c(instruction)
-        val callSiteInfo = callSiteInfo(frame, frame.pc - 1)
+        val callCache = inlineCaches.call(frame.prototype, pc)
+            ?: LuaCallInstructionCache(callSiteInfo(frame, pc)).also { created ->
+                inlineCaches.put(frame.prototype, pc, created)
+            }
+        val callSiteInfo = callCache.callSiteInfo
         val isTailCall = isTailCall(frame, base, expectedResults)
-        val completesLuaTailCall = isTailCall && tailCallUsesLuaFrame(callee)
-        val results = if (callee is LuaClosure) {
-            executeFrameInto(
+        val callableTableTarget = if (callee is LuaTable) {
+            callCache.callableTableGuard?.targetIfValid(callee)
+                ?: callee.metatableRawGet(CALL_KEY).also { target ->
+                    callCache.callableTableGuard = LuaTableMetamethodGuard(callee, target)
+                }
+        } else {
+            null
+        }
+        val completesLuaTailCall = isTailCall && if (callableTableTarget != null) {
+            tailMetamethodUsesLuaFrame(callableTableTarget, 0)
+        } else {
+            tailCallUsesLuaFrame(callee)
+        }
+        val results = when (callee) {
+            is LuaClosure -> executeFrameInto(
                 callee,
                 stack,
                 base + 1,
@@ -662,8 +679,15 @@ internal class LuaVm(
                 expectedResults,
                 isTailCall,
             )
-        } else {
-            callValue(callee, stack.slice(base + 1, argumentCount), callSiteInfo, isTailCall = isTailCall)
+            is LuaTable -> callMetamethod(
+                callee,
+                stack.slice(base + 1, argumentCount),
+                checkNotNull(callableTableTarget),
+                callSiteInfo,
+                0,
+                isTailCall,
+            )
+            else -> callValue(callee, stack.slice(base + 1, argumentCount), callSiteInfo, isTailCall = isTailCall)
         }
         if (results == null) {
             if (completesLuaTailCall && debugHook != null) {
@@ -706,10 +730,10 @@ internal class LuaVm(
             is LuaNativeFunction -> false
             is LuaTable -> tailMetamethodUsesLuaFrame(callee.metatableRawGet(CALL_KEY), depth)
             is LuaUserData -> {
-                val call = metatables?.userDataMetatable(callee.value)?.rawGet(CALL_KEY) ?: LuaNil
+                val call = metatables?.userDataMetatable(callee.value)?.cachedRawGet(CALL_KEY) ?: LuaNil
                 tailMetamethodUsesLuaFrame(call, depth)
             }
-            else -> tailMetamethodUsesLuaFrame(rawTypeMetatable(callee)?.rawGet(CALL_KEY) ?: LuaNil, depth)
+            else -> tailMetamethodUsesLuaFrame(rawTypeMetatable(callee)?.cachedRawGet(CALL_KEY) ?: LuaNil, depth)
         }
     }
 
@@ -1046,7 +1070,7 @@ internal class LuaVm(
                     callMetamethod(
                         callee,
                         arguments,
-                        metatable.rawGet(CALL_KEY),
+                        metatable.cachedRawGet(CALL_KEY),
                         callSiteInfo,
                         callMetamethodDepth,
                         isTailCall,
@@ -1061,7 +1085,7 @@ internal class LuaVm(
                 callMetamethod(
                     callee,
                     arguments,
-                    metatable?.rawGet(CALL_KEY) ?: LuaNil,
+                    metatable?.cachedRawGet(CALL_KEY) ?: LuaNil,
                     callSiteInfo,
                     callMetamethodDepth,
                     isTailCall,
@@ -1650,69 +1674,154 @@ internal class LuaVm(
         stack.copyTo(register(frame, Instruction.b(instruction)), frame.upvalues[index])
     }
 
-    private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun getTable(stack: LuaStack, frame: CallFrame, pc: Int, instruction: Int) {
         val destination = register(frame, Instruction.a(instruction))
         val receiver = stack.get(register(frame, Instruction.b(instruction)))
         val keyIndex = register(frame, Instruction.c(instruction))
-        if (receiver is LuaTable && fastTableGet(stack, receiver, keyIndex, destination)) {
+        if (receiver is LuaTable) {
+            if (fastRawTableGet(stack, receiver, keyIndex, destination)) {
+                return
+            }
+            val key = stack.get(keyIndex)
+            if (key is LuaInteger || key is LuaString) {
+                val cachedTarget = inlineCaches.read(frame.prototype, pc)?.fallbackTarget(receiver)
+                if (cachedTarget != null) {
+                    applyCachedIndexGet(stack, destination, receiver, key, cachedTarget)
+                    return
+                }
+                val target = receiver.metatableRawGet(INDEX_KEY)
+                inlineCaches.put(frame.prototype, pc, LuaTableReadCache.fallback(receiver, target))
+                applyCachedIndexGet(stack, destination, receiver, key, target)
+                return
+            }
+            stack.set(destination, indexGet(receiver, key, allowSuspension = true))
             return
         }
         val key = stack.get(keyIndex)
         stack.set(destination, indexGet(receiver, key, allowSuspension = true))
     }
 
-    private fun setTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun setTable(stack: LuaStack, frame: CallFrame, pc: Int, instruction: Int) {
         val receiver = stack.get(register(frame, Instruction.a(instruction)))
         val keyIndex = register(frame, Instruction.b(instruction))
         val valueIndex = register(frame, Instruction.c(instruction))
-        if (receiver is LuaTable && fastTableSet(stack, receiver, keyIndex, valueIndex)) {
-            return
+        if (receiver is LuaTable) {
+            if (fastTableSet(stack, receiver, keyIndex, valueIndex)) {
+                return
+            }
+            val cached = inlineCaches.write(frame.prototype, pc)
+            if (cached != null) {
+                val key = stack.get(keyIndex)
+                val cachedTarget = if (key is LuaInteger || key is LuaString) cached.fallbackTarget(receiver) else null
+                if (cachedTarget != null) {
+                    applyCachedNewIndexSet(receiver, key, stack.get(valueIndex), cachedTarget)
+                    return
+                }
+            }
+            val key = stack.get(keyIndex)
+            if (key is LuaInteger || key is LuaString) {
+                val target = receiver.metatableRawGet(NEW_INDEX_KEY)
+                inlineCaches.put(frame.prototype, pc, LuaTableWriteCache.fallback(receiver, target))
+                applyCachedNewIndexSet(receiver, key, stack.get(valueIndex), target)
+                return
+            }
         }
         val key = stack.get(keyIndex)
         val value = stack.get(valueIndex)
         indexSet(receiver, key, value, allowSuspension = true)
     }
 
-    private fun getField(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun getField(stack: LuaStack, frame: CallFrame, pc: Int, instruction: Int) {
         val destination = register(frame, Instruction.a(instruction))
         val receiver = stack.get(register(frame, Instruction.b(instruction)))
         val key = stringConstant(frame.prototype, Instruction.c(instruction))
         if (receiver is LuaTable) {
-            if (stack.copyFromTable(receiver, key, destination)) {
+            val cached = inlineCaches.read(frame.prototype, pc)
+            val cachedSlot = cached?.directSlot(receiver) ?: -1
+            if (cachedSlot >= 0) {
+                stack.copyFromTableHashSlot(receiver, cachedSlot, destination)
                 return
             }
-            if (receiver.metatableRawGet(INDEX_KEY) == LuaNil) {
-                stack.setNil(destination)
+            val cachedTarget = cached?.fallbackTarget(receiver)
+            if (cachedTarget != null) {
+                applyCachedIndexGet(stack, destination, receiver, key, cachedTarget)
                 return
             }
+            val slot = receiver.rawStringSlot(key)
+            if (slot >= 0) {
+                inlineCaches.put(frame.prototype, pc, LuaTableReadCache.direct(receiver, key, slot))
+                stack.copyFromTableHashSlot(receiver, slot, destination)
+                return
+            }
+            val target = receiver.metatableRawGet(INDEX_KEY)
+            inlineCaches.put(frame.prototype, pc, LuaTableReadCache.fallback(receiver, target))
+            applyCachedIndexGet(stack, destination, receiver, key, target)
+            return
         }
         stack.set(destination, indexGet(receiver, key, allowSuspension = true))
     }
 
-    private fun setField(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun setField(stack: LuaStack, frame: CallFrame, pc: Int, instruction: Int) {
         val receiver = stack.get(register(frame, Instruction.a(instruction)))
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
         val valueIndex = register(frame, Instruction.c(instruction))
-        if (receiver is LuaTable && receiver.allowsRawSetString(key)) {
-            stack.copyToTable(valueIndex, receiver, key)
+        if (receiver is LuaTable) {
+            val cached = inlineCaches.write(frame.prototype, pc)
+            val cachedSlot = cached?.directSlot(receiver) ?: -1
+            if (cachedSlot >= 0) {
+                stack.copyToTableHashSlot(valueIndex, receiver, cachedSlot)
+                return
+            }
+            val cachedTarget = cached?.fallbackTarget(receiver)
+            if (cachedTarget != null) {
+                applyCachedFieldSet(stack, valueIndex, receiver, key, cachedTarget)
+                return
+            }
+            val slot = receiver.rawStringSlot(key)
+            if (slot >= 0) {
+                inlineCaches.put(frame.prototype, pc, LuaTableWriteCache.direct(receiver, key, slot))
+                stack.copyToTableHashSlot(valueIndex, receiver, slot)
+                return
+            }
+            val target = receiver.metatableRawGet(NEW_INDEX_KEY)
+            if (target == LuaNil) {
+                stack.copyToTable(valueIndex, receiver, key)
+                return
+            }
+            inlineCaches.put(frame.prototype, pc, LuaTableWriteCache.fallback(receiver, target))
+            applyCachedNewIndexSet(receiver, key, stack.get(valueIndex), target)
             return
         }
         val value = stack.get(valueIndex)
         indexSet(receiver, key, value, allowSuspension = true)
     }
 
-    private fun getGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun getGlobal(stack: LuaStack, frame: CallFrame, pc: Int, instruction: Int) {
         val destination = register(frame, Instruction.a(instruction))
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
         val globals = frame.globals
         if (globals is LuaTable) {
-            if (stack.copyFromTable(globals, key, destination)) {
+            val cached = inlineCaches.read(frame.prototype, pc)
+            val cachedSlot = cached?.directSlot(globals) ?: -1
+            if (cachedSlot >= 0) {
+                stack.copyFromTableHashSlot(globals, cachedSlot, destination)
                 return
             }
-            if (globals.metatableRawGet(INDEX_KEY) == LuaNil) {
-                stack.setNil(destination)
+            val cachedTarget = cached?.fallbackTarget(globals)
+            if (cachedTarget != null) {
+                applyCachedIndexGet(stack, destination, globals, key, cachedTarget)
                 return
             }
+            val slot = globals.rawStringSlot(key)
+            if (slot >= 0) {
+                inlineCaches.put(frame.prototype, pc, LuaTableReadCache.direct(globals, key, slot))
+                stack.copyFromTableHashSlot(globals, slot, destination)
+                return
+            }
+            val target = globals.metatableRawGet(INDEX_KEY)
+            inlineCaches.put(frame.prototype, pc, LuaTableReadCache.fallback(globals, target))
+            applyCachedIndexGet(stack, destination, globals, key, target)
+            return
         }
         stack.set(destination, indexGet(globals, key, allowSuspension = true))
     }
@@ -1743,20 +1852,43 @@ internal class LuaVm(
         frame.environment.value = stack.get(register(frame, Instruction.a(instruction)))
     }
 
-    private fun setGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
+    private fun setGlobal(stack: LuaStack, frame: CallFrame, pc: Int, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.a(instruction))
         val valueIndex = register(frame, Instruction.b(instruction))
         val globals = frame.globals
-        if (globals is LuaTable && globals.allowsRawSetString(key)) {
-            stack.copyToTable(valueIndex, globals, key)
+        if (globals is LuaTable) {
+            val cached = inlineCaches.write(frame.prototype, pc)
+            val cachedSlot = cached?.directSlot(globals) ?: -1
+            if (cachedSlot >= 0) {
+                stack.copyToTableHashSlot(valueIndex, globals, cachedSlot)
+                return
+            }
+            val cachedTarget = cached?.fallbackTarget(globals)
+            if (cachedTarget != null) {
+                applyCachedFieldSet(stack, valueIndex, globals, key, cachedTarget)
+                return
+            }
+            val slot = globals.rawStringSlot(key)
+            if (slot >= 0) {
+                inlineCaches.put(frame.prototype, pc, LuaTableWriteCache.direct(globals, key, slot))
+                stack.copyToTableHashSlot(valueIndex, globals, slot)
+                return
+            }
+            val target = globals.metatableRawGet(NEW_INDEX_KEY)
+            if (target == LuaNil) {
+                stack.copyToTable(valueIndex, globals, key)
+                return
+            }
+            inlineCaches.put(frame.prototype, pc, LuaTableWriteCache.fallback(globals, target))
+            applyCachedNewIndexSet(globals, key, stack.get(valueIndex), target)
             return
         }
         val value = stack.get(valueIndex)
         indexSet(globals, key, value, allowSuspension = true)
     }
 
-    private fun fastTableGet(stack: LuaStack, table: LuaTable, keyIndex: Int, destination: Int): Boolean {
-        val found = when (stack.tagCode(keyIndex)) {
+    private fun fastRawTableGet(stack: LuaStack, table: LuaTable, keyIndex: Int, destination: Int): Boolean {
+        return when (stack.tagCode(keyIndex)) {
             LuaValueTag.INTEGER.ordinal -> stack.copyFromTable(table, stack.integerValue(keyIndex), destination)
             LuaValueTag.REFERENCE.ordinal -> {
                 val key = stack.get(keyIndex)
@@ -1764,14 +1896,6 @@ internal class LuaVm(
             }
             else -> return false
         }
-        if (found) {
-            return true
-        }
-        if (table.metatableRawGet(INDEX_KEY) == LuaNil) {
-            stack.setNil(destination)
-            return true
-        }
-        return false
     }
 
     private fun fastTableSet(stack: LuaStack, table: LuaTable, keyIndex: Int, valueIndex: Int): Boolean {
@@ -1795,6 +1919,63 @@ internal class LuaVm(
                 }
             }
             else -> false
+        }
+    }
+
+    private fun applyCachedIndexGet(
+        stack: LuaStack,
+        destination: Int,
+        receiver: LuaTable,
+        key: LuaValue,
+        target: LuaValue,
+    ) {
+        val value = when (target) {
+            LuaNil -> LuaNil
+            is LuaClosure -> executeMetamethod(
+                target,
+                receiver,
+                key,
+                INDEX_KEY,
+                allowSuspension = true,
+            ).firstOrNull() ?: LuaNil
+            is LuaNativeFunction -> callIndexMetamethod(target, receiver, key, allowSuspension = true)
+            else -> indexGet(target, key, allowSuspension = true, initialChainDepth = 1)
+        }
+        stack.set(destination, value)
+    }
+
+    private fun applyCachedFieldSet(
+        stack: LuaStack,
+        valueIndex: Int,
+        receiver: LuaTable,
+        key: LuaString,
+        target: LuaValue,
+    ) {
+        if (target == LuaNil) {
+            stack.copyToTable(valueIndex, receiver, key)
+        } else {
+            applyCachedNewIndexSet(receiver, key, stack.get(valueIndex), target)
+        }
+    }
+
+    private fun applyCachedNewIndexSet(
+        receiver: LuaTable,
+        key: LuaValue,
+        value: LuaValue,
+        target: LuaValue,
+    ) {
+        when (target) {
+            LuaNil -> receiver.rawSet(key, value)
+            is LuaClosure -> executeMetamethod(
+                target,
+                receiver,
+                key,
+                value,
+                NEW_INDEX_KEY,
+                allowSuspension = true,
+            )
+            is LuaNativeFunction -> callNewIndexMetamethod(target, receiver, key, value, allowSuspension = true)
+            else -> indexSet(target, key, value, allowSuspension = true, initialChainDepth = 1)
         }
     }
 
@@ -1865,10 +2046,11 @@ internal class LuaVm(
         receiver: LuaValue,
         key: LuaValue,
         allowSuspension: Boolean = false,
+        initialChainDepth: Int = 0,
     ): LuaValue {
         try {
             var current = receiver
-            repeat(MAX_TAG_METHOD_CHAIN_DEPTH) {
+            repeat(MAX_TAG_METHOD_CHAIN_DEPTH - initialChainDepth) {
                 val index = when (current) {
                     is LuaTable -> {
                         val value = current.rawGet(key)
@@ -1891,7 +2073,7 @@ internal class LuaVm(
                         }
                         val metatable = metatables?.stringMetatable() ?: stringMetatable
                             ?: throw LuaVmException("attempt to index ${typeName(current)}")
-                        metatable.rawGet(INDEX_KEY).also {
+                        metatable.cachedRawGet(INDEX_KEY).also {
                             if (it == LuaNil) {
                                 throw LuaVmException("attempt to index ${typeName(current)}")
                             }
@@ -1911,7 +2093,7 @@ internal class LuaVm(
                                 LuaNil
                             }
                         }
-                        metatable.rawGet(INDEX_KEY).also {
+                        metatable.cachedRawGet(INDEX_KEY).also {
                             if (it == LuaNil) {
                                 throw LuaVmException(
                                     "attempt to index a ${userDataObjectTypeName(metatable)} value",
@@ -1922,7 +2104,7 @@ internal class LuaVm(
                     else -> {
                         val metatable = metatables?.rawTypeMetatable(typeName(current))
                             ?: throw LuaVmException("attempt to index ${typeName(current)}")
-                        metatable.rawGet(INDEX_KEY).also {
+                        metatable.cachedRawGet(INDEX_KEY).also {
                             if (it == LuaNil) {
                                 throw LuaVmException("attempt to index ${typeName(current)}")
                             }
@@ -2013,10 +2195,11 @@ internal class LuaVm(
         key: LuaValue,
         value: LuaValue,
         allowSuspension: Boolean = false,
+        initialChainDepth: Int = 0,
     ) {
         try {
             var current = receiver
-            repeat(MAX_TAG_METHOD_CHAIN_DEPTH) {
+            repeat(MAX_TAG_METHOD_CHAIN_DEPTH - initialChainDepth) {
                 val newIndex = when (current) {
                     is LuaTable -> {
                         val table = current
@@ -2042,7 +2225,7 @@ internal class LuaVm(
                             callNative(setter, listOf(current, value))
                             return
                         }
-                        metatable.rawGet(NEW_INDEX_KEY).also {
+                        metatable.cachedRawGet(NEW_INDEX_KEY).also {
                             if (it == LuaNil) {
                                 throw LuaVmException(
                                     "attempt to index a ${userDataObjectTypeName(metatable)} value",
@@ -2053,7 +2236,7 @@ internal class LuaVm(
                     else -> {
                         val metatable = rawTypeMetatable(current)
                             ?: throw LuaVmException("attempt to index ${typeName(current)}")
-                        metatable.rawGet(NEW_INDEX_KEY).also {
+                        metatable.cachedRawGet(NEW_INDEX_KEY).also {
                             if (it == LuaNil) {
                                 throw LuaVmException("attempt to index ${typeName(current)}")
                             }
@@ -2328,9 +2511,9 @@ internal class LuaVm(
             is LuaTable -> value.metatableRawGet(key)
             is LuaUserData -> {
                 val explicit = metatables?.userDataMetatable(value.value)
-                explicit?.rawGet(key) ?: value.type?.method(key.value) ?: LuaNil
+                explicit?.cachedRawGet(key) ?: value.type?.method(key.value) ?: LuaNil
             }
-            else -> rawTypeMetatable(value)?.rawGet(key) ?: LuaNil
+            else -> rawTypeMetatable(value)?.cachedRawGet(key) ?: LuaNil
         }
     }
 
@@ -2417,7 +2600,7 @@ internal class LuaVm(
     private fun userDataLength(value: LuaUserData, allowSuspension: Boolean): LuaValue {
         val metatable = metatables?.userDataMetatable(value.value)
             ?: throw LuaVmException("attempt to get length of userdata")
-        val length = metatable.rawGet(LEN_KEY)
+        val length = metatable.cachedRawGet(LEN_KEY)
         if (length == LuaNil) {
             throw LuaVmException("attempt to get length of a ${userDataObjectTypeName(metatable)} value")
         }
@@ -2427,7 +2610,7 @@ internal class LuaVm(
     private fun primitiveLength(value: LuaValue, allowSuspension: Boolean): LuaValue {
         val metatable = rawTypeMetatable(value)
             ?: throw LuaVmException("attempt to get length of ${typeName(value)}")
-        val length = metatable.rawGet(LEN_KEY)
+        val length = metatable.cachedRawGet(LEN_KEY)
         if (length == LuaNil) {
             throw LuaVmException("attempt to get length of ${typeName(value)}")
         }
