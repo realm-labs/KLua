@@ -1,10 +1,12 @@
 package io.github.realmlabs.klua.api
 
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.ByteArrayInputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
 import kotlin.test.assertSame
 import kotlin.test.assertTrue
 
@@ -227,6 +229,36 @@ class LuaApiSmokeTest {
         assertEquals(false, state.toBoolean(3))
         assertEquals(false, state.toBoolean(4))
         assertEquals(true, state.toBoolean(5))
+    }
+
+    @Test
+    fun `state stack strings use Lua byte identity for equality and table keys`() {
+        val canonicalUtf8 = byteArrayOf(0xC3.toByte(), 0xA9.toByte()).toLuaByteString()
+        val splitUtf8 = byteArrayOf(0xC3.toByte()).toLuaByteString() +
+            byteArrayOf(0xA9.toByte()).toLuaByteString()
+        assertNotEquals(canonicalUtf8, splitUtf8)
+
+        val state = LuaState.create()
+        state.register("probe") { context ->
+            LuaReturn.of(
+                context.rawEquals(1, 2),
+                context.getTableValue(3, splitUtf8),
+            )
+        }
+        state.pushString(splitUtf8)
+        state.setGlobal("splitUtf8")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                "return probe(\"é\", splitUtf8, { [\"é\"] = \"matched\" })",
+                "api-raw-byte-string-identity.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("matched", state.toString(2))
     }
 
     @Test

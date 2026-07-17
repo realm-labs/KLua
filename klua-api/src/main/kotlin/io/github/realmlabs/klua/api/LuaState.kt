@@ -20,6 +20,7 @@ import io.github.realmlabs.klua.core.KLuaCoreUserDataGetter
 import io.github.realmlabs.klua.core.KLuaCoreUserDataMethod
 import io.github.realmlabs.klua.core.KLuaCoreUserDataSetter
 import io.github.realmlabs.klua.core.KLuaCoreValue
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.math.BigInteger
 import java.text.DecimalFormatSymbols
 import java.util.IdentityHashMap
@@ -2607,7 +2608,13 @@ class LuaState private constructor(
 
         data class StringValue(
             val value: String,
-        ) : LuaStackValue
+        ) : LuaStackValue {
+            override fun equals(other: Any?): Boolean {
+                return other is StringValue && value.luaRawBytes().contentEquals(other.value.luaRawBytes())
+            }
+
+            override fun hashCode(): Int = value.luaRawBytes().contentHashCode()
+        }
 
         data class TableValue(
             val fields: MutableMap<LuaStackValue, LuaStackValue> = linkedMapOf(),
