@@ -58,7 +58,7 @@ Build and smoke-test every local release artifact and executable distribution wi
 ./gradlew releaseCandidateCheck
 ```
 
-The executable archives are written to `klua-tools/build/distributions`. After unpacking one, use `bin/klua` on Unix-like systems or `bin/klua.bat` on Windows.
+The executable archives are written to `klua-tools/build/distributions`. After unpacking one, use `bin/klua` on Unix-like systems or `bin/klua.bat` on Windows. The complete Maven-layout handoff, distributions, and sorted checksum manifest are assembled under `build/release/klua-<version>`.
 
 ## Quick Examples
 

@@ -36,6 +36,12 @@ The complete non-publishing release-candidate matrix is:
 
 It runs every test task, all supported-module ABI checks, Maven/distribution verification and executable smoke tests, and the JMH jar build.
 
+## Local release bundle
+
+`./gradlew assembleReleaseBundle` stages the seven binary JARs, seven source JARs, seven POMs, and both tool distributions under `build/release/klua-<version>`. Maven components use their ordinary `maven/io/github/realmlabs/klua/...` repository layout; executable archives live under `distributions/`.
+
+The bundle carries a sorted `SHA256SUMS` file over all 23 publishable files. `verifyReleaseBundle`, which is part of `releaseCandidateCheck`, rejects missing or extra files, malformed manifest entries, and hash mismatches. Archive tasks disable file-timestamp preservation and use reproducible file ordering. This makes repeated local assembly stable for identical inputs; the checksum manifest is evidence for a candidate, not a signature or publication action.
+
 ## API compatibility
 
 The checked-in `.api` files under each supported public module are the v1 ABI review baseline. `checkKotlinAbi`, and therefore each module's normal `check` lifecycle, fails when compiled public signatures diverge. `updateKotlinAbi` may be run only after an intentional API review; updating a dump is not by itself evidence that a change is compatible.

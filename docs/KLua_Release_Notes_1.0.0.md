@@ -15,7 +15,7 @@ These notes describe the current v1 release candidate. They do not announce a re
 
 The supported Maven components are `klua-api`, `klua-kotlin`, `klua-stdlib`, `klua-debug`, `klua-dap`, and `klua-tools`; `klua-core` is a required runtime implementation component rather than an embedder compatibility surface. Every component has a binary JAR, sources JAR, Maven POM, automatic module name, implementation version, and MIT license metadata.
 
-The `klua-tools` ZIP/TAR distributions contain `bin/klua` and `bin/klua.bat`. The launcher supports:
+The `klua-tools` ZIP/TAR distributions contain `bin/klua` and `bin/klua.bat`. A local release bundle assembles every Maven component and both distributions with a sorted SHA-256 manifest. The launcher supports:
 
 ```text
 klua --compile <script.lua> <output.kluac>

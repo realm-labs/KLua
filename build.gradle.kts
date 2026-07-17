@@ -1,9 +1,12 @@
+import java.security.MessageDigest
 import java.util.jar.JarFile
 import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
+import org.gradle.api.tasks.Sync
+import org.gradle.api.tasks.bundling.AbstractArchiveTask
 import org.gradle.jvm.tasks.Jar
 
 plugins {
@@ -39,6 +42,11 @@ subprojects {
 
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
+    }
+
+    tasks.withType<AbstractArchiveTask>().configureEach {
+        isPreserveFileTimestamps = false
+        isReproducibleFileOrder = true
     }
 
     dependencies {
@@ -211,6 +219,110 @@ val verifyReleaseArtifacts = tasks.register("verifyReleaseArtifacts") {
     }
 }
 
+val releaseBundleRoot = layout.buildDirectory.dir("release/klua-$kluaVersion")
+val releaseMavenPrefix = "maven/${kluaGroup.replace('.', '/')}"
+val releaseBundlePaths = buildList {
+    for (moduleName in releaseModuleNames) {
+        val prefix = "$releaseMavenPrefix/$moduleName/$kluaVersion"
+        add("$prefix/$moduleName-$kluaVersion.jar")
+        add("$prefix/$moduleName-$kluaVersion-sources.jar")
+        add("$prefix/$moduleName-$kluaVersion.pom")
+    }
+    add("distributions/klua-$kluaVersion.zip")
+    add("distributions/klua-$kluaVersion.tar")
+}.sorted()
+
+val stageReleaseBundle = tasks.register<Sync>("stageReleaseBundle") {
+    group = "build"
+    description = "Stages verified Maven artifacts and tool distributions in one local release directory."
+    dependsOn(releaseArtifacts)
+    into(releaseBundleRoot)
+
+    for (moduleName in releaseModuleNames) {
+        val module = project(":$moduleName")
+        val destination = "$releaseMavenPrefix/$moduleName/$kluaVersion"
+        from(module.layout.buildDirectory.file("libs/$moduleName-$kluaVersion.jar")) {
+            into(destination)
+        }
+        from(module.layout.buildDirectory.file("libs/$moduleName-$kluaVersion-sources.jar")) {
+            into(destination)
+        }
+        from(module.layout.buildDirectory.file("publications/mavenJava/pom-default.xml")) {
+            into(destination)
+            rename { "$moduleName-$kluaVersion.pom" }
+        }
+    }
+    from(project(":klua-tools").layout.buildDirectory.file("distributions/klua-$kluaVersion.zip")) {
+        into("distributions")
+    }
+    from(project(":klua-tools").layout.buildDirectory.file("distributions/klua-$kluaVersion.tar")) {
+        into("distributions")
+    }
+}
+
+fun sha256(file: File): String {
+    return MessageDigest.getInstance("SHA-256")
+        .digest(file.readBytes())
+        .joinToString(separator = "") { byte -> "%02x".format(byte) }
+}
+
+val assembleReleaseBundle = tasks.register("assembleReleaseBundle") {
+    group = "build"
+    description = "Assembles the local release directory and writes its sorted SHA-256 manifest."
+    dependsOn(stageReleaseBundle)
+    val manifest = releaseBundleRoot.map { directory -> directory.file("SHA256SUMS") }
+    inputs.files(releaseBundlePaths.map { path -> releaseBundleRoot.map { directory -> directory.file(path) } })
+    outputs.file(manifest)
+
+    doLast {
+        val root = releaseBundleRoot.get().asFile
+        val files = root.walkTopDown()
+            .filter(File::isFile)
+            .filterNot { file -> file.name == "SHA256SUMS" }
+            .sortedBy { file -> file.relativeTo(root).invariantSeparatorsPath }
+            .toList()
+        val text = files.joinToString(separator = "\n", postfix = "\n") { file ->
+            "${sha256(file)}  ${file.relativeTo(root).invariantSeparatorsPath}"
+        }
+        manifest.get().asFile.writeText(text, Charsets.UTF_8)
+    }
+}
+
+val verifyReleaseBundle = tasks.register("verifyReleaseBundle") {
+    group = "verification"
+    description = "Verifies exact release-bundle membership and every SHA-256 manifest entry."
+    dependsOn(assembleReleaseBundle, verifyReleaseArtifacts)
+
+    doLast {
+        val root = releaseBundleRoot.get().asFile
+        val manifest = root.resolve("SHA256SUMS")
+        check(manifest.isFile) { "release bundle has no SHA256SUMS: $root" }
+        val actualPaths = root.walkTopDown()
+            .filter(File::isFile)
+            .map { file -> file.relativeTo(root).invariantSeparatorsPath }
+            .filterNot { path -> path == "SHA256SUMS" }
+            .sorted()
+            .toList()
+        check(actualPaths == releaseBundlePaths) {
+            "unexpected release bundle membership; expected=$releaseBundlePaths actual=$actualPaths"
+        }
+
+        val manifestEntries = manifest.readLines(Charsets.UTF_8).associate { line ->
+            val separator = line.indexOf("  ")
+            check(separator == 64) { "invalid SHA256SUMS line: $line" }
+            line.substring(separator + 2) to line.substring(0, separator)
+        }
+        check(manifestEntries.keys.sorted() == releaseBundlePaths) {
+            "SHA256SUMS membership does not match the release bundle"
+        }
+        for ((path, expectedHash) in manifestEntries) {
+            check(expectedHash.matches(Regex("[0-9a-f]{64}"))) { "invalid SHA-256 for $path" }
+            val actualHash = sha256(root.resolve(path))
+            check(actualHash == expectedHash) { "SHA-256 mismatch for $path" }
+        }
+    }
+}
+
 tasks.register("releaseCandidateCheck") {
     group = "verification"
     description = "Runs the complete local, non-publishing KLua release-candidate verification matrix."
@@ -220,6 +332,7 @@ tasks.register("releaseCandidateCheck") {
             .filterNot { moduleName -> moduleName == "klua-core" }
             .map { moduleName -> ":$moduleName:checkKotlinAbi" },
         verifyReleaseArtifacts,
+        verifyReleaseBundle,
         ":klua-jmh:jmhJar",
     )
 }
