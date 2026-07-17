@@ -11,6 +11,7 @@ This checklist prepares a reproducible v1 release but grants no authority to pub
 - Confirm `klua-tools/build/distributions/klua-<version>.zip` and `.tar` exist and that the installed-launcher smoke task passed.
 - Confirm `build/release/klua-<version>` contains exactly 23 publishable files plus `SHA256SUMS`, and run `./gradlew verifyReleaseBundle` if reviewing the bundle independently.
 - Confirm `verifyStagedConsumer` resolved KLua exclusively from the bundle, kept `klua-core` off the consumer compile classpath, and executed both Java and Kotlin results of 42.
+- Confirm `verifyInstallDist` logged successful compile/debug/DAP launcher rows for both JDK 17 and JDK 21; keep performance qualification canonical on JDK 17.
 - Confirm `./gradlew checkKotlinAbi` reports no unreviewed supported-module ABI changes.
 - Confirm the accepted JDK 17 performance baseline still names the candidate runtime commit and that no code change after it affects interpreter behavior.
 - Review [the conformance matrix](KLua_Conformance_Gaps.md), [release contract](KLua_Release_Contract.md), and [draft release notes](KLua_Release_Notes_1.0.0.md) for stale claims.

@@ -18,7 +18,7 @@ The authoritative group and version are `klua.group` and `klua.version` in `grad
 
 Every component produces a binary JAR, a sources JAR, and a generated Maven POM. Binary and source JARs carry the MIT license, while POMs carry the project URL, license, and SCM metadata. `klua-api` keeps `klua-core` at Maven runtime scope so Java consumers do not compile against runtime representations. `klua-examples`, `klua-jmh`, and `klua-tests` are verification modules rather than release components. No `klua-all` component exists, and no remote publication repository is configured.
 
-`klua-tools` additionally produces `klua-<version>.zip` and `klua-<version>.tar` under `klua-tools/build/distributions`. Each archive contains Unix and Windows launchers, runtime dependencies, the MIT license, the README, and the tooling/release guides. `verifyInstallDist` runs the installed launcher through bytecode compile, debugger, and DAP framing smoke scenarios.
+`klua-tools` additionally produces `klua-<version>.zip` and `klua-<version>.tar` under `klua-tools/build/distributions`. Each archive contains Unix and Windows launchers, runtime dependencies, the MIT license, the README, and the tooling/release guides. `verifyInstallDist` runs the installed launcher through bytecode compile, debugger, and DAP framing smoke scenarios on Gradle-discovered JDK 17 and JDK 21 homes. JDK 17 remains the canonical build/performance environment; JDK 21 is a secondary runtime compatibility smoke, not a second performance baseline.
 
 Run the local artifact contract with:
 

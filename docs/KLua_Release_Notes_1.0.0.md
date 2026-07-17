@@ -39,6 +39,6 @@ Run the complete local release-candidate matrix on JDK 17:
 ./gradlew releaseCandidateCheck
 ```
 
-The matrix includes an isolated external-style Gradle consumer that resolves the staged Maven POMs, compiles Java and Kotlin embedding code, validates compile/runtime scopes, and executes both paths.
+The matrix includes an isolated external-style Gradle consumer that resolves the staged Maven POMs, compiles Java and Kotlin embedding code, validates compile/runtime scopes, and executes both paths. Installed compile/debug/DAP launcher smokes run on JDK 17 and JDK 21; performance evidence remains canonical on JDK 17.
 
 The accepted performance environment, reproduction commands, timing confidence intervals, allocation figures, and gate decisions are recorded in [the benchmark baseline](KLua_Benchmark_Baseline.md).
