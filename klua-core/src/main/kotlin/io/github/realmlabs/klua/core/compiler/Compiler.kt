@@ -484,7 +484,7 @@ internal class Compiler private constructor(
                     val receiverRegister = nextRegister++
                     compileExpression(target.index.receiver, receiverRegister)
                     val key = if (target.index.key is StringExpression) {
-                        PreparedAssignmentKey.Field(target.index.key.value)
+                        PreparedAssignmentKey.Field(target.index.key.luaString)
                     } else {
                         val keyRegister = nextRegister++
                         compileExpression(target.index.key, keyRegister)
@@ -545,7 +545,7 @@ internal class Compiler private constructor(
                 is PreparedAssignmentTarget.Index -> {
                     when (val key = target.key) {
                         is PreparedAssignmentKey.Field -> {
-                            val field = stringConstantIndex(key.name)
+                            val field = stringConstantIndex(key.value)
                             writer.emit(
                                 Instruction.abc(Opcode.SET_FIELD, target.receiverRegister, field, valueBase + index),
                                 target.target.range.start.line,
@@ -845,7 +845,7 @@ internal class Compiler private constructor(
                 writer.emit(Instruction.abc(Opcode.LOAD_FLOAT, register, constant), line)
             }
             is StringExpression -> {
-                val constant = constants.add(LuaString(expression.value))
+                val constant = constants.add(expression.luaString)
                 writer.emit(Instruction.abc(Opcode.LOAD_K, register, constant), line)
             }
             is IndexExpression -> compileIndexExpression(expression, register)
@@ -863,7 +863,7 @@ internal class Compiler private constructor(
     private fun compileIndexExpression(expression: IndexExpression, register: Int) {
         if (expression.key is StringExpression) {
             compileExpression(expression.receiver, register)
-            val field = stringConstantIndex(expression.key.value)
+            val field = stringConstantIndex(expression.key.luaString)
             writer.emit(Instruction.abc(Opcode.GET_FIELD, register, register, field), expression.range.start.line)
             return
         }
@@ -1043,7 +1043,7 @@ internal class Compiler private constructor(
             is BooleanExpression -> LuaBoolean(expression.value)
             is IntegerExpression -> LuaInteger(expression.value)
             is FloatExpression -> LuaFloat(expression.value)
-            is StringExpression -> LuaString(expression.value)
+            is StringExpression -> expression.luaString
             is VariableExpression -> resolveCompileTimeConstant(expression.name)
             is UnaryExpression -> foldCompileTimeUnary(expression)
             is BinaryExpression -> foldCompileTimeBinary(expression)
@@ -1568,6 +1568,8 @@ internal class Compiler private constructor(
 
     private fun stringConstantIndex(value: String): Int = constants.add(LuaString(value))
 
+    private fun stringConstantIndex(value: LuaString): Int = constants.add(value)
+
     private fun emitReturn(register: Int, count: Int, line: Int) {
         writer.emit(Instruction.abc(Opcode.RETURN, register, count), line)
     }
@@ -1718,7 +1720,7 @@ internal class Compiler private constructor(
     }
 
     private sealed interface PreparedAssignmentKey {
-        data class Field(val name: String) : PreparedAssignmentKey
+        data class Field(val value: LuaString) : PreparedAssignmentKey
 
         data class Register(val register: Int) : PreparedAssignmentKey
     }

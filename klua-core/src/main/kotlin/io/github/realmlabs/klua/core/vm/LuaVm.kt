@@ -25,8 +25,6 @@ import io.github.realmlabs.klua.core.value.LuaNativeUpvalue
 import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
-import io.github.realmlabs.klua.core.value.luaRawBytes
-import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.math.BigInteger
 import java.text.DecimalFormatSymbols
 import java.util.Locale
@@ -1431,7 +1429,7 @@ internal class LuaVm(
         frame.callHookDispatched = true
         callDebugHook(
             hook.function,
-            if (frame.isTailCall) "tail call" else "call",
+            if (frame.isTailCall) HOOK_TAIL_CALL_EVENT else HOOK_CALL_EVENT,
             LuaNil,
             frame,
             transferStart = 1,
@@ -1444,7 +1442,7 @@ internal class LuaVm(
         if (!hook.hasReturnHook || runningDebugHook) {
             return
         }
-        callDebugHook(hook.function, "return", LuaNil, frame, transferStart, transferCount)
+        callDebugHook(hook.function, HOOK_RETURN_EVENT, LuaNil, frame, transferStart, transferCount)
     }
 
     private fun dispatchDebugNativeCall(
@@ -1460,7 +1458,7 @@ internal class LuaVm(
         val nativeFrame = nativeHookFrame(function, arguments, callSiteInfo)
         callDebugHook(
             hook.function,
-            "call",
+            HOOK_CALL_EVENT,
             LuaNil,
             frame,
             nativeFrame = nativeFrame,
@@ -1481,7 +1479,7 @@ internal class LuaVm(
         val nativeFrame = nativeHookFrame(function, results, callSiteInfo)
         callDebugHook(
             hook.function,
-            "return",
+            HOOK_RETURN_EVENT,
             LuaNil,
             frame,
             nativeFrame = nativeFrame,
@@ -1524,12 +1522,12 @@ internal class LuaVm(
             hook.remainingCount -= 1
             if (hook.remainingCount <= 0) {
                 hook.remainingCount = hook.count
-                callDebugHook(hook.function, "count", LuaNil, frame)
+                callDebugHook(hook.function, HOOK_COUNT_EVENT, LuaNil, frame)
             }
         }
         if (lineDue) {
             debugHook?.let { activeHook ->
-                callDebugHook(activeHook.function, "line", LuaInteger(line.toLong()), frame)
+                callDebugHook(activeHook.function, HOOK_LINE_EVENT, LuaInteger(line.toLong()), frame)
             }
         }
         if (hook.hasLineHook) {
@@ -1540,7 +1538,7 @@ internal class LuaVm(
 
     private fun callDebugHook(
         function: LuaValue,
-        event: String,
+        event: LuaString,
         line: LuaValue,
         frame: CallFrame,
         transferStart: Int = 0,
@@ -1558,7 +1556,7 @@ internal class LuaVm(
             nativeDebugHookFrame = nativeFrame
         }
         try {
-            when (callValue(function, listOf(LuaString(event), line), CallSiteInfo(0, "?", "hook"))) {
+            when (callValue(function, listOf(event, line), CallSiteInfo(0, "?", "hook"))) {
                 is LuaExecutionResult.Returned -> Unit
                 is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a C-call boundary")
                 LuaExecutionResult.DebugSuspended -> throw LuaVmException("attempt to suspend from debug hook")
@@ -2255,7 +2253,7 @@ internal class LuaVm(
     private fun length(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val value = stack.get(register(frame, Instruction.b(instruction)))
         val result = when (value) {
-            is LuaString -> LuaInteger(value.value.luaRawBytes().size.toLong())
+            is LuaString -> LuaInteger(value.byteLength.toLong())
             is LuaTable -> tableLength(value, allowSuspension = true)
             is LuaUserData -> userDataLength(value, allowSuspension = true)
             else -> primitiveLength(value, allowSuspension = true)
@@ -2385,8 +2383,7 @@ internal class LuaVm(
             val failedValue = if (left == null) leftValue else rightValue
             throw LuaVmException("attempt to concatenate ${operationTypeName(failedValue)}")
         }
-        val bytes = left.luaRawBytes() + right.luaRawBytes()
-        stack.set(register(frame, Instruction.a(instruction)), LuaString(bytes.toLuaByteString()))
+        stack.set(register(frame, Instruction.a(instruction)), left.concatenatedWith(right))
     }
 
     private fun callConcatMetamethod(
@@ -2642,7 +2639,7 @@ internal class LuaVm(
                 return numericEquality
             }
             if (left is LuaString && right is LuaString) {
-                return luaByteCompare(left.value, right.value) == 0
+                return left == right
             }
             if (left is LuaUserData && right is LuaUserData) {
                 return left.value === right.value
@@ -2677,7 +2674,7 @@ internal class LuaVm(
         private fun primitiveOrderedCompare(left: LuaValue, right: LuaValue, comparison: Comparison): Boolean? {
             luaNumberComparison(left, right, comparison)?.let { return it }
             if (left is LuaString && right is LuaString) {
-                val byteComparison = luaByteCompare(left.value, right.value)
+                val byteComparison = left.byteCompareTo(right)
                 return when (comparison) {
                     LT -> byteComparison < 0
                     LE -> byteComparison <= 0
@@ -2737,19 +2734,6 @@ internal class LuaVm(
         private fun luaFloatLessEqualInteger(left: Double, right: Long): Boolean {
             val leftCeiling = left.luaCeilToInteger()
             return if (leftCeiling != null) leftCeiling <= right else left < 0.0
-        }
-
-        private fun luaByteCompare(left: String, right: String): Int {
-            val leftBytes = left.luaRawBytes()
-            val rightBytes = right.luaRawBytes()
-            val limit = minOf(leftBytes.size, rightBytes.size)
-            for (index in 0 until limit) {
-                val comparison = (leftBytes[index].toInt() and 0xff) - (rightBytes[index].toInt() and 0xff)
-                if (comparison != 0) {
-                    return comparison
-                }
-            }
-            return leftBytes.size - rightBytes.size
         }
 
     }
@@ -3006,11 +2990,11 @@ private fun integerValue(value: LuaValue): Long? {
     }
 }
 
-private fun stringCoercion(value: LuaValue): String? {
+private fun stringCoercion(value: LuaValue): LuaString? {
     return when (value) {
-        is LuaString -> value.value
-        is LuaInteger -> value.value.toString()
-        is LuaFloat -> value.value.toString()
+        is LuaString -> value
+        is LuaInteger -> LuaString(value.value.toString())
+        is LuaFloat -> LuaString(value.value.toString())
         else -> null
     }
 }
@@ -3075,6 +3059,11 @@ private val DIV_CALL_SITE_INFO = metamethodCallSiteInfo("div")
 private val IDIV_CALL_SITE_INFO = metamethodCallSiteInfo("idiv")
 private val MOD_CALL_SITE_INFO = metamethodCallSiteInfo("mod")
 private val POW_CALL_SITE_INFO = metamethodCallSiteInfo("pow")
+private val HOOK_CALL_EVENT = LuaString("call")
+private val HOOK_RETURN_EVENT = LuaString("return")
+private val HOOK_LINE_EVENT = LuaString("line")
+private val HOOK_COUNT_EVENT = LuaString("count")
+private val HOOK_TAIL_CALL_EVENT = LuaString("tail call")
 private val CLOSE_CALL_SITE_INFO = metamethodCallSiteInfo("close")
 private val GC_CALL_SITE_INFO = CallSiteInfo(0, "__gc", "metamethod")
 private const val MAX_TAG_METHOD_CHAIN_DEPTH = 2000

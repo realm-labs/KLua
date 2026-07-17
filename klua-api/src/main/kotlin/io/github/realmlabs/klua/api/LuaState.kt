@@ -21,6 +21,7 @@ import io.github.realmlabs.klua.core.KLuaCoreUserDataMethod
 import io.github.realmlabs.klua.core.KLuaCoreUserDataSetter
 import io.github.realmlabs.klua.core.KLuaCoreValue
 import io.github.realmlabs.klua.core.value.luaRawBytes
+import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.math.BigInteger
 import java.text.DecimalFormatSymbols
 import java.util.IdentityHashMap
@@ -699,6 +700,11 @@ class LuaState private constructor(
         stack += LuaStackValue.StringValue(value)
     }
 
+    /** Pushes one Lua string from exact bytes without UTF-8 replacement or normalization. */
+    fun pushBytes(value: ByteArray) {
+        stack += LuaStackValue.StringValue(value.copyOf().toLuaByteString())
+    }
+
     fun pushUserData(value: Any) {
         stack += LuaStackValue.UserDataValue(value)
     }
@@ -1123,6 +1129,9 @@ class LuaState private constructor(
             else -> get(index).toCoreReturnValue()
         }
     }
+
+    /** Returns a defensive copy of the exact Lua string bytes. */
+    fun toBytes(index: Int): ByteArray? = toString(index)?.luaRawBytes()
 
     private fun KLuaCoreDebugHook.toLuaReturn(): LuaReturn {
         return LuaReturn.of(function.toStackValue(), mask, count.toLong())
@@ -2492,6 +2501,7 @@ class LuaState private constructor(
             }
             return arguments.getOrNull(resolved)
         }
+
     }
 
     private inner class CoreBackedLuaCallContext(
@@ -2509,6 +2519,10 @@ class LuaState private constructor(
         override val luaFrames: List<LuaStackFrame>
             get() = cachedCoreFrames
                 ?: toApiStackFrames(coreContext.luaFrames).also { frames -> cachedCoreFrames = frames }
+
+        override fun toBytes(index: Int): ByteArray? {
+            return coreContext.stringBytes(index) ?: toString(index)?.luaRawBytes()
+        }
 
         override fun setLocal(level: Int, index: Int, value: Any?): String? {
             return coreContext.setLocal(level, index, value.toCoreReturnValue())

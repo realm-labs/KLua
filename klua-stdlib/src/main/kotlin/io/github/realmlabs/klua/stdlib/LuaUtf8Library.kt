@@ -5,7 +5,6 @@ import io.github.realmlabs.klua.api.LuaFunction
 import io.github.realmlabs.klua.api.LuaReturn
 import io.github.realmlabs.klua.api.LuaRuntimeException
 import io.github.realmlabs.klua.api.LuaState
-import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.value.toLuaByteString
 
 internal object LuaUtf8Library {
@@ -46,7 +45,7 @@ internal object LuaUtf8Library {
     }
 
     private fun utf8Codepoint(context: LuaCallContext): LuaReturn {
-        val bytes = requiredString(context, 1, "codepoint").luaRawBytes()
+        val bytes = requiredBytes(context, 1, "codepoint")
         val byteLength = bytes.size.toLong()
         val start = normalizedCodepointStart(context, 2, 1L, byteLength, "codepoint")
         val end = normalizedCodepointEnd(context, 3, start, byteLength, "codepoint")
@@ -68,13 +67,13 @@ internal object LuaUtf8Library {
 
     private fun utf8Codes(context: LuaCallContext): LuaReturn {
         val text = requiredString(context, 1, "codes")
+        val textBytes = requiredBytes(context, 1, "codes")
         val lax = context.toBoolean(2)
-        if (text.luaRawBytes().firstOrNull()?.let(::isContinuationByte) == true) {
+        if (textBytes.firstOrNull()?.let(::isContinuationByte) == true) {
             throw LuaRuntimeException("bad argument #1 to 'codes' (invalid UTF-8 code)")
         }
         val iterator = LuaFunction { iteratorContext ->
-            val iteratorText = requiredString(iteratorContext, 1, "codes")
-            val bytes = iteratorText.luaRawBytes()
+            val bytes = requiredBytes(iteratorContext, 1, "codes")
             val byteLength = bytes.size.toLong()
             val previousPosition = iteratorContext.toInteger(2) ?: 0L
             if (previousPosition < 0L || previousPosition >= byteLength) {
@@ -99,7 +98,7 @@ internal object LuaUtf8Library {
     }
 
     private fun utf8Len(context: LuaCallContext): LuaReturn {
-        val bytes = requiredString(context, 1, "len").luaRawBytes()
+        val bytes = requiredBytes(context, 1, "len")
         val byteLength = bytes.size.toLong()
         val start = normalizedLenStart(context, 2, 1L, byteLength, "len")
         val end = normalizedLenEnd(context, 3, -1L, byteLength, "len")
@@ -120,7 +119,7 @@ internal object LuaUtf8Library {
     }
 
     private fun utf8Offset(context: LuaCallContext): LuaReturn {
-        val bytes = requiredString(context, 1, "offset").luaRawBytes()
+        val bytes = requiredBytes(context, 1, "offset")
         val byteLength = bytes.size.toLong()
         val offset = requiredNumberInteger(context, 2, "offset")
         val defaultPosition = if (offset < 0L) {
@@ -172,6 +171,11 @@ internal object LuaUtf8Library {
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
         return context.toString(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
+    }
+
+    private fun requiredBytes(context: LuaCallContext, index: Int, functionName: String): ByteArray {
+        return context.toBytes(index)
             ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
     }
 

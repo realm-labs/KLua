@@ -822,6 +822,7 @@ public class KLuaCoreCallContext internal constructor(
     private val stepGarbageCollectorValue: (reportWarning: (String) -> Unit) -> Boolean,
     private val setGarbageCollectorRunningValue: (Boolean) -> Unit,
     private val setGarbageCollectorStepSizeValue: (Long) -> Unit,
+    private val stringBytesValue: (index: Int) -> ByteArray?,
 ) {
     private var cachedLuaFrames: List<KLuaCoreStackFrame>? = null
 
@@ -864,6 +865,9 @@ public class KLuaCoreCallContext internal constructor(
         stepGarbageCollectorValue,
         setGarbageCollectorRunningValue,
         setGarbageCollectorStepSizeValue,
+        { index ->
+            (arguments.getOrNull(index - 1) as? KLuaCoreValue.StringValue)?.value?.luaRawBytes()
+        },
     )
 
     public val luaFrames: List<KLuaCoreStackFrame>
@@ -913,6 +917,9 @@ public class KLuaCoreCallContext internal constructor(
     public fun setGarbageCollectorStepSize(stepSize: Long) {
         setGarbageCollectorStepSizeValue(stepSize)
     }
+
+    /** Returns a defensive copy of the exact bytes for a string argument. */
+    public fun stringBytes(index: Int): ByteArray? = stringBytesValue(index)?.copyOf()
 }
 
 public fun interface KLuaCoreUserDataMethod<T : Any> {
@@ -1624,6 +1631,9 @@ private fun callCoreContextFunction(
                 stepGarbageCollectorValue = context::stepGarbageCollector,
                 setGarbageCollectorRunningValue = context::setGarbageCollectorRunning,
                 setGarbageCollectorStepSizeValue = context::setGarbageCollectorStepSize,
+                stringBytesValue = { index ->
+                    (context.arguments.getOrNull(index - 1) as? LuaString)?.copyRawBytes()
+                },
             ),
         )
     }

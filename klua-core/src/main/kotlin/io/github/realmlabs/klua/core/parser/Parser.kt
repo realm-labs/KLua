@@ -38,6 +38,7 @@ import io.github.realmlabs.klua.core.ast.RepeatStatement
 import io.github.realmlabs.klua.core.ast.ReturnStatement
 import io.github.realmlabs.klua.core.ast.Statement
 import io.github.realmlabs.klua.core.ast.StringExpression
+import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.ast.TableEntry
 import io.github.realmlabs.klua.core.ast.TableExpression
 import io.github.realmlabs.klua.core.ast.UnaryExpression
@@ -522,7 +523,7 @@ internal class Parser private constructor(
         }
         if (match(TokenKind.STRING)) {
             val token = previous()
-            return CallArguments(listOf(StringExpression(token.literal as String, token.range)), token.range)
+            return CallArguments(listOf(StringExpression(token.literal as LuaString, token.range)), token.range)
         }
         throw errorAt(peek(), "expected $callKind arguments")
     }
@@ -534,7 +535,7 @@ internal class Parser private constructor(
             match(TokenKind.FALSE) -> BooleanExpression(false, previous().range)
             match(TokenKind.INTEGER) -> IntegerExpression(previous().literal as Long, previous().range)
             match(TokenKind.FLOAT) -> FloatExpression(previous().literal as Double, previous().range)
-            match(TokenKind.STRING) -> StringExpression(previous().literal as String, previous().range)
+            match(TokenKind.STRING) -> StringExpression(previous().literal as LuaString, previous().range)
             match(TokenKind.IDENTIFIER) -> VariableExpression(previous().literal as String, previous().range)
             match(TokenKind.DOT_DOT_DOT) -> VarargExpression(previous().range)
             match(TokenKind.FUNCTION) -> functionBody(previous())

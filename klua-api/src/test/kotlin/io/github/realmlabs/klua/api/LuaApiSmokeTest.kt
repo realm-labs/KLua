@@ -3,6 +3,7 @@ package io.github.realmlabs.klua.api
 import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.ByteArrayInputStream
 import kotlin.test.Test
+import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
@@ -259,6 +260,31 @@ class LuaApiSmokeTest {
 
         assertTrue(state.toBoolean(1))
         assertEquals("matched", state.toString(2))
+    }
+
+    @Test
+    fun `state and call contexts expose defensive exact-byte string access`() {
+        val expected = byteArrayOf(0, 0x80.toByte(), 0xC3.toByte(), 0xA9.toByte(), 0xFF.toByte())
+        val input = expected.copyOf()
+        val state = LuaState.create()
+
+        state.pushBytes(input)
+        input.fill(1)
+        assertContentEquals(expected, state.toBytes(-1))
+        state.toBytes(-1)!!.fill(2)
+        assertContentEquals(expected, state.toBytes(-1))
+        state.setGlobal("binary")
+
+        var callbackBytes: ByteArray? = null
+        state.register("probeBytes") { context ->
+            callbackBytes = context.toBytes(1)
+            LuaReturn.of(context.toBytes(1)?.size?.toLong())
+        }
+        assertEquals(LuaStatus.OK, state.load("return probeBytes(binary)", "api-exact-bytes.lua"))
+        assertEquals(LuaStatus.OK, state.pcall(0, 1), state.toString(-1))
+
+        assertContentEquals(expected, callbackBytes)
+        assertEquals(expected.size.toLong(), state.toInteger(-1))
     }
 
     @Test

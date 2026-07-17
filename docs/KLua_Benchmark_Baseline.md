@@ -87,6 +87,22 @@ Each representation package must be independently revertible. It may change only
 
 The byte-oriented string package exits only when source literals, API byte/text entry points, table keys, concatenation, patterns, UTF-8, IO, debug display, bytecode dump/load, malformed bytes, embedded NULs, and lifecycle reachability preserve the audited behavior in `docs/KLua_Conformance_Gaps.md`; the full suite passes; and matched concatenation/key-heavy allocation evidence is recorded. Interning is optional and requires a separate profile-supported win.
 
+## 2026-07-17 Byte-Oriented String Checkpoint
+
+The first representation package replaces `LuaString`'s JVM-text storage with immutable owned bytes, an eagerly available byte count, cached byte hash, lazy boundary text projection, bytewise equality and ordering, and direct byte concatenation. Lexer string tokens and AST/compiler constants carry `LuaString` values without a surrogate-marker semantic round trip; bytecode constants encode and decode the owned bytes directly. `LuaState.pushBytes`/`toBytes` and `LuaCallContext.toBytes` provide defensive exact-byte host paths, and core-backed native calls can supply original `LuaString` bytes to string and UTF-8 library consumers without materializing text first. Public text values, debug/error display, `KLuaCoreValue`, and the serialized bytecode contract remain unchanged.
+
+The matched JDK 17 GC-profiler run measured:
+
+| Benchmark | Metric | Canonical baseline | Byte storage | Delta |
+| --- | --- | ---: | ---: | ---: |
+| 1,000 growing concatenations | Average time | 6,039.462 µs/op | 510.062 µs/op | -91.6% |
+| 1,000 growing concatenations | Allocation | 28,685,081.935 B/op | 609,152.788 B/op | -97.9% |
+| 10,000 method/table-key calls | Allocation | 1,843,551.692 B/op | 1,843,538.035 B/op | effectively unchanged |
+
+The complete 22-workload timing screen found no supported unrelated regression under the combined-uncertainty policy. Its first count-hook point was above the canonical point, so the hot event labels were changed from per-event `LuaString` construction to shared immutable event strings. The required focused rerun measured 854.389 ±203.201 µs/op versus the canonical 753.834 ±52.961 µs/op; the intervals overlap and do not support a regression. The full Gradle suite and JMH build pass.
+
+No interning cache was added. The profile attributes the win to direct byte storage/concatenation, while the key-heavy control is allocation-neutral; there is no measured benefit that would justify interning policy, retention, and identity risks.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:

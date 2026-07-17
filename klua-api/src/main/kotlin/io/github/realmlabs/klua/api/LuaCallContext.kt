@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.api
 
+import io.github.realmlabs.klua.core.value.luaRawBytes
 import java.util.function.Consumer
 
 interface LuaCallContext {
@@ -179,6 +180,9 @@ interface LuaCallContext {
     fun toNumber(index: Int): Double?
 
     fun toString(index: Int): String?
+
+    /** Returns the exact Lua string bytes, including malformed UTF-8 and embedded NUL bytes. */
+    fun toBytes(index: Int): ByteArray? = toString(index)?.luaRawBytes()
 
     fun toUserData(index: Int): Any?
 

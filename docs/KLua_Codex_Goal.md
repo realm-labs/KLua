@@ -177,7 +177,7 @@ This is a milestone-level snapshot of committed capability, not a list of comple
 | --- | --- | --- |
 | M0-M12 | Done | Multi-module JVM 17 foundation, parser/compiler/VM pipeline, tables, closures, metatables, embedding APIs, userdata, and initial standard libraries are connected and tested. |
 | M13-M18 | Done | Coroutine, structured error/debug metadata, hooks/debugger, DAP library integration, KLua bytecode packaging, and initial sandbox controls meet their documented foundation success criteria. Residual hardening remains M20 or later release work. |
-| M19 | Pass 1 done; continuation planned | JMH baselines exist and retained optimizations were selected through matched profiling with correctness controls. A pre-v1 continuation will replace the remaining boxed/hashing/call-path bottlenecks before M20 closes. Initial checkpoint measurements live in `docs/KLua_Benchmark_Baseline.md`. |
+| M19 | Continuation in progress | The canonical JDK 17 pre-refactor baseline and controls are recorded, and byte-oriented string storage has landed with matched evidence. Continue through tagged slots and the remaining ordered interpreter packages before M20 closes. Measurements live in `docs/KLua_Benchmark_Baseline.md`. |
 | M20 | In progress | Broad source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance exists. Complete the active semantic package, run the pre-v1 performance track, then revalidate and classify residual gaps before closure. |
 | M21 | Not started | Release readiness begins only after the M20 closure matrix has no unowned v1 blockers. It includes API stabilization, documentation, artifacts, and v1 performance qualification. |
 | M22 | Deferred | JVM bytecode generation remains optional and must not begin before v1 foundations stabilize. |
@@ -193,7 +193,6 @@ Current capability includes:
 
 Material remaining gaps include:
 
-- General Lua byte-string fidelity outside the standard-library paths already backed by raw-byte helpers.
 - Boxed numeric/boolean VM values, general-purpose table storage, list-shaped call boundaries, and unspecialized dispatch still limit interpreter throughput and allocation efficiency.
 - A final classification of JVM/host adaptations in IO, OS, math, process, locale, native-loading, stack-capacity, and collector behavior as accepted v1 limitations or actionable defects.
 - Broader release-level packaging, standalone DAP hosting, sandbox policy, documentation, and API-stability work after M20 blockers are known.
@@ -258,8 +257,8 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M19/M20 byte-oriented string storage | Apply the audited requirements in `docs/KLua_Conformance_Gaps.md`: make `LuaString` immutable byte-oriented storage with cached byte hashing, preserve explicit text/byte API boundaries, and add only profile-supported short/common-string interning. Source, VM, table-key, API, debug, dump/load, pattern, UTF-8, IO, and malformed-byte tests plus allocation profiles and `./gradlew test` pass. | One to three coherent representation, boundary, and regression-test commits. |
-| 2 | Next | M19 continuation: tagged VM slots | Replace boxed hot-stack booleans, integers, and floats with internal tag/payload/reference storage at the audited slot seam. Preserve upvalues, open results, varargs, debug inspection and mutation, coroutine suspension, lifecycle root enumeration, public/core values, constants, and serialized bytecode; focused semantics, matched allocation profiles, performance gates, and `./gradlew test` pass. | One to three coherent slot-storage, boundary, and regression-test commits. |
+| 1 | In progress | M19 continuation: tagged VM slots | Replace boxed hot-stack booleans, integers, and floats with internal tag/payload/reference storage at the audited slot seam. Preserve upvalues, open results, varargs, debug inspection and mutation, coroutine suspension, lifecycle root enumeration, public/core values, constants, and serialized bytecode; focused semantics, matched allocation profiles, performance gates, and `./gradlew test` pass. | One to three coherent slot-storage, boundary, and regression-test commits. |
+| 2 | Next | M19 continuation: hybrid tables and shape/version tracking | Replace the general table hot path with array and specialized hash parts behind the audited table seam, then add shape/version invalidation. Preserve raw access, numeric-key canonicalization, iteration policy, weak tables, ephemerons, metatables, length, debug mutation, and lifecycle tracing; focused semantics, matched table/entity profiles, performance gates, and `./gradlew test` pass. | One to three coherent storage, invalidation, and regression-test commits. |
 
 When package 1 closes, promote package 2 and select at most one new successor from `Pre-v1 High-Performance Interpreter Track`. Do not keep closed campaign narratives or commit hashes in this table.
 

@@ -20,28 +20,50 @@ internal data class LuaFloat(
     val value: Double,
 ) : LuaValue
 
-internal data class LuaString(
-    val value: String,
+internal class LuaString private constructor(
+    inputBytes: ByteArray,
+    copyInput: Boolean,
 ) : LuaValue {
-    private var cachedRawBytes: ByteArray? = null
-    private var cachedRawHashCode: Int = 0
-    private var hasCachedRawHashCode: Boolean = false
+    constructor(value: String) : this(value.luaRawBytes(), false)
+
+    constructor(bytes: ByteArray) : this(bytes, true)
+
+    private val bytes: ByteArray = if (copyInput) inputBytes.copyOf() else inputBytes
+
+    private val rawHashCode: Int = bytes.contentHashCode()
+
+    val value: String by lazy(LazyThreadSafetyMode.NONE) { bytes.toLuaByteString() }
+
+    val byteLength: Int
+        get() = bytes.size
 
     override fun equals(other: Any?): Boolean {
-        return other is LuaString && rawBytes().contentEquals(other.rawBytes())
+        return this === other || other is LuaString && bytes.contentEquals(other.bytes)
     }
 
-    override fun hashCode(): Int {
-        if (!hasCachedRawHashCode) {
-            cachedRawHashCode = rawBytes().contentHashCode()
-            hasCachedRawHashCode = true
+    override fun hashCode(): Int = rawHashCode
+
+    fun byteCompareTo(other: LuaString): Int {
+        val limit = minOf(bytes.size, other.bytes.size)
+        for (index in 0 until limit) {
+            val comparison = (bytes[index].toInt() and 0xff) - (other.bytes[index].toInt() and 0xff)
+            if (comparison != 0) {
+                return comparison
+            }
         }
-        return cachedRawHashCode
+        return bytes.size - other.bytes.size
     }
 
-    private fun rawBytes(): ByteArray {
-        return cachedRawBytes ?: value.luaRawBytes().also { bytes -> cachedRawBytes = bytes }
+    fun concatenatedWith(other: LuaString): LuaString {
+        val combined = ByteArray(bytes.size + other.bytes.size)
+        bytes.copyInto(combined)
+        other.bytes.copyInto(combined, bytes.size)
+        return LuaString(combined, false)
     }
+
+    fun copyRawBytes(): ByteArray = bytes.copyOf()
+
+    override fun toString(): String = "LuaString(value=$value)"
 }
 
 internal class LuaUserData(

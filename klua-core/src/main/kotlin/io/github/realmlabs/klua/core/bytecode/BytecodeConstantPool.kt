@@ -6,8 +6,6 @@ import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.LuaValue
-import io.github.realmlabs.klua.core.value.luaRawBytes
-import io.github.realmlabs.klua.core.value.toLuaByteString
 import java.io.ByteArrayOutputStream
 
 private const val CONSTANT_TAG_NIL: Int = 0
@@ -97,7 +95,7 @@ internal object BytecodeConstantPoolCodec {
                     if (!hasBytes(bytes, position, length)) {
                         return BytecodeConstantPoolDecode.Invalid("truncated KLua constant pool")
                     }
-                    constants += LuaString(bytes.copyOfRange(position, position + length).toLuaByteString())
+                    constants += LuaString(bytes.copyOfRange(position, position + length))
                     position += length
                 }
                 else -> return BytecodeConstantPoolDecode.Invalid(
@@ -125,7 +123,7 @@ internal object BytecodeConstantPoolCodec {
                 writeLong(value.value.toRawBits())
             }
             is LuaString -> {
-                val bytes = value.value.luaRawBytes()
+                val bytes = value.copyRawBytes()
                 write(CONSTANT_TAG_STRING)
                 writeInt(bytes.size)
                 write(bytes)

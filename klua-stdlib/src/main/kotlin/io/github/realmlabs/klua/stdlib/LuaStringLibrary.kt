@@ -63,8 +63,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringByte(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "byte")
-        val bytes = text.luaRawBytes()
+        val bytes = requiredBytes(context, 1, "byte")
         val start = if (context.isNone(2) || context.isNil(2)) {
             1L
         } else {
@@ -104,7 +103,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringLen(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "len").luaByteLength())
+        return LuaReturn.of(requiredBytes(context, 1, "len").size.toLong())
     }
 
     private fun stringGsub(context: LuaCallContext): LuaReturn {
@@ -391,7 +390,7 @@ internal object LuaStringLibrary {
     }
 
     private fun stringLower(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "lower").mapAsciiByteCase(lowercase = true))
+        return LuaReturn.of(requiredBytes(context, 1, "lower").mapAsciiByteCase(lowercase = true))
     }
 
     private fun stringMatch(context: LuaCallContext): LuaReturn {
@@ -508,7 +507,7 @@ internal object LuaStringLibrary {
 
     private fun stringUnpack(context: LuaCallContext): LuaReturn {
         val scanner = LuaStringPackFormat.PackFormatScanner(requiredString(context, 1, "unpack"), "unpack")
-        val data = requiredString(context, 2, "unpack").luaRawBytes()
+        val data = requiredBytes(context, 2, "unpack")
         val initialPosition = if (context.isNone(3) || context.isNil(3)) {
             1L
         } else {
@@ -758,18 +757,16 @@ internal object LuaStringLibrary {
     }
 
     private fun stringRep(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "rep")
+        val textBytes = requiredBytes(context, 1, "rep")
         val count = requiredInteger(context, 2, "rep")
-        val separator = if (context.isNone(3) || context.isNil(3)) {
-            ""
+        val separatorBytes = if (context.isNone(3) || context.isNil(3)) {
+            byteArrayOf()
         } else {
-            requiredString(context, 3, "rep")
+            requiredBytes(context, 3, "rep")
         }
         if (count <= 0L) {
             return LuaReturn.of("")
         }
-        val textBytes = text.luaRawBytes()
-        val separatorBytes = separator.luaRawBytes()
         val resultLength = stringRepResultLength(textBytes.size.toLong(), separatorBytes.size.toLong(), count)
         if (resultLength == 0) {
             return LuaReturn.of("")
@@ -801,35 +798,37 @@ internal object LuaStringLibrary {
     }
 
     private fun stringReverse(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "reverse").luaRawBytes().reversedArray().toLuaByteString())
+        return LuaReturn.of(requiredBytes(context, 1, "reverse").reversedArray().toLuaByteString())
     }
 
     private fun stringSub(context: LuaCallContext): LuaReturn {
-        val text = requiredString(context, 1, "sub")
+        val bytes = requiredBytes(context, 1, "sub")
         val start = requiredInteger(context, 2, "sub")
         val end = if (context.isNone(3) || context.isNil(3)) {
             -1L
         } else {
             requiredInteger(context, 3, "sub")
         }
-        return LuaReturn.of(text.substringByLuaByteRange(start, end))
+        val range = bytes.luaIndexRange(start, end)
+        return LuaReturn.of(
+            if (range.isEmpty()) "" else bytes.copyOfRange(range.first - 1, range.last).toLuaByteString(),
+        )
     }
 
     private fun stringUpper(context: LuaCallContext): LuaReturn {
-        return LuaReturn.of(requiredString(context, 1, "upper").mapAsciiByteCase(lowercase = false))
+        return LuaReturn.of(requiredBytes(context, 1, "upper").mapAsciiByteCase(lowercase = false))
     }
 
-    private fun String.mapAsciiByteCase(lowercase: Boolean): String {
-        val bytes = luaRawBytes()
-        for (index in bytes.indices) {
-            val value = bytes[index].toInt() and 0xff
-            bytes[index] = when {
+    private fun ByteArray.mapAsciiByteCase(lowercase: Boolean): String {
+        for (index in indices) {
+            val value = this[index].toInt() and 0xff
+            this[index] = when {
                 lowercase && value in 'A'.code..'Z'.code -> (value + ('a' - 'A')).toByte()
                 !lowercase && value in 'a'.code..'z'.code -> (value - ('a' - 'A')).toByte()
-                else -> bytes[index]
+                else -> this[index]
             }
         }
-        return bytes.toLuaByteString()
+        return toLuaByteString()
     }
 
     private fun requiredString(context: LuaCallContext, index: Int, functionName: String): String {
@@ -918,6 +917,11 @@ internal object LuaStringLibrary {
 
     private fun String.formatWith(value: Any): String {
         return java.lang.String.format(Locale.ROOT, this, value)
+    }
+
+    private fun requiredBytes(context: LuaCallContext, index: Int, functionName: String): ByteArray {
+        return context.toBytes(index)
+            ?: throw LuaRuntimeException("bad argument #$index to '$functionName' (string expected)")
     }
 
     private fun validateFormatSize(specifier: String): FormatSpecifier {

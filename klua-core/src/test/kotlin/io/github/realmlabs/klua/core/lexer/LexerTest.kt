@@ -1,5 +1,6 @@
 package io.github.realmlabs.klua.core.lexer
 
+import io.github.realmlabs.klua.core.value.LuaString
 import io.github.realmlabs.klua.core.value.toLuaByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -171,9 +172,9 @@ class LexerTest {
         val tokens = Lexer(""" "line\none" 'tab\tvalue' "\000\007\255" """).tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("line\none", tokens[0].literal)
-        assertEquals("tab\tvalue", tokens[1].literal)
-        assertEquals(byteArrayOf(0, 7, 255.toByte()).toLuaByteString(), tokens[2].literal)
+        assertEquals("line\none", tokens[0].stringLiteral)
+        assertEquals("tab\tvalue", tokens[1].stringLiteral)
+        assertEquals(byteArrayOf(0, 7, 255.toByte()).toLuaByteString(), tokens[2].stringLiteral)
     }
 
     @Test
@@ -181,7 +182,7 @@ class LexerTest {
         val tokens = Lexer(""" "\255\x80\195\169é" """).tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals(byteArrayOf(255.toByte(), 128.toByte(), 195.toByte(), 169.toByte(), 195.toByte(), 169.toByte()).toLuaByteString(), tokens[0].literal)
+        assertEquals(byteArrayOf(255.toByte(), 128.toByte(), 195.toByte(), 169.toByte(), 195.toByte(), 169.toByte()).toLuaByteString(), tokens[0].stringLiteral)
     }
 
     @Test
@@ -191,7 +192,7 @@ class LexerTest {
         ).tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("AB", tokens[0].literal)
+        assertEquals("AB", tokens[0].stringLiteral)
     }
 
     @Test
@@ -199,8 +200,8 @@ class LexerTest {
         val tokens = Lexer("\"a\\\r\nb\" \"a\\\n\rb\"").tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("a\nb", tokens[0].literal)
-        assertEquals("a\nb", tokens[1].literal)
+        assertEquals("a\nb", tokens[0].stringLiteral)
+        assertEquals("a\nb", tokens[1].stringLiteral)
     }
 
     @Test
@@ -208,7 +209,7 @@ class LexerTest {
         val tokens = Lexer("\"a\\z \n\r b\" return", "zap.lua").tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.RETURN, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("ab", tokens[0].literal)
+        assertEquals("ab", tokens[0].stringLiteral)
         assertEquals(2, tokens[1].range.start.line)
     }
 
@@ -217,7 +218,7 @@ class LexerTest {
         val tokens = Lexer("\"a\\z \u2003b\"").tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("a\u2003b", tokens[0].literal)
+        assertEquals("a\u2003b", tokens[0].stringLiteral)
     }
 
     @Test
@@ -234,7 +235,7 @@ class LexerTest {
                     byteArrayOf(0xED.toByte(), 0xA0.toByte(), 0x80.toByte()) +
                     byteArrayOf(0xFD.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte(), 0xBF.toByte())
                 ).toLuaByteString(),
-            tokens[0].literal,
+            tokens[0].stringLiteral,
         )
     }
 
@@ -249,8 +250,8 @@ class LexerTest {
         ).tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("first line", tokens[0].literal)
-        assertEquals("keeps [brackets] and ]] text", tokens[1].literal)
+        assertEquals("first line", tokens[0].stringLiteral)
+        assertEquals("keeps [brackets] and ]] text", tokens[1].stringLiteral)
     }
 
     @Test
@@ -258,9 +259,9 @@ class LexerTest {
         val tokens = Lexer("[[\r\nbody]] [[\n\rbody]] [[first\r\nsecond\rthird\nfourth\n\rend]]").tokenize()
 
         assertEquals(listOf(TokenKind.STRING, TokenKind.STRING, TokenKind.STRING, TokenKind.EOF), tokens.map { it.kind })
-        assertEquals("body", tokens[0].literal)
-        assertEquals("body", tokens[1].literal)
-        assertEquals("first\nsecond\nthird\nfourth\nend", tokens[2].literal)
+        assertEquals("body", tokens[0].stringLiteral)
+        assertEquals("body", tokens[1].stringLiteral)
+        assertEquals("first\nsecond\nthird\nfourth\nend", tokens[2].stringLiteral)
     }
 
     @Test
@@ -463,3 +464,6 @@ class LexerTest {
         assertEquals(8, error.position.column)
     }
 }
+
+private val Token.stringLiteral: String
+    get() = (literal as LuaString).value

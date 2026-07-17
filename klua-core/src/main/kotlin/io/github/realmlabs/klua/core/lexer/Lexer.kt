@@ -3,7 +3,7 @@ package io.github.realmlabs.klua.core.lexer
 import io.github.realmlabs.klua.core.source.SourcePosition
 import io.github.realmlabs.klua.core.source.SourceRange
 import io.github.realmlabs.klua.core.value.luaRawBytes
-import io.github.realmlabs.klua.core.value.toLuaByteString
+import io.github.realmlabs.klua.core.value.LuaString
 import java.io.ByteArrayOutputStream
 
 internal class Lexer(
@@ -173,13 +173,13 @@ internal class Lexer(
         }
 
         advance()
-        return token(TokenKind.STRING, source.substring(start.offset, offset), start, bytes.toByteArray().toLuaByteString())
+        return token(TokenKind.STRING, source.substring(start.offset, offset), start, LuaString(bytes.toByteArray()))
     }
 
     private fun longString(start: SourcePosition, equals: Int): Token {
         consumeLongBracketOpening(equals)
         val literal = readLongBracketContent(equals, start, "unterminated long string")
-        return token(TokenKind.STRING, source.substring(start.offset, offset), start, literal)
+        return token(TokenKind.STRING, source.substring(start.offset, offset), start, LuaString(literal))
     }
 
     private fun readEscape(start: SourcePosition): ByteArray {

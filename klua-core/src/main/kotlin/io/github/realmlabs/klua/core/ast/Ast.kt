@@ -1,6 +1,7 @@
 package io.github.realmlabs.klua.core.ast
 
 import io.github.realmlabs.klua.core.source.SourceRange
+import io.github.realmlabs.klua.core.value.LuaString
 
 internal data class Chunk(
     val statements: List<Statement>,
@@ -167,9 +168,14 @@ internal data class FloatExpression(
 ) : Expression
 
 internal data class StringExpression(
-    val value: String,
+    val luaString: LuaString,
     override val range: SourceRange,
-) : Expression
+) : Expression {
+    constructor(value: String, range: SourceRange) : this(LuaString(value), range)
+
+    val value: String
+        get() = luaString.value
+}
 
 internal data class VariableExpression(
     val name: String,
