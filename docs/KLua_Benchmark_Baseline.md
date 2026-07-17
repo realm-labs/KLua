@@ -2,7 +2,64 @@
 
 This file records comparable benchmark checkpoints used to select optimization work. Results are local evidence, not cross-machine performance claims.
 
-The checkpoints below document the M19 performance work; they are not yet the accepted v1 release baseline. The 2026-07-17 checkpoint is the accepted pre-refactor comparison point for the high-performance interpreter track. M21 must rerun its complete suite on the release candidate, apply the regression policy in `docs/KLua_Codex_Goal.md`, and append one clearly labeled accepted v1 baseline with reproduction commands.
+The first checkpoint below is the accepted v1 release-candidate baseline. Later checkpoints retain the M19 optimization evidence and the accepted closure comparison point used to qualify it. These are local regression measurements, not an absolute cross-machine SLA.
+
+## 2026-07-17 Accepted v1 Release-Candidate Baseline
+
+The complete canonical timing and GC-profiler suites were measured at commit `4f25c4d2b89bd3a80e9af72107945cb4e11d1528`, after the release artifact/API contract and executable embedding guides were locked. Raw CSV remains under the ignored `klua-jmh/build/release-candidate` directory.
+
+Environment:
+
+- CPU: Intel Core i7-10700F, 8 cores / 16 logical processors, 2.90 GHz nominal
+- Memory: 63.9 GiB
+- OS: Windows 10 Pro 10.0.19045, build 19045
+- JVM: Azul Zulu OpenJDK 17.0.19+10-LTS, 64-bit Server VM
+- JVM options: none supplied explicitly
+- Power policy: Windows High performance (`8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c`)
+- JMH: 1.36 with compiler blackholes
+- Threads: 1; forks: 1
+- Warmup: 3 iterations × 500 ms
+- Measurement: 5 iterations × 500 ms
+- Mode: average time, microseconds per operation
+
+Reproduction commands from the repository root with `JAVA_HOME` set to JDK 17:
+
+```text
+./gradlew :klua-jmh:jmhJar
+java -jar klua-jmh/build/libs/klua-jmh-0.1.0-SNAPSHOT-jmh.jar -rf csv -rff klua-jmh/build/release-candidate/jdk17-timing.csv
+java -jar klua-jmh/build/libs/klua-jmh-0.1.0-SNAPSHOT-jmh.jar -prof gc -rf csv -rff klua-jmh/build/release-candidate/jdk17-gc.csv
+```
+
+Accepted results:
+
+| Benchmark | Score (µs/op) | 99.9% error | Allocation (B/op) |
+| --- | ---: | ---: | ---: |
+| Compile numeric loop | 10.220 | ±8.947 | 21,336.008 |
+| Breakpoint observer, no hit | 1,059.244 | ±254.843 | 481,480.704 |
+| Breakpoint hit, step, continue | 1,264.566 | ±492.584 | 493,373.450 |
+| Count hook, interval 100 | 1,076.771 | ±1,071.089 | 491,002.846 |
+| Debug disabled | 465.275 | ±54.439 | 1,179.061 |
+| Debug enabled, no observer | 454.166 | ±73.649 | 1,175.371 |
+| Instruction budget disabled | 465.749 | ±38.342 | 1,176.524 |
+| Instruction budget enabled | 467.575 | ±52.524 | 1,193.279 |
+| Line hook | 5,224.082 | ±455.256 | 17,765,064.379 |
+| Closure counter | 2,160.662 | ±876.113 | 1,363,943.179 |
+| Coroutine yield/resume | 21,821.254 | ±3,995.559 | 28,241,290.183 |
+| Entity-update kernel | 5,435.380 | ±506.895 | 2,200,404.091 |
+| Host calls | 3,480.220 | ±643.553 | 9,678,560.863 |
+| `__index` calls | 2,445.502 | ±861.968 | 1,773,863.317 |
+| JVM-to-Lua calls | 4,270.248 | ±3,144.087 | 8,711,242.956 |
+| Lua calls | 2,193.987 | ±523.471 | 1,442,250.477 |
+| Method calls | 4,467.955 | ±1,081.005 | 2,003,868.808 |
+| Recursive `fib(20)` | 5,035.764 | ±1,648.813 | 4,994,222.456 |
+| Growing string concatenation | 709.914 | ±792.058 | 585,244.361 |
+| Table writes and reads | 1,841.684 | ±754.198 | 298,810.613 |
+| Vararg/multiple return | 4,222.592 | ±827.626 | 2,002,868.334 |
+| VM numeric loop | 669.672 | ±54.620 | 1,255.916 |
+
+The accepted comparison point is the performance-and-conformance closure later in this file. Compile, count-hook, coroutine, and concatenation point estimates are more than 10% slower, but none exceeds its combined 99.9% measurement uncertainty, so none qualifies for the required two-run regression confirmation. All other slower timing points are below 10%. Allocation changes are stable: the largest increase is 1.32% for the VM numeric loop and every other increase is below 0.9%, within the 5% gate.
+
+The matched policy controls also pass. Debug enabled without an observer is 2.39% faster than debug disabled, and enabled instruction accounting is 0.39% slower than the disabled policy. Enabled hook, breakpoint, stepping, and budget figures remain published costs rather than universal limits. The full correctness, ABI, artifact, and JMH verification matrix passed before this baseline was accepted.
 
 ## 2026-07-17 JDK 17 Pre-Refactor Canonical Baseline
 

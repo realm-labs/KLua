@@ -52,7 +52,7 @@ Allocation from `-prof gc` is often more stable than timing for small interprete
 
 ## Release gates and current results
 
-The exact regression gates, accepted pre-release checkpoints, environment, commands, confidence intervals, allocation figures, and profiling evidence live in [the benchmark baseline](KLua_Benchmark_Baseline.md). The final v1 release-candidate baseline has not yet been accepted.
+The exact regression gates, accepted checkpoints, environment, commands, confidence intervals, allocation figures, and profiling evidence live in [the benchmark baseline](KLua_Benchmark_Baseline.md). Its first section is the accepted v1 release-candidate baseline.
 
 In summary, a release regression requires more than a noisy higher point: it must exceed the documented threshold and combined uncertainty and reproduce in matched runs. Allocation increases on stable workloads require a fix or reviewed rationale. Debug-disabled and budget-disabled controls have their own overhead gates.
 

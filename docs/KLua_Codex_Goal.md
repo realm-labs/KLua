@@ -179,7 +179,7 @@ This is a milestone-level snapshot of committed capability, not a list of comple
 | M13-M18 | Done | Coroutine, structured error/debug metadata, hooks/debugger, DAP library integration, KLua bytecode packaging, and initial sandbox controls meet their documented foundation success criteria. Residual hardening remains M20 or later release work. |
 | M19 | Done | The canonical JDK 17 baseline, byte-oriented strings, tagged VM slots, hybrid versioned tables, guarded inline caches, stack-range calls, fast/instrumented dispatch, and final matched performance screen have landed. Measurements and the one explicitly accepted bounded allocation tradeoff live in `docs/KLua_Benchmark_Baseline.md`. |
 | M20 | Done | Source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance passed the optimized-representation audit. `docs/KLua_Conformance_Gaps.md` classifies every remaining JVM/host difference and records no unowned v1 blocker. |
-| M21 | In progress | The Java/Kotlin ABI, local Maven artifact contract, task-oriented guides, and compiled Java/Kotlin examples are locked and verified. Release readiness remains the primary frontier: qualify the release-candidate baseline and prepare final release packaging without publishing until explicitly authorized. |
+| M21 | In progress | The Java/Kotlin ABI, local Maven artifact contract, task-oriented guides, compiled Java/Kotlin examples, and canonical JDK 17 release-candidate performance baseline are locked and verified. Final packaging and release review remain the primary frontier, without external publication until explicitly authorized. |
 | M22 | Deferred | JVM bytecode generation remains optional and must not begin before v1 foundations stabilize. |
 
 Current capability includes:
@@ -192,11 +192,12 @@ Current capability includes:
 - Benchmark baselines separating compile, VM, API, coroutine, metamethod, string, and application-kernel workloads.
 - Checked public-module ABI baselines plus locally generated binary/source JARs and Maven POMs with verified coordinates, module names, and dependency scopes.
 - Task-oriented embedding, sandbox/standard-library, debugging/DAP, performance, conformance, and release-contract documentation backed by compiled and executed Java/Kotlin examples.
+- An accepted v1 release-candidate timing/allocation baseline with reproducible canonical JDK 17 commands and passing debug/budget policy gates.
 
 Material remaining gaps include:
 
-- Broader release-level executable packaging and standalone DAP hosting now that the embedding, artifact, and documentation contracts are fixed.
-- Automated performance regression comparison, representative sandbox overhead controls, and published accepted v1 performance evidence.
+- Broader release-level executable packaging and standalone DAP hosting now that the embedding, artifact, documentation, and performance contracts are fixed.
+- Automated benchmark-to-baseline comparison remains a non-blocking follow-up; the accepted v1 evidence is reproducible and manually audited.
 
 The detailed, source-backed residual list belongs in `docs/KLua_Conformance_Gaps.md` and must not be duplicated here.
 
@@ -256,12 +257,11 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M21 release-candidate performance qualification | On the documented canonical JDK 17 environment, rerun the complete timing/allocation suite against the accepted closure checkpoint, apply the release gates and matched-rerun rule, record the accepted release-candidate baseline and reproduction commands, and leave external publication out of scope. | One to three coherent benchmark-control, regression-fix if needed, and accepted-baseline commits. |
-| 2 | Next | M21 final packaging and release checklist | Close executable CLI/DAP-host packaging or explicitly disposition the standalone-host gap, verify license/metadata/source artifacts and clean-checkout commands, prepare release notes and the final version/tag checklist, and stop before remote publication, signing, tagging, or credential use without explicit authorization. | One to three coherent packaging, smoke-validation, and release-checklist commits. |
+| 1 | In progress | M21 final packaging and release checklist | Close executable CLI/DAP-host packaging or explicitly disposition the standalone-host gap, verify license/metadata/source artifacts and clean-checkout commands, prepare release notes and the final version/tag checklist, and stop before remote publication, signing, tagging, or credential use without explicit authorization. | One to three coherent packaging, smoke-validation, and release-checklist commits. |
 
-When package 1 closes, promote package 2 and select at most one new successor from M21's remaining release checklist. Do not keep closed campaign narratives or commit hashes in this table.
+When package 1 closes, audit the remaining M21 release checklist and add one bounded successor only if an unowned release-readiness gap remains. Do not keep closed campaign narratives or commit hashes in this table.
 
-Do not close M20 until the performance track's representation changes have passed the final conformance matrix. M21 must still run the release-candidate performance qualification before artifacts are declared ready.
+Do not close M20 until the performance track's representation changes have passed the final conformance matrix. M21 artifacts are not release-ready until the active final packaging and checklist package closes.
 
 ## Testing Requirements
 
