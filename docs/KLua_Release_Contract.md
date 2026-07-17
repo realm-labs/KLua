@@ -13,10 +13,12 @@ The authoritative group and version are `klua.group` and `klua.version` in `grad
 | `io.github.realmlabs.klua:klua-stdlib` | `io.github.realmlabs.klua.stdlib` | Stable standard-library installation entry points. Internal library implementations are not API. |
 | `io.github.realmlabs.klua:klua-debug` | `io.github.realmlabs.klua.debug` | Supported source-debugging model and controller API. |
 | `io.github.realmlabs.klua:klua-dap` | `io.github.realmlabs.klua.dap` | Supported DAP protocol, transport, and live-session API. |
-| `io.github.realmlabs.klua:klua-tools` | `io.github.realmlabs.klua.tools` | Supported command-line parsing and runner API. Executable packaging remains separate release work. |
+| `io.github.realmlabs.klua:klua-tools` | `io.github.realmlabs.klua.tools` | Supported command-line parsing and runner API. The application distribution provides the `klua` launcher. |
 | `io.github.realmlabs.klua:klua-core` | `io.github.realmlabs.klua.core` | Runtime implementation dependency. Its compiler, VM, bytecode, value, parser, AST, and core bridge types are not a compatibility surface for embedders. |
 
-Every component produces a binary JAR, a sources JAR, and a generated Maven POM. `klua-api` keeps `klua-core` at Maven runtime scope so Java consumers do not compile against runtime representations. `klua-examples`, `klua-jmh`, and `klua-tests` are verification modules rather than release components. No `klua-all` component exists yet, and no remote publication repository is configured.
+Every component produces a binary JAR, a sources JAR, and a generated Maven POM. Binary and source JARs carry the MIT license, while POMs carry the project URL, license, and SCM metadata. `klua-api` keeps `klua-core` at Maven runtime scope so Java consumers do not compile against runtime representations. `klua-examples`, `klua-jmh`, and `klua-tests` are verification modules rather than release components. No `klua-all` component exists, and no remote publication repository is configured.
+
+`klua-tools` additionally produces `klua-<version>.zip` and `klua-<version>.tar` under `klua-tools/build/distributions`. Each archive contains Unix and Windows launchers, runtime dependencies, the MIT license, the README, and the tooling/release guides. `verifyInstallDist` runs the installed launcher through bytecode compile, debugger, and DAP framing smoke scenarios.
 
 Run the local artifact contract with:
 
@@ -25,6 +27,14 @@ Run the local artifact contract with:
 ```
 
 The task checks all coordinates, filenames, `Automatic-Module-Name` and implementation-version manifest entries, source archives, and inter-module Maven dependency scopes. `releaseArtifacts` builds the same files without performing external publication.
+
+The complete non-publishing release-candidate matrix is:
+
+```text
+./gradlew releaseCandidateCheck
+```
+
+It runs every test task, all supported-module ABI checks, Maven/distribution verification and executable smoke tests, and the JMH jar build.
 
 ## API compatibility
 

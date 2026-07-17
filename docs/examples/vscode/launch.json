@@ -8,8 +8,7 @@
       "program": "${workspaceFolder}/scripts/main.lua",
       "cwd": "${workspaceFolder}",
       "args": [],
-      "stopOnEntry": true,
-      "debugServer": 8172
+      "stopOnEntry": true
     }
   ]
 }

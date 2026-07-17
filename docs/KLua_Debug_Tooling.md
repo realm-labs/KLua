@@ -6,7 +6,7 @@ KLua debug tooling is split across three modules:
 - `klua-dap` adapts those debug primitives to Debug Adapter Protocol-shaped requests and `Content-Length` framed JSON messages.
 - `klua-tools` contains the command-line debugger runner core, the `klua --debug <script.lua> [args...]` command-loop wrapper, and the `klua --compile <script.lua> <output.kluac>` bytecode package compiler.
 
-The CLI and transport-independent DAP session now consume live VM stop contexts. The project does not yet package a standalone executable DAP adapter process; an adapter host must still connect `DapMessageConnection` to its chosen stream or socket.
+The CLI and transport-independent DAP session consume live VM stop contexts. The `klua` application distribution now includes a standalone stdio adapter that connects DAP framing to a launch-owned `LiveDapSession`.
 
 For runtime creation, callbacks, userdata, and coroutine entry points, start with [the embedding guide](KLua_Embedding_Guide.md). Disable debugger attachment for untrusted execution as described in [the sandbox guide](KLua_Sandbox_and_Standard_Library.md).
 
@@ -60,6 +60,18 @@ Current behavior:
 
 ## DAP Integration
 
+Start the standalone adapter with:
+
+```text
+klua --dap
+```
+
+The process reserves stdout for `Content-Length` framed DAP messages, reads requests from stdin, and reports fatal host errors on stderr. A client sends `initialize`, then a `launch` request containing `program`, optional `cwd`, `args`, and `stopOnEntry`; after breakpoints are configured, `configurationDone` starts the registered Lua coroutine. Relative program paths are resolved against `cwd`, but the JVM process working directory is not changed. Source and KLua `.kluac` programs are supported. The standalone process deliberately rejects `attach`; embedding hosts can still construct `LiveDapSession` for already-owned runtimes.
+
+The adapter exits cleanly on `disconnect` or input EOF. An editor extension can launch it directly as a stdio debug adapter; KLua does not bundle an editor-specific extension.
+
+The `klua-dap` library provides:
+
 `klua-dap` currently provides:
 
 - typed request and response models for `initialize`, `launch`, `attach`, `setBreakpoints`, `configurationDone`, `continue`, `pause`, `next`, `stepIn`, `stepOut`, `threads`, `stackTrace`, `scopes`, `variables`, and `evaluate`;
@@ -71,11 +83,11 @@ Current behavior:
 - live `continue`, `next`, `stepIn`, and `stepOut` execution, plus VM-backed `threads`, `stackTrace`, `scopes`, `variables`, and read-only frame evaluation;
 - `stopped`, thread lifecycle, and final `terminated` event bodies that can be drained by an adapter host. Initial execution is started by the host with `LiveDapSession.start`; subsequent DAP control requests resume the selected thread.
 
-The VS Code launch example in `docs/examples/vscode/launch.json` describes the intended adapter-facing shape. The `debugServer` field assumes a future adapter host that exposes `DapMessageConnection` over a local socket.
+The VS Code launch example in `docs/examples/vscode/launch.json` describes the adapter-facing launch shape. A VS Code extension or local adapter contribution must map type `klua` to the installed `klua --dap` command.
 
 ## VS Code Example
 
-Use the example as a starting point once a DAP host executable or server is available:
+Use the example from an extension or adapter contribution that launches `klua --dap`:
 
 ```json
 {
@@ -88,8 +100,7 @@ Use the example as a starting point once a DAP host executable or server is avai
       "program": "${workspaceFolder}/scripts/main.lua",
       "cwd": "${workspaceFolder}",
       "args": [],
-      "stopOnEntry": true,
-      "debugServer": 8172
+      "stopOnEntry": true
     }
   ]
 }

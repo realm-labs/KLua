@@ -4,7 +4,7 @@ KLua is a work-in-progress pure Kotlin Lua runtime for JVM 17+. It aims to provi
 
 ## Status
 
-KLua is pre-1.0 and not production-ready. The public ABI and local artifact contract are now checked, but user documentation, the release-candidate performance qualification, and final packaging still remain before v1.
+KLua is a pre-1.0 release candidate and is not yet published. Its public ABI, Maven artifacts, executable distributions, user guides, and canonical JDK 17 performance baseline are locally checked; the version/tag/publishing actions in the release checklist still require explicit authorization.
 
 The repository includes the complete source-to-interpreter path, KLua bytecode packages, low- and high-level embedding APIs, Kotlin helpers, source-backed base/math/string/table/UTF-8/package/coroutine/IO/OS/debug libraries, sandbox controls, lifecycle behavior, source debugging, DAP and CLI tooling cores, conformance coverage, compiled examples, and JMH benchmarks. Accepted JVM/host adaptations are recorded in the conformance matrix.
 
@@ -26,7 +26,7 @@ The repository includes the complete source-to-interpreter path, KLua bytecode p
 - `klua-stdlib`: source-backed base, math, string, table, UTF-8, package, coroutine, IO, OS, and debug library integration.
 - `klua-debug`: source-level debugger state, breakpoints, stepping, frames, variables, and live sessions.
 - `klua-dap`: typed Debug Adapter Protocol models, JSON/framing, wire sessions, and live-session integration.
-- `klua-tools`: CLI debugger and KLua bytecode compiler cores; standalone distribution packaging is still pending.
+- `klua-tools`: installed `klua` launcher, CLI debugger, KLua bytecode compiler, and standalone stdio DAP adapter.
 - `klua-examples`: compiled and executed Java/Kotlin embedding examples; not a release artifact.
 - `klua-jmh`: JMH benchmarks.
 - `klua-tests`: cross-module foundation, integration, and conformance tests.
@@ -51,6 +51,14 @@ Once `gradlew` has executable permissions in the local checkout, this should als
 ```
 
 The local artifact coordinates, supported module surfaces, ABI policy, and non-publishing verification commands are defined in [the release contract](docs/KLua_Release_Contract.md).
+
+Build and smoke-test every local release artifact and executable distribution without publishing:
+
+```sh
+./gradlew releaseCandidateCheck
+```
+
+The executable archives are written to `klua-tools/build/distributions`. After unpacking one, use `bin/klua` on Unix-like systems or `bin/klua.bat` on Windows.
 
 ## Quick Examples
 
@@ -194,10 +202,12 @@ The corresponding repository programs are compiled and executed by `./gradlew :k
 
 - [Embedding guide](docs/KLua_Embedding_Guide.md): Java/Kotlin setup, high- and low-level APIs, host functions, userdata, coroutines, bytecode, and LuaJ-style migration notes.
 - [Sandbox and standard library guide](docs/KLua_Sandbox_and_Standard_Library.md): production configuration, library gates, capabilities, limits, I/O, and deployment checks.
-- [Debug tooling guide](docs/KLua_Debug_Tooling.md): CLI debugging, DAP integration, bytecode tooling, and the current standalone-host limitation.
+- [Debug tooling guide](docs/KLua_Debug_Tooling.md): installed CLI debugging, bytecode tooling, and standalone stdio DAP integration.
 - [Performance guide](docs/KLua_Performance_Guide.md): workload advice, benchmark reproduction, comparable measurement, and release gates.
 - [Conformance matrix](docs/KLua_Conformance_Gaps.md): source-backed coverage and accepted JVM adaptations.
 - [Release contract](docs/KLua_Release_Contract.md): artifacts, ABI checks, compatibility, and versioning.
+- [Draft v1 release notes](docs/KLua_Release_Notes_1.0.0.md): release highlights, supported surfaces, and known host adaptations.
+- [Release checklist](docs/KLua_Release_Checklist.md): clean-checkout verification and the explicitly gated version/tag/publication sequence.
 
 ## Architecture
 
