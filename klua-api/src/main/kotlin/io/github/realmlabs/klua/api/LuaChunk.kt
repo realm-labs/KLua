@@ -1,13 +1,19 @@
 package io.github.realmlabs.klua.api
 
-class LuaChunk internal constructor(
+class LuaChunk private constructor(
     private val state: LuaState,
     val source: String,
     val chunkName: String,
     private val bytecode: ByteArray? = null,
 ) {
-    internal companion object {
-        fun bytecode(state: LuaState, bytes: ByteArray): LuaChunk {
+    internal object Factory {
+        @JvmSynthetic
+        internal fun source(state: LuaState, source: String, chunkName: String): LuaChunk {
+            return LuaChunk(state, source, chunkName)
+        }
+
+        @JvmSynthetic
+        internal fun bytecode(state: LuaState, bytes: ByteArray): LuaChunk {
             return LuaChunk(state, source = "", chunkName = "bytecode", bytecode = bytes.copyOf())
         }
     }

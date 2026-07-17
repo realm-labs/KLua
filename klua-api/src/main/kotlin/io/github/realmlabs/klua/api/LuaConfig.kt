@@ -1,6 +1,5 @@
 package io.github.realmlabs.klua.api
 
-import io.github.realmlabs.klua.core.KLuaCoreControlException
 import java.nio.charset.StandardCharsets
 import java.util.Collections
 import java.util.function.Supplier
@@ -20,6 +19,7 @@ data class LuaConfig @JvmOverloads constructor(
         require(instructionLimit >= 0) { "instructionLimit must be non-negative" }
     }
 
+    @JvmSynthetic
     internal fun snapshot(): LuaConfig {
         return copy(standardLibraries = Collections.unmodifiableSet(standardLibraries.toSet()))
     }
@@ -50,4 +50,4 @@ fun interface LuaExitHandler {
 class LuaExitException(
     val status: Int,
     val closeState: Boolean,
-) : KLuaCoreControlException("Lua requested process exit with status $status")
+) : RuntimeException("Lua requested process exit with status $status", null, false, false)

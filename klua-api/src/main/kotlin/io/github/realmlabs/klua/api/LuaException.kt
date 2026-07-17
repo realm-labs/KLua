@@ -56,6 +56,7 @@ data class LuaUpvalueVariable(
     val value: Any?,
 )
 
+@JvmSynthetic
 internal fun formatLuaTraceback(message: String, frames: List<LuaStackFrame>): String {
     return buildString {
         append(message)

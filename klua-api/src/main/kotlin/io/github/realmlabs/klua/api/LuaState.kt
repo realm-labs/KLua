@@ -42,7 +42,7 @@ class LuaState private constructor(
     private val globals = LuaStackValue.TableValue()
     private val coreGlobals = KLuaCoreGlobals.create()
     private var mainDebugHook: KLuaCoreDebugHook? = null
-    private val mainThread = LuaMainThread()
+    private val mainThread = LuaMainThread.Factory.create()
     private val registryCore = KLuaCoreRuntime.createTable(coreGlobals).also { registry ->
         registry.fields[KLuaCoreValue.IntegerValue(1)] = KLuaCoreValue.BooleanValue(false)
         registry.fields[KLuaCoreValue.IntegerValue(3)] = KLuaCoreValue.UserDataValue(mainThread)
@@ -234,7 +234,7 @@ class LuaState private constructor(
     }
 
     fun <T : Any> registerType(type: Class<T>, configure: Consumer<LuaUserDataType<T>>) {
-        val userDataType = LuaUserDataType<T>(
+        val userDataType = LuaUserDataType.Factory.create<T>(
             registerMethod = { name, method ->
                 coreGlobals.setUserDataMethod(
                     type = type,
@@ -308,6 +308,7 @@ class LuaState private constructor(
                 LuaStatus.SYNTAX_ERROR
             }
             is KLuaCoreExecution.RuntimeError -> {
+                result.cause.luaExitException()?.let { exit -> throw exit }
                 lastError = LuaRuntimeException(
                     result.message,
                     result.cause,
@@ -475,6 +476,7 @@ class LuaState private constructor(
         }
     }
 
+    @JvmSynthetic
     internal fun loadCoroutineFunction(source: String, chunkName: String): LuaCoroutineFunction {
         return when (val result = KLuaCoreRuntime.compile(source, chunkName)) {
             is KLuaCoreLoad.Success -> result.chunk.toCoroutineFunction()
@@ -482,6 +484,7 @@ class LuaState private constructor(
         }
     }
 
+    @JvmSynthetic
     internal fun loadBytecodeCoroutineFunction(bytes: ByteArray): LuaCoroutineFunction {
         return when (val result = KLuaCoreRuntime.loadBytecode(bytes)) {
             is KLuaCoreLoad.Success -> result.chunk.toCoroutineFunction()
@@ -789,6 +792,7 @@ class LuaState private constructor(
         return if (type.isInstance(value)) type.cast(value) else null
     }
 
+    @JvmSynthetic
     internal fun toAny(index: Int): Any? {
         return when (val value = valueAt(index)) {
             null,
@@ -1044,7 +1048,7 @@ class LuaState private constructor(
     }
 
     private fun KLuaCoreCallResult.Yielded.toLuaYieldException(): LuaYieldException {
-        return LuaYieldException(
+        return LuaYieldException.Factory.create(
             values.map { it.toStackValue().toPublicCallReturnValue() },
             continuation?.let { continuation ->
                 { arguments -> continueCoreYield(continuation, arguments) }
@@ -1059,6 +1063,7 @@ class LuaState private constructor(
     }
 
     private fun coreRuntimeError(result: KLuaCoreCallResult.RuntimeError): LuaRuntimeException {
+        result.cause.luaExitException()?.let { exit -> throw exit }
         val errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue()
         return if (result.errorObject == null) {
             LuaRuntimeException(result.message, errorObjectFinalized = result.errorObjectFinalized)
@@ -1714,15 +1719,18 @@ class LuaState private constructor(
                     result.values.map { value -> value.toStackValue().toPublicCallReturnValue() },
                 )
                 KLuaCoreCoroutineExecution.DebugSuspended -> LuaCoroutineResult.DebugSuspended
-                is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(
-                    result.message,
-                    sourceName = result.sourceName,
-                    line = result.line,
-                    cause = result.cause,
-                    luaFrames = toApiStackFrames(result.luaFrames),
-                    errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
-                    hasErrorObject = result.errorObject != null,
-                )
+                is KLuaCoreCoroutineExecution.RuntimeError -> {
+                    result.cause.luaExitException()?.let { exit -> throw exit }
+                    LuaCoroutineResult.RuntimeError(
+                        result.message,
+                        sourceName = result.sourceName,
+                        line = result.line,
+                        cause = result.cause,
+                        luaFrames = toApiStackFrames(result.luaFrames),
+                        errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                        hasErrorObject = result.errorObject != null,
+                    )
+                }
             }
         }
 
@@ -1737,15 +1745,18 @@ class LuaState private constructor(
                 KLuaCoreCoroutineExecution.DebugSuspended -> LuaCoroutineResult.RuntimeError(
                     "attempt to suspend while closing coroutine",
                 )
-                is KLuaCoreCoroutineExecution.RuntimeError -> LuaCoroutineResult.RuntimeError(
-                    result.message,
-                    sourceName = result.sourceName,
-                    line = result.line,
-                    cause = result.cause,
-                    luaFrames = toApiStackFrames(result.luaFrames),
-                    errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
-                    hasErrorObject = result.errorObject != null,
-                )
+                is KLuaCoreCoroutineExecution.RuntimeError -> {
+                    result.cause.luaExitException()?.let { exit -> throw exit }
+                    LuaCoroutineResult.RuntimeError(
+                        result.message,
+                        sourceName = result.sourceName,
+                        line = result.line,
+                        cause = result.cause,
+                        luaFrames = toApiStackFrames(result.luaFrames),
+                        errorObject = result.errorObject?.toStackValue()?.toPublicCallReturnValue(),
+                        hasErrorObject = result.errorObject != null,
+                    )
+                }
             }
         }
 
@@ -1917,6 +1928,7 @@ class LuaState private constructor(
         }
 
         private fun nativeComparisonError(comparison: KLuaCoreComparison.RuntimeError): LuaRuntimeException {
+            comparison.cause.luaExitException()?.let { exit -> throw exit }
             val message = if (comparison.message == "attempt to yield from outside a coroutine") {
                 "attempt to yield across a C-call boundary"
             } else {
@@ -1948,7 +1960,7 @@ class LuaState private constructor(
         }
 
         override fun yield(values: List<Any?>): Nothing {
-            throw LuaYieldException(values)
+            throw LuaYieldException.Factory.create(values)
         }
 
         override fun load(
@@ -2669,15 +2681,37 @@ private fun Class<*>.luaDebugName(): String {
     return simpleName.takeIf { it.isNotEmpty() } ?: name
 }
 
-class LuaYieldException internal constructor(
+class LuaYieldException private constructor(
     val values: List<Any?>,
+    @get:JvmSynthetic
     internal val continuation: ((List<Any?>) -> LuaReturn)? = null,
-) : RuntimeException(null, null, false, false)
-
-fun LuaYieldException.withContinuation(continuation: (List<Any?>) -> LuaReturn): LuaYieldException {
-    return LuaYieldException(values, continuation)
+) : RuntimeException(null, null, false, false) {
+    internal object Factory {
+        @JvmSynthetic
+        internal fun create(
+            values: List<Any?>,
+            continuation: ((List<Any?>) -> LuaReturn)? = null,
+        ): LuaYieldException = LuaYieldException(values, continuation)
+    }
 }
 
+@JvmSynthetic
+fun LuaYieldException.withContinuation(continuation: (List<Any?>) -> LuaReturn): LuaYieldException {
+    return LuaYieldException.Factory.create(values, continuation)
+}
+
+@JvmSynthetic
 fun LuaYieldException.continueWith(arguments: List<Any?>): LuaReturn {
     return continuation?.invoke(arguments) ?: LuaReturn.ofValues(arguments)
+}
+
+private fun Throwable?.luaExitException(): LuaExitException? {
+    var current = this
+    while (current != null) {
+        if (current is LuaExitException) {
+            return current
+        }
+        current = current.cause
+    }
+    return null
 }

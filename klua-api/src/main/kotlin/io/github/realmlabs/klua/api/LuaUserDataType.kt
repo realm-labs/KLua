@@ -1,9 +1,19 @@
 package io.github.realmlabs.klua.api
 
-class LuaUserDataType<T : Any> internal constructor(
+class LuaUserDataType<T : Any> private constructor(
     private val registerMethod: (String, LuaUserDataMethod<T>) -> Unit,
     private val registerProperty: (String, LuaUserDataGetter<T>?, LuaUserDataSetter<T>?) -> Unit,
 ) {
+    internal object Factory {
+        @JvmSynthetic
+        internal fun <T : Any> create(
+            registerMethod: (String, LuaUserDataMethod<T>) -> Unit,
+            registerProperty: (String, LuaUserDataGetter<T>?, LuaUserDataSetter<T>?) -> Unit,
+        ): LuaUserDataType<T> {
+            return LuaUserDataType(registerMethod, registerProperty)
+        }
+    }
+
     fun method(name: String, method: LuaUserDataMethod<T>) {
         require(name.isNotBlank()) { "method name must not be blank" }
         registerMethod(name, method)

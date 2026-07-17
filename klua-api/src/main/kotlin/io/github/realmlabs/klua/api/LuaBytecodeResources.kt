@@ -1,9 +1,11 @@
 package io.github.realmlabs.klua.api
 
+@JvmSynthetic
 internal fun defaultBytecodeResourceClassLoader(): ClassLoader {
     return Thread.currentThread().contextClassLoader ?: Lua::class.java.classLoader
 }
 
+@JvmSynthetic
 internal fun readBytecodeResource(resourceName: String, classLoader: ClassLoader): ByteArray {
     require(resourceName.isNotBlank()) { "resourceName must not be blank" }
     val normalizedName = resourceName.removePrefix("/")

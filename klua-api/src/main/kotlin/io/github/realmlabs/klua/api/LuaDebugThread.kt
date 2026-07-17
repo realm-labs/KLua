@@ -13,12 +13,18 @@ interface LuaDebugThread {
     fun getDebugHook(): LuaReturn
 }
 
-class LuaMainThread internal constructor() : LuaTypedValue, LuaDebugThread {
+class LuaMainThread private constructor() : LuaTypedValue, LuaDebugThread {
+    internal object Factory {
+        @JvmSynthetic
+        internal fun create(): LuaMainThread = LuaMainThread()
+    }
+
     override val luaTypeName: String = "thread"
 
     override val luaFrames: List<LuaStackFrame> = emptyList()
 
     @Volatile
+    @set:JvmSynthetic
     override var isCurrentDebugThread: Boolean = true
         internal set
 
