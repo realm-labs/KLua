@@ -166,6 +166,24 @@ Matched JDK 17 GC-profiler measurements against `5400eeaa` are:
 
 The method timing intervals overlap widely and the change remains below the 10% timing gate. Table allocation remains at the hybrid checkpoint's roughly 298 kB/op, and a matched timing screen covering entity, metamethod, Lua-call, method-call, table, and numeric controls found no supported regression. The complete Gradle suite and JMH build pass.
 
+## 2026-07-17 Stack-Range Call ABI Checkpoint
+
+The fifth interpreter package retains ordinary Lua-to-Lua calls and multiple results in tagged stack ranges, replaces opcode-to-native argument snapshots with read-only stack-backed tagged views, and uses fixed one-to-three-value entries for common metamethod, hook, error-handler, close, and finalizer calls. A callable table whose resolved `__call` target is a Lua closure now copies the prepended original callee and trailing argument range directly into the new frame. Core host adapters consume primitive tags and payloads without first constructing internal `LuaInteger` or `LuaFloat` wrappers; public API values remain unchanged.
+
+Stack-backed arguments are deliberately ephemeral. Native yields snapshot them at the escaping suspension boundary, so a later resume cannot mutate the values already reported by `LuaExecutionResult.Yielded`. Public results, debug views, continuation inputs, and uncommon generic boundaries retain stable lists. The implementation follows callable-value adjustment in `tryfuncTM`, C/Lua precall selection in `precallC` and `luaD_precall`, in-place result adjustment in `moveresults` and `luaD_poscall`, and vararg range handling in `luaT_adjustvarargs` and `luaT_getvarargs` from Lua 5.5's `ldo.c` and `ltm.c`.
+
+Matched JDK 17 GC-profiler measurements against the guarded-cache checkpoint are:
+
+| Benchmark | Metric | Before stack ranges | Stack-range ABI | Delta |
+| --- | --- | ---: | ---: | ---: |
+| Host calls, 10,000 | Allocation | 10,158,556.378 B/op | 9,678,551.067 B/op | -4.7% |
+| Coroutine, 10,000 yield/resume cycles | Allocation | 29,281,356.815 B/op | 28,241,302.508 B/op | -3.6% |
+| JVM-to-Lua calls, 10,000 | Allocation | 11,931,168.857 B/op | 11,948,851.095 B/op | +0.15% |
+| Lua calls, 10,000 | Allocation | 1,442,455.426 B/op | 1,442,333.835 B/op | effectively unchanged |
+| Vararg/multiple return, 10,000 calls | Allocation | 2,002,932.783 B/op | 2,002,898.405 B/op | effectively unchanged |
+
+The matched timing screen measured coroutine yield/resume at 21,092.329 ±3,264.159 µs/op versus the canonical 20,798.207 ±7,228.186 µs/op, host calls at 4,964.126 ±6,659.052 µs/op versus 4,010.901 ±1,672.248 µs/op, Lua calls at 1,913.517 ±219.532 µs/op, vararg/multiple return at 4,357.658 ±859.252 µs/op, and the numeric control at 711.130 ±48.647 µs/op. The relevant intervals overlap the canonical points and no regression is supported. Focused tests cover tagged list semantics, captured slots, stable escape snapshots, and prepended/fixed argument order; the existing suite covers callable-table chains, exact tag-loop limits, protected and tail calls, hooks, varargs, multiple results, closing, finalization, coroutine resume, and debug suspension. The complete Gradle suite and JMH build pass.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:

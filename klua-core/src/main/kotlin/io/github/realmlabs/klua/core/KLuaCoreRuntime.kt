@@ -22,9 +22,11 @@ import io.github.realmlabs.klua.core.value.LuaUserData
 import io.github.realmlabs.klua.core.value.LuaUserDataProperty
 import io.github.realmlabs.klua.core.value.LuaUserDataType
 import io.github.realmlabs.klua.core.value.LuaValue
+import io.github.realmlabs.klua.core.value.LuaValueTag
 import io.github.realmlabs.klua.core.value.luaRawBytes
 import io.github.realmlabs.klua.core.vm.LuaExecutionResult
 import io.github.realmlabs.klua.core.vm.LuaLifecycle
+import io.github.realmlabs.klua.core.vm.LuaTaggedArguments
 import io.github.realmlabs.klua.core.vm.LuaVm
 import io.github.realmlabs.klua.core.vm.LuaVmDebugObserver
 import io.github.realmlabs.klua.core.vm.LuaVmException
@@ -1644,12 +1646,15 @@ private fun callCoreFunction(
     globals: KLuaCoreGlobals,
     call: (List<KLuaCoreValue>) -> KLuaCoreCallResult,
 ): List<LuaValue> {
-    val tableCache = if (arguments.any { value -> value is LuaTable }) {
+    val tableCache = if (argumentsContainTable(arguments)) {
         IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
     } else {
         null
     }
-    val publicArguments = arguments.map { value -> toPublicValue(value, globals, tableCache) }
+    val publicArguments = ArrayList<KLuaCoreValue>(arguments.size)
+    for (index in arguments.indices) {
+        publicArguments += toPublicArgument(arguments, index, globals, tableCache)
+    }
     return try {
         when (val result = call(publicArguments)) {
             is KLuaCoreCallResult.Success -> {
@@ -1743,7 +1748,7 @@ private fun syncPublicTablesToLua(
 ) {
     val tableCache = seedLuaTableCache(luaArguments, publicArguments) ?: return
     for (index in luaArguments.indices) {
-        val luaTable = luaArguments[index] as? LuaTable ?: continue
+        val luaTable = argumentTableOrNull(luaArguments, index) ?: continue
         val publicTable = publicArguments.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
         syncPublicTableToLua(luaTable, publicTable, globals, tableCache)
     }
@@ -1773,7 +1778,7 @@ private fun seedLuaTableCache(
 ): MutableMap<KLuaCoreValue.TableValue, LuaTable>? {
     var tableCache: MutableMap<KLuaCoreValue.TableValue, LuaTable>? = null
     for (index in luaValues.indices) {
-        val luaTable = luaValues[index] as? LuaTable ?: continue
+        val luaTable = argumentTableOrNull(luaValues, index) ?: continue
         val publicTable = publicValues.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
         val resolvedTableCache = tableCache ?: IdentityHashMap<KLuaCoreValue.TableValue, LuaTable>().also {
             tableCache = it
@@ -1781,6 +1786,15 @@ private fun seedLuaTableCache(
         seedLuaTableCache(luaTable, publicTable, resolvedTableCache)
     }
     return tableCache
+}
+
+private fun argumentTableOrNull(arguments: List<LuaValue>, index: Int): LuaTable? {
+    val taggedArguments = arguments as? LuaTaggedArguments
+        ?: return arguments[index] as? LuaTable
+    if (taggedArguments.tagCode(index) != LuaValueTag.REFERENCE.ordinal) {
+        return null
+    }
+    return taggedArguments.referenceValue(index) as? LuaTable
 }
 
 private fun seedLuaTableCache(
@@ -1950,6 +1964,41 @@ private fun callPublicLuaFunction(
             errorObject = error.errorObject?.let { toPublicValue(it, globals) },
             errorObjectFinalized = error.errorObjectFinalized,
         )
+    }
+}
+
+private fun argumentsContainTable(arguments: List<LuaValue>): Boolean {
+    val taggedArguments = arguments as? LuaTaggedArguments
+    if (taggedArguments != null) {
+        for (index in taggedArguments.indices) {
+            if (
+                taggedArguments.tagCode(index) == LuaValueTag.REFERENCE.ordinal &&
+                taggedArguments.referenceValue(index) is LuaTable
+            ) {
+                return true
+            }
+        }
+        return false
+    }
+    return arguments.any { value -> value is LuaTable }
+}
+
+private fun toPublicArgument(
+    arguments: List<LuaValue>,
+    index: Int,
+    globals: KLuaCoreGlobals,
+    tableCache: MutableMap<LuaTable, KLuaCoreValue.TableValue>?,
+): KLuaCoreValue {
+    val taggedArguments = arguments as? LuaTaggedArguments
+        ?: return toPublicValue(arguments[index], globals, tableCache)
+    return when (taggedArguments.tagCode(index)) {
+        LuaValueTag.NIL.ordinal -> KLuaCoreValue.Nil
+        LuaValueTag.FALSE.ordinal -> KLuaCoreValue.BooleanValue(false)
+        LuaValueTag.TRUE.ordinal -> KLuaCoreValue.BooleanValue(true)
+        LuaValueTag.INTEGER.ordinal -> KLuaCoreValue.IntegerValue(taggedArguments.integerValue(index))
+        LuaValueTag.FLOAT.ordinal -> KLuaCoreValue.NumberValue(taggedArguments.floatValue(index))
+        LuaValueTag.REFERENCE.ordinal -> toPublicValue(taggedArguments.referenceValue(index), globals, tableCache)
+        else -> error("invalid argument tag")
     }
 }
 

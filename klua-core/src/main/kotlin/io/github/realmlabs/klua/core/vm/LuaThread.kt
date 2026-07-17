@@ -98,6 +98,52 @@ internal class LuaThread {
         return frame
     }
 
+    fun pushCallFromStackWithPrefix(
+        firstArgument: LuaValue,
+        sourceStack: LuaStack,
+        argumentStart: Int,
+        trailingArgumentCount: Int,
+        environment: LuaUpvalue,
+        function: LuaClosure,
+        callSiteInfo: CallSiteInfo? = null,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
+    ): CallFrame {
+        require(trailingArgumentCount >= 0) { "argument count must be non-negative" }
+        val prototype = function.prototype
+        val argumentCount = trailingArgumentCount + 1
+        val varargCount = if (prototype.isVararg) {
+            (argumentCount - prototype.numParams).coerceAtLeast(0)
+        } else {
+            0
+        }
+        val frame = createAndPushFrame(
+            function,
+            prototype.maxStackSize.coerceAtLeast(argumentCount),
+            varargCount,
+            environment,
+            callSiteInfo,
+            isTailCall,
+            extraArgumentCount,
+        )
+        for (index in 0 until prototype.numParams) {
+            when {
+                index == 0 -> frame.set(0, firstArgument)
+                index <= trailingArgumentCount -> frame.copyFrom(sourceStack, argumentStart + index - 1, index)
+                else -> frame.setNil(index)
+            }
+        }
+        for (index in 0 until varargCount) {
+            val argumentIndex = prototype.numParams + index
+            if (argumentIndex == 0) {
+                check(frame.setVararg(index, firstArgument))
+            } else {
+                check(frame.copyVarargFrom(index, sourceStack, argumentStart + argumentIndex - 1))
+            }
+        }
+        return frame
+    }
+
     fun pushFixedCall(
         function: LuaClosure,
         argumentCount: Int,

@@ -396,6 +396,39 @@ internal class LuaVm(
         return runFrameAndPopOnCompletion(frame, callerFrame, resultBase, expectedResults)
     }
 
+    private fun executeFrameIntoWithPrefix(
+        function: LuaClosure,
+        firstArgument: LuaValue,
+        sourceStack: LuaStack,
+        argumentStart: Int,
+        trailingArgumentCount: Int,
+        callSiteInfo: CallSiteInfo?,
+        callerFrame: CallFrame,
+        resultBase: Int,
+        expectedResults: Int,
+        isTailCall: Boolean = false,
+        extraArgumentCount: Int = 0,
+    ): LuaExecutionResult? {
+        val frame = thread.pushCallFromStackWithPrefix(
+            firstArgument,
+            sourceStack,
+            argumentStart,
+            trailingArgumentCount,
+            environment = function.environment ?: function.globals?.let(::LuaUpvalue) ?: rootEnvironment,
+            function = function,
+            callSiteInfo = callSiteInfo,
+            isTailCall = isTailCall,
+            extraArgumentCount = extraArgumentCount,
+        )
+        frame.protectedErrorHandler = if (activeProtectedCompletion != null) {
+            activeProtectedErrorHandler
+        } else {
+            callerFrame.protectedErrorHandler
+        }
+        frame.protectedCallCompletion = activeProtectedCompletion ?: callerFrame.protectedCallCompletion
+        return runFrameAndPopOnCompletion(frame, callerFrame, resultBase, expectedResults)
+    }
+
     private fun runFrameAndPopOnCompletion(frame: CallFrame): LuaExecutionResult {
         return checkNotNull(runFrameAndPopOnCompletion(frame, null, 0, 0)) {
             "top-level frame returned into a caller"
@@ -679,15 +712,36 @@ internal class LuaVm(
                 expectedResults,
                 isTailCall,
             )
-            is LuaTable -> callMetamethod(
+            is LuaTable -> if (callableTableTarget is LuaClosure) {
+                executeFrameIntoWithPrefix(
+                    callableTableTarget,
+                    callee,
+                    stack,
+                    base + 1,
+                    argumentCount,
+                    callSiteInfo,
+                    frame,
+                    base,
+                    expectedResults,
+                    isTailCall,
+                    extraArgumentCount = 1,
+                )
+            } else {
+                callMetamethod(
+                    callee,
+                    LuaStackArguments(stack, base + 1, argumentCount),
+                    checkNotNull(callableTableTarget),
+                    callSiteInfo,
+                    0,
+                    isTailCall,
+                )
+            }
+            else -> callValue(
                 callee,
-                stack.slice(base + 1, argumentCount),
-                checkNotNull(callableTableTarget),
+                LuaStackArguments(stack, base + 1, argumentCount),
                 callSiteInfo,
-                0,
-                isTailCall,
+                isTailCall = isTailCall,
             )
-            else -> callValue(callee, stack.slice(base + 1, argumentCount), callSiteInfo, isTailCall = isTailCall)
         }
         if (results == null) {
             if (completesLuaTailCall && debugHook != null) {
@@ -850,7 +904,7 @@ internal class LuaVm(
             runningErrorHandler = true
             try {
                 val result = thread.runNonYieldableCall {
-                    callValue(selectedErrorHandler, listOf(originalObject))
+                    callValue(selectedErrorHandler, LuaFixedArguments.one(originalObject))
                 }
                 when (result) {
                     is LuaExecutionResult.Returned -> result.values.firstOrNull() ?: LuaNil
@@ -979,9 +1033,9 @@ internal class LuaVm(
                 val close = rawMetamethod(value, CLOSE_KEY)
                 val error = activeError
                 val arguments = if (error == null) {
-                    listOf(value)
+                    LuaFixedArguments.one(value)
                 } else {
-                    listOf(value, error.errorObject ?: LuaString(error.message ?: "runtime error"))
+                    LuaFixedArguments.two(value, error.errorObject ?: LuaString(error.message ?: "runtime error"))
                 }
                 val result = try {
                     if (allowYield) {
@@ -1106,7 +1160,7 @@ internal class LuaVm(
         if (callMetamethodDepth >= MAX_CALL_METAMETHOD_DEPTH) {
             throw LuaVmException("'__call' chain too long")
         }
-        val metamethodArguments = listOf(callee) + arguments
+        val metamethodArguments = LuaPrependedArguments(callee, arguments)
         return when (call) {
             is LuaClosure -> executeFrame(
                 call,
@@ -1161,7 +1215,7 @@ internal class LuaVm(
         callSiteInfo: CallSiteInfo?,
     ): LuaExecutionResult.Yielded {
         return LuaExecutionResult.Yielded(
-            yield.values,
+            (yield.values as? LuaEphemeralArguments)?.snapshot() ?: yield.values,
             LuaYieldContinuation { arguments ->
                 yield.continuation?.let { continuation ->
                     continueNativeYield(function, continuation, arguments, callSiteInfo)
@@ -1283,7 +1337,7 @@ internal class LuaVm(
         return try {
             callProtectedContextValue(
                 finalizer,
-                listOf(target),
+                LuaFixedArguments.one(target),
                 selectedErrorHandler = null,
                 isYieldable = false,
                 callSiteInfo = GC_CALL_SITE_INFO,
@@ -1587,7 +1641,7 @@ internal class LuaVm(
             nativeDebugHookFrame = nativeFrame
         }
         try {
-            when (callValue(function, listOf(event, line), CallSiteInfo(0, "?", "hook"))) {
+            when (callValue(function, LuaFixedArguments.two(event, line), CallSiteInfo(0, "?", "hook"))) {
                 is LuaExecutionResult.Returned -> Unit
                 is LuaExecutionResult.Yielded -> throw LuaVmException("attempt to yield across a C-call boundary")
                 LuaExecutionResult.DebugSuspended -> throw LuaVmException("attempt to suspend from debug hook")
@@ -2085,7 +2139,7 @@ internal class LuaVm(
                             return if (key is LuaString) {
                                 val property = current.type?.property(key.value)
                                 if (property?.getter != null) {
-                                    callNative(property.getter, listOf(current)).firstOrNull() ?: LuaNil
+                                    callNative(property.getter, LuaFixedArguments.one(current)).firstOrNull() ?: LuaNil
                                 } else {
                                     current.type?.method(key.value) ?: LuaNil
                                 }
@@ -2145,7 +2199,7 @@ internal class LuaVm(
     ): LuaValue {
         val canSuspend = allowSuspension && thread.currentFrame != null && !thread.inNativeCall
         return metamethodValues(
-            callNativeResult(function, listOf(receiver, key)),
+            callNativeResult(function, LuaFixedArguments.two(receiver, key)),
             canSuspend,
         ).firstOrNull() ?: LuaNil
     }
@@ -2222,7 +2276,7 @@ internal class LuaVm(
                             }
                             val setter = current.type?.property(key.value)?.setter
                                 ?: throw LuaVmException("attempt to set userdata field '${key.value}'")
-                            callNative(setter, listOf(current, value))
+                            callNative(setter, LuaFixedArguments.two(current, value))
                             return
                         }
                         metatable.cachedRawGet(NEW_INDEX_KEY).also {
@@ -2298,7 +2352,7 @@ internal class LuaVm(
     ) {
         val canSuspend = allowSuspension && thread.currentFrame != null && !thread.inNativeCall
         metamethodValues(
-            callNativeResult(function, listOf(receiver, key, value)),
+            callNativeResult(function, LuaFixedArguments.three(receiver, key, value)),
             canSuspend,
         )
     }
@@ -2534,11 +2588,15 @@ internal class LuaVm(
                 allowSuspension,
             ).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> metamethodValues(
-                callNativeResult(metamethod, listOf(firstArgument, secondArgument)),
+                callNativeResult(metamethod, LuaFixedArguments.two(firstArgument, secondArgument)),
                 canSuspend,
             ).firstOrNull() ?: LuaNil
             else -> metamethodValues(
-                callValue(metamethod, listOf(firstArgument, secondArgument), metamethodCallSiteInfo(key)),
+                callValue(
+                    metamethod,
+                    LuaFixedArguments.two(firstArgument, secondArgument),
+                    metamethodCallSiteInfo(key),
+                ),
                 canSuspend,
             ).firstOrNull() ?: LuaNil
         }
@@ -2730,11 +2788,15 @@ internal class LuaVm(
                 allowSuspension = true,
             ).firstOrNull() ?: LuaNil
             is LuaNativeFunction -> metamethodValues(
-                callNativeResult(metamethod, listOf(firstArgument, secondArgument)),
+                callNativeResult(metamethod, LuaFixedArguments.two(firstArgument, secondArgument)),
                 canSuspend,
             ).firstOrNull() ?: LuaNil
             else -> metamethodValues(
-                callValue(metamethod, listOf(firstArgument, secondArgument), metamethodCallSiteInfo(CONCAT_KEY)),
+                callValue(
+                    metamethod,
+                    LuaFixedArguments.two(firstArgument, secondArgument),
+                    metamethodCallSiteInfo(CONCAT_KEY),
+                ),
                 canSuspend,
             ).firstOrNull() ?: LuaNil
         }

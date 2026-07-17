@@ -177,7 +177,7 @@ This is a milestone-level snapshot of committed capability, not a list of comple
 | --- | --- | --- |
 | M0-M12 | Done | Multi-module JVM 17 foundation, parser/compiler/VM pipeline, tables, closures, metatables, embedding APIs, userdata, and initial standard libraries are connected and tested. |
 | M13-M18 | Done | Coroutine, structured error/debug metadata, hooks/debugger, DAP library integration, KLua bytecode packaging, and initial sandbox controls meet their documented foundation success criteria. Residual hardening remains M20 or later release work. |
-| M19 | Continuation in progress | The canonical JDK 17 pre-refactor baseline and controls are recorded; byte-oriented strings, tagged VM slots, hybrid tables with shape/version tracking, and guarded inline caches have landed with matched evidence. Continue through the stack-range call ABI and the remaining ordered interpreter packages before M20 closes. Measurements live in `docs/KLua_Benchmark_Baseline.md`. |
+| M19 | Continuation in progress | The canonical JDK 17 pre-refactor baseline and controls are recorded; byte-oriented strings, tagged VM slots, hybrid tables with shape/version tracking, guarded inline caches, and the stack-range call ABI have landed with matched evidence. Continue through dispatch modes and performance/conformance closure before M20 closes. Measurements live in `docs/KLua_Benchmark_Baseline.md`. |
 | M20 | In progress | Broad source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance exists. Complete the active semantic package, run the pre-v1 performance track, then revalidate and classify residual gaps before closure. |
 | M21 | Not started | Release readiness begins only after the M20 closure matrix has no unowned v1 blockers. It includes API stabilization, documentation, artifacts, and v1 performance qualification. |
 | M22 | Deferred | JVM bytecode generation remains optional and must not begin before v1 foundations stabilize. |
@@ -193,7 +193,7 @@ Current capability includes:
 
 Material remaining gaps include:
 
-- List-shaped external and uncommon call boundaries plus per-instruction observer, hook, and budget dispatch still limit interpreter throughput and allocation efficiency.
+- Per-instruction observer, hook, and budget dispatch still limits interpreter throughput; public, debug, continuation, and uncommon generic call boundaries intentionally retain stable materialized values.
 - A final classification of JVM/host adaptations in IO, OS, math, process, locale, native-loading, stack-capacity, and collector behavior as accepted v1 limitations or actionable defects.
 - Broader release-level packaging, standalone DAP hosting, sandbox policy, documentation, and API-stability work after M20 blockers are known.
 - Publication of a concise conformance matrix that maps each residual to tests, reference functions, disposition, and v1 impact.
@@ -257,8 +257,8 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M19 continuation: stack-range call ABI | Remove avoidable `List<LuaValue>` argument and result snapshots from Lua-to-Lua and common host paths through stack ranges and fixed-arity internal entries. Preserve yield/resume, protected and tail calls, multiple returns, varargs, `<close>`, hook/debug suspension, and lifecycle roots; focused call-boundary tests, matched Lua/host/vararg profiles, performance gates, and `./gradlew test` pass. | One to three coherent ABI, boundary-adapter, and regression-test commits. |
-| 2 | Next | M19 continuation: fast, debug, and budget dispatch modes | Hoist or split observer, hook, line, count, breakpoint, and instruction-budget policy so disabled features meet their overhead gates without duplicating opcode semantics. Preserve exact enabled event ordering, mutation, suspension PCs, and exhaustion boundaries; focused dispatch-policy tests, matched disabled/enabled controls, performance gates, and `./gradlew test` pass. | One to three coherent dispatch-policy, observer-boundary, and regression-test commits. |
+| 1 | In progress | M19 continuation: fast, debug, and budget dispatch modes | Hoist or split observer, hook, line, count, breakpoint, and instruction-budget policy so disabled features meet their overhead gates without duplicating opcode semantics. Preserve exact enabled event ordering, mutation, suspension PCs, and exhaustion boundaries; focused dispatch-policy tests, matched disabled/enabled controls, performance gates, and `./gradlew test` pass. | One to three coherent dispatch-policy, observer-boundary, and regression-test commits. |
+| 2 | Next | M19/M20 performance and conformance closure | Rerun the canonical JMH suite and allocation profiles, compare every workload with the pre-refactor baseline, run `./gradlew test`, and audit the M20 conformance matrix against the optimized representation. Fix, explicitly accept, or assign every material regression or semantic deviation before M21. | One to three coherent benchmark/control, conformance-fix, and closure-documentation commits. |
 
 When package 1 closes, promote package 2 and select at most one new successor from `Pre-v1 High-Performance Interpreter Track`. Do not keep closed campaign narratives or commit hashes in this table.
 
