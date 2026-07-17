@@ -63,6 +63,7 @@ internal class LuaVm(
     private var activeProtectedErrorHandler: LuaValue? = null
     private var activeProtectedCompletion: LuaProtectedCallCompletion? = null
     private var remainingInstructions = instructionLimit
+    private var instructionDispatchMask = if (instructionLimit > 0) INSTRUCTION_BUDGET_DISPATCH else 0
 
     init {
         require(instructionLimit >= 0) { "instructionLimit must be non-negative" }
@@ -98,6 +99,7 @@ internal class LuaVm(
 
     internal fun setDebugObserver(observer: LuaVmDebugObserver?) {
         debugObserver = observer
+        setInstructionDispatch(OBSERVER_DISPATCH, observer != null)
     }
 
     internal fun setLocal(level: Int, index: Int, value: LuaValue): String? {
@@ -106,7 +108,7 @@ internal class LuaVm(
 
     internal fun setDebugHook(function: LuaValue, mask: String, count: Int): Boolean {
         if (function == LuaNil) {
-            debugHook = null
+            installDebugHook(null)
             return true
         }
         if (function !is LuaClosure && function !is LuaNativeFunction) {
@@ -114,13 +116,15 @@ internal class LuaVm(
         }
         val canonicalMask = normalizedDebugHookMask(mask)
         if (canonicalMask.isEmpty() && count <= 0) {
-            debugHook = null
+            installDebugHook(null)
             return true
         }
-        debugHook = DebugHookState(
-            function,
-            canonicalMask,
-            count,
+        installDebugHook(
+            DebugHookState(
+                function,
+                canonicalMask,
+                count,
+            ),
         )
         return true
     }
@@ -448,15 +452,32 @@ internal class LuaVm(
             dispatchDebugCall(frame)
             while (frame.pc < frame.prototype.code.size) {
                 val pc = frame.pc
-                if (debugObserver != null && dispatchDebuggerLine(frame, pc)) {
-                    suspended = true
-                    debugSuspended = true
-                    return LuaExecutionResult.DebugSuspended
+                val dispatchMask = instructionDispatchMask
+                val instruction: Int
+                if (dispatchMask == FAST_INSTRUCTION_DISPATCH) {
+                    instruction = frame.prototype.code[frame.pc++]
+                } else {
+                    if (
+                        dispatchMask and OBSERVER_DISPATCH != 0 &&
+                        dispatchDebuggerLine(frame, pc)
+                    ) {
+                        suspended = true
+                        debugSuspended = true
+                        return LuaExecutionResult.DebugSuspended
+                    }
+                    instruction = frame.prototype.code[frame.pc++]
+                    try {
+                        if (dispatchMask and INSTRUCTION_BUDGET_DISPATCH != 0) {
+                            consumeInstructionBudget()
+                        }
+                        if (dispatchMask and DEBUG_HOOK_DISPATCH != 0) {
+                            dispatchDebugHooks(frame, pc)
+                        }
+                    } catch (error: LuaVmException) {
+                        throw error.withFrame(frame, frame.lineForPc(pc))
+                    }
                 }
-                val instruction = frame.prototype.code[frame.pc++]
                 try {
-                    consumeInstructionBudget()
-                    dispatchDebugHooks(frame, pc)
                     when (Instruction.opcode(instruction)) {
                         Opcode.LOAD_NIL -> stack.setNil(register(frame, Instruction.a(instruction)))
                         Opcode.LOAD_BOOL -> {
@@ -649,13 +670,26 @@ internal class LuaVm(
     }
 
     private fun consumeInstructionBudget() {
-        if (instructionLimit <= 0) {
-            return
-        }
         if (remainingInstructions <= 0) {
             throw LuaVmException("instruction limit exceeded")
         }
         remainingInstructions--
+    }
+
+    private fun installDebugHook(hook: DebugHookState?) {
+        debugHook = hook
+        setInstructionDispatch(
+            DEBUG_HOOK_DISPATCH,
+            hook != null && (hook.hasLineHook || hook.count > 0),
+        )
+    }
+
+    private fun setInstructionDispatch(flag: Int, enabled: Boolean) {
+        instructionDispatchMask = if (enabled) {
+            instructionDispatchMask or flag
+        } else {
+            instructionDispatchMask and flag.inv()
+        }
     }
 
     private fun register(@Suppress("UNUSED_PARAMETER") frame: CallFrame, offset: Int): Int = offset
@@ -3519,6 +3553,10 @@ private val CLOSE_CALL_SITE_INFO = metamethodCallSiteInfo("close")
 private val GC_CALL_SITE_INFO = CallSiteInfo(0, "__gc", "metamethod")
 private const val MAX_TAG_METHOD_CHAIN_DEPTH = 2000
 private const val MAX_CALL_METAMETHOD_DEPTH = 15
+private const val FAST_INSTRUCTION_DISPATCH = 0
+private const val OBSERVER_DISPATCH = 1
+private const val INSTRUCTION_BUDGET_DISPATCH = 1 shl 1
+private const val DEBUG_HOOK_DISPATCH = 1 shl 2
 private const val TRUTHY_PENDING_RESULT_COUNT = -2
 private const val VARARG_LOCAL_NAME = "(vararg)"
 private const val TEMPORARY_LOCAL_NAME = "(temporary)"

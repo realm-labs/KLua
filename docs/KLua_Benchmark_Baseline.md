@@ -184,6 +184,25 @@ Matched JDK 17 GC-profiler measurements against the guarded-cache checkpoint are
 
 The matched timing screen measured coroutine yield/resume at 21,092.329 ±3,264.159 µs/op versus the canonical 20,798.207 ±7,228.186 µs/op, host calls at 4,964.126 ±6,659.052 µs/op versus 4,010.901 ±1,672.248 µs/op, Lua calls at 1,913.517 ±219.532 µs/op, vararg/multiple return at 4,357.658 ±859.252 µs/op, and the numeric control at 711.130 ±48.647 µs/op. The relevant intervals overlap the canonical points and no regression is supported. Focused tests cover tagged list semantics, captured slots, stable escape snapshots, and prepended/fixed argument order; the existing suite covers callable-table chains, exact tag-loop limits, protected and tail calls, hooks, varargs, multiple results, closing, finalization, coroutine resume, and debug suspension. The complete Gradle suite and JMH build pass.
 
+## 2026-07-17 Fast and Instrumented Dispatch Checkpoint
+
+The sixth interpreter package replaces three unconditional per-instruction policy probes with a VM-local dispatch mask. A zero mask fetches and executes through one fast-path branch. Debug observers, positive instruction budgets, and line/count hooks set independent bits and enter the instrumented path; call/return-only hooks stay off the per-opcode path and continue through their frame-boundary events. Installing, replacing, clearing, or suspending an observer or hook updates the mask without duplicating opcode semantics.
+
+The instrumented path preserves KLua's established order: debugger observation occurs before advancing the PC or debiting the budget, then the instruction is fetched, the budget is debited, and count/line hooks run before opcode semantics. Budget and hook failures retain the executing source line. This follows Lua 5.5's local `trap` fast path, `vmfetch`, `updatetrap`, and protected-state refreshes in `lvm.c`, plus `lua_sethook`, `settraps`, `luaG_tracecall`, and `luaG_traceexec` in `ldebug.c`. Focused coverage proves that a debugger suspension does not consume budget, clearing the observer resumes the same PC, and the next instruction fails at the exact budget boundary. The existing debug and standard-library suites cover hook replacement during a hook, backward-jump line events, count reset, coroutine hooks, live-local mutation, call/return/tail events, breakpoints, stepping, and suspension PCs.
+
+Matched JDK 17 timing measurements against the stack-range checkpoint are:
+
+| Benchmark | Before dispatch mask | Dispatch mask | Delta |
+| --- | ---: | ---: | ---: |
+| Debug disabled | 514.995 ±77.394 µs/op | 452.612 ±54.914 µs/op | -12.1% |
+| Instruction budget disabled | 504.528 ±51.630 µs/op | 453.390 ±41.559 µs/op | -10.1% |
+| Breakpoint observer, no hit | 1,043.767 ±301.776 µs/op | 965.318 ±208.290 µs/op | -7.5% |
+| Count hook, interval 100 | 789.636 ±284.527 µs/op | 825.231 ±269.928 µs/op | +4.5% |
+| Line hook | 5,315.839 ±784.869 µs/op | 6,331.035 ±1,897.922 µs/op | +19.1% |
+| VM numeric loop | 762.218 ±307.830 µs/op | 716.564 ±207.665 µs/op | -6.0% |
+
+Count and line-hook intervals overlap their parent points, so enabled instrumentation has no supported regression. A three-fork gate run measured debug enabled without an observer at 454.771 ±10.035 µs/op versus debug disabled at 468.066 ±27.963 µs/op, a -2.8% difference. In the matched screen the unlimited production/budget-disabled path was 453.390 µs/op versus the equivalent unrestricted debug-disabled path at 452.612 µs/op, a +0.17% difference; enabled accounting was also measured and remains a published cost rather than a universal limit. One unstable numeric point was rejected after an isolated 2.8 ms iteration, and the immediate paired numeric/debug-control rerun produced the value above. Both disabled-policy gates pass, and the complete Gradle suite and JMH build pass.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:

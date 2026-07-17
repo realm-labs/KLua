@@ -113,6 +113,34 @@ class LuaVmTest {
     }
 
     @Test
+    fun `debug suspension precedes budget debit and clearing observer resumes the same pc`() {
+        val prototype = Prototype(
+            sourceName = "dispatch-policy.lua",
+            code = intArrayOf(
+                Instruction.abc(Opcode.LOAD_INT, 0, 42),
+                Instruction.abc(Opcode.RETURN, 0, 1),
+            ),
+            constants = emptyArray(),
+            lineInfo = intArrayOf(10, 20),
+            maxStackSize = 1,
+        )
+        val vm = LuaVm(instructionLimit = 1)
+        var observerCalls = 0
+        vm.setDebugObserver { _, line, _ ->
+            observerCalls += 1
+            line == 10
+        }
+
+        assertEquals(LuaExecutionResult.DebugSuspended, vm.executeYieldable(prototype))
+        vm.setDebugObserver(null)
+        val error = assertFailsWith<LuaVmException> { vm.resumeYieldable() }
+
+        assertEquals(1, observerCalls)
+        assertEquals("instruction limit exceeded", error.message)
+        assertEquals(20, error.line)
+    }
+
+    @Test
     fun `executes integer arithmetic expressions`() {
         val result = LuaVm().execute(Compiler.compile("return 1 + 2 * 3 - 4 % 3, 7 // 2"))
 
