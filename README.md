@@ -52,7 +52,7 @@ Once `gradlew` has executable permissions in the local checkout, this should als
 
 The local artifact coordinates, supported module surfaces, ABI policy, and non-publishing verification commands are defined in [the release contract](docs/KLua_Release_Contract.md).
 
-Build and smoke-test every local release artifact and executable distribution without publishing:
+Build and smoke-test every local release artifact and executable distribution without publishing. This also compiles and runs an isolated Java/Kotlin consumer against the staged Maven repository:
 
 ```sh
 ./gradlew releaseCandidateCheck

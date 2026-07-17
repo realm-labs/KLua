@@ -179,7 +179,7 @@ This is a milestone-level snapshot of committed capability, not a list of comple
 | M13-M18 | Done | Coroutine, structured error/debug metadata, hooks/debugger, DAP library integration, KLua bytecode packaging, and initial sandbox controls meet their documented foundation success criteria. Residual hardening remains M20 or later release work. |
 | M19 | Done | The canonical JDK 17 baseline, byte-oriented strings, tagged VM slots, hybrid versioned tables, guarded inline caches, stack-range calls, fast/instrumented dispatch, and final matched performance screen have landed. Measurements and the one explicitly accepted bounded allocation tradeoff live in `docs/KLua_Benchmark_Baseline.md`. |
 | M20 | Done | Source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance passed the optimized-representation audit. `docs/KLua_Conformance_Gaps.md` classifies every remaining JVM/host difference and records no unowned v1 blocker. |
-| M21 | In progress | The Java/Kotlin ABI, Maven artifacts, executable distributions, stdio DAP host, task-oriented guides, compiled examples, release notes/checklist, canonical JDK 17 baseline, machine-readable performance audit, and deterministic checksum bundle are locally locked and verified. Isolated consumer resolution remains the active non-publishing frontier; versioning, tagging, signing, pushing, and publication still require explicit authorization. |
+| M21 | In progress | The Java/Kotlin ABI, Maven artifacts, executable distributions, stdio DAP host, task-oriented guides, compiled examples, release notes/checklist, canonical JDK 17 baseline, machine-readable performance audit, deterministic checksum bundle, and isolated staged-artifact consumer are locally locked and verified. A secondary supported-runtime smoke remains the active non-publishing frontier; versioning, tagging, signing, pushing, and publication still require explicit authorization. |
 | M22 | Deferred | JVM bytecode generation remains optional and must not begin before v1 foundations stabilize. |
 
 Current capability includes:
@@ -197,10 +197,11 @@ Current capability includes:
 - Draft v1 release notes plus a clean-checkout checklist that keeps every external release action explicitly gated.
 - A versioned 22-workload timing/allocation baseline and offline checker for complete-set, combined-uncertainty, and allocation-gate auditing.
 - A reproducible local Maven-layout/distribution handoff with exact 23-file membership and a verified sorted SHA-256 manifest.
+- An isolated external-style Gradle consumer that resolves only staged KLua components, verifies published compile/runtime scopes, and executes Java/Kotlin embedding results.
 
 Material remaining gaps include:
 
-- The staged Maven layout is structurally verified but has not yet been resolved, compiled against, and executed by an isolated external consumer build.
+- Release launcher/process smokes are canonical on JDK 17; a secondary JDK 21 runtime pass has not yet been automated and recorded.
 
 The detailed, source-backed residual list belongs in `docs/KLua_Conformance_Gaps.md` and must not be duplicated here.
 
@@ -260,7 +261,7 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M21 isolated staged-artifact consumer smoke | Add a standalone consumer fixture that resolves only the staged KLua Maven layout plus ordinary external dependencies, compile and execute representative Java/Kotlin embedding against the published scopes, wire it into local release verification without publishing, and reject accidental project-dependency or repository fallback. | One to three coherent consumer-fixture, isolation-verification, and release-guide commits. |
+| 1 | In progress | M21 JDK 17/21 launcher runtime matrix | Use Gradle toolchains to execute the installed compile, debug, and DAP process smokes on canonical JDK 17 and secondary JDK 21, fail if either supported runtime cannot launch the Java 17 artifacts, record the matrix without creating a JDK 21 performance baseline, and keep broader publication actions out of scope. | One to three coherent toolchain-smoke, matrix-verification, and release-guide commits. |
 
 When package 1 closes, audit the remaining M21 release checklist and add one bounded successor only if an unowned release-readiness gap remains. Do not keep closed campaign narratives or commit hashes in this table.
 

@@ -42,6 +42,8 @@ It runs every test task, all supported-module ABI checks, Maven/distribution ver
 
 The bundle carries a sorted `SHA256SUMS` file over all 23 publishable files. `verifyReleaseBundle`, which is part of `releaseCandidateCheck`, rejects missing or extra files, malformed manifest entries, and hash mismatches. Archive tasks disable file-timestamp preservation and use reproducible file ordering. This makes repeated local assembly stable for identical inputs; the checksum manifest is evidence for a candidate, not a signature or publication action.
 
+`verifyStagedConsumer` launches the standalone `release-smoke` Gradle build against that Maven directory. Repository content filtering routes the entire KLua group exclusively to the staged repository, so a remote repository cannot hide a missing local component. The fixture asserts that only API/Kotlin/stdlib artifacts appear on its compile classpath, that core is added at runtime through the published POM scopes, and that independent Java and Kotlin embedding programs both execute to 42. This verifies consumer resolution without publishing or using project dependencies.
+
 ## API compatibility
 
 The checked-in `.api` files under each supported public module are the v1 ABI review baseline. `checkKotlinAbi`, and therefore each module's normal `check` lifecycle, fails when compiled public signatures diverge. `updateKotlinAbi` may be run only after an intentional API review; updating a dump is not by itself evidence that a change is compatible.

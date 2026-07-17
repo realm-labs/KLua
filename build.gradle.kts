@@ -7,6 +7,7 @@ import org.gradle.api.publish.PublishingExtension
 import org.gradle.api.publish.maven.MavenPublication
 import org.gradle.api.tasks.Sync
 import org.gradle.api.tasks.bundling.AbstractArchiveTask
+import org.gradle.api.tasks.Exec
 import org.gradle.jvm.tasks.Jar
 
 plugins {
@@ -323,6 +324,29 @@ val verifyReleaseBundle = tasks.register("verifyReleaseBundle") {
     }
 }
 
+val verifyStagedConsumer = tasks.register<Exec>("verifyStagedConsumer") {
+    group = "verification"
+    description = "Resolves, compiles, and runs an isolated consumer against the staged Maven layout."
+    dependsOn(verifyReleaseBundle)
+    val consumerDirectory = layout.projectDirectory.dir("release-smoke")
+    val stagedRepository = releaseBundleRoot.map { directory -> directory.dir("maven") }
+    workingDir(consumerDirectory)
+
+    doFirst {
+        val arguments = listOf(
+            "verifyConsumer",
+            "--no-daemon",
+            "-PkluaRepository=${stagedRepository.get().asFile.absolutePath}",
+            "-PkluaVersion=$kluaVersion",
+        )
+        if (System.getProperty("os.name").startsWith("Windows", ignoreCase = true)) {
+            commandLine(listOf("cmd.exe", "/d", "/c", rootProject.file("gradlew.bat").absolutePath) + arguments)
+        } else {
+            commandLine(listOf(rootProject.file("gradlew").absolutePath) + arguments)
+        }
+    }
+}
+
 tasks.register("releaseCandidateCheck") {
     group = "verification"
     description = "Runs the complete local, non-publishing KLua release-candidate verification matrix."
@@ -333,6 +357,7 @@ tasks.register("releaseCandidateCheck") {
             .map { moduleName -> ":$moduleName:checkKotlinAbi" },
         verifyReleaseArtifacts,
         verifyReleaseBundle,
+        verifyStagedConsumer,
         ":klua-jmh:jmhJar",
     )
 }
