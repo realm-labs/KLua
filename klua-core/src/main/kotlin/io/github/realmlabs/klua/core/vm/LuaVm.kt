@@ -1770,18 +1770,31 @@ internal class LuaVm(
             if (fastRawTableGet(stack, receiver, keyIndex, destination)) {
                 return
             }
-            val key = stack.get(keyIndex)
-            if (key is LuaInteger || key is LuaString) {
+            val cacheableKey = when (stack.tagCode(keyIndex)) {
+                LuaValueTag.INTEGER.ordinal -> true
+                LuaValueTag.REFERENCE.ordinal -> stack.get(keyIndex) is LuaString
+                else -> false
+            }
+            if (cacheableKey) {
                 val cachedTarget = inlineCaches.read(frame.prototype, pc)?.fallbackTarget(receiver)
                 if (cachedTarget != null) {
+                    if (applyStackIndexGet(stack, frame, destination, receiver, keyIndex, cachedTarget)) {
+                        return
+                    }
+                    val key = stack.get(keyIndex)
                     applyCachedIndexGet(stack, destination, receiver, key, cachedTarget)
                     return
                 }
                 val target = receiver.metatableRawGet(INDEX_KEY)
                 inlineCaches.put(frame.prototype, pc, LuaTableReadCache.fallback(receiver, target))
+                if (applyStackIndexGet(stack, frame, destination, receiver, keyIndex, target)) {
+                    return
+                }
+                val key = stack.get(keyIndex)
                 applyCachedIndexGet(stack, destination, receiver, key, target)
                 return
             }
+            val key = stack.get(keyIndex)
             stack.set(destination, indexGet(receiver, key, allowSuspension = true))
             return
         }
@@ -2030,6 +2043,38 @@ internal class LuaVm(
             else -> indexGet(target, key, allowSuspension = true, initialChainDepth = 1)
         }
         stack.set(destination, value)
+    }
+
+    private fun applyStackIndexGet(
+        stack: LuaStack,
+        frame: CallFrame,
+        destination: Int,
+        receiver: LuaTable,
+        keyIndex: Int,
+        target: LuaValue,
+    ): Boolean {
+        if (target == LuaNil) {
+            stack.setNil(destination)
+            return true
+        }
+        if (target !is LuaClosure) {
+            return false
+        }
+        val result = executeFrameIntoWithPrefix(
+            target,
+            receiver,
+            stack,
+            keyIndex,
+            trailingArgumentCount = 1,
+            callSiteInfo = INDEX_CALL_SITE_INFO,
+            callerFrame = frame,
+            resultBase = destination,
+            expectedResults = 1,
+        )
+        if (result != null) {
+            throw LuaMetamethodSuspension(result)
+        }
+        return true
     }
 
     private fun applyCachedFieldSet(

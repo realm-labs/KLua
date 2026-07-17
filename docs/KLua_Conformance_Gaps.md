@@ -4,6 +4,18 @@ This note tracks known Lua 5.5 gaps that are too broad to treat as incidental te
 
 This list is evidence and scope tracking, not a FIFO task queue or a commit map. Select related gaps into a named campaign in `docs/KLua_Codex_Goal.md`, with an owning subsystem or Lua source helper chain, affected entry points, a case matrix, verification, and an exit condition. Group fixes and tests for the same semantic rule; do not create a separate work package or commit for every probe.
 
+## M20 Closure Matrix
+
+The optimized runtime passed the complete Gradle suite and the canonical JDK 17 performance/allocation screen after the representation changes. The matrix below classifies the remaining differences; no row contains an unowned v1 conformance blocker.
+
+| Area | Primary Lua 5.5 owners | KLua verification | Disposition and v1 impact |
+| --- | --- | --- | --- |
+| Byte strings, lexer/constants, patterns, UTF-8, dump/load | `lstring.c`, `llex.c`, `lobject.c`, `lstrlib.c`, `lutf8lib.c` | Raw-byte API, malformed/embedded-NUL strings, keys, patterns, UTF-8, compiler constants, and KLua bytecode round trips | Closed for KLua's byte domain. JVM indexed-array limits and KLua rather than PUC binary chunks are accepted v1 adaptations. |
+| Tagged slots, calls, varargs, upvalues, coroutines, close/error transfer | `lobject.h`, `lvm.c`, `ldo.c`, `ltm.c`, `lfunc.c` | VM/operator/call matrices, protected and tail calls, multiple results, coroutine yield/resume/close, debug mutation, and lifecycle roots | Closed. Public/debug/continuation boundaries intentionally materialize stable values; internal tags are not API or bytecode surface. |
+| Hybrid tables, traversal, weak modes, ephemerons, finalization, guarded caches | `lobject.h`, `ltable.c`, `lvm.c`, `ltm.c`, `lgc.c` | Dense/sparse keys, numeric canonicalization, raw iteration, length, metatable invalidation, weak tables, ephemerons, `__gc`, resurrection, and cache replacement/loop limits | Closed. KLua's documented deterministic traversal policy and logical collector scheduling are accepted JVM adaptations, not v1 blockers. |
+| Debug observers, hooks, breakpoints, budgets, suspension PCs | `lvm.c`, `ldebug.c`, `ldo.c` | Disabled/enabled JMH controls plus hook ordering/replacement, backward-line/count events, live locals, breakpoints, stepping, and exact exhaustion/suspension boundaries | Closed. KLua exposes no raw external C hook pointer; that non-constructible branch remains an accepted pure-JVM limitation. |
+| Host libraries and platform behavior | `loadlib.c`, `liolib.c`, `loslib.c`, `lmathlib.c`, `lauxlib.c` | Package/IO/OS/math/base source-backed matrices recorded below | Native module loading, native errno/wait-signal metadata, C locale/ABI/libm variation, C-stack capacity, and host-dependent binary chunks are accepted v1 limitations. Their JVM substitutions are documented below and remain future portability-hardening work. |
+
 ## Base Library
 
 - `next`, `pairs`, and `ipairs` are source-backed across table and primitive states, canonical integer/float control keys, raw traversal, iterator light-function identity, exact default tuples, the fourth closing value for `pairs`, `__pairs` lookup/call/result adjustment and yielding, `__index` traversal, wrapped integer controls, termination, ignored extras, and diagnostics. `getmetatable`/`setmetatable` and `rawequal`/`rawget`/`rawset`/`rawlen` cover table and userdata validation, raw identity and access, canonical numeric keys, nil/NaN boundaries, false-valued metatable protection, source-ordered checks, ignored extras, exact arity, and errors.

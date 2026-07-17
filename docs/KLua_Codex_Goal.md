@@ -177,9 +177,9 @@ This is a milestone-level snapshot of committed capability, not a list of comple
 | --- | --- | --- |
 | M0-M12 | Done | Multi-module JVM 17 foundation, parser/compiler/VM pipeline, tables, closures, metatables, embedding APIs, userdata, and initial standard libraries are connected and tested. |
 | M13-M18 | Done | Coroutine, structured error/debug metadata, hooks/debugger, DAP library integration, KLua bytecode packaging, and initial sandbox controls meet their documented foundation success criteria. Residual hardening remains M20 or later release work. |
-| M19 | Continuation in progress | The canonical JDK 17 pre-refactor baseline and controls are recorded; byte-oriented strings, tagged VM slots, hybrid tables with shape/version tracking, guarded inline caches, the stack-range call ABI, and fast/instrumented dispatch have landed with matched evidence. Complete performance/conformance closure before M20 closes. Measurements live in `docs/KLua_Benchmark_Baseline.md`. |
-| M20 | In progress | Broad source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance exists. Complete the active semantic package, run the pre-v1 performance track, then revalidate and classify residual gaps before closure. |
-| M21 | Not started | Release readiness begins only after the M20 closure matrix has no unowned v1 blockers. It includes API stabilization, documentation, artifacts, and v1 performance qualification. |
+| M19 | Done | The canonical JDK 17 baseline, byte-oriented strings, tagged VM slots, hybrid versioned tables, guarded inline caches, stack-range calls, fast/instrumented dispatch, and final matched performance screen have landed. Measurements and the one explicitly accepted bounded allocation tradeoff live in `docs/KLua_Benchmark_Baseline.md`. |
+| M20 | Done | Source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance passed the optimized-representation audit. `docs/KLua_Conformance_Gaps.md` classifies every remaining JVM/host difference and records no unowned v1 blocker. |
+| M21 | In progress | Release readiness is now the primary frontier: stabilize the public Java/Kotlin contract and artifact surface, complete user documentation, qualify the release-candidate baseline, and prepare release artifacts without publishing until explicitly authorized. |
 | M22 | Deferred | JVM bytecode generation remains optional and must not begin before v1 foundations stabilize. |
 
 Current capability includes:
@@ -193,10 +193,7 @@ Current capability includes:
 
 Material remaining gaps include:
 
-- The optimized representation still requires a complete canonical performance screen and an M20 conformance-matrix audit; public, debug, continuation, and uncommon generic call boundaries intentionally retain stable materialized values.
-- A final classification of JVM/host adaptations in IO, OS, math, process, locale, native-loading, stack-capacity, and collector behavior as accepted v1 limitations or actionable defects.
-- Broader release-level packaging, standalone DAP hosting, sandbox policy, documentation, and API-stability work after M20 blockers are known.
-- Publication of a concise conformance matrix that maps each residual to tests, reference functions, disposition, and v1 impact.
+- Broader release-level packaging, standalone DAP hosting, sandbox policy, documentation, and API-stability work now that M20 blockers are classified.
 - Automated performance regression comparison, representative sandbox overhead controls, and published accepted v1 performance evidence.
 
 The detailed, source-backed residual list belongs in `docs/KLua_Conformance_Gaps.md` and must not be duplicated here.
@@ -257,9 +254,10 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M19/M20 performance and conformance closure | Rerun the canonical JMH suite and allocation profiles, compare every workload with the pre-refactor baseline, run `./gradlew test`, and audit the M20 conformance matrix against the optimized representation. Fix, explicitly accept, or assign every material regression or semantic deviation before M21. | One to three coherent benchmark/control, conformance-fix, and closure-documentation commits. |
+| 1 | In progress | M21 release contract and API stabilization | Inventory the public Java/Kotlin surface, module coordinates, versions, generated artifacts, and Java-callable signatures; identify and fix accidental or inconsistent v1 API exposure without leaking internal runtime representations. Add bounded API/artifact compatibility checks, document the stability/versioning contract, and keep external publication out of scope. | One to three coherent API-contract, artifact-validation, and regression-test commits. |
+| 2 | Next | M21 user guides and copyable examples | Close the Java/Kotlin getting-started, low/high-level API, userdata, sandbox, standard-library, performance, and debugging documentation checklist with build-verified examples and links to the conformance matrix. | One to three coherent guide/example-validation commits. |
 
-When package 1 closes, audit `docs/KLua_Conformance_Gaps.md` and select the next bounded milestone-aligned package. Do not keep closed campaign narratives or commit hashes in this table.
+When package 1 closes, promote package 2 and select at most one new successor from M21's release checklist. Do not keep closed campaign narratives or commit hashes in this table.
 
 Do not close M20 until the performance track's representation changes have passed the final conformance matrix. M21 must still run the release-candidate performance qualification before artifacts are declared ready.
 

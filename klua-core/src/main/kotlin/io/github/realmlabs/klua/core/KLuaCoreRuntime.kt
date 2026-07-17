@@ -2035,20 +2035,23 @@ private fun syncLuaTablesToPublic(
     publicArguments: List<KLuaCoreValue>,
     globals: KLuaCoreGlobals,
 ) {
-    val tableCache = IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>()
+    var tableCache: IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>? = null
     for (index in luaArguments.indices) {
         val luaTable = luaArguments[index] as? LuaTable ?: continue
         val publicTable = publicArguments.getOrNull(index) as? KLuaCoreValue.TableValue ?: continue
-        tableCache[luaTable] = publicTable
+        val resolvedTableCache = tableCache
+            ?: IdentityHashMap<LuaTable, KLuaCoreValue.TableValue>().also { created -> tableCache = created }
+        resolvedTableCache[luaTable] = publicTable
     }
-    for ((luaTable, publicTable) in tableCache.entries.toList()) {
+    val resolvedTableCache = tableCache ?: return
+    for ((luaTable, publicTable) in resolvedTableCache.entries.toList()) {
         val entries = luaTable.rawEntries().map { (key, value) ->
-            toPublicValue(key, globals, tableCache) to toPublicValue(value, globals, tableCache)
+            toPublicValue(key, globals, resolvedTableCache) to toPublicValue(value, globals, resolvedTableCache)
         }
         publicTable.fields.clear()
         publicTable.fields.putAll(entries)
         publicTable.metatable = luaTable.metatable?.let { metatable ->
-            toPublicValue(metatable, globals, tableCache) as KLuaCoreValue.TableValue
+            toPublicValue(metatable, globals, resolvedTableCache) as KLuaCoreValue.TableValue
         }
         publicTable.sourceTable = luaTable
     }

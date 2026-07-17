@@ -203,6 +203,39 @@ Matched JDK 17 timing measurements against the stack-range checkpoint are:
 
 Count and line-hook intervals overlap their parent points, so enabled instrumentation has no supported regression. A three-fork gate run measured debug enabled without an observer at 454.771 ±10.035 µs/op versus debug disabled at 468.066 ±27.963 µs/op, a -2.8% difference. In the matched screen the unlimited production/budget-disabled path was 453.390 µs/op versus the equivalent unrestricted debug-disabled path at 452.612 µs/op, a +0.17% difference; enabled accounting was also measured and remains a published cost rather than a universal limit. One unstable numeric point was rejected after an isolated 2.8 ms iteration, and the immediate paired numeric/debug-control rerun produced the value above. Both disabled-policy gates pass, and the complete Gradle suite and JMH build pass.
 
+## 2026-07-17 Performance and Conformance Closure
+
+The complete canonical JDK 17 timing and GC-profiler suites were rerun after all six interpreter packages. The screen initially exposed canonical allocation increases in Lua `__index`, scalar JVM-to-Lua, and method-call controls. JFR attributed `__index` pressure to boxed integer keys plus snapshot results around Lua metamethod frames, and JVM-to-Lua pressure to an empty `IdentityHashMap` allocated by outbound table synchronization. Cached Lua `__index` closures now receive the key and return their result through tagged stack ranges, while scalar outbound calls skip table synchronization state. Final focused GC reruns reduced `__index` from 2,652,875.290 to 1,773,196.328 B/op and JVM-to-Lua from 11,979,285.248 to 8,731,134.662 B/op.
+
+Final comparison against the accepted pre-refactor checkpoint is:
+
+| Benchmark | Closure time (delta) | Closure allocation (delta) |
+| --- | ---: | ---: |
+| Compile numeric loop | 8.209 µs/op (-4.9%) | 21,264.008 B/op (-0.2%) |
+| Breakpoint observer, no hit | 1,291.076 µs/op (+21.6%) | 481,483.652 B/op (-49.9%) |
+| Breakpoint hit, step, continue | 1,253.544 µs/op (-8.6%) | 493,363.734 B/op (-49.3%) |
+| Count hook, interval 100 | 820.403 µs/op (+8.8%) | 491,014.180 B/op (-50.4%) |
+| Debug disabled | 446.978 µs/op (-8.4%) | 1,178.476 B/op (-99.8%) |
+| Debug enabled, no observer | 551.999 µs/op (+11.6%) | 1,171.015 B/op (-99.8%) |
+| Instruction budget disabled | 483.349 µs/op (-5.1%) | 1,168.927 B/op (-99.8%) |
+| Instruction budget enabled | 467.176 µs/op (-8.2%) | 1,188.544 B/op (-99.8%) |
+| Line hook | 5,411.912 µs/op (+15.7%) | 17,765,064.920 B/op (-5.9%) |
+| Closure counter | 2,117.232 µs/op (+13.6%) | 1,363,774.289 B/op (-19.0%) |
+| Coroutine yield/resume | 18,755.482 µs/op (-9.8%) | 28,241,336.392 B/op (-4.8%) |
+| Entity-update kernel | 7,327.952 µs/op (-7.0%) | 2,181,748.369 B/op (-33.3%) |
+| Host calls | 3,393.995 µs/op (-15.4%) | 9,678,523.033 B/op (-3.2%) |
+| `__index` calls | 2,976.888 µs/op (-15.0%) | 1,773,196.328 B/op (-8.2%) |
+| JVM-to-Lua calls | 4,116.075 µs/op (-23.5%) | 8,731,134.662 B/op (-17.5%) |
+| Lua calls | 2,661.357 µs/op (+35.4%) | 1,442,345.290 B/op (-18.2%) |
+| Method calls | 4,307.650 µs/op (-23.3%) | 2,004,072.622 B/op (+8.7%) |
+| Recursive `fib(20)` | 5,845.166 µs/op (-11.3%) | 4,994,032.907 B/op (effectively unchanged) |
+| Growing string concatenation | 494.951 µs/op (-91.8%) | 585,243.821 B/op (-98.0%) |
+| Table writes and reads | 2,295.251 µs/op (-24.0%) | 298,678.706 B/op (-76.2%) |
+| Vararg/multiple return | 3,911.659 µs/op (-6.2%) | 2,002,827.155 B/op (+4.2%) |
+| VM numeric loop | 660.130 µs/op (-23.8%) | 1,239.614 B/op (-99.9%) |
+
+The higher observer, debug-enabled, line-hook, closure, and Lua-call timing points do not both exceed combined uncertainty and reproduce in two matched runs. A focused rerun measured debug enabled without an observer at 520.324 ±139.129 µs/op versus debug disabled at 506.782 ±86.919 µs/op (+2.7%); closure and Lua-call rerun intervals also overlap the canonical points widely. The method-call allocation increase is 160,521 B/op, about 16 bytes per call: mixed reference/primitive tagged frames require a reference array in addition to tag and payload arrays. A single-inline-reference experiment still allocated the array and increased total allocation, so it was reverted. The bounded method allocation tradeoff is explicitly accepted for v1 because method time improves 23.3%, primitive dispatch allocation falls 99.9%, and retaining boxed frame storage would discard the representation wins. Vararg allocation remains below the 5% gate. No timing regression satisfies the release rule, the M20 closure matrix has no unowned v1 blocker, and the complete Gradle suite and JMH build pass. M21 must still publish a separately labeled accepted release-candidate baseline.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:
