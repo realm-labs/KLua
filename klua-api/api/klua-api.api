@@ -1,0 +1,631 @@
+public final class io/github/realmlabs/klua/api/Lua {
+	public static final field Companion Lio/github/realmlabs/klua/api/Lua$Companion;
+	public final fun compileBytecode (Ljava/lang/String;)[B
+	public final fun compileBytecode (Ljava/lang/String;Ljava/lang/String;)[B
+	public static synthetic fun compileBytecode$default (Lio/github/realmlabs/klua/api/Lua;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)[B
+	public static final fun create ()Lio/github/realmlabs/klua/api/Lua;
+	public static final fun create (Lio/github/realmlabs/klua/api/LuaConfig;)Lio/github/realmlabs/klua/api/Lua;
+	public final fun getConfig ()Lio/github/realmlabs/klua/api/LuaConfig;
+	public final fun globals ()Lio/github/realmlabs/klua/api/LuaGlobals;
+	public final fun load (Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaChunk;
+	public final fun load (Ljava/lang/String;Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaChunk;
+	public static synthetic fun load$default (Lio/github/realmlabs/klua/api/Lua;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaChunk;
+	public final fun loadBytecode ([B)Lio/github/realmlabs/klua/api/LuaChunk;
+	public final fun loadBytecodeResource (Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaChunk;
+	public final fun loadBytecodeResource (Ljava/lang/String;Ljava/lang/ClassLoader;)Lio/github/realmlabs/klua/api/LuaChunk;
+	public static synthetic fun loadBytecodeResource$default (Lio/github/realmlabs/klua/api/Lua;Ljava/lang/String;Ljava/lang/ClassLoader;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaChunk;
+	public final fun registerType (Ljava/lang/Class;Ljava/util/function/Consumer;)V
+}
+
+public final class io/github/realmlabs/klua/api/Lua$Companion {
+	public final fun create ()Lio/github/realmlabs/klua/api/Lua;
+	public final fun create (Lio/github/realmlabs/klua/api/LuaConfig;)Lio/github/realmlabs/klua/api/Lua;
+	public static synthetic fun create$default (Lio/github/realmlabs/klua/api/Lua$Companion;Lio/github/realmlabs/klua/api/LuaConfig;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/Lua;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaCallContext {
+	public abstract fun call (ILjava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public abstract fun call (Ljava/lang/Object;Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun callWithErrorHandler (ILjava/util/List;I)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun collectGarbage ()Ljava/util/List;
+	public fun collectGarbage (Ljava/util/function/Consumer;)V
+	public fun dumpFunctionBytecode (IZ)[B
+	public static synthetic fun dumpFunctionBytecode$default (Lio/github/realmlabs/klua/api/LuaCallContext;IZILjava/lang/Object;)[B
+	public fun equal (II)Ljava/lang/Boolean;
+	public abstract fun get (I)Ljava/lang/Object;
+	public abstract fun getArgumentCount ()I
+	public fun getCallSiteName ()Ljava/lang/String;
+	public fun getCallSiteNameWhat ()Ljava/lang/String;
+	public fun getDebugHook ()Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun getFunctionDebugInfo (I)Lio/github/realmlabs/klua/api/LuaFunctionDebugInfo;
+	public fun getLuaFrames ()Ljava/util/List;
+	public fun getLuaValue (I)Ljava/lang/Object;
+	public abstract fun getMetatable (I)Ljava/lang/Object;
+	public fun getRawMetatable (I)Ljava/lang/Object;
+	public abstract fun getTable (I)Ljava/lang/Object;
+	public abstract fun getTableField (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+	public fun getTableMetatable (Ljava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getTableValue (ILjava/lang/Object;)Ljava/lang/Object;
+	public fun getUpvalue (II)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun getUpvalueId (II)Ljava/lang/Object;
+	public fun getUserValue (II)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun getValueField (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+	public fun isFunctionValue (Ljava/lang/Object;)Z
+	public fun isGarbageCollectorAvailable ()Z
+	public abstract fun isNil (I)Z
+	public abstract fun isNone (I)Z
+	public abstract fun isTable (I)Z
+	public fun isTableValue (Ljava/lang/Object;)Z
+	public fun isYieldable ()Z
+	public fun joinUpvalue (IIII)Z
+	public fun lessThan (II)Ljava/lang/Boolean;
+	public fun lessThanValues (Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Boolean;
+	public fun load (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public abstract fun load (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;Z)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static synthetic fun load$default (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun loadBytecode ([BLjava/lang/String;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun loadBytecode ([BLjava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun luaEquals (II)Ljava/lang/Boolean;
+	public abstract fun nextTableEntry (ILjava/lang/Object;)Ljava/util/List;
+	public fun protectedCall (ILjava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun protectedCall (Ljava/lang/Object;Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun rawEquals (II)Ljava/lang/Boolean;
+	public fun setDebugHook (ILjava/lang/String;I)Z
+	public fun setGarbageCollectorRunning (Z)V
+	public fun setGarbageCollectorStepSize (J)V
+	public fun setLocal (IILjava/lang/Object;)Ljava/lang/String;
+	public abstract fun setMetatable (ILjava/lang/Object;)V
+	public fun setRawMetatable (ILjava/lang/Object;)V
+	public fun setTableField (Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V
+	public abstract fun setTableValue (ILjava/lang/Object;Ljava/lang/Object;)V
+	public fun setUpvalue (IILjava/lang/Object;)Ljava/lang/String;
+	public fun setUserValue (IILjava/lang/Object;)Z
+	public fun setValueField (Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V
+	public fun stepGarbageCollector (Ljava/util/function/Consumer;)Z
+	public abstract fun tableLength (I)Ljava/lang/Long;
+	public abstract fun toBoolean (I)Z
+	public fun toBytes (I)[B
+	public abstract fun toInteger (I)Ljava/lang/Long;
+	public abstract fun toNumber (I)Ljava/lang/Double;
+	public abstract fun toString (I)Ljava/lang/String;
+	public abstract fun toUserData (I)Ljava/lang/Object;
+	public abstract fun toUserData (ILjava/lang/Class;)Ljava/lang/Object;
+	public abstract fun typeName (I)Ljava/lang/String;
+	public fun valueTypeName (Ljava/lang/Object;)Ljava/lang/String;
+	public abstract fun yield (Ljava/util/List;)Ljava/lang/Void;
+}
+
+public final class io/github/realmlabs/klua/api/LuaCallContext$DefaultImpls {
+	public static fun callWithErrorHandler (Lio/github/realmlabs/klua/api/LuaCallContext;ILjava/util/List;I)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun collectGarbage (Lio/github/realmlabs/klua/api/LuaCallContext;)Ljava/util/List;
+	public static fun collectGarbage (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/util/function/Consumer;)V
+	public static fun dumpFunctionBytecode (Lio/github/realmlabs/klua/api/LuaCallContext;IZ)[B
+	public static synthetic fun dumpFunctionBytecode$default (Lio/github/realmlabs/klua/api/LuaCallContext;IZILjava/lang/Object;)[B
+	public static fun equal (Lio/github/realmlabs/klua/api/LuaCallContext;II)Ljava/lang/Boolean;
+	public static fun getCallSiteName (Lio/github/realmlabs/klua/api/LuaCallContext;)Ljava/lang/String;
+	public static fun getCallSiteNameWhat (Lio/github/realmlabs/klua/api/LuaCallContext;)Ljava/lang/String;
+	public static fun getDebugHook (Lio/github/realmlabs/klua/api/LuaCallContext;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun getFunctionDebugInfo (Lio/github/realmlabs/klua/api/LuaCallContext;I)Lio/github/realmlabs/klua/api/LuaFunctionDebugInfo;
+	public static fun getLuaFrames (Lio/github/realmlabs/klua/api/LuaCallContext;)Ljava/util/List;
+	public static fun getLuaValue (Lio/github/realmlabs/klua/api/LuaCallContext;I)Ljava/lang/Object;
+	public static fun getRawMetatable (Lio/github/realmlabs/klua/api/LuaCallContext;I)Ljava/lang/Object;
+	public static fun getTableMetatable (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;)Ljava/lang/Object;
+	public static fun getUpvalue (Lio/github/realmlabs/klua/api/LuaCallContext;II)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun getUpvalueId (Lio/github/realmlabs/klua/api/LuaCallContext;II)Ljava/lang/Object;
+	public static fun getUserValue (Lio/github/realmlabs/klua/api/LuaCallContext;II)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun getValueField (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;
+	public static fun isFunctionValue (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;)Z
+	public static fun isGarbageCollectorAvailable (Lio/github/realmlabs/klua/api/LuaCallContext;)Z
+	public static fun isTableValue (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;)Z
+	public static fun isYieldable (Lio/github/realmlabs/klua/api/LuaCallContext;)Z
+	public static fun joinUpvalue (Lio/github/realmlabs/klua/api/LuaCallContext;IIII)Z
+	public static fun lessThan (Lio/github/realmlabs/klua/api/LuaCallContext;II)Ljava/lang/Boolean;
+	public static fun lessThanValues (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Boolean;
+	public static fun load (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static synthetic fun load$default (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun loadBytecode (Lio/github/realmlabs/klua/api/LuaCallContext;[BLjava/lang/String;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun loadBytecode (Lio/github/realmlabs/klua/api/LuaCallContext;[BLjava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun luaEquals (Lio/github/realmlabs/klua/api/LuaCallContext;II)Ljava/lang/Boolean;
+	public static fun protectedCall (Lio/github/realmlabs/klua/api/LuaCallContext;ILjava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun protectedCall (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun rawEquals (Lio/github/realmlabs/klua/api/LuaCallContext;II)Ljava/lang/Boolean;
+	public static fun setDebugHook (Lio/github/realmlabs/klua/api/LuaCallContext;ILjava/lang/String;I)Z
+	public static fun setGarbageCollectorRunning (Lio/github/realmlabs/klua/api/LuaCallContext;Z)V
+	public static fun setGarbageCollectorStepSize (Lio/github/realmlabs/klua/api/LuaCallContext;J)V
+	public static fun setLocal (Lio/github/realmlabs/klua/api/LuaCallContext;IILjava/lang/Object;)Ljava/lang/String;
+	public static fun setRawMetatable (Lio/github/realmlabs/klua/api/LuaCallContext;ILjava/lang/Object;)V
+	public static fun setTableField (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V
+	public static fun setUpvalue (Lio/github/realmlabs/klua/api/LuaCallContext;IILjava/lang/Object;)Ljava/lang/String;
+	public static fun setUserValue (Lio/github/realmlabs/klua/api/LuaCallContext;IILjava/lang/Object;)Z
+	public static fun setValueField (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;Ljava/lang/Object;Ljava/lang/Object;)V
+	public static fun stepGarbageCollector (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/util/function/Consumer;)Z
+	public static fun toBytes (Lio/github/realmlabs/klua/api/LuaCallContext;I)[B
+	public static fun valueTypeName (Lio/github/realmlabs/klua/api/LuaCallContext;Ljava/lang/Object;)Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaChunk {
+	public final fun asCoroutineFunction ()Lio/github/realmlabs/klua/api/LuaCoroutineFunction;
+	public final fun call ([Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public final fun eval ()Lio/github/realmlabs/klua/api/LuaReturn;
+	public final fun evalBoolean ()Z
+	public final fun evalDouble ()D
+	public final fun evalLong ()J
+	public final fun evalString ()Ljava/lang/String;
+	public final fun exec ()V
+	public final fun getChunkName ()Ljava/lang/String;
+	public final fun getSource ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaConfig {
+	public static final field Companion Lio/github/realmlabs/klua/api/LuaConfig$Companion;
+	public static final field DEFAULT_PRODUCTION_INSTRUCTION_LIMIT J
+	public fun <init> ()V
+	public fun <init> (Z)V
+	public fun <init> (ZLjava/util/function/Supplier;)V
+	public fun <init> (ZLjava/util/function/Supplier;J)V
+	public fun <init> (ZLjava/util/function/Supplier;JLjava/util/Set;)V
+	public fun <init> (ZLjava/util/function/Supplier;JLjava/util/Set;Z)V
+	public fun <init> (ZLjava/util/function/Supplier;JLjava/util/Set;ZZ)V
+	public fun <init> (ZLjava/util/function/Supplier;JLjava/util/Set;ZZLio/github/realmlabs/klua/api/LuaExitHandler;)V
+	public synthetic fun <init> (ZLjava/util/function/Supplier;JLjava/util/Set;ZZLio/github/realmlabs/klua/api/LuaExitHandler;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/util/function/Supplier;
+	public final fun component3 ()J
+	public final fun component4 ()Ljava/util/Set;
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()Lio/github/realmlabs/klua/api/LuaExitHandler;
+	public final fun copy (ZLjava/util/function/Supplier;JLjava/util/Set;ZZLio/github/realmlabs/klua/api/LuaExitHandler;)Lio/github/realmlabs/klua/api/LuaConfig;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaConfig;ZLjava/util/function/Supplier;JLjava/util/Set;ZZLio/github/realmlabs/klua/api/LuaExitHandler;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaConfig;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDebugEnabled ()Z
+	public final fun getExitHandler ()Lio/github/realmlabs/klua/api/LuaExitHandler;
+	public final fun getInstructionLimit ()J
+	public final fun getPackagePathEnvironmentEnabled ()Z
+	public final fun getStandardInput ()Ljava/util/function/Supplier;
+	public final fun getStandardLibraries ()Ljava/util/Set;
+	public final fun getUnsafeStandardLibraryAccessEnabled ()Z
+	public fun hashCode ()I
+	public static final fun production ()Lio/github/realmlabs/klua/api/LuaConfig;
+	public static final fun production (J)Lio/github/realmlabs/klua/api/LuaConfig;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaConfig$Companion {
+	public final fun production ()Lio/github/realmlabs/klua/api/LuaConfig;
+	public final fun production (J)Lio/github/realmlabs/klua/api/LuaConfig;
+	public static synthetic fun production$default (Lio/github/realmlabs/klua/api/LuaConfig$Companion;JILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaConfig;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaCoroutineFunction : io/github/realmlabs/klua/api/LuaFunction {
+	public abstract fun createCoroutine ()Lio/github/realmlabs/klua/api/LuaCoroutineHandle;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaCoroutineHandle {
+	public fun close ()Lio/github/realmlabs/klua/api/LuaCoroutineResult;
+	public abstract fun resume (Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaCoroutineResult;
+}
+
+public final class io/github/realmlabs/klua/api/LuaCoroutineHandle$DefaultImpls {
+	public static fun close (Lio/github/realmlabs/klua/api/LuaCoroutineHandle;)Lio/github/realmlabs/klua/api/LuaCoroutineResult;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaCoroutineResult {
+}
+
+public final class io/github/realmlabs/klua/api/LuaCoroutineResult$DebugSuspended : io/github/realmlabs/klua/api/LuaCoroutineResult {
+	public static final field INSTANCE Lio/github/realmlabs/klua/api/LuaCoroutineResult$DebugSuspended;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaCoroutineResult$Returned : io/github/realmlabs/klua/api/LuaCoroutineResult {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaCoroutineResult$Returned;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaCoroutineResult$Returned;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaCoroutineResult$Returned;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError : io/github/realmlabs/klua/api/LuaCoroutineResult {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;Ljava/util/List;Ljava/lang/Object;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;Ljava/util/List;Ljava/lang/Object;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Ljava/lang/Throwable;
+	public final fun component5 ()Ljava/util/List;
+	public final fun component6 ()Ljava/lang/Object;
+	public final fun component7 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;Ljava/util/List;Ljava/lang/Object;Z)Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;Ljava/lang/String;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/Throwable;Ljava/util/List;Ljava/lang/Object;ZILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCause ()Ljava/lang/Throwable;
+	public final fun getErrorObject ()Ljava/lang/Object;
+	public final fun getHasErrorObject ()Z
+	public final fun getLine ()Ljava/lang/Integer;
+	public final fun getLuaFrames ()Ljava/util/List;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getSourceName ()Ljava/lang/String;
+	public final fun getTraceback ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaCoroutineResult$Yielded : io/github/realmlabs/klua/api/LuaCoroutineResult {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaCoroutineResult$Yielded;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaCoroutineResult$Yielded;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaCoroutineResult$Yielded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaDebugEvent : java/lang/Enum {
+	public static final field LINE Lio/github/realmlabs/klua/api/LuaDebugEvent;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaDebugEvent;
+	public static fun values ()[Lio/github/realmlabs/klua/api/LuaDebugEvent;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaDebugObserver {
+	public abstract fun shouldSuspend (Lio/github/realmlabs/klua/api/LuaDebugEvent;Ljava/lang/String;II)Z
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaDebugThread {
+	public abstract fun getDebugHook ()Lio/github/realmlabs/klua/api/LuaReturn;
+	public abstract fun getLuaFrames ()Ljava/util/List;
+	public fun isCurrentDebugThread ()Z
+	public abstract fun setDebugHook (Ljava/lang/Object;Ljava/lang/String;I)Z
+	public abstract fun setLocal (IILjava/lang/Object;)Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaDebugThread$DefaultImpls {
+	public static fun isCurrentDebugThread (Lio/github/realmlabs/klua/api/LuaDebugThread;)Z
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle : io/github/realmlabs/klua/api/LuaCoroutineHandle {
+	public fun getDebugHook ()Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun getLuaFrames ()Ljava/util/List;
+	public fun setDebugHook (Ljava/lang/Object;Ljava/lang/String;I)Z
+	public fun setDebugObserver (Lio/github/realmlabs/klua/api/LuaDebugObserver;)Z
+	public fun setLocal (IILjava/lang/Object;)Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle$DefaultImpls {
+	public static fun close (Lio/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle;)Lio/github/realmlabs/klua/api/LuaCoroutineResult;
+	public static fun getDebugHook (Lio/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static fun getLuaFrames (Lio/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle;)Ljava/util/List;
+	public static fun setDebugHook (Lio/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle;Ljava/lang/Object;Ljava/lang/String;I)Z
+	public static fun setDebugObserver (Lio/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle;Lio/github/realmlabs/klua/api/LuaDebugObserver;)Z
+	public static fun setLocal (Lio/github/realmlabs/klua/api/LuaDebuggableCoroutineHandle;IILjava/lang/Object;)Ljava/lang/String;
+}
+
+public class io/github/realmlabs/klua/api/LuaException : java/lang/RuntimeException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public final class io/github/realmlabs/klua/api/LuaExitException : java/lang/RuntimeException {
+	public fun <init> (IZ)V
+	public final fun getCloseState ()Z
+	public final fun getStatus ()I
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaExitHandler {
+	public abstract fun exit (IZ)V
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaFunction {
+	public abstract fun call (Lio/github/realmlabs/klua/api/LuaCallContext;)Lio/github/realmlabs/klua/api/LuaReturn;
+}
+
+public final class io/github/realmlabs/klua/api/LuaFunctionDebugInfo {
+	public fun <init> (Ljava/lang/String;IIIIZLjava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (Ljava/lang/String;IIIIZLjava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()Z
+	public final fun component7 ()Ljava/util/List;
+	public final fun component8 ()Ljava/util/List;
+	public final fun component9 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;IIIIZLjava/util/List;Ljava/util/List;Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaFunctionDebugInfo;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaFunctionDebugInfo;Ljava/lang/String;IIIIZLjava/util/List;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaFunctionDebugInfo;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActiveLines ()Ljava/util/List;
+	public final fun getLastLineDefined ()I
+	public final fun getLineDefined ()I
+	public final fun getLocalNames ()Ljava/util/List;
+	public final fun getParameterCount ()I
+	public final fun getParameterNames ()Ljava/util/List;
+	public final fun getSourceName ()Ljava/lang/String;
+	public final fun getUpvalueCount ()I
+	public fun hashCode ()I
+	public final fun isVararg ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaGlobals {
+	public final fun get (Ljava/lang/String;)Ljava/lang/Object;
+	public final fun set (Ljava/lang/String;Ljava/lang/Object;)V
+	public final fun setFunction (Ljava/lang/String;Lio/github/realmlabs/klua/api/LuaFunction;)V
+}
+
+public final class io/github/realmlabs/klua/api/LuaLocalVariable {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaLocalVariable;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaLocalVariable;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaLocalVariable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaMainThread : io/github/realmlabs/klua/api/LuaDebugThread, io/github/realmlabs/klua/api/LuaTypedValue {
+	public fun getDebugHook ()Lio/github/realmlabs/klua/api/LuaReturn;
+	public fun getLuaFrames ()Ljava/util/List;
+	public fun getLuaTypeName ()Ljava/lang/String;
+	public fun isCurrentDebugThread ()Z
+	public fun setDebugHook (Ljava/lang/Object;Ljava/lang/String;I)Z
+	public fun setLocal (IILjava/lang/Object;)Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaReturn {
+	public static final field Companion Lio/github/realmlabs/klua/api/LuaReturn$Companion;
+	public final fun get (I)Ljava/lang/Object;
+	public final fun getBoolean (I)Z
+	public final fun getCount ()I
+	public final fun getDouble (I)D
+	public final fun getLong (I)J
+	public final fun getString (I)Ljava/lang/String;
+	public final fun getUserData (I)Ljava/lang/Object;
+	public final fun getUserData (ILjava/lang/Class;)Ljava/lang/Object;
+	public final fun getValues ()Ljava/util/List;
+	public static final fun none ()Lio/github/realmlabs/klua/api/LuaReturn;
+	public static final fun of ([Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static final fun ofValues (Ljava/lang/Object;Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static final fun ofValues (Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+}
+
+public final class io/github/realmlabs/klua/api/LuaReturn$Companion {
+	public final fun none ()Lio/github/realmlabs/klua/api/LuaReturn;
+	public final fun of ([Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public final fun ofValues (Ljava/lang/Object;Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public final fun ofValues (Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+}
+
+public final class io/github/realmlabs/klua/api/LuaRuntimeException : io/github/realmlabs/klua/api/LuaException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/List;Ljava/lang/Object;ZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;Ljava/lang/String;Ljava/lang/Integer;Ljava/util/List;Ljava/lang/Object;ZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getErrorObject ()Ljava/lang/Object;
+	public final fun getErrorObjectFinalized ()Z
+	public final fun getHasErrorObject ()Z
+	public final fun getLine ()Ljava/lang/Integer;
+	public final fun getLuaFrames ()Ljava/util/List;
+	public final fun getSourceName ()Ljava/lang/String;
+	public final fun getTraceback ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaStackFrame {
+	public fun <init> (Ljava/lang/String;IIIIIZLjava/util/List;Ljava/lang/Object;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;IIZILjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;IIIIIZLjava/util/List;Ljava/lang/Object;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;IIZILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component10 ()Ljava/util/List;
+	public final fun component11 ()Ljava/util/List;
+	public final fun component12 ()Ljava/util/List;
+	public final fun component13 ()Ljava/util/List;
+	public final fun component14 ()Ljava/lang/String;
+	public final fun component15 ()Ljava/lang/String;
+	public final fun component16 ()I
+	public final fun component17 ()I
+	public final fun component18 ()Z
+	public final fun component19 ()I
+	public final fun component2 ()I
+	public final fun component20 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()I
+	public final fun component7 ()Z
+	public final fun component8 ()Ljava/util/List;
+	public final fun component9 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;IIIIIZLjava/util/List;Ljava/lang/Object;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;IIZILjava/lang/String;)Lio/github/realmlabs/klua/api/LuaStackFrame;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaStackFrame;Ljava/lang/String;IIIIIZLjava/util/List;Ljava/lang/Object;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/util/List;Ljava/lang/String;Ljava/lang/String;IIZILjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaStackFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getActiveLines ()Ljava/util/List;
+	public final fun getCallSiteName ()Ljava/lang/String;
+	public final fun getCallSiteNameWhat ()Ljava/lang/String;
+	public final fun getExtraArgumentCount ()I
+	public final fun getFunction ()Ljava/lang/Object;
+	public final fun getGlobalFunctionName ()Ljava/lang/String;
+	public final fun getGlobals ()Ljava/util/List;
+	public final fun getLastLineDefined ()I
+	public final fun getLine ()I
+	public final fun getLineDefined ()I
+	public final fun getLocals ()Ljava/util/List;
+	public final fun getParameterCount ()I
+	public final fun getSourceName ()Ljava/lang/String;
+	public final fun getTransferCount ()I
+	public final fun getTransferStart ()I
+	public final fun getUpvalueCount ()I
+	public final fun getUpvalues ()Ljava/util/List;
+	public final fun getVarargs ()Ljava/util/List;
+	public fun hashCode ()I
+	public final fun isTailCall ()Z
+	public final fun isVararg ()Z
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaStandardLibrary : java/lang/Enum {
+	public static final field BASE Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field COROUTINE Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field Companion Lio/github/realmlabs/klua/api/LuaStandardLibrary$Companion;
+	public static final field DEBUG Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field IO Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field MATH Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field OS Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field PACKAGE Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field STRING Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field TABLE Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final field UTF8 Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static final fun all ()Ljava/util/Set;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static final fun safe ()Ljava/util/Set;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+	public static fun values ()[Lio/github/realmlabs/klua/api/LuaStandardLibrary;
+}
+
+public final class io/github/realmlabs/klua/api/LuaStandardLibrary$Companion {
+	public final fun all ()Ljava/util/Set;
+	public final fun safe ()Ljava/util/Set;
+}
+
+public final class io/github/realmlabs/klua/api/LuaState : java/lang/AutoCloseable {
+	public static final field Companion Lio/github/realmlabs/klua/api/LuaState$Companion;
+	public final fun absIndex (I)I
+	public fun close ()V
+	public final fun compileBytecode (Ljava/lang/String;)[B
+	public final fun compileBytecode (Ljava/lang/String;Ljava/lang/String;)[B
+	public static synthetic fun compileBytecode$default (Lio/github/realmlabs/klua/api/LuaState;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)[B
+	public final fun copy (II)V
+	public static final fun create ()Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun create (Lio/github/realmlabs/klua/api/LuaConfig;)Lio/github/realmlabs/klua/api/LuaState;
+	public final fun getConfig ()Lio/github/realmlabs/klua/api/LuaConfig;
+	public final fun getField (ILjava/lang/String;)V
+	public final fun getGlobal (Ljava/lang/String;)V
+	public final fun getLastError ()Lio/github/realmlabs/klua/api/LuaException;
+	public final fun getTop ()I
+	public final fun installGlobalTable (Ljava/lang/String;)V
+	public final fun isBoolean (I)Z
+	public final fun isNil (I)Z
+	public final fun isNone (I)Z
+	public final fun isNumber (I)Z
+	public final fun isString (I)Z
+	public final fun isTable (I)Z
+	public final fun isUserData (I)Z
+	public final fun load (Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public final fun load (Ljava/lang/String;Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public static synthetic fun load$default (Lio/github/realmlabs/klua/api/LuaState;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public final fun loadBytecode ([B)Lio/github/realmlabs/klua/api/LuaStatus;
+	public final fun loadBytecodeResource (Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public final fun loadBytecodeResource (Ljava/lang/String;Ljava/lang/ClassLoader;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public static synthetic fun loadBytecodeResource$default (Lio/github/realmlabs/klua/api/LuaState;Ljava/lang/String;Ljava/lang/ClassLoader;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public final fun newTable ()V
+	public final fun pcall (I)Lio/github/realmlabs/klua/api/LuaStatus;
+	public final fun pcall (II)Lio/github/realmlabs/klua/api/LuaStatus;
+	public static synthetic fun pcall$default (Lio/github/realmlabs/klua/api/LuaState;IIILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public final fun pop ()V
+	public final fun pop (I)V
+	public static synthetic fun pop$default (Lio/github/realmlabs/klua/api/LuaState;IILjava/lang/Object;)V
+	public final fun pushBoolean (Z)V
+	public final fun pushBytes ([B)V
+	public final fun pushFunction (Lio/github/realmlabs/klua/api/LuaFunction;)V
+	public final fun pushInteger (J)V
+	public final fun pushNil ()V
+	public final fun pushNumber (D)V
+	public final fun pushRegistryGetterFunction ()V
+	public final fun pushRegistryInteger (J)V
+	public final fun pushRegistrySubtable (Ljava/lang/String;)V
+	public final fun pushRegistryTable ()V
+	public final fun pushString (Ljava/lang/String;)V
+	public final fun pushUserData (Ljava/lang/Object;)V
+	public final fun pushValue (I)V
+	public final fun register (Ljava/lang/String;Lio/github/realmlabs/klua/api/LuaFunction;)V
+	public final fun registerType (Ljava/lang/Class;Ljava/util/function/Consumer;)V
+	public final fun remove (I)V
+	public final fun setField (ILjava/lang/String;)V
+	public final fun setFinalizerWarningOutput (Ljava/util/function/Consumer;)V
+	public final fun setGlobal (Ljava/lang/String;)V
+	public final fun setMainThreadCurrent (Z)V
+	public final fun setMetatable (I)V
+	public final fun setRegistryInteger (J)V
+	public final fun setTop (I)V
+	public final fun toBoolean (I)Z
+	public final fun toBytes (I)[B
+	public final fun toInteger (I)Ljava/lang/Long;
+	public final fun toNumber (I)Ljava/lang/Double;
+	public final fun toString (I)Ljava/lang/String;
+	public final fun toUserData (I)Ljava/lang/Object;
+	public final fun toUserData (ILjava/lang/Class;)Ljava/lang/Object;
+	public final fun typeName (I)Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaState$Companion {
+	public final fun create ()Lio/github/realmlabs/klua/api/LuaState;
+	public final fun create (Lio/github/realmlabs/klua/api/LuaConfig;)Lio/github/realmlabs/klua/api/LuaState;
+	public static synthetic fun create$default (Lio/github/realmlabs/klua/api/LuaState$Companion;Lio/github/realmlabs/klua/api/LuaConfig;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaState;
+}
+
+public final class io/github/realmlabs/klua/api/LuaStateKt {
+	public static final synthetic fun continueWith (Lio/github/realmlabs/klua/api/LuaYieldException;Ljava/util/List;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static final synthetic fun withContinuation (Lio/github/realmlabs/klua/api/LuaYieldException;Lkotlin/jvm/functions/Function1;)Lio/github/realmlabs/klua/api/LuaYieldException;
+}
+
+public final class io/github/realmlabs/klua/api/LuaStatus : java/lang/Enum {
+	public static final field OK Lio/github/realmlabs/klua/api/LuaStatus;
+	public static final field RUNTIME_ERROR Lio/github/realmlabs/klua/api/LuaStatus;
+	public static final field SYNTAX_ERROR Lio/github/realmlabs/klua/api/LuaStatus;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/realmlabs/klua/api/LuaStatus;
+	public static fun values ()[Lio/github/realmlabs/klua/api/LuaStatus;
+}
+
+public final class io/github/realmlabs/klua/api/LuaSyntaxException : io/github/realmlabs/klua/api/LuaException {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Throwable;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Throwable;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaTypedValue {
+	public abstract fun getLuaTypeName ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/api/LuaUpvalueVariable {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaUpvalueVariable;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/api/LuaUpvalueVariable;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/realmlabs/klua/api/LuaUpvalueVariable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaUserDataGetter {
+	public abstract fun get (Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaUserDataMethod {
+	public abstract fun call (Ljava/lang/Object;Lio/github/realmlabs/klua/api/LuaCallContext;)Lio/github/realmlabs/klua/api/LuaReturn;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaUserDataSetter {
+	public abstract fun set (Ljava/lang/Object;Ljava/lang/Object;)V
+}
+
+public final class io/github/realmlabs/klua/api/LuaUserDataType {
+	public final fun method (Ljava/lang/String;Lio/github/realmlabs/klua/api/LuaUserDataMethod;)V
+	public final fun property (Ljava/lang/String;Lio/github/realmlabs/klua/api/LuaUserDataGetter;)V
+	public final fun property (Ljava/lang/String;Lio/github/realmlabs/klua/api/LuaUserDataGetter;Lio/github/realmlabs/klua/api/LuaUserDataSetter;)V
+}
+
+public final class io/github/realmlabs/klua/api/LuaYieldException : java/lang/RuntimeException {
+	public final fun getValues ()Ljava/util/List;
+}
+
+public abstract interface class io/github/realmlabs/klua/api/LuaYieldableFunction : io/github/realmlabs/klua/api/LuaFunction {
+}
+

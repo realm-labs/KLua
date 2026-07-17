@@ -49,6 +49,8 @@ Once `gradlew` has executable permissions in the local checkout, this should als
 ./gradlew test
 ```
 
+The local artifact coordinates, supported module surfaces, ABI policy, and non-publishing verification commands are defined in [the release contract](docs/KLua_Release_Contract.md).
+
 ## Quick Examples
 
 ### Kotlin

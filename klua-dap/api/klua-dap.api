@@ -1,0 +1,837 @@
+public final class io/github/realmlabs/klua/dap/DapAttachRequest {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Integer;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;)Lio/github/realmlabs/klua/dap/DapAttachRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapAttachRequest;Ljava/lang/Integer;Ljava/lang/String;Ljava/lang/Integer;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapAttachRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getHost ()Ljava/lang/String;
+	public final fun getPort ()Ljava/lang/Integer;
+	public final fun getProcessId ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapAttachResponse {
+	public fun <init> (ZLjava/lang/String;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (ZLjava/lang/String;)Lio/github/realmlabs/klua/dap/DapAttachResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapAttachResponse;ZLjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapAttachResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAttached ()Z
+	public final fun getTarget ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapBreakpoint {
+	public fun <init> (ZLio/github/realmlabs/klua/dap/DapSource;ILjava/lang/String;)V
+	public synthetic fun <init> (ZLio/github/realmlabs/klua/dap/DapSource;ILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Lio/github/realmlabs/klua/dap/DapSource;
+	public final fun component3 ()I
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (ZLio/github/realmlabs/klua/dap/DapSource;ILjava/lang/String;)Lio/github/realmlabs/klua/dap/DapBreakpoint;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapBreakpoint;ZLio/github/realmlabs/klua/dap/DapSource;ILjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapBreakpoint;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCondition ()Ljava/lang/String;
+	public final fun getLine ()I
+	public final fun getSource ()Lio/github/realmlabs/klua/dap/DapSource;
+	public final fun getVerified ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapCapabilities {
+	public fun <init> ()V
+	public fun <init> (ZZZZZZZZ)V
+	public synthetic fun <init> (ZZZZZZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun component6 ()Z
+	public final fun component7 ()Z
+	public final fun component8 ()Z
+	public final fun copy (ZZZZZZZZ)Lio/github/realmlabs/klua/dap/DapCapabilities;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapCapabilities;ZZZZZZZZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapCapabilities;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getSupportsConditionalBreakpoints ()Z
+	public final fun getSupportsConfigurationDoneRequest ()Z
+	public final fun getSupportsDelayedStackTraceLoading ()Z
+	public final fun getSupportsEvaluateForHovers ()Z
+	public final fun getSupportsHitConditionalBreakpoints ()Z
+	public final fun getSupportsSetVariable ()Z
+	public final fun getSupportsStepBack ()Z
+	public final fun getSupportsVariablePaging ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapCommandRequest {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/dap/DapCommandRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapCommandRequest;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapCommandRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArguments ()Ljava/lang/Object;
+	public final fun getCommand ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapCommandResponse {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/dap/DapCommandResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapCommandResponse;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapCommandResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBody ()Ljava/lang/Object;
+	public final fun getCommand ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/dap/DapCommandSession {
+	public fun drainEvents ()Ljava/util/List;
+	public abstract fun handle (Lio/github/realmlabs/klua/dap/DapCommandRequest;)Lio/github/realmlabs/klua/dap/DapCommandResponse;
+}
+
+public final class io/github/realmlabs/klua/dap/DapCommandSession$DefaultImpls {
+	public static fun drainEvents (Lio/github/realmlabs/klua/dap/DapCommandSession;)Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/dap/DapConfigurationDoneResponse {
+	public fun <init> (Z)V
+	public final fun component1 ()Z
+	public final fun copy (Z)Lio/github/realmlabs/klua/dap/DapConfigurationDoneResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapConfigurationDoneResponse;ZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapConfigurationDoneResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getConfigured ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapContinueRequest {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/Integer;)Lio/github/realmlabs/klua/dap/DapContinueRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapContinueRequest;Ljava/lang/Integer;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapContinueRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getThreadId ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapContinueResponse {
+	public fun <init> ()V
+	public fun <init> (Z)V
+	public synthetic fun <init> (ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun copy (Z)Lio/github/realmlabs/klua/dap/DapContinueResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapContinueResponse;ZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapContinueResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAllThreadsContinued ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapDebugMode : java/lang/Enum {
+	public static final field Attach Lio/github/realmlabs/klua/dap/DapDebugMode;
+	public static final field Launch Lio/github/realmlabs/klua/dap/DapDebugMode;
+	public static final field None Lio/github/realmlabs/klua/dap/DapDebugMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapDebugMode;
+	public static fun values ()[Lio/github/realmlabs/klua/dap/DapDebugMode;
+}
+
+public final class io/github/realmlabs/klua/dap/DapDisconnectRequest {
+	public fun <init> ()V
+	public fun <init> (ZZ)V
+	public synthetic fun <init> (ZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun copy (ZZ)Lio/github/realmlabs/klua/dap/DapDisconnectRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapDisconnectRequest;ZZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapDisconnectRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRestart ()Z
+	public final fun getTerminateDebuggee ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapDisconnectResponse {
+	public fun <init> (ZZZ)V
+	public synthetic fun <init> (ZZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Z
+	public final fun component3 ()Z
+	public final fun copy (ZZZ)Lio/github/realmlabs/klua/dap/DapDisconnectResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapDisconnectResponse;ZZZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapDisconnectResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDisconnected ()Z
+	public final fun getRestart ()Z
+	public final fun getTerminateDebuggee ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapEvaluateRequest {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Integer;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapEvaluateRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapEvaluateRequest;Ljava/lang/String;Ljava/lang/Integer;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapEvaluateRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getContext ()Ljava/lang/String;
+	public final fun getExpression ()Ljava/lang/String;
+	public final fun getFrameId ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapEvaluateResponse {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;I)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;I)Lio/github/realmlabs/klua/dap/DapEvaluateResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapEvaluateResponse;Ljava/lang/String;Ljava/lang/String;IILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapEvaluateResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getResult ()Ljava/lang/String;
+	public final fun getType ()Ljava/lang/String;
+	public final fun getVariablesReference ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapEventMessage : io/github/realmlabs/klua/dap/DapProtocolMessage {
+	public fun <init> (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;)V
+	public synthetic fun <init> (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lio/github/realmlabs/klua/dap/DapJsonValue;
+	public final fun copy (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;)Lio/github/realmlabs/klua/dap/DapEventMessage;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapEventMessage;ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapEventMessage;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBody ()Lio/github/realmlabs/klua/dap/DapJsonValue;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun getSeq ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/dap/DapExpressionEvaluator {
+	public abstract fun evaluate (Ljava/lang/String;Lio/github/realmlabs/klua/debug/DebugFrameView;)Lio/github/realmlabs/klua/debug/DebugVariable;
+}
+
+public final class io/github/realmlabs/klua/dap/DapInitializeRequest {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZ)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Z
+	public final fun component5 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZ)Lio/github/realmlabs/klua/dap/DapInitializeRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapInitializeRequest;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;ZZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapInitializeRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAdapterId ()Ljava/lang/String;
+	public final fun getClientId ()Ljava/lang/String;
+	public final fun getClientName ()Ljava/lang/String;
+	public final fun getColumnsStartAt1 ()Z
+	public final fun getLinesStartAt1 ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapInitializeResponse {
+	public fun <init> (Lio/github/realmlabs/klua/dap/DapCapabilities;)V
+	public final fun component1 ()Lio/github/realmlabs/klua/dap/DapCapabilities;
+	public final fun copy (Lio/github/realmlabs/klua/dap/DapCapabilities;)Lio/github/realmlabs/klua/dap/DapInitializeResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapInitializeResponse;Lio/github/realmlabs/klua/dap/DapCapabilities;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapInitializeResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCapabilities ()Lio/github/realmlabs/klua/dap/DapCapabilities;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapJson {
+	public static final field INSTANCE Lio/github/realmlabs/klua/dap/DapJson;
+	public final fun parse (Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapJsonValue;
+	public final fun stringify (Lio/github/realmlabs/klua/dap/DapJsonValue;)Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapJsonArray : io/github/realmlabs/klua/dap/DapJsonValue {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/dap/DapJsonArray;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapJsonArray;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapJsonArray;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapJsonBoolean : io/github/realmlabs/klua/dap/DapJsonValue {
+	public fun <init> (Z)V
+	public final fun component1 ()Z
+	public final fun copy (Z)Lio/github/realmlabs/klua/dap/DapJsonBoolean;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapJsonBoolean;ZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapJsonBoolean;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapJsonNull : io/github/realmlabs/klua/dap/DapJsonValue {
+	public static final field INSTANCE Lio/github/realmlabs/klua/dap/DapJsonNull;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapJsonNumber : io/github/realmlabs/klua/dap/DapJsonValue {
+	public fun <init> (D)V
+	public final fun component1 ()D
+	public final fun copy (D)Lio/github/realmlabs/klua/dap/DapJsonNumber;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapJsonNumber;DILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapJsonNumber;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()D
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapJsonObject : io/github/realmlabs/klua/dap/DapJsonValue {
+	public fun <init> (Ljava/util/Map;)V
+	public final fun component1 ()Ljava/util/Map;
+	public final fun copy (Ljava/util/Map;)Lio/github/realmlabs/klua/dap/DapJsonObject;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapJsonObject;Ljava/util/Map;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapJsonObject;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getProperties ()Ljava/util/Map;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapJsonString : io/github/realmlabs/klua/dap/DapJsonValue {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapJsonString;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapJsonString;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapJsonString;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/dap/DapJsonValue {
+}
+
+public final class io/github/realmlabs/klua/dap/DapLaunchRequest {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Z)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/util/List;
+	public final fun component4 ()Z
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/util/List;Z)Lio/github/realmlabs/klua/dap/DapLaunchRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapLaunchRequest;Ljava/lang/String;Ljava/lang/String;Ljava/util/List;ZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapLaunchRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArgs ()Ljava/util/List;
+	public final fun getCwd ()Ljava/lang/String;
+	public final fun getProgram ()Ljava/lang/String;
+	public final fun getStopOnEntry ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapLaunchResponse {
+	public fun <init> (ZLjava/lang/String;)V
+	public final fun component1 ()Z
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (ZLjava/lang/String;)Lio/github/realmlabs/klua/dap/DapLaunchResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapLaunchResponse;ZLjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapLaunchResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getLaunched ()Z
+	public final fun getProgram ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapMarker {
+	public static final field INSTANCE Lio/github/realmlabs/klua/dap/DapMarker;
+}
+
+public final class io/github/realmlabs/klua/dap/DapMessageConnection {
+	public fun <init> ()V
+	public fun <init> (Lio/github/realmlabs/klua/dap/DapWireSession;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/dap/DapWireSession;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun feed ([B)Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/dap/DapMessageStream {
+	public fun <init> ()V
+	public final fun feed ([B)Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/dap/DapMessageTransport {
+	public static final field INSTANCE Lio/github/realmlabs/klua/dap/DapMessageTransport;
+	public final fun frame (Ljava/lang/String;)[B
+}
+
+public final class io/github/realmlabs/klua/dap/DapPauseRequest {
+	public fun <init> ()V
+	public fun <init> (Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/lang/Integer;)Lio/github/realmlabs/klua/dap/DapPauseRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapPauseRequest;Ljava/lang/Integer;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapPauseRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getThreadId ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapPauseResponse {
+	public fun <init> (Z)V
+	public final fun component1 ()Z
+	public final fun copy (Z)Lio/github/realmlabs/klua/dap/DapPauseResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapPauseResponse;ZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapPauseResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getPaused ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapProtocolCodec {
+	public static final field INSTANCE Lio/github/realmlabs/klua/dap/DapProtocolCodec;
+	public final fun parse (Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapProtocolMessage;
+	public final fun stringify (Lio/github/realmlabs/klua/dap/DapProtocolMessage;)Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/dap/DapProtocolMessage {
+	public abstract fun getSeq ()I
+}
+
+public final class io/github/realmlabs/klua/dap/DapRequestMessage : io/github/realmlabs/klua/dap/DapProtocolMessage {
+	public fun <init> (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;)V
+	public synthetic fun <init> (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lio/github/realmlabs/klua/dap/DapJsonValue;
+	public final fun copy (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;)Lio/github/realmlabs/klua/dap/DapRequestMessage;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapRequestMessage;ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapJsonValue;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapRequestMessage;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getArguments ()Lio/github/realmlabs/klua/dap/DapJsonValue;
+	public final fun getCommand ()Ljava/lang/String;
+	public fun getSeq ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapResponseMessage : io/github/realmlabs/klua/dap/DapProtocolMessage {
+	public fun <init> (IILjava/lang/String;ZLio/github/realmlabs/klua/dap/DapJsonValue;Ljava/lang/String;)V
+	public synthetic fun <init> (IILjava/lang/String;ZLio/github/realmlabs/klua/dap/DapJsonValue;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Z
+	public final fun component5 ()Lio/github/realmlabs/klua/dap/DapJsonValue;
+	public final fun component6 ()Ljava/lang/String;
+	public final fun copy (IILjava/lang/String;ZLio/github/realmlabs/klua/dap/DapJsonValue;Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapResponseMessage;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapResponseMessage;IILjava/lang/String;ZLio/github/realmlabs/klua/dap/DapJsonValue;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapResponseMessage;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBody ()Lio/github/realmlabs/klua/dap/DapJsonValue;
+	public final fun getCommand ()Ljava/lang/String;
+	public final fun getMessage ()Ljava/lang/String;
+	public final fun getRequestSeq ()I
+	public fun getSeq ()I
+	public final fun getSuccess ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapScope {
+	public fun <init> (Ljava/lang/String;IZ)V
+	public synthetic fun <init> (Ljava/lang/String;IZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun copy (Ljava/lang/String;IZ)Lio/github/realmlabs/klua/dap/DapScope;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapScope;Ljava/lang/String;IZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapScope;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getExpensive ()Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getVariablesReference ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapScopesRequest {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lio/github/realmlabs/klua/dap/DapScopesRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapScopesRequest;IILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapScopesRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrameId ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapScopesResponse {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/dap/DapScopesResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapScopesResponse;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapScopesResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getScopes ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapSession : io/github/realmlabs/klua/dap/DapCommandSession {
+	public fun <init> ()V
+	public fun <init> (Lio/github/realmlabs/klua/dap/DapCapabilities;Lio/github/realmlabs/klua/debug/BreakpointManager;Lio/github/realmlabs/klua/debug/DebugController;Lio/github/realmlabs/klua/dap/DapExpressionEvaluator;Lio/github/realmlabs/klua/dap/DapThreadProvider;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/dap/DapCapabilities;Lio/github/realmlabs/klua/debug/BreakpointManager;Lio/github/realmlabs/klua/debug/DebugController;Lio/github/realmlabs/klua/dap/DapExpressionEvaluator;Lio/github/realmlabs/klua/dap/DapThreadProvider;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun attach (Lio/github/realmlabs/klua/dap/DapAttachRequest;)Lio/github/realmlabs/klua/dap/DapAttachResponse;
+	public final fun breakpointAt (Ljava/lang/String;I)Lio/github/realmlabs/klua/debug/Breakpoint;
+	public final fun configurationDone ()Lio/github/realmlabs/klua/dap/DapConfigurationDoneResponse;
+	public final fun continueExecution ()Lio/github/realmlabs/klua/dap/DapContinueResponse;
+	public final fun currentStepMode ()Lio/github/realmlabs/klua/debug/StepMode;
+	public final fun disconnect (Lio/github/realmlabs/klua/dap/DapDisconnectRequest;)Lio/github/realmlabs/klua/dap/DapDisconnectResponse;
+	public static synthetic fun disconnect$default (Lio/github/realmlabs/klua/dap/DapSession;Lio/github/realmlabs/klua/dap/DapDisconnectRequest;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapDisconnectResponse;
+	public fun drainEvents ()Ljava/util/List;
+	public final fun evaluate (Lio/github/realmlabs/klua/dap/DapEvaluateRequest;)Lio/github/realmlabs/klua/dap/DapEvaluateResponse;
+	public final fun getAttachTarget ()Ljava/lang/String;
+	public final fun getClientId ()Ljava/lang/String;
+	public final fun getLaunchedProgram ()Ljava/lang/String;
+	public final fun getMode ()Lio/github/realmlabs/klua/dap/DapDebugMode;
+	public fun handle (Lio/github/realmlabs/klua/dap/DapCommandRequest;)Lio/github/realmlabs/klua/dap/DapCommandResponse;
+	public final fun initialize (Lio/github/realmlabs/klua/dap/DapInitializeRequest;)Lio/github/realmlabs/klua/dap/DapInitializeResponse;
+	public final fun isConfigured ()Z
+	public final fun isDisconnected ()Z
+	public final fun isInitialized ()Z
+	public final fun launch (Lio/github/realmlabs/klua/dap/DapLaunchRequest;)Lio/github/realmlabs/klua/dap/DapLaunchResponse;
+	public final fun next (I)Lio/github/realmlabs/klua/dap/DapStepResponse;
+	public final fun pause ()Lio/github/realmlabs/klua/dap/DapPauseResponse;
+	public final fun scopes (I)Lio/github/realmlabs/klua/dap/DapScopesResponse;
+	public final fun setBreakpoints (Lio/github/realmlabs/klua/dap/DapSetBreakpointsRequest;)Lio/github/realmlabs/klua/dap/DapSetBreakpointsResponse;
+	public final fun stackTrace (Ljava/util/List;ILjava/lang/Integer;)Lio/github/realmlabs/klua/dap/DapStackTraceResponse;
+	public static synthetic fun stackTrace$default (Lio/github/realmlabs/klua/dap/DapSession;Ljava/util/List;ILjava/lang/Integer;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapStackTraceResponse;
+	public final fun stepIn ()Lio/github/realmlabs/klua/dap/DapStepResponse;
+	public final fun stepOut (I)Lio/github/realmlabs/klua/dap/DapStepResponse;
+	public final fun threads ()Lio/github/realmlabs/klua/dap/DapThreadsResponse;
+	public final fun variables (III)Lio/github/realmlabs/klua/dap/DapVariablesResponse;
+	public static synthetic fun variables$default (Lio/github/realmlabs/klua/dap/DapSession;IIIILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapVariablesResponse;
+}
+
+public final class io/github/realmlabs/klua/dap/DapSessionEvent {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/Object;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;)Lio/github/realmlabs/klua/dap/DapSessionEvent;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapSessionEvent;Ljava/lang/String;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapSessionEvent;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBody ()Ljava/lang/Object;
+	public final fun getEvent ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapSetBreakpointsRequest {
+	public fun <init> (Lio/github/realmlabs/klua/dap/DapSource;Ljava/util/List;)V
+	public final fun component1 ()Lio/github/realmlabs/klua/dap/DapSource;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Lio/github/realmlabs/klua/dap/DapSource;Ljava/util/List;)Lio/github/realmlabs/klua/dap/DapSetBreakpointsRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapSetBreakpointsRequest;Lio/github/realmlabs/klua/dap/DapSource;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapSetBreakpointsRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBreakpoints ()Ljava/util/List;
+	public final fun getSource ()Lio/github/realmlabs/klua/dap/DapSource;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapSetBreakpointsResponse {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/dap/DapSetBreakpointsResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapSetBreakpointsResponse;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapSetBreakpointsResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBreakpoints ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapSource {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapSource;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapSource;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapSource;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getPath ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapSourceBreakpoint {
+	public fun <init> (ILjava/lang/String;)V
+	public synthetic fun <init> (ILjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (ILjava/lang/String;)Lio/github/realmlabs/klua/dap/DapSourceBreakpoint;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapSourceBreakpoint;ILjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapSourceBreakpoint;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCondition ()Ljava/lang/String;
+	public final fun getLine ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapStackFrame {
+	public fun <init> (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapSource;II)V
+	public synthetic fun <init> (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapSource;IIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lio/github/realmlabs/klua/dap/DapSource;
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun copy (ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapSource;II)Lio/github/realmlabs/klua/dap/DapStackFrame;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapStackFrame;ILjava/lang/String;Lio/github/realmlabs/klua/dap/DapSource;IIILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapStackFrame;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getColumn ()I
+	public final fun getId ()I
+	public final fun getLine ()I
+	public final fun getName ()Ljava/lang/String;
+	public final fun getSource ()Lio/github/realmlabs/klua/dap/DapSource;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/dap/DapStackTraceFrameProvider {
+	public abstract fun frames (I)Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/dap/DapStackTraceRequest {
+	public fun <init> (Ljava/util/List;ILjava/lang/Integer;Ljava/lang/Integer;)V
+	public synthetic fun <init> (Ljava/util/List;ILjava/lang/Integer;Ljava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/lang/Integer;
+	public final fun component4 ()Ljava/lang/Integer;
+	public final fun copy (Ljava/util/List;ILjava/lang/Integer;Ljava/lang/Integer;)Lio/github/realmlabs/klua/dap/DapStackTraceRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapStackTraceRequest;Ljava/util/List;ILjava/lang/Integer;Ljava/lang/Integer;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapStackTraceRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrames ()Ljava/util/List;
+	public final fun getLevels ()Ljava/lang/Integer;
+	public final fun getStartFrame ()I
+	public final fun getThreadId ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapStackTraceResponse {
+	public fun <init> (Ljava/util/List;I)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun component2 ()I
+	public final fun copy (Ljava/util/List;I)Lio/github/realmlabs/klua/dap/DapStackTraceResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapStackTraceResponse;Ljava/util/List;IILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapStackTraceResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getStackFrames ()Ljava/util/List;
+	public final fun getTotalFrames ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapStepRequest {
+	public fun <init> ()V
+	public fun <init> (ILjava/lang/Integer;)V
+	public synthetic fun <init> (ILjava/lang/Integer;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/Integer;
+	public final fun copy (ILjava/lang/Integer;)Lio/github/realmlabs/klua/dap/DapStepRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapStepRequest;ILjava/lang/Integer;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapStepRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCallDepth ()I
+	public final fun getThreadId ()Ljava/lang/Integer;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapStepResponse {
+	public fun <init> (Lio/github/realmlabs/klua/debug/StepMode;)V
+	public final fun component1 ()Lio/github/realmlabs/klua/debug/StepMode;
+	public final fun copy (Lio/github/realmlabs/klua/debug/StepMode;)Lio/github/realmlabs/klua/dap/DapStepResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapStepResponse;Lio/github/realmlabs/klua/debug/StepMode;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapStepResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getStepMode ()Lio/github/realmlabs/klua/debug/StepMode;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapStoppedEventBody {
+	public fun <init> (Ljava/lang/String;ILjava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;ILjava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Z
+	public final fun copy (Ljava/lang/String;ILjava/lang/String;Z)Lio/github/realmlabs/klua/dap/DapStoppedEventBody;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapStoppedEventBody;Ljava/lang/String;ILjava/lang/String;ZILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapStoppedEventBody;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAllThreadsStopped ()Z
+	public final fun getDescription ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+	public final fun getThreadId ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapTerminatedEventBody {
+	public static final field INSTANCE Lio/github/realmlabs/klua/dap/DapTerminatedEventBody;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapThread {
+	public fun <init> (ILjava/lang/String;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (ILjava/lang/String;)Lio/github/realmlabs/klua/dap/DapThread;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapThread;ILjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapThread;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()I
+	public final fun getName ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapThreadEventBody {
+	public fun <init> (Ljava/lang/String;I)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun copy (Ljava/lang/String;I)Lio/github/realmlabs/klua/dap/DapThreadEventBody;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapThreadEventBody;Ljava/lang/String;IILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapThreadEventBody;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Ljava/lang/String;
+	public final fun getThreadId ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/dap/DapThreadProvider {
+	public abstract fun threads ()Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/dap/DapThreadsResponse {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/dap/DapThreadsResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapThreadsResponse;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapThreadsResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getThreads ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapVariable {
+	public fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)V
+	public synthetic fun <init> (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()I
+	public final fun copy (Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;I)Lio/github/realmlabs/klua/dap/DapVariable;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapVariable;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;IILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapVariable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getName ()Ljava/lang/String;
+	public final fun getType ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/String;
+	public final fun getVariablesReference ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapVariablesRequest {
+	public fun <init> (III)V
+	public synthetic fun <init> (IIIILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()I
+	public final fun copy (III)Lio/github/realmlabs/klua/dap/DapVariablesRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapVariablesRequest;IIIILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapVariablesRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCount ()I
+	public final fun getStart ()I
+	public final fun getVariablesReference ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapVariablesResponse {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/dap/DapVariablesResponse;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapVariablesResponse;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapVariablesResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getVariables ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapWireExchange {
+	public fun <init> (Lio/github/realmlabs/klua/dap/DapResponseMessage;Ljava/util/List;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/dap/DapResponseMessage;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lio/github/realmlabs/klua/dap/DapResponseMessage;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Lio/github/realmlabs/klua/dap/DapResponseMessage;Ljava/util/List;)Lio/github/realmlabs/klua/dap/DapWireExchange;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/dap/DapWireExchange;Lio/github/realmlabs/klua/dap/DapResponseMessage;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapWireExchange;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getEvents ()Ljava/util/List;
+	public final fun getResponse ()Lio/github/realmlabs/klua/dap/DapResponseMessage;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/dap/DapWireSession {
+	public fun <init> ()V
+	public fun <init> (Lio/github/realmlabs/klua/dap/DapCommandSession;Lio/github/realmlabs/klua/dap/DapStackTraceFrameProvider;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/dap/DapCommandSession;Lio/github/realmlabs/klua/dap/DapStackTraceFrameProvider;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun drainEvents ()Ljava/util/List;
+	public final fun handle (Lio/github/realmlabs/klua/dap/DapRequestMessage;)Lio/github/realmlabs/klua/dap/DapResponseMessage;
+	public final fun handleExchange (Lio/github/realmlabs/klua/dap/DapRequestMessage;)Lio/github/realmlabs/klua/dap/DapWireExchange;
+	public final fun handleJson (Ljava/lang/String;)Ljava/lang/String;
+	public final fun handleJsonExchange (Ljava/lang/String;)Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/dap/LiveDapSession : io/github/realmlabs/klua/dap/DapCommandSession {
+	public fun <init> ()V
+	public fun <init> (Lio/github/realmlabs/klua/dap/DapCapabilities;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/dap/DapCapabilities;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun drainEvents ()Ljava/util/List;
+	public fun handle (Lio/github/realmlabs/klua/dap/DapCommandRequest;)Lio/github/realmlabs/klua/dap/DapCommandResponse;
+	public final fun lastResult (I)Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public final fun register (Lio/github/realmlabs/klua/api/LuaCoroutineFunction;Ljava/lang/String;)Lio/github/realmlabs/klua/dap/DapThread;
+	public static synthetic fun register$default (Lio/github/realmlabs/klua/dap/LiveDapSession;Lio/github/realmlabs/klua/api/LuaCoroutineFunction;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/dap/DapThread;
+	public final fun start (ILjava/util/List;)Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public static synthetic fun start$default (Lio/github/realmlabs/klua/dap/LiveDapSession;ILjava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugResult;
+}
+

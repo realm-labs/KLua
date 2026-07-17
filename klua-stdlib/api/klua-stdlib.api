@@ -1,0 +1,26 @@
+public abstract interface class io/github/realmlabs/klua/stdlib/LuaDebugInput {
+	public abstract fun readLine ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/stdlib/LuaStdlib {
+	public static final field INSTANCE Lio/github/realmlabs/klua/stdlib/LuaStdlib;
+	public static final fun openBase (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openBase (Lio/github/realmlabs/klua/api/LuaState;Ljava/util/function/Consumer;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openCoroutine (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openDebug (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openDebug (Lio/github/realmlabs/klua/api/LuaState;Lio/github/realmlabs/klua/stdlib/LuaDebugInput;Ljava/util/function/Consumer;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openIo (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openLibs (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openLibs (Lio/github/realmlabs/klua/api/LuaState;Ljava/util/function/Consumer;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openMath (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openOs (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openPackage (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openString (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openTable (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+	public static final fun openUtf8 (Lio/github/realmlabs/klua/api/LuaState;)Lio/github/realmlabs/klua/api/LuaState;
+}
+
+public final class io/github/realmlabs/klua/stdlib/StdlibMarker {
+	public static final field INSTANCE Lio/github/realmlabs/klua/stdlib/StdlibMarker;
+}
+

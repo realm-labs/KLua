@@ -1,0 +1,13 @@
+public final class io/github/realmlabs/klua/kotlin/KLuaKotlinKt {
+	public static final fun createDefault (Lio/github/realmlabs/klua/api/Lua$Companion;)Lio/github/realmlabs/klua/api/Lua;
+	public static final fun function (Lio/github/realmlabs/klua/api/LuaGlobals;Ljava/lang/String;Lio/github/realmlabs/klua/api/LuaFunction;)V
+	public static final fun functionContext (Lio/github/realmlabs/klua/api/Lua;Lkotlin/jvm/functions/Function1;)Lio/github/realmlabs/klua/api/LuaFunction;
+	public static final fun get (Lio/github/realmlabs/klua/api/LuaGlobals;Ljava/lang/String;)Ljava/lang/Object;
+	public static final fun getGlobals (Lio/github/realmlabs/klua/api/Lua;)Lio/github/realmlabs/klua/api/LuaGlobals;
+	public static final fun invoke (Lio/github/realmlabs/klua/api/LuaChunk;[Ljava/lang/Object;)Lio/github/realmlabs/klua/api/LuaReturn;
+	public static final fun luaFunction0 (Lio/github/realmlabs/klua/api/Lua;Lkotlin/jvm/functions/Function0;)Lio/github/realmlabs/klua/api/LuaFunction;
+	public static final fun luaFunction1Long (Lio/github/realmlabs/klua/api/Lua;Lkotlin/jvm/functions/Function1;)Lio/github/realmlabs/klua/api/LuaFunction;
+	public static final fun luaFunction2Long (Lio/github/realmlabs/klua/api/Lua;Lkotlin/jvm/functions/Function2;)Lio/github/realmlabs/klua/api/LuaFunction;
+	public static final fun set (Lio/github/realmlabs/klua/api/LuaGlobals;Ljava/lang/String;Ljava/lang/Object;)V
+}
+

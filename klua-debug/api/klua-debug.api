@@ -1,0 +1,388 @@
+public final class io/github/realmlabs/klua/debug/Breakpoint {
+	public fun <init> (Ljava/lang/String;IZLjava/lang/String;)V
+	public synthetic fun <init> (Ljava/lang/String;IZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()I
+	public final fun component3 ()Z
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;IZLjava/lang/String;)Lio/github/realmlabs/klua/debug/Breakpoint;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/Breakpoint;Ljava/lang/String;IZLjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/Breakpoint;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCondition ()Ljava/lang/String;
+	public final fun getEnabled ()Z
+	public final fun getLine ()I
+	public final fun getSourceId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/BreakpointManager {
+	public fun <init> ()V
+	public final fun breakpointAt (Ljava/lang/String;I)Lio/github/realmlabs/klua/debug/Breakpoint;
+	public final fun clearBreakpoint (Ljava/lang/String;I)Z
+	public final fun clearSource (Ljava/lang/String;)I
+	public final fun isBreakpoint (Ljava/lang/String;I)Z
+	public final fun listBreakpoints (Ljava/lang/String;)Ljava/util/List;
+	public static synthetic fun listBreakpoints$default (Lio/github/realmlabs/klua/debug/BreakpointManager;Ljava/lang/String;ILjava/lang/Object;)Ljava/util/List;
+	public final fun replaceSourceBreakpoints (Ljava/lang/String;Ljava/util/List;)Ljava/util/List;
+	public final fun setBreakpoint (Ljava/lang/String;IZLjava/lang/String;)Lio/github/realmlabs/klua/debug/Breakpoint;
+	public static synthetic fun setBreakpoint$default (Lio/github/realmlabs/klua/debug/BreakpointManager;Ljava/lang/String;IZLjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/Breakpoint;
+}
+
+public final class io/github/realmlabs/klua/debug/BreakpointRequest {
+	public fun <init> (IZLjava/lang/String;)V
+	public synthetic fun <init> (IZLjava/lang/String;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Z
+	public final fun component3 ()Ljava/lang/String;
+	public final fun copy (IZLjava/lang/String;)Lio/github/realmlabs/klua/debug/BreakpointRequest;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/BreakpointRequest;IZLjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/BreakpointRequest;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCondition ()Ljava/lang/String;
+	public final fun getEnabled ()Z
+	public final fun getLine ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/debug/DebugConditionEvaluator {
+	public abstract fun evaluate (Ljava/lang/String;)Z
+}
+
+public final class io/github/realmlabs/klua/debug/DebugController {
+	public fun <init> ()V
+	public fun <init> (Lio/github/realmlabs/klua/debug/BreakpointManager;Lio/github/realmlabs/klua/debug/DebugConditionEvaluator;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/debug/BreakpointManager;Lio/github/realmlabs/klua/debug/DebugConditionEvaluator;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun clearBreakpoint (Ljava/lang/String;I)Z
+	public final fun currentStepMode ()Lio/github/realmlabs/klua/debug/StepMode;
+	public final fun getBreakpoints ()Lio/github/realmlabs/klua/debug/BreakpointManager;
+	public final fun isPaused ()Z
+	public final fun pause ()V
+	public final fun resume ()V
+	public final fun setBreakpoint (Ljava/lang/String;IZLjava/lang/String;)Lio/github/realmlabs/klua/debug/Breakpoint;
+	public static synthetic fun setBreakpoint$default (Lio/github/realmlabs/klua/debug/DebugController;Ljava/lang/String;IZLjava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/Breakpoint;
+	public final fun shouldStop (Ljava/lang/String;ILio/github/realmlabs/klua/debug/DebugEvent;I)Lio/github/realmlabs/klua/debug/DebugStop;
+	public final fun stepInto ()V
+	public final fun stepOut (I)V
+	public final fun stepOver (I)V
+}
+
+public final class io/github/realmlabs/klua/debug/DebugDisplayAdapters {
+	public static final field Companion Lio/github/realmlabs/klua/debug/DebugDisplayAdapters$Companion;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugDisplayAdapters$Companion {
+	public final fun getEmpty ()Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;
+	public final fun ofUserData ([Lio/github/realmlabs/klua/debug/DebugUserDataDisplayAdapter;)Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;
+}
+
+public abstract interface class io/github/realmlabs/klua/debug/DebugEvaluationResult {
+}
+
+public final class io/github/realmlabs/klua/debug/DebugEvaluationResult$Failure : io/github/realmlabs/klua/debug/DebugEvaluationResult {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/realmlabs/klua/debug/DebugEvaluationResult$Failure;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/DebugEvaluationResult$Failure;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugEvaluationResult$Failure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getMessage ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugEvaluationResult$Success : io/github/realmlabs/klua/debug/DebugEvaluationResult {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/debug/DebugEvaluationResult$Success;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/DebugEvaluationResult$Success;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugEvaluationResult$Success;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugEvent : java/lang/Enum {
+	public static final field CALL Lio/github/realmlabs/klua/debug/DebugEvent;
+	public static final field COUNT Lio/github/realmlabs/klua/debug/DebugEvent;
+	public static final field EXCEPTION Lio/github/realmlabs/klua/debug/DebugEvent;
+	public static final field LINE Lio/github/realmlabs/klua/debug/DebugEvent;
+	public static final field RETURN Lio/github/realmlabs/klua/debug/DebugEvent;
+	public static final field TAIL_CALL Lio/github/realmlabs/klua/debug/DebugEvent;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/realmlabs/klua/debug/DebugEvent;
+	public static fun values ()[Lio/github/realmlabs/klua/debug/DebugEvent;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugFrameView {
+	public static final field Companion Lio/github/realmlabs/klua/debug/DebugFrameView$Companion;
+	public fun <init> (ILjava/lang/String;IIILjava/util/List;Ljava/util/List;Ljava/util/List;)V
+	public synthetic fun <init> (ILjava/lang/String;IIILjava/util/List;Ljava/util/List;Ljava/util/List;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()I
+	public final fun component5 ()I
+	public final fun component6 ()Ljava/util/List;
+	public final fun component7 ()Ljava/util/List;
+	public final fun component8 ()Ljava/util/List;
+	public final fun copy (ILjava/lang/String;IIILjava/util/List;Ljava/util/List;Ljava/util/List;)Lio/github/realmlabs/klua/debug/DebugFrameView;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/DebugFrameView;ILjava/lang/String;IIILjava/util/List;Ljava/util/List;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugFrameView;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getGlobals ()Ljava/util/List;
+	public final fun getLastLineDefined ()I
+	public final fun getLevel ()I
+	public final fun getLine ()I
+	public final fun getLineDefined ()I
+	public final fun getLocals ()Ljava/util/List;
+	public final fun getSourceName ()Ljava/lang/String;
+	public final fun getUpvalues ()Ljava/util/List;
+	public fun hashCode ()I
+	public final fun scopes ()Ljava/util/List;
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugFrameView$Companion {
+	public final fun fromLuaFrames (Ljava/util/List;)Ljava/util/List;
+	public final fun fromLuaFrames (Ljava/util/List;Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;)Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugFrameViewKt {
+	public static final fun toDebugFrameView (Lio/github/realmlabs/klua/api/LuaStackFrame;I)Lio/github/realmlabs/klua/debug/DebugFrameView;
+	public static final fun toDebugFrameView (Lio/github/realmlabs/klua/api/LuaStackFrame;ILio/github/realmlabs/klua/debug/DebugDisplayAdapters;)Lio/github/realmlabs/klua/debug/DebugFrameView;
+	public static final fun toDebugVariable (Lio/github/realmlabs/klua/api/LuaLocalVariable;)Lio/github/realmlabs/klua/debug/DebugVariable;
+	public static final fun toDebugVariable (Lio/github/realmlabs/klua/api/LuaLocalVariable;Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;)Lio/github/realmlabs/klua/debug/DebugVariable;
+	public static final fun toDebugVariable (Lio/github/realmlabs/klua/api/LuaUpvalueVariable;Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;)Lio/github/realmlabs/klua/debug/DebugVariable;
+	public static synthetic fun toDebugVariable$default (Lio/github/realmlabs/klua/api/LuaUpvalueVariable;Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugVariable;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugMarker {
+	public static final field INSTANCE Lio/github/realmlabs/klua/debug/DebugMarker;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugScopeKind : java/lang/Enum {
+	public static final field GLOBALS Lio/github/realmlabs/klua/debug/DebugScopeKind;
+	public static final field LOCALS Lio/github/realmlabs/klua/debug/DebugScopeKind;
+	public static final field UPVALUES Lio/github/realmlabs/klua/debug/DebugScopeKind;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/realmlabs/klua/debug/DebugScopeKind;
+	public static fun values ()[Lio/github/realmlabs/klua/debug/DebugScopeKind;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugScopeView {
+	public static final field Companion Lio/github/realmlabs/klua/debug/DebugScopeView$Companion;
+	public fun <init> (Ljava/lang/String;Lio/github/realmlabs/klua/debug/DebugScopeKind;Ljava/util/List;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Lio/github/realmlabs/klua/debug/DebugScopeKind;
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (Ljava/lang/String;Lio/github/realmlabs/klua/debug/DebugScopeKind;Ljava/util/List;)Lio/github/realmlabs/klua/debug/DebugScopeView;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/DebugScopeView;Ljava/lang/String;Lio/github/realmlabs/klua/debug/DebugScopeKind;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugScopeView;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getKind ()Lio/github/realmlabs/klua/debug/DebugScopeKind;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getVariables ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugScopeView$Companion {
+	public final fun globals (Ljava/util/List;)Lio/github/realmlabs/klua/debug/DebugScopeView;
+	public final fun locals (Ljava/util/List;)Lio/github/realmlabs/klua/debug/DebugScopeView;
+	public final fun upvalues (Ljava/util/List;)Lio/github/realmlabs/klua/debug/DebugScopeView;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugStop {
+	public fun <init> (Lio/github/realmlabs/klua/debug/DebugStopReason;Ljava/lang/String;ILio/github/realmlabs/klua/debug/DebugEvent;Lio/github/realmlabs/klua/debug/Breakpoint;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/debug/DebugStopReason;Ljava/lang/String;ILio/github/realmlabs/klua/debug/DebugEvent;Lio/github/realmlabs/klua/debug/Breakpoint;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Lio/github/realmlabs/klua/debug/DebugStopReason;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()I
+	public final fun component4 ()Lio/github/realmlabs/klua/debug/DebugEvent;
+	public final fun component5 ()Lio/github/realmlabs/klua/debug/Breakpoint;
+	public final fun copy (Lio/github/realmlabs/klua/debug/DebugStopReason;Ljava/lang/String;ILio/github/realmlabs/klua/debug/DebugEvent;Lio/github/realmlabs/klua/debug/Breakpoint;)Lio/github/realmlabs/klua/debug/DebugStop;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/DebugStop;Lio/github/realmlabs/klua/debug/DebugStopReason;Ljava/lang/String;ILio/github/realmlabs/klua/debug/DebugEvent;Lio/github/realmlabs/klua/debug/Breakpoint;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugStop;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getBreakpoint ()Lio/github/realmlabs/klua/debug/Breakpoint;
+	public final fun getEvent ()Lio/github/realmlabs/klua/debug/DebugEvent;
+	public final fun getLine ()I
+	public final fun getReason ()Lio/github/realmlabs/klua/debug/DebugStopReason;
+	public final fun getSourceId ()Ljava/lang/String;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugStopReason : java/lang/Enum {
+	public static final field BREAKPOINT Lio/github/realmlabs/klua/debug/DebugStopReason;
+	public static final field PAUSE Lio/github/realmlabs/klua/debug/DebugStopReason;
+	public static final field STEP Lio/github/realmlabs/klua/debug/DebugStopReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/realmlabs/klua/debug/DebugStopReason;
+	public static fun values ()[Lio/github/realmlabs/klua/debug/DebugStopReason;
+}
+
+public abstract interface class io/github/realmlabs/klua/debug/DebugUserDataDisplayAdapter {
+	public abstract fun display (Ljava/lang/Object;)Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugVariable {
+	public fun <init> (Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)V
+	public final fun childPage (IILio/github/realmlabs/klua/debug/DebugDisplayAdapters;)Lio/github/realmlabs/klua/debug/DebugVariablePage;
+	public static synthetic fun childPage$default (Lio/github/realmlabs/klua/debug/DebugVariable;IILio/github/realmlabs/klua/debug/DebugDisplayAdapters;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugVariablePage;
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Ljava/lang/Object;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;)Lio/github/realmlabs/klua/debug/DebugVariable;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/DebugVariable;Ljava/lang/String;Ljava/lang/Object;Ljava/lang/String;Ljava/lang/String;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugVariable;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDisplayValue ()Ljava/lang/String;
+	public final fun getName ()Ljava/lang/String;
+	public final fun getTypeName ()Ljava/lang/String;
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/DebugVariablePage {
+	public fun <init> (IILjava/util/List;)V
+	public final fun component1 ()I
+	public final fun component2 ()I
+	public final fun component3 ()Ljava/util/List;
+	public final fun copy (IILjava/util/List;)Lio/github/realmlabs/klua/debug/DebugVariablePage;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/DebugVariablePage;IILjava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugVariablePage;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getStart ()I
+	public final fun getTotal ()I
+	public final fun getVariables ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/realmlabs/klua/debug/LiveDebugResult {
+}
+
+public final class io/github/realmlabs/klua/debug/LiveDebugResult$Returned : io/github/realmlabs/klua/debug/LiveDebugResult {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/debug/LiveDebugResult$Returned;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/LiveDebugResult$Returned;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugResult$Returned;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/LiveDebugResult$RuntimeError : io/github/realmlabs/klua/debug/LiveDebugResult {
+	public fun <init> (Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;)V
+	public final fun component1 ()Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;
+	public final fun copy (Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;)Lio/github/realmlabs/klua/debug/LiveDebugResult$RuntimeError;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/LiveDebugResult$RuntimeError;Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugResult$RuntimeError;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Lio/github/realmlabs/klua/api/LuaCoroutineResult$RuntimeError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/LiveDebugResult$Stopped : io/github/realmlabs/klua/debug/LiveDebugResult {
+	public fun <init> (Lio/github/realmlabs/klua/debug/DebugStop;Ljava/util/List;)V
+	public final fun component1 ()Lio/github/realmlabs/klua/debug/DebugStop;
+	public final fun component2 ()Ljava/util/List;
+	public final fun copy (Lio/github/realmlabs/klua/debug/DebugStop;Ljava/util/List;)Lio/github/realmlabs/klua/debug/LiveDebugResult$Stopped;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/LiveDebugResult$Stopped;Lio/github/realmlabs/klua/debug/DebugStop;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugResult$Stopped;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFrames ()Ljava/util/List;
+	public final fun getStop ()Lio/github/realmlabs/klua/debug/DebugStop;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/LiveDebugResult$Yielded : io/github/realmlabs/klua/debug/LiveDebugResult {
+	public fun <init> (Ljava/util/List;)V
+	public final fun component1 ()Ljava/util/List;
+	public final fun copy (Ljava/util/List;)Lio/github/realmlabs/klua/debug/LiveDebugResult$Yielded;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/LiveDebugResult$Yielded;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugResult$Yielded;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValues ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/LiveDebugRuntime {
+	public fun <init> ()V
+	public final fun register (Lio/github/realmlabs/klua/api/LuaCoroutineFunction;Ljava/lang/String;Lio/github/realmlabs/klua/debug/DebugController;)Lio/github/realmlabs/klua/debug/LiveDebugThread;
+	public static synthetic fun register$default (Lio/github/realmlabs/klua/debug/LiveDebugRuntime;Lio/github/realmlabs/klua/api/LuaCoroutineFunction;Ljava/lang/String;Lio/github/realmlabs/klua/debug/DebugController;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugThread;
+	public final fun remove (I)Z
+	public final fun thread (I)Lio/github/realmlabs/klua/debug/LiveDebugThread;
+	public final fun threads ()Ljava/util/List;
+}
+
+public final class io/github/realmlabs/klua/debug/LiveDebugSession {
+	public fun <init> (Lio/github/realmlabs/klua/api/LuaCoroutineFunction;Lio/github/realmlabs/klua/debug/DebugController;Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;)V
+	public synthetic fun <init> (Lio/github/realmlabs/klua/api/LuaCoroutineFunction;Lio/github/realmlabs/klua/debug/DebugController;Lio/github/realmlabs/klua/debug/DebugDisplayAdapters;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun continueExecution ()Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public final fun evaluate (Ljava/lang/String;I)Lio/github/realmlabs/klua/debug/DebugEvaluationResult;
+	public static synthetic fun evaluate$default (Lio/github/realmlabs/klua/debug/LiveDebugSession;Ljava/lang/String;IILjava/lang/Object;)Lio/github/realmlabs/klua/debug/DebugEvaluationResult;
+	public final fun getController ()Lio/github/realmlabs/klua/debug/DebugController;
+	public final fun getFrames ()Ljava/util/List;
+	public final fun resumeYield (Ljava/util/List;)Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public static synthetic fun resumeYield$default (Lio/github/realmlabs/klua/debug/LiveDebugSession;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public final fun run (Ljava/util/List;)Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public static synthetic fun run$default (Lio/github/realmlabs/klua/debug/LiveDebugSession;Ljava/util/List;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public final fun stepInto ()Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public final fun stepOut ()Lio/github/realmlabs/klua/debug/LiveDebugResult;
+	public final fun stepOver ()Lio/github/realmlabs/klua/debug/LiveDebugResult;
+}
+
+public final class io/github/realmlabs/klua/debug/LiveDebugThread {
+	public fun <init> (ILjava/lang/String;Lio/github/realmlabs/klua/debug/LiveDebugSession;)V
+	public final fun component1 ()I
+	public final fun component2 ()Ljava/lang/String;
+	public final fun component3 ()Lio/github/realmlabs/klua/debug/LiveDebugSession;
+	public final fun copy (ILjava/lang/String;Lio/github/realmlabs/klua/debug/LiveDebugSession;)Lio/github/realmlabs/klua/debug/LiveDebugThread;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/LiveDebugThread;ILjava/lang/String;Lio/github/realmlabs/klua/debug/LiveDebugSession;ILjava/lang/Object;)Lio/github/realmlabs/klua/debug/LiveDebugThread;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getId ()I
+	public final fun getName ()Ljava/lang/String;
+	public final fun getSession ()Lio/github/realmlabs/klua/debug/LiveDebugSession;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract class io/github/realmlabs/klua/debug/StepMode {
+}
+
+public final class io/github/realmlabs/klua/debug/StepMode$Into : io/github/realmlabs/klua/debug/StepMode {
+	public static final field INSTANCE Lio/github/realmlabs/klua/debug/StepMode$Into;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/StepMode$None : io/github/realmlabs/klua/debug/StepMode {
+	public static final field INSTANCE Lio/github/realmlabs/klua/debug/StepMode$None;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/StepMode$Out : io/github/realmlabs/klua/debug/StepMode {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lio/github/realmlabs/klua/debug/StepMode$Out;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/StepMode$Out;IILjava/lang/Object;)Lio/github/realmlabs/klua/debug/StepMode$Out;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getTargetDepth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/realmlabs/klua/debug/StepMode$Over : io/github/realmlabs/klua/debug/StepMode {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Lio/github/realmlabs/klua/debug/StepMode$Over;
+	public static synthetic fun copy$default (Lio/github/realmlabs/klua/debug/StepMode$Over;IILjava/lang/Object;)Lio/github/realmlabs/klua/debug/StepMode$Over;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getStartDepth ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
