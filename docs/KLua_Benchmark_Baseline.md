@@ -30,6 +30,16 @@ java -jar klua-jmh/build/libs/klua-jmh-0.1.0-SNAPSHOT-jmh.jar -rf csv -rff klua-
 java -jar klua-jmh/build/libs/klua-jmh-0.1.0-SNAPSHOT-jmh.jar -prof gc -rf csv -rff klua-jmh/build/release-candidate/jdk17-gc.csv
 ```
 
+The exact accepted scores are also stored in the versioned [v1 JDK 17 machine baseline](../klua-jmh/baselines/v1-jdk17.csv). Compare a new complete pair of JMH CSVs offline with:
+
+```text
+./gradlew :klua-jmh:checkPerformanceRegression \
+  -Pklua.performance.timingCsv=klua-jmh/build/candidate/jdk17-timing.csv \
+  -Pklua.performance.gcCsv=klua-jmh/build/candidate/jdk17-gc.csv
+```
+
+PowerShell callers should quote each dotted `-P...` argument. The checker requires the exact accepted 22-workload set. It fails for normalized allocation increases above 5% and reports a timing confirmation candidate only when the point is more than 10% slower and its delta exceeds combined 99.9% uncertainty. A timing candidate still requires the documented second matched run and review; the task never rewrites or automatically approves a baseline.
+
 Accepted results:
 
 | Benchmark | Score (µs/op) | 99.9% error | Allocation (B/op) |

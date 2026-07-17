@@ -50,6 +50,18 @@ A short single-iteration run proves that a benchmark executes; it is not perform
 
 Allocation from `-prof gc` is often more stable than timing for small interpreter workloads. Use JFR or another profiler to attribute a measured change, but do not treat allocation samples as exact byte totals.
 
+## Offline regression audit
+
+After producing a complete timing CSV and a matched `-prof gc` CSV, compare them with the accepted v1 JDK 17 baseline:
+
+```text
+./gradlew :klua-jmh:checkPerformanceRegression \
+  -Pklua.performance.timingCsv=klua-jmh/build/candidate/jdk17-timing.csv \
+  -Pklua.performance.gcCsv=klua-jmh/build/candidate/jdk17-gc.csv
+```
+
+Quote each dotted `-P...` argument in PowerShell. The task validates that both inputs contain exactly the 22 accepted benchmarks, applies the timing threshold plus combined-uncertainty rule, and fails allocation increases above 5%. A `TIMING_CANDIDATE` is a request for a second matched run, not an automatic release-regression verdict. Re-baselining always requires reviewed evidence and a deliberate edit to `klua-jmh/baselines/v1-jdk17.csv` plus the human-readable benchmark record.
+
 ## Release gates and current results
 
 The exact regression gates, accepted checkpoints, environment, commands, confidence intervals, allocation figures, and profiling evidence live in [the benchmark baseline](KLua_Benchmark_Baseline.md). Its first section is the accepted v1 release-candidate baseline.

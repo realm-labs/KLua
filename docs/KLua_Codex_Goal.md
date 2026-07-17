@@ -179,7 +179,7 @@ This is a milestone-level snapshot of committed capability, not a list of comple
 | M13-M18 | Done | Coroutine, structured error/debug metadata, hooks/debugger, DAP library integration, KLua bytecode packaging, and initial sandbox controls meet their documented foundation success criteria. Residual hardening remains M20 or later release work. |
 | M19 | Done | The canonical JDK 17 baseline, byte-oriented strings, tagged VM slots, hybrid versioned tables, guarded inline caches, stack-range calls, fast/instrumented dispatch, and final matched performance screen have landed. Measurements and the one explicitly accepted bounded allocation tradeoff live in `docs/KLua_Benchmark_Baseline.md`. |
 | M20 | Done | Source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance passed the optimized-representation audit. `docs/KLua_Conformance_Gaps.md` classifies every remaining JVM/host difference and records no unowned v1 blocker. |
-| M21 | In progress | The Java/Kotlin ABI, Maven artifacts, executable distributions, stdio DAP host, task-oriented guides, compiled examples, release notes/checklist, and canonical JDK 17 performance baseline are locally locked and verified. Machine-readable regression auditing remains the active non-publishing frontier; versioning, tagging, signing, pushing, and publication still require explicit authorization. |
+| M21 | In progress | The Java/Kotlin ABI, Maven artifacts, executable distributions, stdio DAP host, task-oriented guides, compiled examples, release notes/checklist, canonical JDK 17 baseline, and machine-readable performance regression audit are locally locked and verified. Deterministic release-bundle assembly remains the active non-publishing frontier; versioning, tagging, signing, pushing, and publication still require explicit authorization. |
 | M22 | Deferred | JVM bytecode generation remains optional and must not begin before v1 foundations stabilize. |
 
 Current capability includes:
@@ -195,10 +195,11 @@ Current capability includes:
 - An accepted v1 release-candidate timing/allocation baseline with reproducible canonical JDK 17 commands and passing debug/budget policy gates.
 - ZIP/TAR application distributions with Unix/Windows `klua` launchers, compile/debug/DAP process smokes, embedded license/docs, and a standalone launch-only stdio DAP adapter.
 - Draft v1 release notes plus a clean-checkout checklist that keeps every external release action explicitly gated.
+- A versioned 22-workload timing/allocation baseline and offline checker for complete-set, combined-uncertainty, and allocation-gate auditing.
 
 Material remaining gaps include:
 
-- Automated benchmark-to-baseline comparison remains a non-blocking follow-up; the accepted v1 evidence is reproducible and manually audited.
+- Verified artifacts and distributions are not yet assembled into one deterministic local release directory with a SHA-256 manifest.
 
 The detailed, source-backed residual list belongs in `docs/KLua_Conformance_Gaps.md` and must not be duplicated here.
 
@@ -258,7 +259,7 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M21 machine-readable performance regression audit | Store the accepted release-candidate timing/allocation comparison data in a versioned machine-readable form, add an offline checker that validates the complete benchmark set and reports timing candidates under the threshold/combined-uncertainty rule plus allocation failures above 5%, cover its decision matrix, and keep matched reruns and re-baselining as explicit reviewed actions. | One to three coherent baseline-data, checker/test, and guide commits. |
+| 1 | In progress | M21 deterministic release bundle and checksum manifest | Assemble the already verified binary/source JARs, POMs, and ZIP/TAR tool distributions into one clean local versioned directory, generate a stable SHA-256 manifest over the publishable files, verify exact membership and hashes, document the non-publishing command, and keep signing/upload out of scope. | One to three coherent bundle-task, manifest-verification, and release-guide commits. |
 
 When package 1 closes, audit the remaining M21 release checklist and add one bounded successor only if an unowned release-readiness gap remains. Do not keep closed campaign narratives or commit hashes in this table.
 
