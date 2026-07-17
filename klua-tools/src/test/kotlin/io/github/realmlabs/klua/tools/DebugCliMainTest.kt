@@ -174,7 +174,10 @@ class DebugCliMainTest {
 
         assertEquals(2, exitCode)
         assertEquals(
-            listOf("usage: klua --debug <script.lua> [args...] | klua --compile <script.lua> <output.kluac>"),
+            listOf(
+                "usage: klua --debug <script.lua> [args...] | " +
+                    "klua --compile <script.lua> <output.kluac> | klua --dap",
+            ),
             output,
         )
     }

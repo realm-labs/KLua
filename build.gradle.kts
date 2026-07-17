@@ -1,4 +1,5 @@
 import java.util.jar.JarFile
+import java.util.zip.ZipFile
 import javax.xml.parsers.DocumentBuilderFactory
 import org.gradle.api.plugins.JavaPluginExtension
 import org.gradle.api.publish.PublishingExtension
@@ -12,6 +13,7 @@ plugins {
 
 val kluaGroup = providers.gradleProperty("klua.group").get()
 val kluaVersion = providers.gradleProperty("klua.version").get()
+val projectUrl = "https://github.com/realm-labs/KLua"
 val releaseModuleNames = listOf(
     "klua-core",
     "klua-api",
@@ -53,6 +55,9 @@ subprojects {
         }
 
         tasks.withType<Jar>().configureEach {
+            from(rootProject.file("LICENSE")) {
+                into("META-INF")
+            }
             manifest.attributes(
                 "Automatic-Module-Name" to "$kluaGroup.${project.name.removePrefix("klua-")}",
                 "Implementation-Title" to project.name,
@@ -67,6 +72,20 @@ subprojects {
                     pom {
                         name.set(project.name)
                         description.set("KLua ${project.name.removePrefix("klua-")} module")
+                        url.set(projectUrl)
+                        inceptionYear.set("2026")
+                        licenses {
+                            license {
+                                name.set("MIT License")
+                                url.set("https://opensource.org/license/mit")
+                                distribution.set("repo")
+                            }
+                        }
+                        scm {
+                            connection.set("scm:git:https://github.com/realm-labs/KLua.git")
+                            developerConnection.set("scm:git:ssh://git@github.com/realm-labs/KLua.git")
+                            url.set(projectUrl)
+                        }
                     }
                 }
             }
@@ -81,12 +100,12 @@ val expectedProjectDependencyScopes = mapOf(
     "klua-stdlib" to mapOf("klua-api" to "compile", "klua-core" to "runtime"),
     "klua-debug" to mapOf("klua-api" to "compile", "klua-core" to "runtime"),
     "klua-dap" to mapOf("klua-debug" to "runtime"),
-    "klua-tools" to mapOf("klua-api" to "runtime", "klua-debug" to "runtime"),
+    "klua-tools" to mapOf("klua-api" to "runtime", "klua-debug" to "runtime", "klua-dap" to "runtime"),
 )
 
 val releaseArtifacts = tasks.register("releaseArtifacts") {
     group = "build"
-    description = "Builds the local KLua release JARs, source JARs, and Maven POMs without publishing them."
+    description = "Builds local KLua Maven artifacts and executable distributions without publishing them."
     dependsOn(
         releaseModuleNames.flatMap { moduleName ->
             listOf(
@@ -95,13 +114,15 @@ val releaseArtifacts = tasks.register("releaseArtifacts") {
                 ":$moduleName:generatePomFileForMavenJavaPublication",
             )
         },
+        ":klua-tools:distZip",
+        ":klua-tools:distTar",
     )
 }
 
 val verifyReleaseArtifacts = tasks.register("verifyReleaseArtifacts") {
     group = "verification"
-    description = "Verifies KLua release coordinates, manifests, source archives, and project dependency scopes."
-    dependsOn(releaseArtifacts)
+    description = "Verifies KLua artifact metadata, licenses, dependency scopes, distributions, and launcher smokes."
+    dependsOn(releaseArtifacts, ":klua-tools:verifyInstallDist")
 
     doLast {
         val xmlFactory = DocumentBuilderFactory.newInstance()
@@ -123,10 +144,14 @@ val verifyReleaseArtifacts = tasks.register("verifyReleaseArtifacts") {
                 check(attributes.getValue("Implementation-Version") == kluaVersion) {
                     "unexpected Implementation-Version in $binaryJar"
                 }
+                check(jar.getEntry("META-INF/LICENSE") != null) { "release JAR has no MIT license: $binaryJar" }
             }
             JarFile(sourcesJar).use { jar ->
                 check(jar.entries().asSequence().any { entry -> entry.name.endsWith(".kt") }) {
                     "release sources JAR contains no Kotlin sources: $sourcesJar"
+                }
+                check(jar.getEntry("META-INF/LICENSE") != null) {
+                    "release sources JAR has no MIT license: $sourcesJar"
                 }
             }
 
@@ -138,6 +163,16 @@ val verifyReleaseArtifacts = tasks.register("verifyReleaseArtifacts") {
             check(elementText(root, "groupId") == kluaGroup) { "unexpected groupId in $pomFile" }
             check(elementText(root, "artifactId") == moduleName) { "unexpected artifactId in $pomFile" }
             check(elementText(root, "version") == kluaVersion) { "unexpected version in $pomFile" }
+            check(elementText(root, "url") == projectUrl) { "unexpected project URL in $pomFile" }
+            val licenses = document.getElementsByTagName("license")
+            check(licenses.length == 1) { "expected one license in $pomFile" }
+            val license = licenses.item(0) as org.w3c.dom.Element
+            check(elementText(license, "name") == "MIT License") { "unexpected license name in $pomFile" }
+            check(elementText(license, "url") == "https://opensource.org/license/mit") {
+                "unexpected license URL in $pomFile"
+            }
+            val scm = document.getElementsByTagName("scm").item(0) as? org.w3c.dom.Element
+            check(scm != null && elementText(scm, "url") == projectUrl) { "missing SCM metadata in $pomFile" }
 
             val actualScopes = buildMap {
                 val dependencies = document.getElementsByTagName("dependency")
@@ -155,7 +190,38 @@ val verifyReleaseArtifacts = tasks.register("verifyReleaseArtifacts") {
                 "unexpected KLua dependency scopes in $pomFile: $actualScopes"
             }
         }
+
+        val distributionsDirectory = project(":klua-tools").layout.buildDirectory.dir("distributions").get().asFile
+        val zipFile = distributionsDirectory.resolve("klua-$kluaVersion.zip")
+        val tarFile = distributionsDirectory.resolve("klua-$kluaVersion.tar")
+        check(zipFile.isFile && zipFile.length() > 0L) { "missing KLua ZIP distribution: $zipFile" }
+        check(tarFile.isFile && tarFile.length() > 0L) { "missing KLua TAR distribution: $tarFile" }
+        ZipFile(zipFile).use { zip ->
+            val root = "klua-$kluaVersion"
+            listOf(
+                "$root/bin/klua",
+                "$root/bin/klua.bat",
+                "$root/LICENSE",
+                "$root/README.md",
+                "$root/docs/KLua_Debug_Tooling.md",
+            ).forEach { entry ->
+                check(zip.getEntry(entry) != null) { "distribution is missing $entry: $zipFile" }
+            }
+        }
     }
+}
+
+tasks.register("releaseCandidateCheck") {
+    group = "verification"
+    description = "Runs the complete local, non-publishing KLua release-candidate verification matrix."
+    dependsOn(
+        subprojects.map { subproject -> "${subproject.path}:test" },
+        releaseModuleNames
+            .filterNot { moduleName -> moduleName == "klua-core" }
+            .map { moduleName -> ":$moduleName:checkKotlinAbi" },
+        verifyReleaseArtifacts,
+        ":klua-jmh:jmhJar",
+    )
 }
 
 releaseModuleNames.forEach { moduleName ->

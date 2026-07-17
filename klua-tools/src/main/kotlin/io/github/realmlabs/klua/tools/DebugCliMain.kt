@@ -35,7 +35,8 @@ public object ToolsCliInvocationParser {
     }
 
     public fun usage(): String {
-        return "usage: klua --debug <script.lua> [args...] | klua --compile <script.lua> <output.kluac>"
+        return "usage: klua --debug <script.lua> [args...] | " +
+            "klua --compile <script.lua> <output.kluac> | klua --dap"
     }
 
     private fun parseCompile(args: Array<String>): ToolsCliInvocation.Compile {
@@ -108,6 +109,17 @@ public object DebugCliMain {
 
     @JvmStatic
     public fun main(args: Array<String>) {
+        if (args.contentEquals(arrayOf("--dap"))) {
+            val exitCode = DapStdioHost().run(
+                input = System.`in`,
+                output = System.out,
+                reportError = System.err::println,
+            )
+            if (exitCode != 0) {
+                kotlin.system.exitProcess(exitCode)
+            }
+            return
+        }
         val exitCode = run(
             args = args,
             readLine = ::readlnOrNull,
