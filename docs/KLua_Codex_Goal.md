@@ -179,7 +179,7 @@ This is a milestone-level snapshot of committed capability, not a list of comple
 | M13-M18 | Done | Coroutine, structured error/debug metadata, hooks/debugger, DAP library integration, KLua bytecode packaging, and initial sandbox controls meet their documented foundation success criteria. Residual hardening remains M20 or later release work. |
 | M19 | Done | The canonical JDK 17 baseline, byte-oriented strings, tagged VM slots, hybrid versioned tables, guarded inline caches, stack-range calls, fast/instrumented dispatch, and final matched performance screen have landed. Measurements and the one explicitly accepted bounded allocation tradeoff live in `docs/KLua_Benchmark_Baseline.md`. |
 | M20 | Done | Source-backed language, VM, coroutine, debug, base, package, table, string, math, UTF-8, IO, OS, and lifecycle conformance passed the optimized-representation audit. `docs/KLua_Conformance_Gaps.md` classifies every remaining JVM/host difference and records no unowned v1 blocker. |
-| M21 | In progress | The Java/Kotlin ABI, Maven artifacts, executable distributions, stdio DAP host, task-oriented guides, compiled examples, release notes/checklist, canonical JDK 17 baseline, machine-readable performance audit, deterministic checksum bundle, isolated staged-artifact consumer, and JDK 17/21 launcher matrix are locally locked and verified. A final clean-checkout audit remains the active non-publishing frontier; versioning, tagging, signing, pushing, and publication still require explicit authorization. |
+| M21 | Ready for authorized release | The Java/Kotlin ABI, Maven artifacts, executable distributions, stdio DAP host, task-oriented guides, compiled examples, release notes/checklist, canonical JDK 17 baseline, machine-readable performance audit, deterministic checksum bundle, isolated staged-artifact consumer, and JDK 17/21 launcher matrix passed the final detached clean-worktree audit. Release execution remains intentionally unperformed and requires explicit authorization. |
 | M22 | Deferred | JVM bytecode generation remains optional and must not begin before v1 foundations stabilize. |
 
 Current capability includes:
@@ -199,10 +199,11 @@ Current capability includes:
 - A reproducible local Maven-layout/distribution handoff with exact 23-file membership and a verified sorted SHA-256 manifest.
 - An isolated external-style Gradle consumer that resolves only staged KLua components, verifies published compile/runtime scopes, and executes Java/Kotlin embedding results.
 - Installed compile/debug/DAP process compatibility on canonical JDK 17 and secondary JDK 21, with performance evidence intentionally remaining JDK 17-only.
+- A detached clean-worktree `releaseCandidateCheck` covering 83 tasks, followed by successful documentation-link and tracked-tree cleanliness audits.
 
 Material remaining gaps include:
 
-- The complete current release workflow has not yet been rerun from a clean detached worktree after the latest bundle, consumer, and dual-runtime additions.
+- No local implementation blocker is currently owned. The repository deliberately remains `0.1.0-SNAPSHOT`; versioning, tagging, signing, pushing, and publication require explicit user authorization and known destinations.
 
 The detailed, source-backed residual list belongs in `docs/KLua_Conformance_Gaps.md` and must not be duplicated here.
 
@@ -262,9 +263,9 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M21 final clean-checkout readiness audit | From a detached clean worktree, run the complete `releaseCandidateCheck` including bundle hashes, staged consumers, JDK 17/21 launchers, tests, ABI, artifacts, and JMH assembly; validate documentation links and tracked-tree cleanliness; record local readiness while leaving version changes, tagging, signing, pushing, and publication explicitly unperformed. | One coherent audit-evidence and frontier-status commit if durable status changes are warranted. |
+| 1 | Waiting for authorization | M21 v1.0.0 release execution | Only after explicit authorization, apply the checked release sequence: set `1.0.0`, finalize release-note wording, rerun the clean candidate matrix, inspect the bundle/checksums, create the release commit and annotated tag, and perform only separately authorized signing, push, or publication actions to confirmed destinations. Until then, preserve the locally ready candidate and rerun the audit after any code or release-input change. | One reviewed release-preparation commit; tag/sign/push/publication remain distinct authorized external actions. |
 
-When package 1 closes, audit the remaining M21 release checklist and add one bounded successor only if an unowned release-readiness gap remains. Do not keep closed campaign narratives or commit hashes in this table.
+When release execution is explicitly authorized and closes, audit the remaining M21 checklist and add one bounded successor only if an unowned release-readiness gap remains. Do not keep closed campaign narratives or commit hashes in this table.
 
 Do not close M20 until the performance track's representation changes have passed the final conformance matrix. M21 release execution remains separate from local readiness and requires explicit authorization.
 
