@@ -1193,6 +1193,10 @@ breakpoint stepping
 - Optimizing without baseline numbers.
 - Making the runtime harder to maintain for small gains.
 
+### Pre-v1 performance architecture continuation
+
+M19's success criteria close the first profiling-driven pass, not the final interpreter representation. Before the final M20 closure audit, follow the gated continuation in `docs/KLua_Codex_Goal.md`: refresh the JDK 17 baseline, settle byte-oriented strings, introduce tagged VM slots, implement hybrid tables and shape/version tracking, add guarded caches, reduce list-shaped call boundaries, separate disabled/enabled dispatch policy, and then rerun performance plus conformance closure. Keep JVM bytecode generation in M22.
+
 ---
 
 ## M20: Lua 5.5 Conformance Hardening
@@ -1305,6 +1309,16 @@ Benchmark results
 Conformance documentation
 ```
 
+### Performance qualification
+
+- Treat M19 as the first profiling-driven optimization pass, not the final v1 performance guarantee.
+- Establish the accepted v1 baseline on JDK 17 with a fully recorded, reproducible JMH environment.
+- Cover compile, VM, call, table, metamethod, embedding, string, coroutine, vararg, application-kernel, debug/hook/breakpoint, and instruction-budget paths.
+- Record time and allocation where meaningful and keep startup costs separate from steady-state execution.
+- Apply the regression and re-baselining rules in `docs/KLua_Codex_Goal.md`.
+- Publish the accepted results and reproduction commands in `docs/KLua_Benchmark_Baseline.md` and the user-facing performance guide.
+- Treat Lua 5.5 and LuaJ comparisons as informational unless a later release adopts an explicit cross-runtime target.
+
 ### Documentation checklist
 
 - Getting started with Java.
@@ -1324,7 +1338,9 @@ Conformance documentation
 
 - Java and Kotlin examples are easy to copy.
 - Public API is stable enough to support users.
-- CI passes tests and benchmarks run.
+- CI passes correctness tests and the benchmark suite runs on the canonical JDK 17 configuration.
+- No unapproved performance or allocation regression exceeds the v1 qualification gates.
+- Accepted benchmark results and reproduction instructions are published.
 - Release artifacts are published.
 
 ### Risks

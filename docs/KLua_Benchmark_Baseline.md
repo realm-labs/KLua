@@ -2,6 +2,8 @@
 
 This file records comparable benchmark checkpoints used to select optimization work. Results are local evidence, not cross-machine performance claims.
 
+The checkpoints below document the initial M19 performance pass; they are not yet the accepted v1 release baseline. The pre-v1 performance continuation must first refresh the complete current workload suite on the canonical JDK 17 environment, add debug/hook/breakpoint and instruction-budget controls, and record a pre-refactor comparison point before changing hot representations. M21 must rerun that suite on the release candidate, apply the regression policy in `docs/KLua_Codex_Goal.md`, and append one clearly labeled accepted v1 baseline with reproduction commands. Later optimization evidence that previously lived only in execution notes must be consolidated here during these packages.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:
