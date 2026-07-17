@@ -198,7 +198,7 @@ Material remaining gaps include:
 - A final classification of JVM/host adaptations in IO, OS, math, process, locale, native-loading, stack-capacity, and collector behavior as accepted v1 limitations or actionable defects.
 - Broader release-level packaging, standalone DAP hosting, sandbox policy, documentation, and API-stability work after M20 blockers are known.
 - Publication of a concise conformance matrix that maps each residual to tests, reference functions, disposition, and v1 impact.
-- A current accepted JDK 17 performance baseline, missing debug/sandbox controls, automated regression comparison, and published v1 performance evidence.
+- Automated performance regression comparison, representative sandbox overhead controls, and published accepted v1 performance evidence.
 
 The detailed, source-backed residual list belongs in `docs/KLua_Conformance_Gaps.md` and must not be duplicated here.
 
@@ -258,8 +258,8 @@ Keep exactly one active package and no more than two immediately following packa
 
 | Order | Status | Work package | Outcome and exit criteria | Expected final commit shape |
 | --- | --- | --- | --- | --- |
-| 1 | In progress | M19 continuation: canonical baseline and hot-model design | Establish the JDK 17 pre-refactor baseline and profile boxed values, table storage, call boundaries, debug/budget checks, coroutine transfer, and lifecycle tracing. Define internal migration seams and exit criteria for the first value/storage package without changing public or serialized APIs. | One benchmark/design commit; no broad representation rewrite in the baseline package. |
-| 2 | Next | M19/M20 byte-oriented string storage | Apply the audited requirements in `docs/KLua_Conformance_Gaps.md`: make `LuaString` immutable byte-oriented storage with cached byte hashing, preserve explicit text/byte API boundaries, and add only profile-supported short/common-string interning. Source, VM, table-key, API, debug, dump/load, pattern, UTF-8, IO, and malformed-byte tests plus allocation profiles and `./gradlew test` pass. | One to three coherent representation, boundary, and regression-test commits. |
+| 1 | In progress | M19/M20 byte-oriented string storage | Apply the audited requirements in `docs/KLua_Conformance_Gaps.md`: make `LuaString` immutable byte-oriented storage with cached byte hashing, preserve explicit text/byte API boundaries, and add only profile-supported short/common-string interning. Source, VM, table-key, API, debug, dump/load, pattern, UTF-8, IO, and malformed-byte tests plus allocation profiles and `./gradlew test` pass. | One to three coherent representation, boundary, and regression-test commits. |
+| 2 | Next | M19 continuation: tagged VM slots | Replace boxed hot-stack booleans, integers, and floats with internal tag/payload/reference storage at the audited slot seam. Preserve upvalues, open results, varargs, debug inspection and mutation, coroutine suspension, lifecycle root enumeration, public/core values, constants, and serialized bytecode; focused semantics, matched allocation profiles, performance gates, and `./gradlew test` pass. | One to three coherent slot-storage, boundary, and regression-test commits. |
 
 When package 1 closes, promote package 2 and select at most one new successor from `Pre-v1 High-Performance Interpreter Track`. Do not keep closed campaign narratives or commit hashes in this table.
 

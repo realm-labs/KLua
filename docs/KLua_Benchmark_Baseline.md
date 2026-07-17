@@ -2,7 +2,90 @@
 
 This file records comparable benchmark checkpoints used to select optimization work. Results are local evidence, not cross-machine performance claims.
 
-The checkpoints below document the initial M19 performance pass; they are not yet the accepted v1 release baseline. The pre-v1 performance continuation must first refresh the complete current workload suite on the canonical JDK 17 environment, add debug/hook/breakpoint and instruction-budget controls, and record a pre-refactor comparison point before changing hot representations. M21 must rerun that suite on the release candidate, apply the regression policy in `docs/KLua_Codex_Goal.md`, and append one clearly labeled accepted v1 baseline with reproduction commands. Later optimization evidence that previously lived only in execution notes must be consolidated here during these packages.
+The checkpoints below document the M19 performance work; they are not yet the accepted v1 release baseline. The 2026-07-17 checkpoint is the accepted pre-refactor comparison point for the high-performance interpreter track. M21 must rerun its complete suite on the release candidate, apply the regression policy in `docs/KLua_Codex_Goal.md`, and append one clearly labeled accepted v1 baseline with reproduction commands.
+
+## 2026-07-17 JDK 17 Pre-Refactor Canonical Baseline
+
+This checkpoint measures the commit containing this section and its benchmark controls; the last runtime commit before the measurement-only changes is `9c30a94b`. Every benchmark setup executes its workload and validates the result before measurement. The raw CSV and JFR recordings are generated under the ignored `klua-jmh/build/baseline` directory.
+
+Environment:
+
+- CPU: Intel Core i7-10700F, 8 cores / 16 logical processors, 2.90 GHz nominal
+- Memory: 63.9 GB
+- OS: Windows 10 Pro 10.0.19045, build 19045
+- JVM: Azul Zulu OpenJDK 17.0.19+10-LTS, 64-bit Server VM
+- Power policy: Windows High performance (`8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c`)
+- JMH: 1.36, compiler blackholes, no explicit VM options
+- Threads: 1; forks: 1
+- Warmup: 3 iterations × 500 ms
+- Measurement: 5 iterations × 500 ms
+- Mode: average time, microseconds per operation
+
+Reproduction commands from the repository root with `JAVA_HOME` set to a JDK 17 installation:
+
+```text
+./gradlew :klua-jmh:jmhJar
+java -jar klua-jmh/build/libs/klua-jmh-0.1.0-SNAPSHOT-jmh.jar -rf csv -rff klua-jmh/build/baseline/jdk17-timing.csv
+java -jar klua-jmh/build/libs/klua-jmh-0.1.0-SNAPSHOT-jmh.jar -prof gc -rf csv -rff klua-jmh/build/baseline/jdk17-gc.csv
+```
+
+Results:
+
+| Benchmark | Score (µs/op) | 99.9% error | Allocation (B/op) |
+| --- | ---: | ---: | ---: |
+| Compile numeric loop | 8.629 | ±1.704 | 21,304.013 |
+| Debug off | 487.886 | ±53.220 | 481,256.628 |
+| Debug on, no observer | 494.474 | ±56.191 | 481,259.790 |
+| Breakpoint observer, no hit | 1,061.336 | ±149.789 | 961,446.202 |
+| Breakpoint hit, step, continue | 1,372.142 | ±1,069.814 | 973,347.349 |
+| Count hook, interval 100 | 753.834 | ±52.961 | 990,192.282 |
+| Line hook | 4,677.316 | ±1,038.778 | 18,885,118.576 |
+| Instruction budget off | 509.429 | ±57.104 | 481,259.197 |
+| Instruction budget on | 509.039 | ±50.088 | 481,181.977 |
+| Closure counter, 10,000 calls | 1,864.081 | ±83.538 | 1,683,652.298 |
+| Coroutine, 10,000 yield/resume cycles | 20,798.207 | ±7,228.186 | 29,679,797.072 |
+| Entity-update kernel, 1,000 entities × 10 steps | 7,877.180 | ±11,716.188 | 3,272,176.261 |
+| Host calls, 10,000 | 4,010.901 | ±1,672.248 | 9,998,210.598 |
+| `__index` calls, 10,000 | 3,503.508 | ±1,434.616 | 1,931,914.228 |
+| JVM-to-Lua calls, 10,000 | 5,382.518 | ±2,836.468 | 10,586,158.277 |
+| Lua calls, 10,000 | 1,965.408 | ±646.866 | 1,762,277.698 |
+| Method calls, 10,000 | 5,615.640 | ±3,332.897 | 1,843,551.692 |
+| Recursive `fib(20)` | 6,592.674 | ±2,037.466 | 4,993,274.400 |
+| Growing string concatenation, 1,000 appends | 6,039.462 | ±2,538.956 | 28,685,081.935 |
+| Table writes and reads, 10,000 each | 3,020.783 | ±1,816.435 | 1,253,580.710 |
+| Vararg/multiple return, 10,000 calls | 4,168.960 | ±2,030.752 | 1,922,692.493 |
+| VM numeric loop, 10,000 iterations | 865.837 | ±687.002 | 961,189.502 |
+
+The matched disabled-policy gates pass on this machine: debug-on without an observer is 1.35% above debug-off, and enabled instruction accounting is 0.08% below the otherwise identical unlimited production configuration. Both differences are inside the 5% gate and their confidence intervals overlap. Enabled observer, hook, breakpoint, and stepping figures are published costs, not regression gates. Several application-workload timing intervals are wide, so normalized allocation and repeatable matched controls are the primary selection evidence.
+
+### Allocation-site evidence
+
+JFR allocation sampling used the same JDK and JMH iteration settings on six representative workloads. Sample weights are directional rather than exact byte totals; the GC-profiler B/op values above are the quantitative baseline.
+
+- The numeric loop selects boxed `LuaInteger` creation in `LuaVm.Arithmetic.integerArithmetic`, `runFrameAndPopOnCompletion`, and `advanceForLoop`.
+- Coroutine yield/resume selects `callCoreContextFunction`, `LuaState.callHostFunction`, `KLuaCoreCallContext`, `VmNativeCallContext`, `LuaStack.slice`, result lists, and their backing arrays.
+- Host calls select `LuaState.callHostFunction` and the same API/core adapters; public/core integer wrappers and JVM `Long` values are also visible.
+- The entity kernel selects `LuaVm.lifecycleRoots`, `LuaTable.rawEntries`, `ReachabilityTrace.visit`, `LinkedHashMap` entries, and boxed integers. This ties table storage and lifecycle enumeration together and rules out changing either in isolation.
+- Growing concatenation is dominated by byte arrays and JVM strings from `luaRawBytes`; this directly supports the byte-oriented `LuaString` package already selected next.
+- A no-hit breakpoint observer selects `BreakpointKey` creation in `BreakpointManager.breakpointAt` plus the underlying numeric boxing. Debug-frame conversion remains lazy and is absent from the no-hit hot samples.
+
+### Hot-model migration contract
+
+The pre-refactor model and its required seams are:
+
+| Boundary | Current hot representation | Migration seam and invariant |
+| --- | --- | --- |
+| Values and VM slots | `LuaBoolean`, `LuaInteger`, and `LuaFloat` objects in `LuaStack.values: MutableList<LuaValue>` | Introduce one internal slot abstraction with tag/payload/reference access, range copy, boxing, debug mutation, and heap-reference visitation. Keep `LuaValue`, public values, constants, and serialized bytecode at explicit materialization boundaries until their owning package changes them. |
+| Strings | `LuaString.value: String` with lazily cached reconstructed bytes and hash | Store immutable bytes and cached byte hash directly. Text decoding/encoding belongs only at named source and host boundaries; arbitrary-byte paths never round-trip through JVM text. This is the first representation package. |
+| Tables | `LinkedHashMap<LuaValue, LuaValue>`; `rawEntries()` copies with `toMap()` | Put raw get/set/next/length/entry visitation behind table-owned operations before adding array/hash parts. Preserve numeric-key canonicalization, iteration policy, weak modes, ephemerons, metatable behavior, and lifecycle edge classification. |
+| Calls | `callValue`, native contexts, continuations, varargs, and open results pass `List<LuaValue>` snapshots | Later add stack-range and fixed-arity internal entries while retaining one semantic fallback. Box only at native/public/debug boundaries and preserve yield, protected-call, tail-call, multiple-return, and `<close>` ordering. |
+| Debug and budgets | The dispatch loop performs a nullable observer check, instruction-budget check, and nullable hook check for each instruction; frames are materialized lazily | Keep opcode semantics single-sourced. A later dispatch-mode package may hoist policy checks, but observer/hook ordering, exact budget exhaustion, live-local mutation, and suspension PCs remain unchanged. The controls above become its matched gates. |
+| Coroutines | `LuaThread` retains `CallFrame`s, list-backed stacks, pending calls/results, continuations, open-result ranges, and upvalues | Suspension must retain the internal slot storage without eager boxing. Resume, close, debug suspension, protected continuations, varargs, and yielded/result values must cross one audited transfer seam. |
+| Lifecycle | `LuaVm.lifecycleRoots()` builds lists; tracing visits boxed stack/frame/upvalue values and copied table entries | Replace list/snapshot root collection with visitor-style reference enumeration before optimized slots or tables can land. Only heap references are traced from tagged slots; weak keys/values and finalization order keep their existing rules. |
+
+Each representation package must be independently revertible. It may change only internal `klua-core` storage plus the explicit conversion boundaries it owns; public Java/Kotlin signatures, `KLuaCoreValue`, debug views, and the bytecode format remain stable. Its focused semantic matrix, `./gradlew test`, the JMH build, matched allocation measurements, and relevant performance gates must pass before the next representation package begins. A failed gate rolls back or reverts that package rather than layering compensating changes across later packages.
+
+The byte-oriented string package exits only when source literals, API byte/text entry points, table keys, concatenation, patterns, UTF-8, IO, debug display, bytecode dump/load, malformed bytes, embedded NULs, and lifecycle reachability preserve the audited behavior in `docs/KLua_Conformance_Gaps.md`; the full suite passes; and matched concatenation/key-heavy allocation evidence is recorded. Interning is optional and requires a separate profile-supported win.
 
 ## 2026-07-15 Runtime Workload Baseline
 
