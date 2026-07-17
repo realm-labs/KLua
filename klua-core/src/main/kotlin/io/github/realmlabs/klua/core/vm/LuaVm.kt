@@ -1763,105 +1763,99 @@ internal class LuaVm(
         table: LuaTable,
         key: LuaValue,
         allowSuspension: Boolean = false,
-    ): LuaValue {
-        return try {
-            val value = table.rawGet(key)
-            if (value != LuaNil) {
-                value
-            } else {
-                when (val index = table.metatableRawGet(INDEX_KEY)) {
-                    is LuaTable -> tableGet(index, key, mutableSetOf(table), allowSuspension)
-                    is LuaClosure -> executeMetamethod(
-                        index,
-                        table,
-                        key,
-                        INDEX_KEY,
-                        allowSuspension,
-                    ).firstOrNull() ?: LuaNil
-                    is LuaNativeFunction -> callIndexMetamethod(index, table, key, allowSuspension)
-                    LuaNil -> LuaNil
-                    else -> indexGet(index, key, allowSuspension)
-                }
-            }
-        } catch (error: LuaTableKeyException) {
-            throw LuaVmException(error.message ?: "invalid table key")
-        } catch (error: LuaMetatableException) {
-            throw LuaVmException(error.message ?: "invalid metatable operation")
-        }
-    }
+    ): LuaValue = indexGet(table, key, allowSuspension)
 
     private fun indexGet(
         receiver: LuaValue,
         key: LuaValue,
         allowSuspension: Boolean = false,
     ): LuaValue {
-        return when (receiver) {
-            is LuaTable -> tableGet(receiver, key, allowSuspension)
-            is LuaString -> {
-                val metatableConfigured = metatables?.isStringMetatableConfigured() ?: stringMetatableConfigured
-                if (metatableConfigured) {
-                    val metatable = metatables?.stringMetatable() ?: stringMetatable
-                        ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-                    return primitiveIndexGet(receiver, key, metatable, allowSuspension)
-                }
-                val stringLibrary = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
-                    ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-                tableGet(stringLibrary, key, allowSuspension)
-            }
-            is LuaUserData -> {
-                val metatable = metatables?.userDataMetatable(receiver.value)
-                if (metatable != null) {
-                    val index = metatable.rawGet(INDEX_KEY)
-                    if (index == LuaNil) {
-                        throw LuaVmException("attempt to index a ${userDataObjectTypeName(metatable)} value")
+        try {
+            var current = receiver
+            repeat(MAX_TAG_METHOD_CHAIN_DEPTH) {
+                val index = when (current) {
+                    is LuaTable -> {
+                        val value = current.rawGet(key)
+                        if (value != LuaNil) {
+                            return value
+                        }
+                        current.metatableRawGet(INDEX_KEY).also {
+                            if (it == LuaNil) {
+                                return LuaNil
+                            }
+                        }
                     }
-                    return metamethodIndexGet(receiver, key, index, allowSuspension)
-                }
-                if (key is LuaString) {
-                    val property = receiver.type?.property(key.value)
-                    if (property?.getter != null) {
-                        callNative(property.getter, listOf(receiver)).firstOrNull() ?: LuaNil
-                    } else {
-                        receiver.type?.method(key.value) ?: LuaNil
+                    is LuaString -> {
+                        val metatableConfigured =
+                            metatables?.isStringMetatableConfigured() ?: stringMetatableConfigured
+                        if (!metatableConfigured) {
+                            current = globals.rawGet(STRING_LIBRARY_KEY) as? LuaTable
+                                ?: throw LuaVmException("attempt to index ${typeName(current)}")
+                            return@repeat
+                        }
+                        val metatable = metatables?.stringMetatable() ?: stringMetatable
+                            ?: throw LuaVmException("attempt to index ${typeName(current)}")
+                        metatable.rawGet(INDEX_KEY).also {
+                            if (it == LuaNil) {
+                                throw LuaVmException("attempt to index ${typeName(current)}")
+                            }
+                        }
                     }
-                } else {
-                    LuaNil
+                    is LuaUserData -> {
+                        val metatable = metatables?.userDataMetatable(current.value)
+                        if (metatable == null) {
+                            return if (key is LuaString) {
+                                val property = current.type?.property(key.value)
+                                if (property?.getter != null) {
+                                    callNative(property.getter, listOf(current)).firstOrNull() ?: LuaNil
+                                } else {
+                                    current.type?.method(key.value) ?: LuaNil
+                                }
+                            } else {
+                                LuaNil
+                            }
+                        }
+                        metatable.rawGet(INDEX_KEY).also {
+                            if (it == LuaNil) {
+                                throw LuaVmException(
+                                    "attempt to index a ${userDataObjectTypeName(metatable)} value",
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        val metatable = metatables?.rawTypeMetatable(typeName(current))
+                            ?: throw LuaVmException("attempt to index ${typeName(current)}")
+                        metatable.rawGet(INDEX_KEY).also {
+                            if (it == LuaNil) {
+                                throw LuaVmException("attempt to index ${typeName(current)}")
+                            }
+                        }
+                    }
+                }
+                when (index) {
+                    is LuaClosure -> return executeMetamethod(
+                        index,
+                        current,
+                        key,
+                        INDEX_KEY,
+                        allowSuspension,
+                    ).firstOrNull() ?: LuaNil
+                    is LuaNativeFunction -> return callIndexMetamethod(index, current, key, allowSuspension)
+                    else -> current = index
                 }
             }
-            else -> {
-                val metatable = metatables?.rawTypeMetatable(typeName(receiver))
-                    ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-                primitiveIndexGet(receiver, key, metatable, allowSuspension)
+            if (current is LuaTable) {
+                val value = current.rawGet(key)
+                if (value != LuaNil) {
+                    return value
+                }
             }
-        }
-    }
-
-    private fun primitiveIndexGet(
-        receiver: LuaValue,
-        key: LuaValue,
-        metatable: LuaTable,
-        allowSuspension: Boolean,
-    ): LuaValue {
-        return metamethodIndexGet(receiver, key, metatable.rawGet(INDEX_KEY), allowSuspension)
-    }
-
-    private fun metamethodIndexGet(
-        receiver: LuaValue,
-        key: LuaValue,
-        index: LuaValue,
-        allowSuspension: Boolean,
-    ): LuaValue {
-        return when (index) {
-            is LuaTable -> tableGet(index, key, allowSuspension)
-            is LuaClosure -> executeMetamethod(
-                index,
-                receiver,
-                key,
-                INDEX_KEY,
-                allowSuspension,
-            ).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callIndexMetamethod(index, receiver, key, allowSuspension)
-            else -> throw LuaVmException("attempt to index ${typeName(receiver)}")
+            throw LuaVmException("'__index' chain too long; possible loop")
+        } catch (error: LuaTableKeyException) {
+            throw LuaVmException(error.message ?: "invalid table key")
+        } catch (error: LuaMetatableException) {
+            throw LuaVmException(error.message ?: "invalid metatable operation")
         }
     }
 
@@ -1918,69 +1912,86 @@ internal class LuaVm(
         }
     }
 
-    private fun tableGet(
-        table: LuaTable,
-        key: LuaValue,
-        visited: MutableSet<LuaTable>,
-        allowSuspension: Boolean,
-    ): LuaValue {
-        val value = table.rawGet(key)
-        if (value != LuaNil) {
-            return value
-        }
-        if (!visited.add(table)) {
-            throw LuaMetatableException("cycle in __index chain")
-        }
-
-        return when (val index = table.metatableRawGet(INDEX_KEY)) {
-            is LuaTable -> tableGet(index, key, visited, allowSuspension)
-            is LuaClosure -> executeMetamethod(
-                index,
-                table,
-                key,
-                INDEX_KEY,
-                allowSuspension,
-            ).firstOrNull() ?: LuaNil
-            is LuaNativeFunction -> callIndexMetamethod(index, table, key, allowSuspension)
-            LuaNil -> LuaNil
-            else -> indexGet(index, key, allowSuspension)
-        }
-    }
-
     private fun indexSet(
         receiver: LuaValue,
         key: LuaValue,
         value: LuaValue,
         allowSuspension: Boolean = false,
     ) {
-        when (receiver) {
-            is LuaTable -> tableSet(receiver, key, value, allowSuspension)
-            is LuaUserData -> {
-                val metatable = metatables?.userDataMetatable(receiver.value)
-                if (metatable != null) {
-                    val newIndex = metatable.rawGet(NEW_INDEX_KEY)
-                    if (newIndex == LuaNil) {
-                        throw LuaVmException("attempt to index a ${userDataObjectTypeName(metatable)} value")
+        try {
+            var current = receiver
+            repeat(MAX_TAG_METHOD_CHAIN_DEPTH) {
+                val newIndex = when (current) {
+                    is LuaTable -> {
+                        val table = current
+                        if (table.rawGet(key) != LuaNil) {
+                            table.rawSet(key, value)
+                            return
+                        }
+                        table.metatableRawGet(NEW_INDEX_KEY).also {
+                            if (it == LuaNil) {
+                                table.rawSet(key, value)
+                                return
+                            }
+                        }
                     }
-                    newIndexSet(receiver, key, value, newIndex, mutableSetOf(), 0, allowSuspension)
-                    return
+                    is LuaUserData -> {
+                        val metatable = metatables?.userDataMetatable(current.value)
+                        if (metatable == null) {
+                            if (key !is LuaString) {
+                                throw LuaVmException("attempt to index userdata with ${typeName(key)}")
+                            }
+                            val setter = current.type?.property(key.value)?.setter
+                                ?: throw LuaVmException("attempt to set userdata field '${key.value}'")
+                            callNative(setter, listOf(current, value))
+                            return
+                        }
+                        metatable.rawGet(NEW_INDEX_KEY).also {
+                            if (it == LuaNil) {
+                                throw LuaVmException(
+                                    "attempt to index a ${userDataObjectTypeName(metatable)} value",
+                                )
+                            }
+                        }
+                    }
+                    else -> {
+                        val metatable = rawTypeMetatable(current)
+                            ?: throw LuaVmException("attempt to index ${typeName(current)}")
+                        metatable.rawGet(NEW_INDEX_KEY).also {
+                            if (it == LuaNil) {
+                                throw LuaVmException("attempt to index ${typeName(current)}")
+                            }
+                        }
+                    }
                 }
-                if (key !is LuaString) {
-                    throw LuaVmException("attempt to index userdata with ${typeName(key)}")
+                when (newIndex) {
+                    is LuaClosure -> {
+                        executeMetamethod(
+                            newIndex,
+                            current,
+                            key,
+                            value,
+                            NEW_INDEX_KEY,
+                            allowSuspension,
+                        )
+                        return
+                    }
+                    is LuaNativeFunction -> {
+                        callNewIndexMetamethod(newIndex, current, key, value, allowSuspension)
+                        return
+                    }
+                    else -> current = newIndex
                 }
-                val setter = receiver.type?.property(key.value)?.setter
-                    ?: throw LuaVmException("attempt to set userdata field '${key.value}'")
-                callNative(setter, listOf(receiver, value))
             }
-            else -> {
-                try {
-                    primitiveSet(receiver, key, value, mutableSetOf(), 0, allowSuspension)
-                } catch (error: LuaTableKeyException) {
-                    throw LuaVmException(error.message ?: "invalid table key")
-                } catch (error: LuaMetatableException) {
-                    throw LuaVmException(error.message ?: "invalid metatable operation")
-                }
+            if (current is LuaTable && current.rawGet(key) != LuaNil) {
+                current.rawSet(key, value)
+                return
             }
+            throw LuaMetatableException("'__newindex' chain too long; possible loop")
+        } catch (error: LuaTableKeyException) {
+            throw LuaVmException(error.message ?: "invalid table key")
+        } catch (error: LuaMetatableException) {
+            throw LuaVmException(error.message ?: "invalid metatable operation")
         }
     }
 
@@ -1997,97 +2008,7 @@ internal class LuaVm(
         key: LuaValue,
         value: LuaValue,
         allowSuspension: Boolean = false,
-    ) {
-        try {
-            if (table.rawGet(key) != LuaNil) {
-                table.rawSet(key, value)
-                return
-            }
-            when (val newIndex = table.metatableRawGet(NEW_INDEX_KEY)) {
-                LuaNil -> table.rawSet(key, value)
-                else -> newIndexSet(table, key, value, newIndex, mutableSetOf(table), 1, allowSuspension)
-            }
-        } catch (error: LuaTableKeyException) {
-            throw LuaVmException(error.message ?: "invalid table key")
-        } catch (error: LuaMetatableException) {
-            throw LuaVmException(error.message ?: "invalid metatable operation")
-        }
-    }
-
-    private fun tableSet(
-        table: LuaTable,
-        key: LuaValue,
-        value: LuaValue,
-        visited: MutableSet<LuaTable>,
-        depth: Int,
-        allowSuspension: Boolean,
-    ) {
-        if (table.rawGet(key) != LuaNil) {
-            table.rawSet(key, value)
-            return
-        }
-        if (depth >= MAX_NEWINDEX_CHAIN_DEPTH) {
-            throw LuaMetatableException("'__newindex' chain too long; possible loop")
-        }
-        if (!visited.add(table)) {
-            throw LuaMetatableException("'__newindex' chain too long; possible loop")
-        }
-
-        when (val newIndex = table.metatableRawGet(NEW_INDEX_KEY)) {
-            LuaNil -> table.rawSet(key, value)
-            else -> newIndexSet(table, key, value, newIndex, visited, depth + 1, allowSuspension)
-        }
-    }
-
-    private fun primitiveSet(
-        receiver: LuaValue,
-        key: LuaValue,
-        value: LuaValue,
-        visited: MutableSet<LuaTable>,
-        depth: Int,
-        allowSuspension: Boolean,
-    ) {
-        if (depth >= MAX_NEWINDEX_CHAIN_DEPTH) {
-            throw LuaMetatableException("'__newindex' chain too long; possible loop")
-        }
-        val metatable = rawTypeMetatable(receiver)
-            ?: throw LuaVmException("attempt to index ${typeName(receiver)}")
-        val newIndex = metatable.rawGet(NEW_INDEX_KEY)
-        if (newIndex == LuaNil) {
-            throw LuaVmException("attempt to index ${typeName(receiver)}")
-        }
-        newIndexSet(receiver, key, value, newIndex, visited, depth + 1, allowSuspension)
-    }
-
-    private fun newIndexSet(
-        receiver: LuaValue,
-        key: LuaValue,
-        value: LuaValue,
-        newIndex: LuaValue,
-        visited: MutableSet<LuaTable>,
-        depth: Int,
-        allowSuspension: Boolean,
-    ) {
-        when (newIndex) {
-            is LuaTable -> tableSet(newIndex, key, value, visited, depth, allowSuspension)
-            is LuaClosure -> executeMetamethod(
-                newIndex,
-                receiver,
-                key,
-                value,
-                NEW_INDEX_KEY,
-                allowSuspension,
-            )
-            is LuaNativeFunction -> callNewIndexMetamethod(
-                newIndex,
-                receiver,
-                key,
-                value,
-                allowSuspension,
-            )
-            else -> primitiveSet(newIndex, key, value, visited, depth, allowSuspension)
-        }
-    }
+    ) = indexSet(table, key, value, allowSuspension)
 
     private fun callNewIndexMetamethod(
         function: LuaNativeFunction,
@@ -3156,7 +3077,7 @@ private val MOD_CALL_SITE_INFO = metamethodCallSiteInfo("mod")
 private val POW_CALL_SITE_INFO = metamethodCallSiteInfo("pow")
 private val CLOSE_CALL_SITE_INFO = metamethodCallSiteInfo("close")
 private val GC_CALL_SITE_INFO = CallSiteInfo(0, "__gc", "metamethod")
-private const val MAX_NEWINDEX_CHAIN_DEPTH = 200
+private const val MAX_TAG_METHOD_CHAIN_DEPTH = 2000
 private const val MAX_CALL_METAMETHOD_DEPTH = 15
 private const val TRUTHY_PENDING_RESULT_COUNT = -2
 private const val VARARG_LOCAL_NAME = "(vararg)"

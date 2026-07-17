@@ -18933,6 +18933,121 @@ class LuaStdlibTest {
     }
 
     @Test
+    fun `table metamethod chains match the Lua tag loop boundary`() {
+        val state = LuaState.create()
+        LuaStdlib.openLibs(state)
+        state.pushUserData(DebugHostObject("tag-chain"))
+        state.setGlobal("chainHost")
+
+        assertEquals(
+            LuaStatus.OK,
+            state.load(
+                """
+                local function chain(length, metamethod, terminal)
+                    local root = {}
+                    local current = root
+                    for _ = 2, length do
+                        local next = {}
+                        setmetatable(current, { [metamethod] = next })
+                        current = next
+                    end
+                    setmetatable(current, { [metamethod] = terminal })
+                    return root
+                end
+
+                local function dualChain(length, terminal)
+                    local root = {}
+                    local current = root
+                    for _ = 2, length do
+                        local next = {}
+                        setmetatable(current, { __index = next, __newindex = next })
+                        current = next
+                    end
+                    setmetatable(current, { __index = terminal, __newindex = terminal })
+                    return root
+                end
+
+                local readTerminal = { answer = "read-limit" }
+                local readAtLimit = chain(2000, "__index", readTerminal)
+                local readOk, readValue = pcall(function()
+                    return readAtLimit.answer
+                end)
+                local readTooLong = chain(2001, "__index", readTerminal)
+                local readLongOk, readLongMessage = pcall(function()
+                    return readTooLong.answer
+                end)
+
+                local oldNumberMetatable = debug.getmetatable(0)
+                debug.setmetatable(0, { __index = readTerminal })
+                local mixedAtLimit = chain(1999, "__index", 0)
+                local mixedOk, mixedValue = pcall(function()
+                    return mixedAtLimit.answer
+                end)
+                local mixedTooLong = chain(2000, "__index", 0)
+                local mixedLongOk, mixedLongMessage = pcall(function()
+                    return mixedTooLong.answer
+                end)
+                debug.setmetatable(0, oldNumberMetatable)
+
+                local hostWriteTerminal = { written = "old" }
+                debug.setmetatable(chainHost, {
+                    __index = readTerminal,
+                    __newindex = hostWriteTerminal,
+                })
+                local userDataAtLimit = dualChain(1999, chainHost)
+                local userDataRead = userDataAtLimit.answer
+                userDataAtLimit.written = "userdata-limit"
+
+                local existingWriteTerminal = { answer = "old" }
+                local writeAtLimit = chain(2000, "__newindex", existingWriteTerminal)
+                local writeOk, writeMessage = pcall(function()
+                    writeAtLimit.answer = "write-limit"
+                end)
+                local absentWriteTerminal = {}
+                local writeWithinLimit = chain(1999, "__newindex", absentWriteTerminal)
+                local absentOk, absentMessage = pcall(function()
+                    writeWithinLimit.answer = "write-within-limit"
+                end)
+                local rejectedWriteTerminal = {}
+                local writeTooLong = chain(2000, "__newindex", rejectedWriteTerminal)
+                local writeLongOk, writeLongMessage = pcall(function()
+                    writeTooLong.answer = "rejected"
+                end)
+
+                collectgarbage()
+
+                return readOk, readValue, readLongOk, readLongMessage,
+                    mixedOk, mixedValue, mixedLongOk, mixedLongMessage,
+                    userDataRead, hostWriteTerminal.written,
+                    writeOk, writeMessage, existingWriteTerminal.answer,
+                    absentOk, absentMessage, absentWriteTerminal.answer,
+                    writeLongOk, writeLongMessage, rejectedWriteTerminal.answer
+                """.trimIndent(),
+                "table-metamethod-chain-boundary.lua",
+            ),
+        )
+        assertEquals(LuaStatus.OK, state.pcall(0, -1), state.toString(-1))
+
+        assertTrue(state.toBoolean(1))
+        assertEquals("read-limit", state.toString(2))
+        assertFalse(state.toBoolean(3))
+        assertEquals("'__index' chain too long; possible loop", state.toString(4))
+        assertTrue(state.toBoolean(5))
+        assertEquals("read-limit", state.toString(6))
+        assertFalse(state.toBoolean(7))
+        assertEquals("'__index' chain too long; possible loop", state.toString(8))
+        assertEquals("read-limit", state.toString(9))
+        assertEquals("userdata-limit", state.toString(10))
+        assertTrue(state.toBoolean(11), state.toString(12))
+        assertEquals("write-limit", state.toString(13))
+        assertTrue(state.toBoolean(14), state.toString(15))
+        assertEquals("write-within-limit", state.toString(16))
+        assertFalse(state.toBoolean(17))
+        assertEquals("'__newindex' chain too long; possible loop", state.toString(18))
+        assertTrue(state.isNil(19))
+    }
+
+    @Test
     fun `primitive type operator metatables drive fallback operations`() {
         val state = LuaState.create()
         LuaStdlib.openLibs(state)

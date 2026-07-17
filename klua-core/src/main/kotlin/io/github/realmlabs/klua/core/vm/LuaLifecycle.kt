@@ -259,41 +259,44 @@ private class ReachabilityTrace(
     }
 
     private fun visit(value: LuaValue) {
-        if (visited.put(value, true) != null) {
-            return
-        }
-        when (value) {
-            is LuaTable -> visitTable(value)
-            is LuaUserData -> {
-                reachableIdentities[value.value] = true
-                userDataMetatable(value.value)?.let(::visit)
-                userDataValues(value.value).forEach(::visit)
+        val pending = ArrayDeque<LuaValue>()
+        pending.addLast(value)
+        while (pending.isNotEmpty()) {
+            val current = pending.removeLast()
+            if (visited.put(current, true) != null) {
+                continue
             }
-            is LuaClosure -> {
-                value.upvalues.forEach { upvalue -> visit(upvalue.value) }
-                value.globals?.let(::visit)
-                value.environment?.value?.let(::visit)
-            }
-            else -> Unit
-        }
-    }
-
-    private fun visitTable(table: LuaTable) {
-        reachableIdentities[table] = true
-        table.metatable?.let(::visit)
-        when (weakMode(table)) {
-            WeakMode.STRONG -> table.rawEntries().forEach { (key, value) ->
-                visit(key)
-                visit(value)
-            }
-            WeakMode.WEAK_VALUES -> {
-                weakValues[table] = true
-                table.rawEntries().keys.forEach(::visit)
-            }
-            WeakMode.WEAK_KEYS -> weakKeys[table] = true
-            WeakMode.ALL_WEAK -> {
-                weakKeys[table] = true
-                weakValues[table] = true
+            when (current) {
+                is LuaTable -> {
+                    reachableIdentities[current] = true
+                    current.metatable?.let(pending::addLast)
+                    when (weakMode(current)) {
+                        WeakMode.STRONG -> current.rawEntries().forEach { (key, fieldValue) ->
+                            pending.addLast(key)
+                            pending.addLast(fieldValue)
+                        }
+                        WeakMode.WEAK_VALUES -> {
+                            weakValues[current] = true
+                            current.rawEntries().keys.forEach(pending::addLast)
+                        }
+                        WeakMode.WEAK_KEYS -> weakKeys[current] = true
+                        WeakMode.ALL_WEAK -> {
+                            weakKeys[current] = true
+                            weakValues[current] = true
+                        }
+                    }
+                }
+                is LuaUserData -> {
+                    reachableIdentities[current.value] = true
+                    userDataMetatable(current.value)?.let(pending::addLast)
+                    userDataValues(current.value).forEach(pending::addLast)
+                }
+                is LuaClosure -> {
+                    current.upvalues.forEach { upvalue -> pending.addLast(upvalue.value) }
+                    current.globals?.let(pending::addLast)
+                    current.environment?.value?.let(pending::addLast)
+                }
+                else -> Unit
             }
         }
     }
