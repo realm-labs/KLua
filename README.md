@@ -4,9 +4,9 @@ KLua is a work-in-progress pure Kotlin Lua runtime for JVM 17+. It aims to provi
 
 ## Status
 
-KLua is pre-1.0 and not production-ready. Public APIs may change while the runtime moves toward a complete Lua implementation.
+KLua is pre-1.0 and not production-ready. The public ABI and local artifact contract are now checked, but user documentation, the release-candidate performance qualification, and final packaging still remain before v1.
 
-The repository currently includes a multi-module Gradle project, lexer/parser/compiler/VM pieces, internal KLua bytecode and disassembly support, KLua bytecode package compile/load APIs including packaged resource loading, a single Lua 5.5 runtime target, basic globals and native function calls, a Java-friendly `LuaState` API, a higher-level `Lua` facade, Kotlin extension helpers, partial base/math/string/table/utf8/package/coroutine/os/debug standard library support, initial debug/DAP/tooling foundations, instruction-limit enforcement, standard-library whitelisting, tests, and a JMH benchmark module. Broader standard library conformance, debug tooling integration, sandboxing, Lua 5.5 conformance hardening, and performance work are still roadmap items.
+The repository includes the complete source-to-interpreter path, KLua bytecode packages, low- and high-level embedding APIs, Kotlin helpers, source-backed base/math/string/table/UTF-8/package/coroutine/IO/OS/debug libraries, sandbox controls, lifecycle behavior, source debugging, DAP and CLI tooling cores, conformance coverage, compiled examples, and JMH benchmarks. Accepted JVM/host adaptations are recorded in the conformance matrix.
 
 ## Goals
 
@@ -23,10 +23,11 @@ The repository currently includes a multi-module Gradle project, lexer/parser/co
 - `klua-core`: internal lexer, parser, AST, compiler, bytecode, value model, and VM runtime.
 - `klua-api`: stable Java-friendly public API surface, including `LuaState`, `Lua`, `LuaChunk`, and host function types.
 - `klua-kotlin`: Kotlin extension helpers for the public API.
-- `klua-stdlib`: partial standard library integration, currently covering base, math, string, table, utf8, package, coroutine, os, and debug functions.
-- `klua-debug`: initial runtime debugging internals.
-- `klua-dap`: initial Debug Adapter Protocol integration.
-- `klua-tools`: initial command-line tools.
+- `klua-stdlib`: source-backed base, math, string, table, UTF-8, package, coroutine, IO, OS, and debug library integration.
+- `klua-debug`: source-level debugger state, breakpoints, stepping, frames, variables, and live sessions.
+- `klua-dap`: typed Debug Adapter Protocol models, JSON/framing, wire sessions, and live-session integration.
+- `klua-tools`: CLI debugger and KLua bytecode compiler cores; standalone distribution packaging is still pending.
+- `klua-examples`: compiled and executed Java/Kotlin embedding examples; not a release artifact.
 - `klua-jmh`: JMH benchmarks.
 - `klua-tests`: cross-module foundation, integration, and conformance tests.
 
@@ -182,7 +183,21 @@ val config = LuaConfig(
 )
 ```
 
-The general-purpose `LuaConfig()` default keeps `unsafeStandardLibraryAccessEnabled = true` for backward compatibility; use the production preset when executing untrusted scripts.
+The general-purpose `LuaConfig()` default keeps `unsafeStandardLibraryAccessEnabled = true` for local tooling and trusted embedding; use the production preset when executing untrusted scripts.
+
+The corresponding repository programs are compiled and executed by `./gradlew :klua-examples:test`:
+
+- [KotlinEmbeddingExample.kt](klua-examples/src/main/kotlin/io/github/realmlabs/klua/examples/KotlinEmbeddingExample.kt)
+- [JavaEmbeddingExample.java](klua-examples/src/main/java/io/github/realmlabs/klua/examples/JavaEmbeddingExample.java)
+
+## Documentation
+
+- [Embedding guide](docs/KLua_Embedding_Guide.md): Java/Kotlin setup, high- and low-level APIs, host functions, userdata, coroutines, bytecode, and LuaJ-style migration notes.
+- [Sandbox and standard library guide](docs/KLua_Sandbox_and_Standard_Library.md): production configuration, library gates, capabilities, limits, I/O, and deployment checks.
+- [Debug tooling guide](docs/KLua_Debug_Tooling.md): CLI debugging, DAP integration, bytecode tooling, and the current standalone-host limitation.
+- [Performance guide](docs/KLua_Performance_Guide.md): workload advice, benchmark reproduction, comparable measurement, and release gates.
+- [Conformance matrix](docs/KLua_Conformance_Gaps.md): source-backed coverage and accepted JVM adaptations.
+- [Release contract](docs/KLua_Release_Contract.md): artifacts, ABI checks, compatibility, and versioning.
 
 ## Architecture
 
@@ -221,7 +236,7 @@ Run the configured warmup, measurement, and fork settings with:
 
 Benchmark numbers are only comparable when the JVM, hardware, operating system, power settings, and JMH arguments are held constant. The short smoke commands used during development prove that benchmarks execute; they are not optimization evidence.
 
-Recorded checkpoints and the evidence used to select optimization targets live in [docs/KLua_Benchmark_Baseline.md](docs/KLua_Benchmark_Baseline.md).
+Recorded checkpoints and the evidence used to select optimization targets live in [docs/KLua_Benchmark_Baseline.md](docs/KLua_Benchmark_Baseline.md). For user-facing reproduction and interpretation guidance, see [docs/KLua_Performance_Guide.md](docs/KLua_Performance_Guide.md).
 
 See [docs/KLua_Architecture.md](docs/KLua_Architecture.md) for the full architecture notes.
 

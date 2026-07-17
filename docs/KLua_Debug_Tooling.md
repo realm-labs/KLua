@@ -8,6 +8,8 @@ KLua debug tooling is split across three modules:
 
 The CLI and transport-independent DAP session now consume live VM stop contexts. The project does not yet package a standalone executable DAP adapter process; an adapter host must still connect `DapMessageConnection` to its chosen stream or socket.
 
+For runtime creation, callbacks, userdata, and coroutine entry points, start with [the embedding guide](KLua_Embedding_Guide.md). Disable debugger attachment for untrusted execution as described in [the sandbox guide](KLua_Sandbox_and_Standard_Library.md).
+
 ## Bytecode Compiler
 
 The tooling wrapper can compile a Lua source script into KLua's internal bytecode package format:

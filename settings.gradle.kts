@@ -19,6 +19,7 @@ include(
     "klua-core",
     "klua-dap",
     "klua-debug",
+    "klua-examples",
     "klua-jmh",
     "klua-kotlin",
     "klua-stdlib",

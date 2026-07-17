@@ -16,7 +16,7 @@ The authoritative group and version are `klua.group` and `klua.version` in `grad
 | `io.github.realmlabs.klua:klua-tools` | `io.github.realmlabs.klua.tools` | Supported command-line parsing and runner API. Executable packaging remains separate release work. |
 | `io.github.realmlabs.klua:klua-core` | `io.github.realmlabs.klua.core` | Runtime implementation dependency. Its compiler, VM, bytecode, value, parser, AST, and core bridge types are not a compatibility surface for embedders. |
 
-Every component produces a binary JAR, a sources JAR, and a generated Maven POM. `klua-api` keeps `klua-core` at Maven runtime scope so Java consumers do not compile against runtime representations. `klua-jmh` and `klua-tests` are verification modules rather than release components. No `klua-all` component exists yet, and no remote publication repository is configured.
+Every component produces a binary JAR, a sources JAR, and a generated Maven POM. `klua-api` keeps `klua-core` at Maven runtime scope so Java consumers do not compile against runtime representations. `klua-examples`, `klua-jmh`, and `klua-tests` are verification modules rather than release components. No `klua-all` component exists yet, and no remote publication repository is configured.
 
 Run the local artifact contract with:
 
