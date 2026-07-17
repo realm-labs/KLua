@@ -1651,34 +1651,70 @@ internal class LuaVm(
     }
 
     private fun getTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val destination = register(frame, Instruction.a(instruction))
         val receiver = stack.get(register(frame, Instruction.b(instruction)))
-        val key = stack.get(register(frame, Instruction.c(instruction)))
-        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key, allowSuspension = true))
+        val keyIndex = register(frame, Instruction.c(instruction))
+        if (receiver is LuaTable && fastTableGet(stack, receiver, keyIndex, destination)) {
+            return
+        }
+        val key = stack.get(keyIndex)
+        stack.set(destination, indexGet(receiver, key, allowSuspension = true))
     }
 
     private fun setTable(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val receiver = stack.get(register(frame, Instruction.a(instruction)))
-        val key = stack.get(register(frame, Instruction.b(instruction)))
-        val value = stack.get(register(frame, Instruction.c(instruction)))
+        val keyIndex = register(frame, Instruction.b(instruction))
+        val valueIndex = register(frame, Instruction.c(instruction))
+        if (receiver is LuaTable && fastTableSet(stack, receiver, keyIndex, valueIndex)) {
+            return
+        }
+        val key = stack.get(keyIndex)
+        val value = stack.get(valueIndex)
         indexSet(receiver, key, value, allowSuspension = true)
     }
 
     private fun getField(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val destination = register(frame, Instruction.a(instruction))
         val receiver = stack.get(register(frame, Instruction.b(instruction)))
         val key = stringConstant(frame.prototype, Instruction.c(instruction))
-        stack.set(register(frame, Instruction.a(instruction)), indexGet(receiver, key, allowSuspension = true))
+        if (receiver is LuaTable) {
+            if (stack.copyFromTable(receiver, key, destination)) {
+                return
+            }
+            if (receiver.metatableRawGet(INDEX_KEY) == LuaNil) {
+                stack.setNil(destination)
+                return
+            }
+        }
+        stack.set(destination, indexGet(receiver, key, allowSuspension = true))
     }
 
     private fun setField(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val receiver = stack.get(register(frame, Instruction.a(instruction)))
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
-        val value = stack.get(register(frame, Instruction.c(instruction)))
+        val valueIndex = register(frame, Instruction.c(instruction))
+        if (receiver is LuaTable && receiver.allowsRawSetString(key)) {
+            stack.copyToTable(valueIndex, receiver, key)
+            return
+        }
+        val value = stack.get(valueIndex)
         indexSet(receiver, key, value, allowSuspension = true)
     }
 
     private fun getGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
+        val destination = register(frame, Instruction.a(instruction))
         val key = stringConstant(frame.prototype, Instruction.b(instruction))
-        stack.set(register(frame, Instruction.a(instruction)), indexGet(frame.globals, key, allowSuspension = true))
+        val globals = frame.globals
+        if (globals is LuaTable) {
+            if (stack.copyFromTable(globals, key, destination)) {
+                return
+            }
+            if (globals.metatableRawGet(INDEX_KEY) == LuaNil) {
+                stack.setNil(destination)
+                return
+            }
+        }
+        stack.set(destination, indexGet(globals, key, allowSuspension = true))
     }
 
     private fun activeUpvalues(frame: CallFrame): List<LuaNativeUpvalue> {
@@ -1709,8 +1745,57 @@ internal class LuaVm(
 
     private fun setGlobal(stack: LuaStack, frame: CallFrame, instruction: Int) {
         val key = stringConstant(frame.prototype, Instruction.a(instruction))
-        val value = stack.get(register(frame, Instruction.b(instruction)))
-        indexSet(frame.globals, key, value, allowSuspension = true)
+        val valueIndex = register(frame, Instruction.b(instruction))
+        val globals = frame.globals
+        if (globals is LuaTable && globals.allowsRawSetString(key)) {
+            stack.copyToTable(valueIndex, globals, key)
+            return
+        }
+        val value = stack.get(valueIndex)
+        indexSet(globals, key, value, allowSuspension = true)
+    }
+
+    private fun fastTableGet(stack: LuaStack, table: LuaTable, keyIndex: Int, destination: Int): Boolean {
+        val found = when (stack.tagCode(keyIndex)) {
+            LuaValueTag.INTEGER.ordinal -> stack.copyFromTable(table, stack.integerValue(keyIndex), destination)
+            LuaValueTag.REFERENCE.ordinal -> {
+                val key = stack.get(keyIndex)
+                if (key is LuaString) stack.copyFromTable(table, key, destination) else return false
+            }
+            else -> return false
+        }
+        if (found) {
+            return true
+        }
+        if (table.metatableRawGet(INDEX_KEY) == LuaNil) {
+            stack.setNil(destination)
+            return true
+        }
+        return false
+    }
+
+    private fun fastTableSet(stack: LuaStack, table: LuaTable, keyIndex: Int, valueIndex: Int): Boolean {
+        return when (stack.tagCode(keyIndex)) {
+            LuaValueTag.INTEGER.ordinal -> {
+                val key = stack.integerValue(keyIndex)
+                if (!table.allowsRawSetInteger(key)) {
+                    false
+                } else {
+                    stack.copyToTable(valueIndex, table, key)
+                    true
+                }
+            }
+            LuaValueTag.REFERENCE.ordinal -> {
+                val key = stack.get(keyIndex)
+                if (key !is LuaString || !table.allowsRawSetString(key)) {
+                    false
+                } else {
+                    stack.copyToTable(valueIndex, table, key)
+                    true
+                }
+            }
+            else -> false
+        }
     }
 
     private fun checkGlobalNil(frame: CallFrame, instruction: Int) {

@@ -1,6 +1,8 @@
 package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.value.LuaNil
+import io.github.realmlabs.klua.core.value.LuaString
+import io.github.realmlabs.klua.core.value.LuaTable
 import io.github.realmlabs.klua.core.value.LuaUpvalue
 import io.github.realmlabs.klua.core.value.LuaValue
 import io.github.realmlabs.klua.core.value.LuaValueSlots
@@ -126,6 +128,61 @@ internal open class LuaStack(size: Int, reservedSlots: Int = 0) :
         ensureIndex(to)
         source.rawCopyTo(from, this, to)
         captures?.get(to)?.copyFrom(this, to)
+    }
+
+    internal fun copyFromTable(table: LuaTable, key: LuaValue, to: Int): Boolean {
+        ensureIndex(to)
+        val capture = captures?.get(to)
+        val copied = if (capture == null) {
+            table.rawCopyTo(key, this, to)
+        } else {
+            table.rawCopyTo(key, capture, 0).also { success ->
+                if (success) capture.copyTo(this, to)
+            }
+        }
+        return copied
+    }
+
+    internal fun copyFromTable(table: LuaTable, key: Long, to: Int): Boolean {
+        ensureIndex(to)
+        val capture = captures?.get(to)
+        return if (capture == null) {
+            table.rawCopyIntegerTo(key, this, to)
+        } else {
+            table.rawCopyIntegerTo(key, capture, 0).also { success ->
+                if (success) capture.copyTo(this, to)
+            }
+        }
+    }
+
+    internal fun copyFromTable(table: LuaTable, key: LuaString, to: Int): Boolean {
+        ensureIndex(to)
+        val capture = captures?.get(to)
+        return if (capture == null) {
+            table.rawCopyStringTo(key, this, to)
+        } else {
+            table.rawCopyStringTo(key, capture, 0).also { success ->
+                if (success) capture.copyTo(this, to)
+            }
+        }
+    }
+
+    internal fun copyToTable(from: Int, table: LuaTable, key: LuaValue) {
+        checkIndex(from)
+        val capture = captures?.get(from)
+        if (capture == null) table.rawSetFrom(key, this, from) else table.rawSetFrom(key, capture, 0)
+    }
+
+    internal fun copyToTable(from: Int, table: LuaTable, key: Long) {
+        checkIndex(from)
+        val capture = captures?.get(from)
+        if (capture == null) table.rawSetIntegerFrom(key, this, from) else table.rawSetIntegerFrom(key, capture, 0)
+    }
+
+    internal fun copyToTable(from: Int, table: LuaTable, key: LuaString) {
+        checkIndex(from)
+        val capture = captures?.get(from)
+        if (capture == null) table.rawSetStringFrom(key, this, from) else table.rawSetStringFrom(key, capture, 0)
     }
 
     internal fun ensureStackIndex(index: Int) {

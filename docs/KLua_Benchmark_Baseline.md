@@ -122,6 +122,26 @@ Matched JDK 17 measurements against the accepted pre-refactor checkpoint are:
 
 The vararg allocation increase remains below the 5% gate and retains tagged storage rather than falling back to boxed lists. The full 22-workload timing screen found no regression supported by two matched runs under the combined-uncertainty rule. A focused table rerun measured 2,925.485 ±1,302.353 µs/op, consistent with the canonical 3,020.783 ±1,816.435 µs/op point, with allocation unchanged. The complete Gradle suite and JMH build pass.
 
+## 2026-07-17 Hybrid Table Checkpoint
+
+The third representation package replaces the core table's general `LinkedHashMap<LuaValue, LuaValue>` hot path with a density-grown integer array and an open-addressed specialized hash part. Both parts store values in tagged payload/reference slots, so common integer-index and string-field VM instructions transfer primitive values directly between stack and table storage without wrapper allocation. Generic API, debug, lifecycle, and snapshot boundaries still materialize ordinary `LuaValue` objects. Raw traversal emits occupied array indices in ascending order before hash slots, and integral-float canonicalization, weak modes, ephemerons, `__mode`, `__gc`, metatable fallback, and debug/public synchronization continue through the existing semantic paths.
+
+Every table now exposes internal content and shape versions. Value replacement advances the content version; key insertion/removal and metatable-identity replacement advance both. A metatable's own field mutations advance that metatable's versions, giving the following guarded-cache package an explicit receiver/metatable invalidation contract without exposing representation details through public APIs or bytecode.
+
+The representation follows Lua 5.5's `Table`/`Node` layout in `lobject.h`; integer classification, density sizing, rehashing, array-before-hash traversal, specialized get/set, and border search in `ltable.c`; fast get/set fallback in `lvm.c`; and metamethod-absence invalidation in `ltm.c`. Focused tests cover dense migration, sparse and nonpositive integer keys, hash deletion/compaction, traversal policy, numeric canonicalization, length-border hints, content-versus-shape mutation, metatable replacement, captured-register transfers, and raw float payloads. The existing full suite retains weak-table, ephemeron, finalization, iteration, API/debug mutation, and metatable coverage.
+
+Matched JDK 17 measurements against the accepted pre-refactor checkpoint are:
+
+| Benchmark | Metric | Comparison point | Hybrid tables | Delta |
+| --- | --- | ---: | ---: | ---: |
+| Table writes and reads | Average time | 3,020.783 µs/op | 2,655.804 / 3,326.689 µs/op | -12.1% / +10.1% |
+| Table writes and reads | Allocation | 1,253,580.710 B/op | 298,335.955 / 297,833.097 B/op | -76.2% / -76.2% |
+| Entity-update kernel | Average time | 7,877.180 µs/op | 6,791.432 / 7,120.167 µs/op | -13.8% / -9.6% |
+| Entity-update kernel | Allocation | 3,272,176.261 B/op | 2,204,512.432 / 2,211,477.832 B/op | -32.6% / -32.4% |
+| Debug-disabled control | Allocation | 1,168.588 B/op after tagged slots | 1,205.064 B/op | +3.1% |
+
+Slash-separated values are two independent matched runs. Table and entity allocation improvements reproduce tightly. Table timing moved to opposite sides of the canonical point, while both intervals overlap it, so the two-run and combined-uncertainty policy does not support a regression. The debug-control allocation change remains below the 5% gate. One broad timing screen was rejected because every control, including table-independent numeric execution, shifted uniformly to roughly twice its adjacent matched value. The immediate focused rerun restored the numeric control to 709.783 ±53.304 µs/op and measured the table control at 2,929.878 ±1,426.921 µs/op. No unrelated regression is supported. The complete Gradle suite and JMH build pass.
+
 ## 2026-07-15 Runtime Workload Baseline
 
 Environment:

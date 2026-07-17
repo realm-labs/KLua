@@ -5,6 +5,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertNotEquals
 import kotlin.test.assertSame
+import kotlin.test.assertTrue
 
 class LuaTableTest {
     @Test
@@ -87,6 +88,110 @@ class LuaTableTest {
         assertFailsWith<LuaTableKeyException> {
             table.rawSet(LuaFloat(Double.NaN), LuaInteger(1))
         }
+    }
+
+    @Test
+    fun `rebalances dense integer keys into the array before hash entries`() {
+        val table = LuaTable()
+
+        table.rawSet(LuaInteger(8), LuaString("eight"))
+        for (index in 1L..7L) {
+            table.rawSet(LuaInteger(index), LuaInteger(index * 10L))
+        }
+        table.rawSet(LuaString("name"), LuaString("klua"))
+
+        assertTrue(table.arrayCapacity >= 8)
+        assertEquals(LuaString("eight"), table.rawGet(LuaInteger(8)))
+        assertEquals(9, table.rawSize)
+        assertEquals(
+            (1L..8L).map(::LuaInteger),
+            table.rawEntries().keys.take(8),
+        )
+        assertEquals(LuaString("name"), table.rawEntries().keys.last())
+    }
+
+    @Test
+    fun `keeps sparse and nonpositive integer keys in the hash part`() {
+        val table = LuaTable()
+
+        table.rawSet(LuaInteger(-1), LuaString("negative"))
+        table.rawSet(LuaInteger(1_000_000), LuaString("sparse"))
+
+        assertEquals(0, table.arrayCapacity)
+        assertTrue(table.hashCapacity >= 4)
+        assertEquals(LuaString("negative"), table.rawGet(LuaInteger(-1)))
+        assertEquals(LuaString("sparse"), table.rawGet(LuaInteger(1_000_000)))
+    }
+
+    @Test
+    fun `hash deletion compaction preserves every surviving and reinserted key`() {
+        val table = LuaTable()
+        for (index in 0 until 64) {
+            table.rawSet(LuaString("key-$index"), LuaInteger(index.toLong()))
+        }
+        for (index in 0 until 64 step 2) {
+            table.rawSet(LuaString("key-$index"), LuaNil)
+        }
+        for (index in 0 until 64 step 2) {
+            table.rawSet(LuaString("key-$index"), LuaInteger((index + 100).toLong()))
+        }
+
+        assertEquals(64, table.rawSize)
+        for (index in 0 until 64) {
+            val expected = if (index % 2 == 0) index + 100 else index
+            assertEquals(LuaInteger(expected.toLong()), table.rawGet(LuaString("key-$index")))
+        }
+    }
+
+    @Test
+    fun `content and shape versions distinguish replacement from structural mutation`() {
+        val table = LuaTable()
+        val metatable = LuaTable()
+
+        table.rawSet(LuaString("answer"), LuaInteger(1))
+        assertEquals(1, table.version)
+        assertEquals(1, table.shapeVersion)
+
+        table.rawSet(LuaString("answer"), LuaInteger(2))
+        assertEquals(2, table.version)
+        assertEquals(1, table.shapeVersion)
+
+        table.rawSet(LuaString("answer"), LuaNil)
+        assertEquals(3, table.version)
+        assertEquals(2, table.shapeVersion)
+
+        table.rawSet(LuaString("answer"), LuaNil)
+        assertEquals(3, table.version)
+        assertEquals(2, table.shapeVersion)
+
+        table.metatable = metatable
+        assertEquals(4, table.version)
+        assertEquals(3, table.shapeVersion)
+        table.metatable = metatable
+        assertEquals(4, table.version)
+        assertEquals(3, table.shapeVersion)
+
+        metatable.rawSet(LuaString("__index"), LuaInteger(42))
+        assertEquals(4, table.version)
+        assertEquals(1, metatable.version)
+        assertEquals(1, metatable.shapeVersion)
+        metatable.rawSet(LuaString("__index"), LuaInteger(43))
+        assertEquals(2, metatable.version)
+        assertEquals(1, metatable.shapeVersion)
+    }
+
+    @Test
+    fun `raw length returns stable borders as dense tails change`() {
+        val table = LuaTable()
+        for (index in 1L..4L) {
+            table.rawSetInteger(index, LuaInteger(index))
+        }
+
+        assertEquals(4, table.rawLength())
+        table.rawSetInteger(4, LuaNil)
+        assertEquals(3, table.rawLength())
+        table.rawSetInteger(2, LuaNil)
+        assertEquals(3, table.rawLength())
     }
 
     @Test

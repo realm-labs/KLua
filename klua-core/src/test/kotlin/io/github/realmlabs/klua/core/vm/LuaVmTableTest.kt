@@ -2,6 +2,7 @@ package io.github.realmlabs.klua.core.vm
 
 import io.github.realmlabs.klua.core.compiler.Compiler
 import io.github.realmlabs.klua.core.value.LuaBoolean
+import io.github.realmlabs.klua.core.value.LuaFloat
 import io.github.realmlabs.klua.core.value.LuaInteger
 import io.github.realmlabs.klua.core.value.LuaNil
 import io.github.realmlabs.klua.core.value.LuaTable
@@ -9,6 +10,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
 import kotlin.test.assertNotSame
+import kotlin.test.assertTrue
 
 class LuaVmTableTest {
     @Test
@@ -191,6 +193,49 @@ class LuaVmTableTest {
         )
 
         assertEquals(listOf(LuaInteger(42)), result)
+    }
+
+    @Test
+    fun `tagged table transfers keep captured integer locals live`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local value = 40
+                local function captured()
+                    return value
+                end
+                local table = {}
+                table[1] = value
+                value = table[1]
+                value = value + 2
+                table.answer = value
+                value = table.answer
+                return value, captured(), table[1], table.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals(
+            listOf(LuaInteger(42), LuaInteger(42), LuaInteger(40), LuaInteger(42)),
+            result,
+        )
+    }
+
+    @Test
+    fun `tagged table values preserve float payloads`() {
+        val result = LuaVm().execute(
+            Compiler.compile(
+                """
+                local table = {}
+                table[1] = -0.0
+                table.answer = 0 / 0
+                return table[1], table.answer
+                """.trimIndent(),
+            ),
+        )
+
+        assertEquals((-0.0).toRawBits(), (result[0] as LuaFloat).value.toRawBits())
+        assertTrue((result[1] as LuaFloat).value.isNaN())
     }
 
     @Test
